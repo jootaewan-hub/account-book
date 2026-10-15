@@ -23,6 +23,57 @@ describe('모델 출력 정리 (checkEntries)', () => {
     expect(hasItemMismatch([e, bad])).toBe(true)
   })
 
+  const line = (name: string, quantity: number, unit_price: number | null, amount: number, is_product = true) =>
+    ({ name, is_product, pack_size: null, pack_unit: null, category: null, quantity, unit_price, amount, image_box: null })
+
+  it('수량 옆 가격(합계)에 수량을 또 곱한 상품 줄은 결제 금액에 맞춰 되돌리고 알려 준다', () => {
+    const [e] = checkEntries({ note: null, entries: [entry({ merchant: '쿠팡', amount: 71800, items: [line('LED 4구 멀티탭', 2, 71800, 143600)] })] })
+    expect(e.items[0]).toMatchObject({ quantity: 2, unit_price: 35900, amount: 71800 })
+    expect(e.items_match).toBe(true)
+    expect(e.price_fixes).toEqual(['LED 4구 멀티탭: 2개 금액을 143,600원에서 71,800원으로 고쳤어요(1개 35,900원). 결제 금액에 맞췄으니 화면과 다르면 고쳐 주세요.'])
+    expect(hasItemMismatch([e])).toBe(false) // 고쳐지면 큰 모델로 다시 읽지 않는다
+    const [d] = toDrafts([e], { today: '2026-10-15', methods: [], categories: [], existing: [], fallbackMethodId: null, fallbackScope: 'shared' })
+    expect(d.amount).toBe(71800)
+    expect(d.warnings).toContain(e.price_fixes![0])
+  })
+
+  it('배송비·할인이 섞인 주문에서도 틀린 줄만 고친다', () => {
+    const [e] = checkEntries({ note: null, entries: [entry({ amount: 66910, items: [
+      line('전동그라인더 메탈 그레이', 2, 28710, 57420),
+      line('올스텐 접시 꽂이', 3, 12400, 37200),
+      line('배송비', 1, null, 3000, false),
+      line('쿠폰 할인', 1, null, -2000, false),
+    ] })] })
+    expect(e.items.map((it) => [it.unit_price, it.amount])).toEqual([[14355, 28710], [12400, 37200], [null, 3000], [null, -2000]])
+    expect(e.items_match).toBe(true)
+    expect(e.price_fixes).toHaveLength(1)
+    // 상품이 둘이라 상품별로 나눠도 고친 금액이 그대로 내역 금액이 된다
+    const ds = toDrafts([e], { today: '2026-10-15', methods: [], categories: [], existing: [], fallbackMethodId: null, fallbackScope: 'shared' })
+    expect(ds.reduce((s, d) => s + d.amount, 0)).toBe(66910)
+  })
+
+  it('1개 가격만 줄 금액으로 넣었으면 수량을 곱한다', () => {
+    const [e] = checkEntries({ note: null, entries: [entry({ amount: 10880, items: [line('노세범 미네랄 파우더', 2, 5440, 5440)] })] })
+    expect(e.items[0]).toMatchObject({ unit_price: 5440, amount: 10880 })
+    expect(e.items_match).toBe(true)
+  })
+
+  it('맞는 조합이 여럿이거나 없으면 고치지 않고 합계가 다르다고만 알린다', () => {
+    const [two] = checkEntries({ note: null, entries: [entry({ amount: 30000, items: [line('A', 2, 20000, 20000), line('B', 2, 20000, 20000)] })] })
+    expect(two.items.map((it) => it.amount)).toEqual([20000, 20000])
+    expect(two.items_match).toBe(false)
+    expect(two.price_fixes).toBeUndefined()
+    const [off] = checkEntries({ note: null, entries: [entry({ amount: 50000, items: [line('C', 2, 30000, 60000)] })] })
+    expect(off.items[0].amount).toBe(60000)
+    expect(off.items_match).toBe(false)
+  })
+
+  it('합계가 맞는데 1개 가격이 줄 금액과 같으면 1개 가격만 다시 계산한다', () => {
+    const [e] = checkEntries({ note: null, entries: [entry({ amount: 28710, items: [line('그라인더', 2, 28710, 28710)] })] })
+    expect(e.items[0]).toMatchObject({ unit_price: 14355, amount: 28710 })
+    expect(e.price_fixes).toBeUndefined()
+  })
+
   it('형식이 틀린 날짜·시간·끝자리는 비우고, 0원은 버린다', () => {
     const out = checkEntries({ note: null, entries: [
       entry({ date: '10/13', time: '6시', card_last4: '***4', amount: 9900.4, is_income: true }),

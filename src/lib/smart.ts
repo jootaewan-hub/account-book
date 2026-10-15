@@ -230,6 +230,7 @@ export function entryDrafts(e: CheckedEntry, i: number, ctx: DraftContext, split
   if (cardsInUse && !match.method && match.reason === 'ambiguous' && !remembered) {
     shared.push(`${match.issuer ?? '같은 끝자리'} 카드가 여러 장이라 고르지 못했어요. 결제수단을 골라 주세요.`)
   }
+  if (e.price_fixes) shared.push(...e.price_fixes)
   if (e.items_match === false) shared.push(`품목 합계 ${itemsSum(e.items).toLocaleString()}원이 결제 금액 ${e.amount.toLocaleString()}원과 달라요.`)
   if (e.is_cancellation) shared.push('승인 취소 문자예요. 원래 내역을 찾아 지워 주세요.')
   const platform = draftPlatform(e)

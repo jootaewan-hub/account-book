@@ -20,8 +20,8 @@ export const ItemSchema = z.object({
   name: z.string().describe('상품명 (옵션은 짧게 덧붙임)'),
   is_product: z.boolean().describe('상품이면 true, 배송비·할인·쿠폰·적립금 사용 줄이면 false'),
   quantity: z.number().describe('주문 수량'),
-  unit_price: z.number().nullable().describe('상품 1개(수량 1) 가격'),
-  amount: z.number().describe('이 줄의 금액 (수량×단가)'),
+  unit_price: z.number().nullable().describe('상품 1개(수량 1) 가격. 화면에 1개 가격이 따로 없으면 amount ÷ quantity'),
+  amount: z.number().describe('이 줄의 금액 (수량을 모두 합친 금액)'),
   pack_size: z.number().nullable().describe('상품 1개(수량 1)에 든 총량. 예: 100매×10팩 → 1000. 모르면 null'),
   pack_unit: z.string().nullable().describe('pack_size의 단위: g, ml, 또는 개·매·구·롤·입·병·캔·봉·장·정·포 같은 셈 단위. 모르면 null'),
   category: z.string().nullable().describe('이 상품의 분류 (주어진 분류 목록 중 하나). 배송비·할인이거나 애매하면 null'),
@@ -61,7 +61,7 @@ export const SYSTEM_PROMPT = `당신은 한국 가정의 가계부 입력을 돕
 - card_last4는 카드·계좌 번호의 마지막 4자리입니다. "(1234)"는 1234, "(1*2*)"처럼 가려진 자리는 *로 그대로 둡니다. 4자리가 아니거나 확실하지 않으면 null입니다.
 - payment_hint에는 문자·화면에 보이는 카드사·은행·간편결제 이름과 체크/신용 구분을 그대로 적습니다(예: "신한체크", "KB국민카드", "카카오페이").
 - category는 사용자가 준 분류 목록에 있는 이름만 씁니다. 애매하면 null입니다.
-- items는 품목이 적힌 영수증·주문내역일 때만 채웁니다. 각 품목의 amount는 그 줄의 금액(수량×단가)입니다. 할인 줄은 음수 amount 품목으로 넣습니다.
+- items는 품목이 적힌 영수증·주문내역일 때만 채웁니다. 각 품목의 amount는 그 줄의 금액(수량을 모두 합친 금액)이고, unit_price는 1개 가격입니다. 할인 줄은 음수 amount 품목으로 넣습니다.
 - 보이지 않거나 확실하지 않은 값은 지어내지 말고 null(문자열은 빈 문자열)로 둡니다.
 - platform은 주문·결제한 온라인 플랫폼입니다. 화면의 로고·앱 이름·메뉴 문구·주문번호 형식·배송 표시(로켓배송, 샛별배송, 오늘출발 등)로 판단합니다.
   이름은 다음 중 하나로 씁니다: 쿠팡, 쿠팡이츠, 네이버(네이버페이·스마트스토어·네이버쇼핑), 오늘의집, 컬리(마켓컬리), 11번가, G마켓, 옥션, SSG닷컴, 무신사, 29CM, 에이블리, 지그재그, 알리익스프레스, 테무, 배달의민족, 요기요, 카카오 선물하기, 당근.
@@ -72,6 +72,8 @@ export const SYSTEM_PROMPT = `당신은 한국 가정의 가계부 입력을 돕
   · 한 상품은 entries 전체에서 한 번만 나옵니다. 주문 목록 화면과 주문 상세 화면을 함께 찍었더라도 같은 상품을 다른 entries에 또 넣지 않습니다.
   · merchant는 판매자·가게 이름이고, 보이지 않으면 플랫폼 이름입니다. date는 주문일 또는 결제일입니다.
   · items에는 상품마다 화면에 적힌 상품명(옵션은 짧게 덧붙임), 수량, 단가(1개 가격), 금액, 분류(category, 상품마다 따로)를 넣고 is_product를 true로 합니다. 배송비는 "배송비" 품목, 쿠폰·할인·적립금 사용은 음수 금액 품목으로 넣고 is_product를 false로 합니다.
+  · 주문내역에서 수량 옆에 적힌 상품 가격은 그 수량을 모두 합친 금액입니다(예: "2개 71,800원" → amount 71,800, unit_price 35,900). 이 가격에 수량을 다시 곱하지 않습니다. "개당", "1개당", "단가"라고 적힌 가격만 1개 가격으로 봅니다.
+  · 상품 금액, 배송비, 할인을 모두 더하면 최종 결제 금액과 같아야 합니다. 다르면 수량 옆 가격을 합계로 읽었는지 다시 확인합니다.
   · pack_size와 pack_unit은 상품명·옵션에 적힌 용량·개수로 상품 1개(수량 1)에 든 총량을 계산해 넣습니다. 여러 개 묶음이면 곱합니다(예: "100매 x 10팩" → 1000, 매 / "2L x 6병" → 12000, ml / "500g x 2개" → 1000, g / "30구" → 30, 구). kg은 g으로, L는 ml로 바꿉니다. 셈 단위는 가장 작은 소비 단위를 씁니다(팩·박스보다 매·개·구). 용량이 적혀 있지 않으면 null입니다.
   · 최종 결제 금액이 보이면 amount는 그 값이고, 안 보이면 품목 금액의 합입니다. 취소·반품된 상품은 넣지 않습니다.
 - 영수증 품목도 is_product를 같은 기준으로 넣고, 용량이 품목명에 적혀 있으면 pack_size·pack_unit을 넣습니다.
@@ -148,6 +150,71 @@ export interface CheckedEntry extends Entry {
   type: 'expense' | 'income'
   /** 품목이 있을 때 품목 합계가 결제 금액과 같은지 (품목이 없으면 null) */
   items_match: boolean | null
+  /** 결제 금액에 맞춰 상품 줄 금액을 고친 경우 사용자에게 보일 안내 */
+  price_fixes?: string[]
+}
+
+type Item = Entry['items'][number]
+
+const MAX_FIX_LINES = 8 // 고쳐 볼 줄 수 상한 (경우의 수 3^8)
+const won = (n: number) => String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ',') // 런타임 로캘과 상관없이 1,234
+
+/**
+ * 품목 합계가 결제 금액과 다를 때, 수량 2개 이상인 상품 줄의 금액을 결제 금액에 맞춰 고친다.
+ * 모델이 "2개 71,800원"의 합계를 1개 가격으로 보고 수량을 곱했거나(÷수량), 1개 가격을 합계로 넣은(×수량) 경우다.
+ * 결제 금액과 정확히 맞는 조합 중 고치는 줄이 가장 적은 것이 하나뿐일 때만 고치고, 아니면 그대로 둔다.
+ */
+export function fixLineTotals(items: Item[], total: number): { items: Item[]; fixes: string[] } {
+  const sum = items.reduce((s, it) => s + it.amount, 0)
+  const none = { items, fixes: [] }
+  if (!items.length || sum === total) return none
+  const lines = items.flatMap((it, i) => {
+    const q = it.quantity
+    if (!it.is_product || it.amount <= 0 || !Number.isInteger(q) || q < 2) return []
+    const opts: number[] = []
+    if (it.amount % q === 0) opts.push(it.amount / q)
+    if (it.unit_price === null || it.unit_price === it.amount) opts.push(it.amount * q)
+    return opts.length ? [{ i, opts }] : []
+  })
+  if (!lines.length || lines.length > MAX_FIX_LINES) return none
+
+  let best: number[][] = []
+  let fewest = Infinity
+  const pick: number[] = lines.map(() => -1) // -1이면 그대로
+  const walk = (k: number, s: number, changes: number) => {
+    if (changes > fewest) return
+    if (k === lines.length) {
+      if (s !== total) return
+      if (changes < fewest) { fewest = changes; best = [] }
+      best.push([...pick])
+      return
+    }
+    walk(k + 1, s, changes)
+    const { i, opts } = lines[k]
+    opts.forEach((a, o) => { pick[k] = o; walk(k + 1, s - items[i].amount + a, changes + 1); pick[k] = -1 })
+  }
+  walk(0, sum, 0)
+  if (best.length !== 1) return none
+
+  const out = items.map((it) => ({ ...it }))
+  const fixes: string[] = []
+  best[0].forEach((o, k) => {
+    if (o < 0) return
+    const it = out[lines[k].i]
+    const before = it.amount
+    it.amount = lines[k].opts[o]
+    it.unit_price = Math.round(it.amount / it.quantity)
+    const name = it.name.length > 20 ? `${it.name.slice(0, 20)}…` : it.name
+    fixes.push(`${name}: ${it.quantity}개 금액을 ${won(before)}원에서 ${won(it.amount)}원으로 고쳤어요(1개 ${won(it.unit_price)}원). 결제 금액에 맞췄으니 화면과 다르면 고쳐 주세요.`)
+  })
+  return { items: out, fixes }
+}
+
+/** 품목 합계가 결제 금액과 맞으면 줄 금액을 믿고, 1개 가격이 줄 금액과 같게 적힌 상품은 1개 가격을 다시 계산한다 */
+function fixUnitPrices(items: Item[]): Item[] {
+  return items.map((it) => it.is_product && it.quantity > 1 && it.amount > 0 && it.unit_price === it.amount
+    ? { ...it, unit_price: Math.round(it.amount / it.quantity) }
+    : it)
 }
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
@@ -170,7 +237,8 @@ export function checkEntries(result: ExtractResult, images: ImageSize[] = []): C
           category: it.category?.trim() || null,
           image_box: checkBox(it.image_box ?? null, images),
         }))
-      const sum = items.reduce((s, it) => s + it.amount, 0)
+      const fixed = fixLineTotals(items, amount)
+      const sum = fixed.items.reduce((s, it) => s + it.amount, 0)
       const date = e.date && DATE_RE.test(e.date) && !Number.isNaN(Date.parse(e.date)) ? e.date : null
       return {
         ...e,
@@ -181,8 +249,9 @@ export function checkEntries(result: ExtractResult, images: ImageSize[] = []): C
         platform: e.platform?.trim().slice(0, 30) || null,
         amount,
         card_last4: e.card_last4 && /^[\d*]{4}$/.test(e.card_last4) && /\d.*\d/.test(e.card_last4) ? e.card_last4 : null,
-        items,
+        items: sum === amount ? fixUnitPrices(fixed.items) : fixed.items,
         items_match: items.length ? sum === amount : null,
+        ...(fixed.fixes.length ? { price_fixes: fixed.fixes } : {}),
       }
     })
     .filter((e) => e.amount > 0)
