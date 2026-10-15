@@ -108,6 +108,7 @@ main.wrap { padding-block: 4px calc(150px + env(safe-area-inset-bottom, 0px)); }
 
 /* 요약(내역·통계에서 쓰는 두세 칸) */
 .summary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.summary.four { grid-template-columns: repeat(2, minmax(0, 1fr)); row-gap: 12px; }
 .summary .k { font-size: 13px; font-weight: 500; color: var(--ink-2); }
 .summary .v { font-size: 17px; font-weight: 700; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .v.exp { color: var(--ink); } .v.inc { color: var(--indigo); }

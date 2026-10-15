@@ -20,6 +20,7 @@ const DROP_OLD_EXPORT = read('20261015100000_drop_old_export_rows.sql')
 const BILLS = read('20261015110000_utility_bills.sql')
 const REVOKE_ANON = read('20261015120000_revoke_anon.sql')
 const ANNIV = read('20261015130000_anniversaries.sql')
+const INSTALL = read('20261015140000_installments.sql')
 
 const SUPABASE_STUB = `
 create schema auth;
@@ -90,7 +91,7 @@ async function freshDb(migrations: string[]) {
 }
 
 beforeAll(async () => {
-  db = await freshDb([INIT, ROLES, SMART, HOOK, RECUR, EXPORT_SVC, ITEMS_IMG, CHILD, PLATFORM, EXPORT_PLATFORM, DROP_OLD_EXPORT, BILLS, REVOKE_ANON, ANNIV])
+  db = await freshDb([INIT, ROLES, SMART, HOOK, RECUR, EXPORT_SVC, ITEMS_IMG, CHILD, PLATFORM, EXPORT_PLATFORM, DROP_OLD_EXPORT, BILLS, REVOKE_ANON, ANNIV, INSTALL])
 })
 
 describe('가구 만들기와 참여', () => {
@@ -388,7 +389,7 @@ describe('자녀 (20261015070000_child)', () => {
     await old.exec('set role authenticated')
     await old.query(`select public.create_household('나', 'husband')`)
     await old.exec('reset role')
-    for (const m of [SMART, HOOK, RECUR, EXPORT_SVC, ITEMS_IMG, CHILD, PLATFORM, EXPORT_PLATFORM, DROP_OLD_EXPORT, BILLS, REVOKE_ANON, ANNIV]) await old.exec(m)
+    for (const m of [SMART, HOOK, RECUR, EXPORT_SVC, ITEMS_IMG, CHILD, PLATFORM, EXPORT_PLATFORM, DROP_OLD_EXPORT, BILLS, REVOKE_ANON, ANNIV, INSTALL]) await old.exec(m)
     const rows = (await old.query<{ n: number }>(`select count(*)::int as n from public.categories where name = '자녀'`)).rows
     expect(rows).toEqual([{ n: 1 }])
   })
@@ -506,5 +507,27 @@ describe('기념일 (20261015130000_anniversaries)', () => {
     await as(B, `update public.anniversaries set day = 14 where name = '결혼기념일'`)
     await as(B, `delete from public.anniversaries where name = '윤일 생일'`)
     expect((await as<{ name: string; day: number }>(A, `select name, day from public.anniversaries where not lunar`)).map((r) => [r.name, r.day])).toEqual([['결혼기념일', 14]])
+  })
+})
+
+describe('할부 (20261015140000_installments)', () => {
+  it('남은 회차를 달마다 넣고 메모에 회차를 적으며, 할부는 개월 수와 마지막 달이 꼭 있어야 한다', async () => {
+    // 10월 15일에 3개월 할부로 산 물건: 1회차는 산 날 따로 넣고, 2·3회차가 반복 항목
+    const [{ id }] = await as<{ id: string }>(C,
+      `insert into public.recurring (household_id, kind, title, amount, day_of_month, start_month, end_month, installment_months)
+       values ($1, 'installment', '냉장고', 300000, 15, '2026-11-01', '2026-12-01', 3) returning id`, [hhC])
+    await as(C, `select public.generate_recurring($1, '2027-02-20')`, [hhC])
+    const rows = await as<{ d: string; amount: string; memo: string }>(C,
+      `select to_char(occurred_on, 'YYYY-MM-DD') as d, amount, memo from public.transactions where recurring_id = $1 order by occurred_on`, [id])
+    expect(rows.map((r) => [r.d, Number(r.amount), r.memo])).toEqual([['2026-11-15', 300000, '할부 2/3회'], ['2026-12-15', 300000, '할부 3/3회']])
+    // 할부가 아닌 항목은 메모를 붙이지 않는다
+    const [{ id: fixed }] = await as<{ id: string }>(C,
+      `insert into public.recurring (household_id, kind, title, amount, day_of_month, start_month) values ($1, 'fixed', '보험', 50000, 1, '2027-01-01') returning id`, [hhC])
+    await as(C, `select public.generate_recurring($1, '2027-01-02')`, [hhC])
+    expect(await as(C, `select memo from public.transactions where recurring_id = $1`, [fixed])).toEqual([{ memo: null }])
+    expect(await errorOf(as(C, `insert into public.recurring (household_id, kind, title, amount, day_of_month, start_month) values ($1, 'installment', 'x', 1, 1, '2027-01-01')`, [hhC])))
+      .toContain('recurring_installment_check')
+    expect(await errorOf(as(C, `insert into public.recurring (household_id, kind, title, amount, day_of_month, start_month, end_month, installment_months) values ($1, 'fixed', 'x', 1, 1, '2027-01-01', '2027-03-01', 3)`, [hhC])))
+      .toContain('recurring_installment_check')
   })
 })

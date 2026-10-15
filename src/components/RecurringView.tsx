@@ -3,7 +3,7 @@ import { fetchRange, fetchRecurring, friendlyError, generateRecurring, recordRec
 import { addMonths } from '../lib/dates'
 import { won } from '../lib/format'
 import { SCOPE_LABEL, type Lookup } from '../lib/lookup'
-import { KIND_LABEL, monthlyAmount, nextDue, pastAmounts, pendingInputs, subscriptionCandidates } from '../lib/recurring'
+import { installmentsLeft, KIND_LABEL, monthlyAmount, nextDue, pastAmounts, pendingInputs, subscriptionCandidates } from '../lib/recurring'
 import type { Category, Recurring, RecurringKind, Transaction } from '../lib/types'
 import { draftFrom, RecurringSheet, type RecurringDraft } from './RecurringSheet'
 import { ServiceLogo } from './ServiceLogo'
@@ -64,18 +64,23 @@ export function RecurringView({ householdId, today, lookup, categories, onTxChan
   const sumOf = (k: RecurringKind) => active.filter((r) => r.kind === k).reduce((s, r) => s + monthlyAmount(r), 0)
   const utilityLast = active.filter((r) => r.kind === 'utility' && r.amount === null)
     .reduce((s, r) => s + (pastAmounts(r, history)[0]?.amount ?? 0), 0)
+  // 할부는 남은 회차가 있는 것만 매달 나가는 돈에 넣는다
+  const installment = active.filter((r) => r.kind === 'installment' && installmentsLeft(r, today) > 0).reduce((s, r) => s + monthlyAmount(r), 0)
+  const hasInstallments = list.some((r) => r.kind === 'installment')
+  const kinds: RecurringKind[] = hasInstallments ? [...KINDS, 'installment'] : KINDS
 
   return (
     <section className="view">
       {err && <p className="banner" role="alert">{err}</p>}
       <div className="card">
-        <div className="summary">
+        <div className={`summary${installment > 0 ? ' four' : ''}`}>
           <div><div className="k">고정지출</div><div className="v num">{won(sumOf('fixed'))}</div></div>
           <div><div className="k">구독</div><div className="v num">{won(sumOf('subscription'))}</div></div>
           <div><div className="k">관리비·공과금</div><div className="v num">{won(sumOf('utility') + utilityLast)}</div></div>
+          {installment > 0 && <div><div className="k">할부</div><div className="v num">{won(installment)}</div></div>}
         </div>
         <div className="compare">
-          매달 나가는 돈 약 <b className="num">{won(sumOf('fixed') + sumOf('subscription') + sumOf('utility') + utilityLast)}원</b>
+          매달 나가는 돈 약 <b className="num">{won(sumOf('fixed') + sumOf('subscription') + sumOf('utility') + utilityLast + installment)}원</b>
           {utilityLast > 0 && <> (금액이 달라지는 항목은 지난번 금액 기준)</>}
         </div>
       </div>
@@ -89,7 +94,7 @@ export function RecurringView({ householdId, today, lookup, categories, onTxChan
         }} />
       ))}
 
-      {KINDS.map((k) => {
+      {kinds.map((k) => {
         const items = list.filter((r) => r.kind === k)
         return (
           <div className="card" key={k}>
@@ -98,6 +103,7 @@ export function RecurringView({ householdId, today, lookup, categories, onTxChan
             {items.map((r) => {
               const next = nextDue(r, today)
               const last = r.amount === null ? pastAmounts(r, history)[0] : undefined
+              const left = k === 'installment' ? installmentsLeft(r, today) : null
               return (
                 <button key={r.id} className={`rc-row${r.active ? '' : ' off'}`} onClick={() => setSheet(draftFrom(r))}>
                   {k === 'subscription' && <ServiceLogo name={r.title} size={34} />}
@@ -107,6 +113,7 @@ export function RecurringView({ householdId, today, lookup, categories, onTxChan
                       {r.every_months === 12 ? `매년 ${Number(r.start_month.slice(5, 7))}월 ` : '매달 '}
                       {r.day_of_month === 31 ? '말일' : `${r.day_of_month}일`}
                       {`, ${SCOPE_LABEL[r.scope]}`}
+                      {left !== null && (left > 0 ? `, ${r.installment_months}개월 중 남은 ${left}회` : ', 다 냈어요')}
                       {!r.active && ', 꺼 둠'}
                     </span>
                   </span>
@@ -119,7 +126,9 @@ export function RecurringView({ householdId, today, lookup, categories, onTxChan
                 </button>
               )
             })}
-            <button className="ghost full-btn" onClick={() => setSheet({ kind: k })}>+ {KIND_LABEL[k]} 추가</button>
+            {k === 'installment'
+              ? <p className="tx-meta">할부는 문자·사진으로 넣을 때 결제를 할부로 고르면 생겨요.</p>
+              : <button className="ghost full-btn" onClick={() => setSheet({ kind: k })}>+ {KIND_LABEL[k]} 추가</button>}
           </div>
         )
       })}

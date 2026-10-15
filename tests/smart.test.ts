@@ -6,7 +6,7 @@ import type { Category, PaymentMethod, Transaction } from '../src/lib/types'
 
 const entry = (p: Partial<Entry>): Entry => ({
   date: '2026-10-13', time: '18:42', merchant: '이마트24', amount: 12400, is_income: false, is_cancellation: false,
-  card_last4: null, payment_hint: null, category: null, items: [], platform: null, ...p,
+  card_last4: null, payment_hint: null, installment_months: null, category: null, items: [], platform: null, ...p,
 })
 
 describe('모델 출력 정리 (checkEntries)', () => {
@@ -72,6 +72,20 @@ describe('모델 출력 정리 (checkEntries)', () => {
     const [e] = checkEntries({ note: null, entries: [entry({ amount: 28710, items: [line('그라인더', 2, 28710, 28710)] })] })
     expect(e.items[0]).toMatchObject({ unit_price: 14355, amount: 28710 })
     expect(e.price_fixes).toBeUndefined()
+  })
+
+  it('할부 개월 수는 2~60개월만 받고, 할부 결제는 상품별로 나누지 않는다', () => {
+    const out = checkEntries({ note: null, entries: [
+      entry({ installment_months: 3, merchant: '하이마트', amount: 900000, items: [
+        line('냉장고', 1, 800000, 800000), line('정수기 필터', 1, 100000, 100000),
+      ] }),
+      entry({ installment_months: 1 }), entry({ installment_months: 2.5 }), entry({ installment_months: 99 }),
+    ] })
+    expect(out.map((e) => e.installment_months)).toEqual([3, null, null, null])
+    const ds = toDrafts([out[0]], { today: '2026-10-15', methods: [], categories: [], existing: [], fallbackMethodId: null, fallbackScope: 'shared' })
+    expect(ds).toHaveLength(1)
+    expect(ds[0]).toMatchObject({ amount: 900000, installment: 3, splitInstallment: true })
+    expect(ds[0].items).toHaveLength(2)
   })
 
   it('형식이 틀린 날짜·시간·끝자리는 비우고, 0원은 버린다', () => {

@@ -89,7 +89,7 @@ describe('내역 이름', () => {
   it('초안: 모델이 읽은 플랫폼을 정리해 따로 두고, 이름은 상품명', () => {
     const entry: Entry = {
       date: '2026-10-12', time: null, merchant: '(주)신세계까사', platform: '오늘의집 앱', amount: 95680, is_income: false, is_cancellation: false,
-      card_last4: null, payment_hint: null, category: null,
+      card_last4: null, payment_hint: null, installment_months: null, category: null,
       items: [item('까사미아 원목 선반 3단', 65880, { pack_size: 1, pack_unit: '개' }), item('러그 120x180', 29800)],
     }
     const [d] = toDrafts(checkEntries({ note: null, entries: [entry] }), {
@@ -116,7 +116,7 @@ describe('상품별로 나누기', () => {
   }
   const order: Entry = {
     date: '2026-10-15', time: null, merchant: '쿠팡', platform: '쿠팡', amount: 17680, is_income: false, is_cancellation: false,
-    card_last4: null, payment_hint: null, category: '장보기',
+    card_last4: null, payment_hint: null, installment_months: null, category: '장보기',
     items: [
       item('오뚜기 사과식초 900ml', 2900, { category: '장보기', pack_size: 900, pack_unit: 'ml' }),
       item('샘표 진간장 금F3 1.7L', 7140, { category: '장보기' }),

@@ -82,7 +82,7 @@ export type TxInput = Pick<
   'type' | 'occurred_on' | 'amount' | 'title' | 'category_id' | 'payment_method_id' | 'scope' | 'platform'
 >
 
-export type RecurringKind = 'fixed' | 'subscription' | 'utility'
+export type RecurringKind = 'fixed' | 'subscription' | 'utility' | 'installment'
 
 export interface Recurring {
   id: string
@@ -101,6 +101,8 @@ export interface Recurring {
   end_month: string | null
   active: boolean
   memo: string | null
+  /** 할부(kind 'installment')의 총 개월 수. end_month가 마지막 회차의 달 */
+  installment_months: number | null
 }
 
 export type RecurringInput = Omit<Recurring, 'id' | 'household_id'>

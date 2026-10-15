@@ -38,6 +38,7 @@ export const EntrySchema = z.object({
   is_cancellation: z.boolean().describe('승인 취소·환불 문자이면 true'),
   card_last4: z.string().nullable().describe('카드·계좌 끝 4자리. 가려진 자리는 *로 (예: 1*3*). 없으면 null'),
   payment_hint: z.string().nullable().describe('카드사·간편결제 이름 등. 없으면 null'),
+  installment_months: z.number().nullable().describe('할부 개월 수 (예: "03개월", "3개월 할부" → 3). 일시불이거나 보이지 않으면 null'),
   category: z.string().nullable().describe('주어진 분류 목록 중 하나. 애매하면 null'),
   items: z.array(ItemSchema).describe('영수증·주문내역의 품목. 품목이 없으면 빈 배열'),
 })
@@ -60,6 +61,7 @@ export const SYSTEM_PROMPT = `당신은 한국 가정의 가계부 입력을 돕
 - 입금·급여·환급처럼 돈이 들어온 경우 is_income은 true, 나머지는 false입니다.
 - card_last4는 카드·계좌 번호의 마지막 4자리입니다. "(1234)"는 1234, "(1*2*)"처럼 가려진 자리는 *로 그대로 둡니다. 4자리가 아니거나 확실하지 않으면 null입니다.
 - payment_hint에는 문자·화면에 보이는 카드사·은행·간편결제 이름과 체크/신용 구분을 그대로 적습니다(예: "신한체크", "KB국민카드", "카카오페이").
+- installment_months는 카드 결제가 할부일 때 할부 개월 수입니다("할부 3개월", "(03개월)", "3개월 무이자" → 3). "일시불"이거나 할부 표시가 없으면 null입니다. 할부여도 amount는 한 달 치가 아니라 결제(승인)된 총액입니다.
 - category는 사용자가 준 분류 목록에 있는 이름만 씁니다. 애매하면 null입니다.
 - items는 품목이 적힌 영수증·주문내역일 때만 채웁니다. 각 품목의 amount는 그 줄의 금액(수량을 모두 합친 금액)이고, unit_price는 1개 가격입니다. 할인 줄은 음수 amount 품목으로 넣습니다.
 - 보이지 않거나 확실하지 않은 값은 지어내지 말고 null(문자열은 빈 문자열)로 둡니다.
@@ -249,6 +251,8 @@ export function checkEntries(result: ExtractResult, images: ImageSize[] = []): C
         platform: e.platform?.trim().slice(0, 30) || null,
         amount,
         card_last4: e.card_last4 && /^[\d*]{4}$/.test(e.card_last4) && /\d.*\d/.test(e.card_last4) ? e.card_last4 : null,
+        // 2~60개월만 할부로 본다 (1개월은 일시불)
+        installment_months: Number.isInteger(e.installment_months) && e.installment_months! >= 2 && e.installment_months! <= 60 ? e.installment_months : null,
         items: sum === amount ? fixUnitPrices(fixed.items) : fixed.items,
         items_match: items.length ? sum === amount : null,
         ...(fixed.fixes.length ? { price_fixes: fixed.fixes } : {}),

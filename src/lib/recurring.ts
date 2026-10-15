@@ -2,7 +2,7 @@
 import { addMonths, daysInMonth, ymd, parseYM } from './dates'
 import type { Recurring, RecurringKind, Transaction } from './types'
 
-export const KIND_LABEL: Record<RecurringKind, string> = { fixed: '고정지출', subscription: '구독', utility: '관리비·공과금' }
+export const KIND_LABEL: Record<RecurringKind, string> = { fixed: '고정지출', subscription: '구독', utility: '관리비·공과금', installment: '할부' }
 
 const monthIndex = (ym: string) => { const { y, m } = parseYM(ym); return y * 12 + m - 1 }
 
@@ -85,4 +85,21 @@ export function subscriptionCandidates(txs: Transaction[], list: Recurring[]): S
     })
   }
   return out.sort((a, b) => b.amount - a.amount)
+}
+
+/** 할부 총액을 개월 수로 나눈다. 나누어떨어지지 않는 원 단위 나머지는 첫 회차에 넣는다 */
+export function installmentPlan(total: number, months: number): { first: number; rest: number } {
+  const rest = Math.floor(total / months)
+  return { first: total - rest * (months - 1), rest }
+}
+
+/** 할부 항목에서 오늘 이후 남은 회차 수 */
+export function installmentsLeft(r: Pick<Recurring, 'day_of_month' | 'every_months' | 'start_month' | 'end_month'>, today: string): number {
+  if (!r.end_month) return 0
+  let n = 0
+  for (let ym = today.slice(0, 7); ym <= r.end_month.slice(0, 7); ym = addMonths(ym, 1)) {
+    const d = dueDate(r, ym)
+    if (d && d >= today) n++
+  }
+  return n
 }

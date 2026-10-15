@@ -1,7 +1,9 @@
 // 문자·사진 분석 결과를 저장할 수 있는 초안으로 바꾸고, Edge Function을 부른다.
 import type { CheckedBill, CheckedEntry } from '../../supabase/functions/extract-entries/extract'
+import { addMonths } from './dates'
 import { uploadItemImage } from './itemImages'
 import { DELIVERY_PLATFORMS, normalizePlatform, platformOf } from './platform'
+import { installmentPlan } from './recurring'
 import { sb } from './supabase'
 import type { Category, PaymentMethod, Scope, Transaction, TxType } from './types'
 
@@ -41,6 +43,10 @@ export interface Draft {
   scope: Scope
   memo: string | null
   items: DraftItem[]
+  /** 할부 개월 수 (일시불이면 null) */
+  installment: number | null
+  /** 할부를 달마다 나눠 넣을지 (첫 회차는 산 날, 남은 회차는 고정 탭의 할부 항목) */
+  splitInstallment: boolean
   /** 확인이 필요한 점 */
   warnings: string[]
 }
@@ -243,12 +249,14 @@ export function entryDrafts(e: CheckedEntry, i: number, ctx: DraftContext, split
       category_id: matchCategory(category, e.type, ctx.categories) ?? matchCategory(e.category, e.type, ctx.categories),
       payment_method_id: method?.id ?? remembered ?? (match.method === null && match.reason !== 'none' ? null : ctx.fallbackMethodId),
       scope: ctx.fallbackScope, memo, items: its,
+      installment: e.type === 'expense' ? e.installment_months ?? null : null, splitInstallment: true,
       warnings: dup ? [`같은 날 같은 금액 내역이 이미 있어요${dup.title ? ` (${dup.title})` : ''}.`] : [],
     }
   }
 
   let out: Draft[]
-  if (!split || !canSplit(e)) {
+  // 할부는 결제 한 건을 나눠 내는 것이라 상품별로 나누지 않는다
+  if (!split || !canSplit(e) || e.installment_months) {
     out = [make(`${i}`, draftTitle(e, platform), e.amount, e.category, items, null)]
   } else {
     const products = items.filter(isProductLine)
@@ -375,14 +383,38 @@ export async function analyzeImages(
   return merged
 }
 
-export async function saveDraft(householdId: string, d: Draft, source: 'text' | 'photo'): Promise<void> {
+/**
+ * 초안 하나를 저장한다. 할부를 나눠 넣으면 첫 회차만 이 날짜의 내역으로 넣고,
+ * 남은 회차는 반복 항목(할부)으로 등록해 날짜가 되면 자동으로 들어가게 한다.
+ * 저장한 것이 할부 나눠 넣기였으면 true.
+ */
+export async function saveDraft(householdId: string, d: Draft, source: 'text' | 'photo'): Promise<boolean> {
+  const months = d.type === 'expense' ? d.installment : null
+  const plan = months && d.splitInstallment && d.amount >= months ? installmentPlan(d.amount, months) : null
+  const total = d.amount.toLocaleString('ko-KR')
+  const memo = [months ? (plan ? `할부 1/${months}회, 총 ${total}원` : `${months}개월 할부`) : null, d.memo].filter(Boolean).join(', ') || null
+  const title = d.title.trim().slice(0, 60)
+
+  let recurringId: string | null = null
+  if (plan && months) {
+    const ym = d.date.slice(0, 7)
+    const { data, error } = await sb().from('recurring').insert({
+      household_id: householdId, kind: 'installment', type: 'expense', title, amount: plan.rest,
+      day_of_month: Number(d.date.slice(8, 10)), every_months: 1, category_id: d.category_id, payment_method_id: d.payment_method_id,
+      scope: d.scope, start_month: `${addMonths(ym, 1)}-01`, end_month: `${addMonths(ym, months - 1)}-01`, installment_months: months,
+      active: true, memo: `총 ${total}원, ${months}개월 할부`,
+    }).select('id').single()
+    if (error) throw new Error(error.message)
+    recurringId = (data as { id: string }).id
+  }
+
   // 상품 사진을 먼저 올리고 경로를 품목에 붙인다. 사진 올리기가 실패해도 내역은 저장한다
   const paths = await Promise.all(d.items.map((it) =>
     it.photo ? uploadItemImage(householdId, it.photo.blob).catch(() => null) : Promise.resolve(null)))
   const { error } = await sb().rpc('add_transaction_with_items', {
     p_household_id: householdId,
     p_tx: {
-      type: d.type, occurred_on: d.date, occurred_at: d.time, amount: d.amount, title: d.title.trim().slice(0, 60), memo: d.memo,
+      type: d.type, occurred_on: d.date, occurred_at: d.time, amount: plan ? plan.first : d.amount, title, memo,
       category_id: d.category_id, payment_method_id: d.payment_method_id, scope: d.scope, source,
       platform: normalizePlatform(d.platform),
     },
@@ -391,5 +423,10 @@ export async function saveDraft(householdId: string, d: Draft, source: 'text' | 
       pack_size: it.pack_size, pack_unit: it.pack_unit, image_path: paths[i],
     })),
   })
-  if (error) throw new Error(error.message)
+  if (error) {
+    // 첫 회차를 못 넣었으면 할부 항목도 지워 둘이 어긋나지 않게 한다
+    if (recurringId) await sb().from('recurring').delete().eq('id', recurringId)
+    throw new Error(error.message)
+  }
+  return plan !== null
 }

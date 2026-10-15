@@ -24,7 +24,7 @@ interface Props {
 }
 
 const KINDS: RecurringKind[] = ['fixed', 'subscription', 'utility']
-const DEFAULT_CATEGORY: Record<RecurringKind, string> = { fixed: '기타', subscription: '구독', utility: '관리비' }
+const DEFAULT_CATEGORY: Record<RecurringKind, string> = { fixed: '기타', subscription: '구독', utility: '관리비', installment: '기타' }
 
 export function RecurringSheet({ open, draft, householdId, today, lookup, categories, onSaved, onClose }: Props) {
   const [kind, setKind] = useState<RecurringKind>('fixed')
@@ -76,9 +76,12 @@ export function RecurringSheet({ open, draft, householdId, today, lookup, catego
   const n = parseInt(amount || '0', 10)
   const input: RecurringInput = {
     kind, type, title: title.trim(), amount: variable ? null : n, day_of_month: day, every_months: every,
-    category_id: categoryId, payment_method_id: draft?.payment_method_id ?? null, scope, start_month: `${startMonth}-01`, end_month: null,
-    active, memo: null,
+    category_id: categoryId, payment_method_id: draft?.payment_method_id ?? null, scope, start_month: `${startMonth}-01`,
+    // 화면에서 고치지 않는 값은 그대로 둔다 (할부의 마지막 달·개월 수, 메모)
+    end_month: draft?.end_month ?? null, active, memo: draft?.memo ?? null,
+    installment_months: kind === 'installment' ? draft?.installment_months ?? null : null,
   }
+  const isInstallment = kind === 'installment'
   const firstDue = dueDate(input, today.slice(0, 7)) ?? dueDate(input, startMonth)
   const willAddNow = !draft?.id && !variable && n > 0 && firstDue !== null && firstDue <= today && startMonth <= today.slice(0, 7)
 
@@ -107,9 +110,16 @@ export function RecurringSheet({ open, draft, householdId, today, lookup, catego
 
   return (
     <Sheet open={open} title={draft?.id ? '반복 항목 고치기' : '반복 항목 추가'} onClose={onClose}>
-      <div className="seg" role="group" aria-label="종류">
-        {KINDS.map((k) => <button key={k} aria-pressed={kind === k} onClick={() => switchKind(k)}>{KIND_LABEL[k]}</button>)}
-      </div>
+      {isInstallment ? (
+        <p className="note">
+          {draft?.installment_months}개월 할부예요. {draft?.end_month ? `${draft.end_month.slice(0, 4)}년 ${Number(draft.end_month.slice(5, 7))}월까지 ` : ''}
+          날짜가 되면 자동으로 들어가요. 이름, 금액, 날짜, 분류는 고칠 수 있어요.
+        </p>
+      ) : (
+        <div className="seg" role="group" aria-label="종류">
+          {KINDS.map((k) => <button key={k} aria-pressed={kind === k} onClick={() => switchKind(k)}>{KIND_LABEL[k]}</button>)}
+        </div>
+      )}
       {kind === 'fixed' && (
         <div className="seg" role="group" aria-label="구분">
           <button aria-pressed={type === 'expense'} onClick={() => { setType('expense'); setCategoryId(catFor(kind, 'expense')) }}>지출</button>
@@ -141,10 +151,12 @@ export function RecurringSheet({ open, draft, householdId, today, lookup, catego
         <label htmlFor="rc-amount">금액</label>
         <input id="rc-amount" className="input num" inputMode="numeric" disabled={variable} value={variable ? '' : amount}
           placeholder={variable ? '매달 직접 입력' : '0'} onChange={(e) => setAmount(e.target.value.replace(/\D/g, '').slice(0, 10))} />
-        <label className="check">
-          <input type="checkbox" checked={variable} onChange={(e) => setVariable(e.target.checked)} />
-          매달 금액이 달라요 (날짜가 되면 입력하라고 알려 줘요)
-        </label>
+        {!isInstallment && (
+          <label className="check">
+            <input type="checkbox" checked={variable} onChange={(e) => setVariable(e.target.checked)} />
+            매달 금액이 달라요 (날짜가 되면 입력하라고 알려 줘요)
+          </label>
+        )}
       </div>
       <div className="row2">
         <div className="field">
@@ -153,21 +165,21 @@ export function RecurringSheet({ open, draft, householdId, today, lookup, catego
             {Array.from({ length: 31 }, (_, i) => i + 1).map((d) => <option key={d} value={d}>{d === 31 ? '말일' : `${d}일`}</option>)}
           </select>
         </div>
-        <div className="field">
+        {!isInstallment && <div className="field">
           <label htmlFor="rc-every">주기</label>
           <select id="rc-every" className="input" value={every} onChange={(e) => setEvery(Number(e.target.value) as 1 | 12)}>
             <option value={1}>매달</option>
             <option value={12}>매년 (시작 달에)</option>
           </select>
-        </div>
+        </div>}
       </div>
-      <div className="field">
+      {!isInstallment && <div className="field">
         <label htmlFor="rc-start">시작 달</label>
         <input id="rc-start" type="month" className="input date-input" value={startMonth} onChange={(e) => setStartMonth(e.target.value)} />
         {willAddNow && firstDue && (
           <span className="hint">저장하면 {formatDateLong(firstDue)} 분 {won(n)}원이 바로 내역에 들어가요. 이미 직접 적었다면 시작 달을 다음 달로 바꾸세요.</span>
         )}
-      </div>
+      </div>}
       <div className="field">
         <span className="lbl">분류</span>
         <div className="chips">

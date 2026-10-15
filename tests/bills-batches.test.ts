@@ -69,7 +69,7 @@ describe('관리비 비교', () => {
   it('관리비 지출을 연결할 반복 항목과 사용량 표기', () => {
     const r = (p: Partial<Recurring>): Recurring => ({
       id: 'r', household_id: 'h', kind: 'utility', type: 'expense', title: '도시가스', amount: null, day_of_month: 25, every_months: 1,
-      category_id: null, payment_method_id: null, scope: 'shared', start_month: '2026-01-01', end_month: null, active: true, memo: null, ...p,
+      category_id: null, payment_method_id: null, scope: 'shared', start_month: '2026-01-01', end_month: null, active: true, memo: null, installment_months: null, ...p,
     })
     expect(billRecurring([r({ id: 'gas' }), r({ id: 'apt', title: '아파트 관리비' })])?.id).toBe('apt')
     expect(billRecurring([r({ id: 'only' })])?.id).toBe('only')
@@ -84,7 +84,7 @@ describe('사진 묶음 합치기', () => {
     note: null, model: 'claude-sonnet-5-5',
     entries: [{
       date: '2026-10-15', time: null, merchant, platform: merchant, amount: 1000, is_income: false, is_cancellation: false, card_last4: null,
-      payment_hint: null, category: null, type: 'expense', items_match: true,
+      payment_hint: null, installment_months: null, category: null, type: 'expense', items_match: true,
       items: [{ name: 'x', is_product: true, quantity: 1, unit_price: 1000, amount: 1000, pack_size: null, pack_unit: null, category: null,
         image_box: { image, left: 0, top: 0, right: 50, bottom: 50 } }],
     }],

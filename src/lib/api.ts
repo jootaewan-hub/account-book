@@ -160,7 +160,7 @@ export async function fetchMonthlyTotals(householdId: string, from: string, to: 
 }
 
 const RECURRING_COLUMNS =
-  'id, household_id, kind, type, title, amount, day_of_month, every_months, category_id, payment_method_id, scope, start_month, end_month, active, memo'
+  'id, household_id, kind, type, title, amount, day_of_month, every_months, category_id, payment_method_id, scope, start_month, end_month, active, memo, installment_months'
 
 export async function fetchRecurring(householdId: string): Promise<Recurring[]> {
   const rows = check(await sb().from('recurring').select(RECURRING_COLUMNS).eq('household_id', householdId)

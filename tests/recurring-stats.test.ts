@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { dueDate, monthlyAmount, nextDue, pendingInputs, subscriptionCandidates } from '../src/lib/recurring'
+import { dueDate, installmentPlan, installmentsLeft, monthlyAmount, nextDue, pendingInputs, subscriptionCandidates } from '../src/lib/recurring'
 import { categoryBreakdown, monthSeries, OTHER_PLATFORM, pctChange, platformBreakdown, platformOf, scopeSplit, totalOf } from '../src/lib/stats'
 import type { Category, MonthTotal, Recurring, Transaction } from '../src/lib/types'
 
 const rec = (p: Partial<Recurring>): Recurring => ({
   id: 'r', household_id: 'h', kind: 'fixed', type: 'expense', title: '월세', amount: 500000, day_of_month: 25,
   every_months: 1, category_id: null, payment_method_id: null, scope: 'shared', start_month: '2026-08-01',
-  end_month: null, active: true, memo: null, ...p,
+  end_month: null, active: true, memo: null, installment_months: null, ...p,
 })
 let seq = 0
 const tx = (p: Partial<Transaction>): Transaction => ({
@@ -99,5 +99,21 @@ describe('통계', () => {
       { name: '쿠팡', amount: 42000, count: 2, prev: 50000 },
       { name: OTHER_PLATFORM, amount: 38000, count: 1, prev: 0 },
     ])
+  })
+})
+
+describe('할부', () => {
+  it('나누어떨어지지 않는 나머지는 첫 회차에', () => {
+    expect(installmentPlan(900000, 3)).toEqual({ first: 300000, rest: 300000 })
+    expect(installmentPlan(1000000, 3)).toEqual({ first: 333334, rest: 333333 })
+    expect(installmentPlan(99990, 12)).toEqual({ first: 8338, rest: 8332 }) // 99,990 - 8,332×11
+  })
+
+  it('오늘 이후 남은 회차 (첫 회차는 산 날 따로, 반복 항목은 다음 달부터 마지막 달까지)', () => {
+    const r = rec({ kind: 'installment', day_of_month: 15, start_month: '2026-11-01', end_month: '2027-01-01', installment_months: 4 })
+    expect(installmentsLeft(r, '2026-10-15')).toBe(3)
+    expect(installmentsLeft(r, '2026-11-15')).toBe(3) // 11월 15일 당일분도 남은 것으로 센다
+    expect(installmentsLeft(r, '2026-11-16')).toBe(2)
+    expect(installmentsLeft(r, '2027-01-16')).toBe(0)
   })
 })
