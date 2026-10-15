@@ -167,7 +167,7 @@ function Ledger({ household, meta, userId, email }: {
         {!lookup.myRole && tab !== 'settings' && (
           <div className="card role-card" style={{ marginBottom: 14 }}>
             <b>나는 남편인가요, 아내인가요?</b>
-            <span className="lead" style={{ fontSize: 13 }}>내역의 "공동 · 남편 · 아내"와 정산을 맞추는 데 씁니다. 설정에서 바꿀 수 있어요.</span>
+            <span className="lead" style={{ fontSize: 13 }}>내역에 누가 입력했는지 "남편 · 아내"로 표시하는 데 씁니다. 설정에서 바꿀 수 있어요.</span>
             <div className="seg" role="group">
               {(['husband', 'wife'] as Spouse[]).map((r) => (
                 <button key={r} onClick={async () => {
