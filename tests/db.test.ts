@@ -8,6 +8,7 @@ const read = (f: string) => readFileSync(new URL(`../supabase/migrations/${f}`, 
 const INIT = read('20261015000000_init.sql')
 const ROLES = read('20261015010000_spouse_roles.sql')
 const SMART = read('20261015020000_smart_input.sql')
+const HOOK = read('20261015030000_wif_audience_hook.sql')
 
 const SUPABASE_STUB = `
 create schema auth;
@@ -22,6 +23,7 @@ grant execute on function auth.uid() to anon, authenticated;
 alter default privileges in schema public grant all on tables to anon, authenticated;
 alter default privileges in schema public grant all on sequences to anon, authenticated;
 create role service_role nologin;
+create role supabase_auth_admin nologin;
 create publication supabase_realtime;
 `
 
@@ -68,7 +70,7 @@ async function freshDb(migrations: string[]) {
 }
 
 beforeAll(async () => {
-  db = await freshDb([INIT, ROLES, SMART])
+  db = await freshDb([INIT, ROLES, SMART, HOOK])
 })
 
 describe('가구 만들기와 참여', () => {
@@ -219,6 +221,28 @@ describe('스마트 입력 저장과 JWT household_id (20261015020000_smart_inpu
 
   it('로그인하지 않으면 저장 함수를 못 쓴다', async () => {
     expect(await errorOf(as(null, `select public.add_transaction_with_items($1, '{}', '[]')`, [hhA]))).toContain('permission denied')
+  })
+})
+
+describe('WIF용 aud 훅 (20261015030000_wif_audience_hook)', () => {
+  const hook = async (aud: unknown) => {
+    await db.exec('set role supabase_auth_admin')
+    try {
+      const { rows } = await db.query<{ aud: unknown; sub: string }>(
+        `select r->'claims'->'aud' as aud, r->'claims'->>'sub' as sub from public.custom_access_token_hook($1::jsonb) r`,
+        [JSON.stringify({ user_id: A, claims: { sub: A, aud, role: 'authenticated' }, authentication_method: 'password' })])
+      return rows[0]
+    } finally { await db.exec('reset role') }
+  }
+
+  it('기존 aud를 유지하고 Anthropic 주소를 한 번만 덧붙인다', async () => {
+    expect(await hook('authenticated')).toEqual({ aud: ['authenticated', 'https://api.anthropic.com'], sub: A })
+    expect((await hook(['authenticated', 'https://api.anthropic.com'])).aud).toEqual(['authenticated', 'https://api.anthropic.com'])
+    expect((await hook(null)).aud).toEqual(['https://api.anthropic.com'])
+  })
+
+  it('로그인 사용자는 훅 함수를 직접 부를 수 없다', async () => {
+    expect(await errorOf(as(A, `select public.custom_access_token_hook('{}'::jsonb)`))).toContain('permission denied')
   })
 })
 
