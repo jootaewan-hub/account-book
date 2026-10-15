@@ -53,21 +53,23 @@ Edge Function `extract-entries`는 로그인한 사람의 Supabase 로그인 토
 Supabase Auth가 `https://<ref>.supabase.co/auth/v1/.well-known/openid-configuration`과 ES256 공개키(JWKS)를 공개하므로
 Anthropic이 이 토큰의 서명을 직접 확인할 수 있습니다.
 
-1. [Claude Console > Workload identity](https://platform.claude.com/settings/workload-identity-federation) > **Connect workload** > **Custom OIDC**
-   - Issuer URL: `https://kifdfpbwiebfgvdumqjf.supabase.co/auth/v1` (끝에 `/` 없이)
-   - JWKS: discovery (기본값)
-   - Audience: `authenticated`
-   - Condition(CEL): `claims.app_metadata.household_id == "<우리 가구 id>"`
-     (가구 id는 `select id from public.households`. 다른 사람이 앱에 가입해도 우리 가구 구성원이 아니면 거절됩니다)
-   - Scope: `workspace:inference` (Claude 호출만 허용)
-2. 만들어진 **organization ID**, **federation rule ID**(`fdrl_...`), **service account ID**(`svac_...`)를
-   `supabase/functions/extract-entries/wif-config.ts`에 적고 함수를 다시 배포합니다.
-   비밀값이 아닌 식별자라서 코드에 둡니다(Anthropic의 GitHub Actions 가이드도 워크플로 파일에 그대로 적습니다).
-   Supabase > Edge Functions > Secrets에 `ANTHROPIC_ORGANIZATION_ID`, `ANTHROPIC_FEDERATION_RULE_ID`,
-   `ANTHROPIC_SERVICE_ACCOUNT_ID`(필요하면 `ANTHROPIC_WORKSPACE_ID`)를 넣으면 그 값이 우선합니다.
+1. **Supabase 훅**: Authentication > Auth Hooks > Customize Access Token (JWT) Claims를 Postgres `public.custom_access_token_hook`으로 켭니다.
+   Anthropic은 토큰의 `aud`에 `https://api.anthropic.com`이 있어야 받는데, 이 함수가 기존 `authenticated`에 그 주소를 덧붙입니다.
+   켠 뒤에는 로그아웃 → 다시 로그인해야 새 토큰을 받습니다.
+2. [Claude Console > Workload identity](https://platform.claude.com/settings/workload-identity-federation) > **Connect workload** > **Custom OIDC**
+   - 1단계 발급자: 이름 `supabase-account-book`, 발급자 URL `https://kifdfpbwiebfgvdumqjf.supabase.co/auth/v1`(끝에 `/` 없이),
+     JWKS 소스 OIDC 디스커버리, 디스커버리 기본 URL·CA 인증서 비움, 일회용 토큰(JTI) 켬, 최대 유효 기간 1시간,
+     "디스커버리 문서 및 JWKS는 공개 인터넷에서 접근 가능" 체크
+   - 2단계 규칙: 주체(sub) 클레임 **`*`** (아무 값이나 넣으면 sub가 그 값과 같아야 해서 전부 거절됨),
+     추가 클레임 조건 `claims.app_metadata.household_id == "<우리 가구 id>"`, 워크스페이스는 Default 하나
+   - 3단계 서비스 계정: 새로 만들기 (`account-book-app`)
+   - 4단계 화면의 `federation_rule_id`, `organization_id`, `service_account_id`, `workspace_id`를
+     `supabase/functions/extract-entries/wif-config.ts`에 적고 함수를 다시 배포합니다.
+     비밀값이 아닌 식별자라서 코드에 둡니다(Anthropic의 GitHub Actions 가이드도 워크플로 파일에 그대로 적습니다).
+     Supabase > Edge Functions > Secrets에 `ANTHROPIC_ORGANIZATION_ID` 등 같은 이름을 넣으면 그 값이 우선합니다.
 
 `household_id`는 가구에 참여할 때 DB 트리거가 `auth.users.raw_app_meta_data`에 넣고, 다음 토큰 갱신부터 JWT에 실립니다.
-토큰 교환이 거절되면 앱이 로그인 토큰을 새로 받아 한 번 더 시도합니다. 거절 이유는 Console의 Workload identity > History에 남습니다.
+토큰 교환이 거절되면 앱이 로그인 토큰을 새로 받아 한 번 더 시도합니다. 거절 이유는 응답에 없고 Console의 Workload identity 인증 기록에만 남습니다.
 
 WIF 대신 API 키를 쓰려면 위 세 값 대신 `ANTHROPIC_API_KEY`만 넣으면 됩니다.
 모델은 `EXTRACT_MODEL`(기본 `claude-haiku-5-5`), 재시도 모델은 `EXTRACT_RETRY_MODEL`(기본 `claude-sonnet-5-5`)로 바꿀 수 있습니다.
