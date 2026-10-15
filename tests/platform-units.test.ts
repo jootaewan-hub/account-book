@@ -2,12 +2,12 @@ import { describe, expect, it } from 'vitest'
 import { itemText } from '../supabase/functions/export-csv/csv'
 import { checkEntries, checkPack, type Entry } from '../supabase/functions/extract-entries/extract'
 import { normalizePlatform, platformOfTx } from '../src/lib/platform'
-import { draftTitle, productTitle, toDrafts } from '../src/lib/smart'
+import { allocateDiscount, canSplit, draftTitle, markRepeats, productTitle, toDrafts, type Draft } from '../src/lib/smart'
 import { perUnitLabel, qtyPriceLabel } from '../src/lib/units'
 import { EXPORT_ITEMS } from './fixtures'
 
 const item = (name: string, amount: number, p: Partial<Entry['items'][number]> = {}): Entry['items'][number] => ({
-  name, is_product: true, quantity: 1, unit_price: amount, amount, pack_size: null, pack_unit: null, image_box: null, ...p,
+  name, is_product: true, quantity: 1, unit_price: amount, amount, pack_size: null, pack_unit: null, category: null, image_box: null, ...p,
 })
 
 describe('용량 정리 (checkPack)', () => {
@@ -94,7 +94,7 @@ describe('내역 이름', () => {
     }
     const [d] = toDrafts(checkEntries({ note: null, entries: [entry] }), {
       today: '2026-10-15', methods: [], categories: [], existing: [], fallbackMethodId: null, fallbackScope: 'shared',
-    })
+    }, () => false) // 한 내역으로 합칠 때
     expect(d.platform).toBe('오늘의집')
     expect(d.title).toBe('까사미아 원목 선반 3단, 러그 120x180')
     expect(d.items[0]).toMatchObject({ pack_size: 1, pack_unit: '개', is_product: true })
@@ -103,5 +103,82 @@ describe('내역 이름', () => {
       today: '2026-10-15', methods: [], categories: [], existing: [], fallbackMethodId: null, fallbackScope: 'shared',
     })
     expect([sms.platform, sms.title]).toEqual(['쿠팡', '쿠팡(쿠페이)'])
+  })
+})
+
+describe('상품별로 나누기', () => {
+  const ctx = {
+    today: '2026-10-15', methods: [], existing: [], fallbackMethodId: null, fallbackScope: 'shared' as const,
+    categories: [
+      { id: 'food', household_id: 'h', type: 'expense' as const, name: '장보기', sort: 1, archived: false },
+      { id: 'life', household_id: 'h', type: 'expense' as const, name: '생활용품', sort: 2, archived: false },
+    ],
+  }
+  const order: Entry = {
+    date: '2026-10-15', time: null, merchant: '쿠팡', platform: '쿠팡', amount: 17680, is_income: false, is_cancellation: false,
+    card_last4: null, payment_hint: null, category: '장보기',
+    items: [
+      item('오뚜기 사과식초 900ml', 2900, { category: '장보기', pack_size: 900, pack_unit: 'ml' }),
+      item('샘표 진간장 금F3 1.7L', 7140, { category: '장보기' }),
+      item('오뚜기 통후추 리필용', 3100, { category: '장보기' }),
+      item('청정원 천일염 굵은소금', 4540, { category: '장보기' }),
+      item('배송비', 3000, { is_product: false }),
+      item('쿠폰 할인', -3000, { is_product: false }),
+    ],
+  }
+
+  it('할인은 상품 금액 비율로 나누고 반올림 차이는 가장 비싼 상품에', () => {
+    expect(allocateDiscount([2900, 7140, 3100, 4540], -3000)).toEqual([-492, -1212, -526, -770])
+    expect(allocateDiscount([1000, 1000, 1000], -100)).toEqual([-34, -33, -33])
+    expect(allocateDiscount([5000], 0)).toEqual([0])
+  })
+
+  it('상품이 두 개 이상이면 상품마다 내역 하나, 배송비는 따로, 합계는 결제 금액과 같다', () => {
+    const [e] = checkEntries({ note: null, entries: [order] })
+    expect(e.items_match).toBe(true)
+    expect(canSplit(e)).toBe(true)
+    const ds = toDrafts([e], ctx)
+    expect(ds.map((d) => [d.title, d.amount, d.category_id, d.platform])).toEqual([
+      ['오뚜기 사과식초 900ml', 2408, 'food', '쿠팡'],
+      ['샘표 진간장 금F3 1.7L', 5928, 'food', '쿠팡'],
+      ['오뚜기 통후추 리필용', 2574, 'food', '쿠팡'],
+      ['청정원 천일염 굵은소금', 3770, 'food', '쿠팡'],
+      ['배송비', 3000, 'food', '쿠팡'],
+    ])
+    expect(ds.reduce((s, d) => s + d.amount, 0)).toBe(17680)
+    expect(ds[0].memo).toBe('할인 492원 나눠 뺌 (원래 2,900원)')
+    expect(ds[0].items).toHaveLength(1)
+    expect(ds[0].items[0]).toMatchObject({ name: '오뚜기 사과식초 900ml', pack_size: 900, pack_unit: 'ml', src: '0:0' })
+    expect(ds[4].items).toHaveLength(0)
+    expect(new Set(ds.map((d) => d.key)).size).toBe(5)
+  })
+
+  it('상품마다 분류를 따로 고르고, 모르면 주문 분류', () => {
+    const [e] = checkEntries({ note: null, entries: [{ ...order, items: [
+      item('키친타월', 9900, { category: '생활용품' }), item('두부', 1500, { category: null }),
+    ], amount: 11400 }] })
+    expect(toDrafts([e], ctx).map((d) => d.category_id)).toEqual(['life', 'food'])
+  })
+
+  it('상품이 하나면 나누지 않는다', () => {
+    const [e] = checkEntries({ note: null, entries: [{ ...order, amount: 5900, items: [item('핸드워시 리필', 5900), item('배송비', 0, { is_product: false })] }] })
+    expect(canSplit(e)).toBe(false)
+    expect(toDrafts([e], ctx).map((d) => [d.title, d.items.length])).toEqual([['핸드워시 리필', 2]])
+  })
+
+  it('같은 분석에서 같은 상품이 또 나오면 뒤의 것을 빼 둔다 (목록·상세 화면을 함께 찍은 경우)', () => {
+    const bundle = checkEntries({ note: null, entries: [{ ...order, amount: 7640, items: [item('오뚜기 통후추 리필용', 3100), item('청정원 천일염 굵은소금', 4540)] }] })[0]
+    const single = checkEntries({ note: null, entries: [{ ...order, amount: 3100, items: [item('오뚜기 통후추 리필용', 3100)] }] })[0]
+    const ds = toDrafts([bundle, single], ctx)
+    expect(ds.map((d) => [d.title, d.include])).toEqual([
+      ['오뚜기 통후추 리필용', true], ['청정원 천일염 굵은소금', true], ['오뚜기 통후추 리필용', false],
+    ])
+    expect(ds[2].warnings.at(-1)).toContain('같은 상품이 위에 이미 있어서')
+    const before = [{ date: '2026-10-15', amount: 3100, title: '오뚜기 통후추 리필용', items: [] } as unknown as Draft]
+    expect(markRepeats([ds[0]], before)[0].include).toBe(false)
+    // 묶음 주문에서 할인이 나눠져 금액이 달라도 원래 상품 금액이 같으면 같은 상품으로 본다
+    const [withCoupon] = checkEntries({ note: null, entries: [order] })
+    const again = toDrafts([withCoupon, single], ctx)
+    expect(again.at(-1)).toMatchObject({ title: '오뚜기 통후추 리필용', amount: 3100, include: false })
   })
 })

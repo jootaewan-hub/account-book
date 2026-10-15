@@ -16,6 +16,10 @@ export interface DraftItem {
   amount: number
   pack_size: number | null
   pack_unit: string | null
+  /** 모델이 고른 이 상품의 분류 이름 */
+  category?: string | null
+  /** 분석 결과에서의 위치 '내역번호:품목번호' (잘라 둔 상품 사진을 찾을 때) */
+  src?: string
   /** 상품 사진 위치 (몇 번째 이미지의 어느 영역) */
   image_box?: { image: number; left: number; top: number; right: number; bottom: number } | null
   /** 잘라 낸 상품 사진 (저장할 때 올린다) */
@@ -35,6 +39,7 @@ export interface Draft {
   category_id: string | null
   payment_method_id: string | null
   scope: Scope
+  memo: string | null
   items: DraftItem[]
   /** 확인이 필요한 점 */
   warnings: string[]
@@ -177,7 +182,7 @@ export function draftTitle(e: Pick<CheckedEntry, 'merchant' | 'items'>, platform
   return e.merchant
 }
 
-export function toDrafts(entries: CheckedEntry[], ctx: {
+export interface DraftContext {
   today: string
   methods: PaymentMethod[]
   categories: Category[]
@@ -186,42 +191,97 @@ export function toDrafts(entries: CheckedEntry[], ctx: {
   fallbackScope: Scope
   /** 이 가맹점에서 지난번에 고른 결제수단 */
   rememberedMethod?: (merchant: string) => string | null
-}): Draft[] {
-  return entries.map((e, i) => {
-    const warnings: string[] = []
-    const date = e.date ?? ctx.today
-    if (!e.date) warnings.push('날짜를 못 읽어서 오늘로 넣었어요.')
-    const match = matchMethodDetailed(e, ctx.methods)
-    const method = match.method ?? null
-    const remembered = method ? null : ctx.rememberedMethod?.(e.merchant) ?? null
-    const cardsInUse = ctx.methods.length > 0 // 카드를 등록해 쓰는 경우에만 카드 관련 안내
-    if (cardsInUse && !match.method && match.reason === 'unknown_last4' && !remembered) {
-      warnings.push(`끝자리 ${e.card_last4} 카드가 설정에 없어요. 설정 > 결제수단에 끝 4자리를 넣어 두면 다음부터 자동으로 골라요.`)
-    }
-    if (cardsInUse && !match.method && match.reason === 'ambiguous' && !remembered) {
-      warnings.push(`${match.issuer ?? '같은 끝자리'} 카드가 여러 장이라 고르지 못했어요. 결제수단을 골라 주세요.`)
-    }
-    if (e.items_match === false) warnings.push(`품목 합계 ${itemsSum(e.items).toLocaleString()}원이 결제 금액과 달라요.`)
-    if (e.is_cancellation) warnings.push('승인 취소 문자예요. 원래 내역을 찾아 지워 주세요.')
-    const dup = sameTransaction({ date, amount: e.amount, type: e.type }, ctx.existing)
-    if (dup) warnings.push(`같은 날 같은 금액 내역이 이미 있어요${dup.title ? ` (${dup.title})` : ''}.`)
-    const platform = draftPlatform(e)
+}
+
+/** 상품 줄인가 (배송비·할인·0원 줄이 아닌가) */
+export function isProductLine(it: Pick<DraftItem, 'name' | 'amount' | 'is_product'>): boolean {
+  return (it.is_product ?? true) && it.amount > 0 && !/^배송비/.test(it.name.trim())
+}
+
+/** 상품이 두 개 이상이면 상품별 내역으로 나눌 수 있다 */
+export function canSplit(e: Pick<CheckedEntry, 'items'>): boolean {
+  return e.items.filter(isProductLine).length >= 2
+}
+
+/** 할인 합계(음수)를 상품 금액 비율로 나눈다. 반올림 차이는 가장 비싼 상품이 가져간다 */
+export function allocateDiscount(amounts: number[], discount: number): number[] {
+  const total = amounts.reduce((s, a) => s + a, 0)
+  if (!discount || !total) return amounts.map(() => 0)
+  const shares = amounts.map((a) => Math.round((discount * a) / total))
+  shares[amounts.indexOf(Math.max(...amounts))] += discount - shares.reduce((s, a) => s + a, 0)
+  return shares
+}
+
+/**
+ * 분석 결과 한 건을 저장할 초안으로. split이면 상품마다 내역 하나로 나눈다:
+ * 상품 금액은 그 줄 금액(할인 줄이 있으면 비율대로 나눠 뺌), 배송비 같은 상품 아닌 줄은 따로 한 건.
+ */
+export function entryDrafts(e: CheckedEntry, i: number, ctx: DraftContext, split: boolean): Draft[] {
+  const shared: string[] = []
+  const date = e.date ?? ctx.today
+  if (!e.date) shared.push('날짜를 못 읽어서 오늘로 넣었어요.')
+  const match = matchMethodDetailed(e, ctx.methods)
+  const method = match.method ?? null
+  const remembered = method ? null : ctx.rememberedMethod?.(e.merchant) ?? null
+  const cardsInUse = ctx.methods.length > 0 // 카드를 등록해 쓰는 경우에만 카드 관련 안내
+  if (cardsInUse && !match.method && match.reason === 'unknown_last4' && !remembered) {
+    shared.push(`끝자리 ${e.card_last4} 카드가 설정에 없어요. 설정 > 결제수단에 끝 4자리를 넣어 두면 다음부터 자동으로 골라요.`)
+  }
+  if (cardsInUse && !match.method && match.reason === 'ambiguous' && !remembered) {
+    shared.push(`${match.issuer ?? '같은 끝자리'} 카드가 여러 장이라 고르지 못했어요. 결제수단을 골라 주세요.`)
+  }
+  if (e.items_match === false) shared.push(`품목 합계 ${itemsSum(e.items).toLocaleString()}원이 결제 금액 ${e.amount.toLocaleString()}원과 달라요.`)
+  if (e.is_cancellation) shared.push('승인 취소 문자예요. 원래 내역을 찾아 지워 주세요.')
+  const platform = draftPlatform(e)
+  const items: DraftItem[] = e.items.map((it, j) => ({ ...it, src: `${i}:${j}` }))
+
+  const make = (key: string, title: string, amount: number, category: string | null, its: DraftItem[], memo: string | null): Draft => {
+    const dup = sameTransaction({ date, amount, type: e.type }, ctx.existing)
     return {
-      key: `${i}-${date}-${e.amount}`,
-      include: !e.is_cancellation && !dup,
-      type: e.type,
-      date,
-      time: e.time,
-      title: draftTitle(e, platform),
-      platform,
-      amount: e.amount,
-      category_id: matchCategory(e.category, e.type, ctx.categories),
+      key, include: !e.is_cancellation && !dup, type: e.type, date, time: e.time, title, platform, amount,
+      category_id: matchCategory(category, e.type, ctx.categories) ?? matchCategory(e.category, e.type, ctx.categories),
       payment_method_id: method?.id ?? remembered ?? (match.method === null && match.reason !== 'none' ? null : ctx.fallbackMethodId),
-      scope: ctx.fallbackScope,
-      items: e.items,
-      warnings,
+      scope: ctx.fallbackScope, memo, items: its,
+      warnings: dup ? [`같은 날 같은 금액 내역이 이미 있어요${dup.title ? ` (${dup.title})` : ''}.`] : [],
     }
+  }
+
+  let out: Draft[]
+  if (!split || !canSplit(e)) {
+    out = [make(`${i}`, draftTitle(e, platform), e.amount, e.category, items, null)]
+  } else {
+    const products = items.filter(isProductLine)
+    const extras = items.filter((it) => it.amount > 0 && !isProductLine(it)) // 배송비 등
+    const discount = items.filter((it) => it.amount < 0).reduce((s, it) => s + it.amount, 0)
+    const shares = allocateDiscount(products.map((p) => p.amount), discount)
+    out = [
+      ...products.map((p, k) => make(`${i}-${k}`, p.name.slice(0, 60), Math.max(p.amount + shares[k], 1), p.category ?? null, [p],
+        shares[k] ? `할인 ${(-shares[k]).toLocaleString()}원 나눠 뺌 (원래 ${p.amount.toLocaleString()}원)` : null)),
+      ...extras.map((x, k) => make(`${i}-x${k}`, x.name.slice(0, 60), x.amount, x.category ?? null, [], null)),
+    ]
+  }
+  out[0].warnings.unshift(...shared)
+  return out
+}
+
+// 상품 하나짜리 초안은 할인을 나누기 전 상품 금액으로 비교한다 (같은 상품이 묶음 주문과 따로 나온 경우)
+const sameKey = (d: Pick<Draft, 'date' | 'amount' | 'title' | 'items'>) =>
+  `${d.date}|${d.items?.length === 1 ? d.items[0].amount : d.amount}|${d.title.replace(/[\s[\]()]/g, '').toLowerCase()}`
+
+/** 한 번의 분석에서 같은 상품(같은 날·금액·이름)이 또 나오면 빼 둔다 (목록·상세 화면을 함께 찍은 경우 등) */
+export function markRepeats(drafts: Draft[], before: Draft[] = []): Draft[] {
+  const seen = new Set(before.map(sameKey))
+  return drafts.map((d) => {
+    const k = sameKey(d)
+    if (seen.has(k)) return { ...d, include: false, warnings: [...d.warnings, '같은 상품이 위에 이미 있어서 뺐어요. 따로 산 것이면 다시 체크하세요.'] }
+    seen.add(k)
+    return d
   })
+}
+
+/** 여러 건을 초안으로. 기본은 상품이 두 개 이상인 주문을 상품별로 나눈다 */
+export function toDrafts(entries: CheckedEntry[], ctx: DraftContext, split: (e: CheckedEntry) => boolean = canSplit): Draft[] {
+  return markRepeats(entries.flatMap((e, i) => entryDrafts(e, i, ctx, split(e))))
 }
 
 async function errorPayload(error: unknown): Promise<{ code?: string; message?: string } | null> {
@@ -258,7 +318,7 @@ export async function saveDraft(householdId: string, d: Draft, source: 'text' | 
   const { error } = await sb().rpc('add_transaction_with_items', {
     p_household_id: householdId,
     p_tx: {
-      type: d.type, occurred_on: d.date, occurred_at: d.time, amount: d.amount, title: d.title.trim().slice(0, 60),
+      type: d.type, occurred_on: d.date, occurred_at: d.time, amount: d.amount, title: d.title.trim().slice(0, 60), memo: d.memo,
       category_id: d.category_id, payment_method_id: d.payment_method_id, scope: d.scope, source,
       platform: normalizePlatform(d.platform),
     },

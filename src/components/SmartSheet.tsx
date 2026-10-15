@@ -3,7 +3,10 @@ import { friendlyError } from '../lib/api'
 import { won } from '../lib/format'
 import { cropImage, fileToJpeg, type PreparedImage } from '../lib/image'
 import { SCOPE_LABEL, SCOPES, type Lookup } from '../lib/lookup'
-import { analyze, itemsSum, modelLabel, saveDraft, SmartError, toDrafts, type AnalyzeBody, type Draft } from '../lib/smart'
+import {
+  analyze, canSplit, entryDrafts, isProductLine, itemsSum, markRepeats, modelLabel, saveDraft, SmartError,
+  type AnalyzeBody, type CheckedEntry, type Draft, type DraftContext,
+} from '../lib/smart'
 import type { Category, Transaction, TxType } from '../lib/types'
 import { defaultScope } from './EntrySheet'
 import { ItemInfo } from './ItemInfo'
@@ -32,11 +35,25 @@ const MAX_TOTAL_CHARS = 14_000_000 // 서버(extract.ts MAX_TOTAL_IMAGE_CHARS)�
 const SAMPLE = '[Web발신]\n신한카드(1234)승인\n홍*동\n12,400원 일시불\n10/13 18:42 이마트24\n누적1,234,560원'
 const TITLE: Record<SmartMode, string> = { text: '문자로 입력', photo: '영수증으로 입력', shop: '쇼핑 주문으로 입력' }
 
+/** 분석 결과 한 건(주문·영수증)과 상품별로 나눠 저장할지 */
+interface Group {
+  index: number
+  entry: CheckedEntry
+  split: boolean
+}
+
+/** 초안 key의 앞 숫자가 분석 결과 번호다 ('2', '2-0', '2-x0') */
+const groupOf = (d: Draft) => Number(d.key.split('-')[0])
+type Photo = { blob: Blob; url: string }
+
 export function SmartSheet({ open, mode, today, householdId, lookup, categories, existing, onSaved, onManual, onClose }: Props) {
   const [stage, setStage] = useState<Stage>('input')
   const [text, setText] = useState('')
   const [images, setImages] = useState<PreparedImage[]>([])
   const [drafts, setDrafts] = useState<Draft[]>([])
+  const [groups, setGroups] = useState<Group[]>([])
+  // 잘라 둔 상품 사진: '내역번호:품목번호' → 사진. 나누기·합치기를 바꿔도 다시 자르지 않는다
+  const photos = useRef(new Map<string, Photo>())
   const [note, setNote] = useState<string | null>(null)
   const [model, setModel] = useState<string | null>(null)
   const [err, setErr] = useState('')
@@ -46,7 +63,7 @@ export function SmartSheet({ open, mode, today, householdId, lookup, categories,
 
   useEffect(() => {
     if (!open) return
-    setStage('input'); setText(''); setDrafts([]); setNote(null); setModel(null); setErr(''); setBusy(false); setPreparing(false)
+    setStage('input'); setText(''); setDrafts([]); setGroups([]); setNote(null); setModel(null); setErr(''); setBusy(false); setPreparing(false)
     setImages((prev) => { prev.forEach((i) => URL.revokeObjectURL(i.preview)); return [] })
   }, [open, mode])
 
@@ -54,27 +71,49 @@ export function SmartSheet({ open, mode, today, householdId, lookup, categories,
     setStage('loading'); setErr('')
     try {
       const res = await analyze(body)
-      const ds = toDrafts(res.entries, {
-        today, methods: [], categories, existing, fallbackMethodId: null, fallbackScope: defaultScope(lookup),
-      })
       // 상품 사진: 모델이 알려 준 영역을 원본에서 잘라 둔다 (실패하면 사진 없이)
-      for (const d of ds) {
-        for (const it of d.items) {
+      photos.current = new Map()
+      for (const [i, e] of res.entries.entries()) {
+        for (const [j, it] of e.items.entries()) {
           const box = it.image_box
           const src = box ? imgs[box.image - 1] : undefined
           if (!box || !src) continue
           try {
             const blob = await cropImage(src.blob, box)
-            it.photo = { blob, url: URL.createObjectURL(blob) }
-          } catch { it.photo = null }
+            photos.current.set(`${i}:${j}`, { blob, url: URL.createObjectURL(blob) })
+          } catch { /* 사진 없이 */ }
         }
       }
-      setDrafts(ds); setNote(res.note); setModel(modelLabel(res.model))
+      // 상품이 두 개 이상인 주문은 상품마다 내역 하나로 나눈다
+      const gs = res.entries.map((entry, index) => ({ index, entry, split: canSplit(entry) }))
+      const ds = markRepeats(gs.flatMap((g) => withPhotos(entryDrafts(g.entry, g.index, draftContext(), g.split))))
+      setGroups(gs); setDrafts(ds); setNote(res.note); setModel(modelLabel(res.model))
       if (!ds.length) { setErr(res.note ?? '거래 내역을 찾지 못했어요.'); setStage('input'); return }
       setStage('review')
     } catch (e) {
       setErr(e instanceof SmartError ? e.message : friendlyError(e)); setStage('input')
     }
+  }
+
+  function draftContext(): DraftContext {
+    return { today, methods: [], categories, existing, fallbackMethodId: null, fallbackScope: defaultScope(lookup) }
+  }
+
+  function withPhotos(ds: Draft[]): Draft[] {
+    return ds.map((d) => ({ ...d, items: d.items.map((it) => ({ ...it, photo: it.src ? photos.current.get(it.src) ?? null : null })) }))
+  }
+
+  // 한 주문을 상품별로 나누기 ↔ 한 내역으로 합치기 (그 주문의 초안은 새로 만든다)
+  function toggleSplit(index: number) {
+    const g = groups.find((x) => x.index === index)
+    if (!g) return
+    const split = !g.split
+    const fresh = withPhotos(entryDrafts(g.entry, index, draftContext(), split))
+    setGroups((gs) => gs.map((x) => (x.index === index ? { ...x, split } : x)))
+    setDrafts((ds) => {
+      const before = ds.filter((d) => groupOf(d) < index)
+      return [...before, ...markRepeats(fresh, before), ...ds.filter((d) => groupOf(d) > index)]
+    })
   }
 
   async function pasteFromClipboard() {
@@ -211,8 +250,21 @@ export function SmartSheet({ open, mode, today, householdId, lookup, categories,
       {stage === 'review' && (
         <>
           {note && <p className="note">{note}</p>}
-          {drafts.map((d) => (
-            <DraftCard key={d.key} d={d} categories={categories} onChange={(p) => patch(d.key, p)} />
+          {groups.map((g) => (
+            <div key={g.index} className="draft-group">
+              {canSplit(g.entry) && (
+                <label className="check split-toggle">
+                  <input type="checkbox" checked={g.split} onChange={() => toggleSplit(g.index)} />
+                  <span>
+                    {g.entry.platform || g.entry.merchant || '주문'} {won(g.entry.amount)}원 · 상품 {g.entry.items.filter(isProductLine).length}개를
+                    {' '}{g.split ? '하나씩 따로 저장' : '한 내역으로 저장'} (눌러서 바꾸기)
+                  </span>
+                </label>
+              )}
+              {drafts.filter((d) => groupOf(d) === g.index).map((d) => (
+                <DraftCard key={d.key} d={d} categories={categories} onChange={(p) => patch(d.key, p)} />
+              ))}
+            </div>
           ))}
           <p className="err" role="alert">{err}</p>
           <button className="primary" disabled={busy || !chosen.length} onClick={saveAll}>
@@ -269,6 +321,7 @@ function DraftCard({ d, categories, onChange }: {
           <input type="date" className="input date-input" value={d.date} onChange={(e) => onChange({ date: e.target.value })} />
         </div>
       </div>
+      {d.memo && <p className="tx-meta">{d.memo}</p>}
       <div className="field">
         <span className="lbl">분류</span>
         <div className="chips">

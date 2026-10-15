@@ -16,6 +16,7 @@ const ITEMS_IMG = read('20261015060000_items_images_no_shared.sql')
 const CHILD = read('20261015070000_child.sql')
 const PLATFORM = read('20261015080000_platform_units.sql')
 const EXPORT_PLATFORM = read('20261015090000_export_platform.sql')
+const DROP_OLD_EXPORT = read('20261015100000_drop_old_export_rows.sql')
 
 const SUPABASE_STUB = `
 create schema auth;
@@ -86,7 +87,7 @@ async function freshDb(migrations: string[]) {
 }
 
 beforeAll(async () => {
-  db = await freshDb([INIT, ROLES, SMART, HOOK, RECUR, EXPORT_SVC, ITEMS_IMG, CHILD, PLATFORM, EXPORT_PLATFORM])
+  db = await freshDb([INIT, ROLES, SMART, HOOK, RECUR, EXPORT_SVC, ITEMS_IMG, CHILD, PLATFORM, EXPORT_PLATFORM, DROP_OLD_EXPORT])
 })
 
 describe('가구 만들기와 참여', () => {
@@ -384,7 +385,7 @@ describe('자녀 (20261015070000_child)', () => {
     await old.exec('set role authenticated')
     await old.query(`select public.create_household('나', 'husband')`)
     await old.exec('reset role')
-    for (const m of [SMART, HOOK, RECUR, EXPORT_SVC, ITEMS_IMG, CHILD, PLATFORM, EXPORT_PLATFORM]) await old.exec(m)
+    for (const m of [SMART, HOOK, RECUR, EXPORT_SVC, ITEMS_IMG, CHILD, PLATFORM, EXPORT_PLATFORM, DROP_OLD_EXPORT]) await old.exec(m)
     const rows = (await old.query<{ n: number }>(`select count(*)::int as n from public.categories where name = '자녀'`)).rows
     expect(rows).toEqual([{ n: 1 }])
   })

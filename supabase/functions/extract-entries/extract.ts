@@ -24,6 +24,7 @@ export const ItemSchema = z.object({
   amount: z.number().describe('이 줄의 금액 (수량×단가)'),
   pack_size: z.number().nullable().describe('상품 1개(수량 1)에 든 총량. 예: 100매×10팩 → 1000. 모르면 null'),
   pack_unit: z.string().nullable().describe('pack_size의 단위: g, ml, 또는 개·매·구·롤·입·병·캔·봉·장·정·포 같은 셈 단위. 모르면 null'),
+  category: z.string().nullable().describe('이 상품의 분류 (주어진 분류 목록 중 하나). 배송비·할인이거나 애매하면 null'),
   image_box: BoxSchema.nullable().describe('이 상품의 사진(썸네일) 위치, 이미지 픽셀 좌표. 상품 사진이 없으면 null'),
 })
 
@@ -67,8 +68,9 @@ export const SYSTEM_PROMPT = `당신은 한국 가정의 가계부 입력을 돕
   목록에 없는 온라인 플랫폼이면 화면에 보이는 이름을 씁니다. 매장에서 결제한 영수증·카드 문자는 null입니다(카드 문자 가맹점이 "쿠팡"처럼 플랫폼이면 그 이름).
 - 쇼핑몰·배달앱 주문·결제 내역 화면이면:
   · 주문(결제) 한 건이 entries 하나입니다. 주문일·주문번호가 다르면 따로 만듭니다. 여러 이미지가 같은 주문을 이어서 찍은 것이면 하나로 합치고 같은 상품을 두 번 넣지 않습니다.
+  · 한 상품은 entries 전체에서 한 번만 나옵니다. 주문 목록 화면과 주문 상세 화면을 함께 찍었더라도 같은 상품을 다른 entries에 또 넣지 않습니다.
   · merchant는 판매자·가게 이름이고, 보이지 않으면 플랫폼 이름입니다. date는 주문일 또는 결제일입니다.
-  · items에는 상품마다 화면에 적힌 상품명(옵션은 짧게 덧붙임), 수량, 단가(1개 가격), 금액을 넣고 is_product를 true로 합니다. 배송비는 "배송비" 품목, 쿠폰·할인·적립금 사용은 음수 금액 품목으로 넣고 is_product를 false로 합니다.
+  · items에는 상품마다 화면에 적힌 상품명(옵션은 짧게 덧붙임), 수량, 단가(1개 가격), 금액, 분류(category, 상품마다 따로)를 넣고 is_product를 true로 합니다. 배송비는 "배송비" 품목, 쿠폰·할인·적립금 사용은 음수 금액 품목으로 넣고 is_product를 false로 합니다.
   · pack_size와 pack_unit은 상품명·옵션에 적힌 용량·개수로 상품 1개(수량 1)에 든 총량을 계산해 넣습니다. 여러 개 묶음이면 곱합니다(예: "100매 x 10팩" → 1000, 매 / "2L x 6병" → 12000, ml / "500g x 2개" → 1000, g / "30구" → 30, 구). kg은 g으로, L는 ml로 바꿉니다. 셈 단위는 가장 작은 소비 단위를 씁니다(팩·박스보다 매·개·구). 용량이 적혀 있지 않으면 null입니다.
   · 최종 결제 금액이 보이면 amount는 그 값이고, 안 보이면 품목 금액의 합입니다. 취소·반품된 상품은 넣지 않습니다.
 - 영수증 품목도 is_product를 같은 기준으로 넣고, 용량이 품목명에 적혀 있으면 pack_size·pack_unit을 넣습니다.
@@ -164,6 +166,7 @@ export function checkEntries(result: ExtractResult, images: ImageSize[] = []): C
           unit_price: it.unit_price === null ? null : Math.round(it.unit_price),
           amount: Math.round(it.amount),
           ...checkPack(it.pack_size, it.pack_unit),
+          category: it.category?.trim() || null,
           image_box: checkBox(it.image_box ?? null, images),
         }))
       const sum = items.reduce((s, it) => s + it.amount, 0)
