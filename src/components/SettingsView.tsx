@@ -3,18 +3,21 @@ import { friendlyError, insertCategory, setCategoryArchived, updateDisplayName, 
 import { formatInviteCode } from '../lib/format'
 import { SCOPE_LABEL, type Lookup } from '../lib/lookup'
 import { sb } from '../lib/supabase'
-import type { Category, Household, Spouse } from '../lib/types'
+import type { Anniversary, Category, Household, Spouse } from '../lib/types'
+import { AnniversaryCard } from './AnniversaryCard'
 
 interface Props {
   household: Household
   categories: Category[]
+  annivs: Anniversary[]
+  today: string
   lookup: Lookup
   email: string
   onChanged: () => Promise<void>
   toast: (msg: string) => void
 }
 
-export function SettingsView({ household, categories, lookup, email, onChanged, toast }: Props) {
+export function SettingsView({ household, categories, annivs, today, lookup, email, onChanged, toast }: Props) {
   const meMember = lookup.members.find((m) => m.user_id === lookup.me)
   const partner = lookup.members.find((m) => m.user_id !== lookup.me)
 
@@ -66,6 +69,8 @@ export function SettingsView({ household, categories, lookup, email, onChanged, 
             onClick={() => run(() => updateDisplayName(household.id, lookup.me, name.trim()), '이름을 바꿨어요')}>내 이름 바꾸기</button>
         </div>
       </div>
+
+      <AnniversaryCard householdId={household.id} annivs={annivs} today={today} onChanged={onChanged} toast={toast} />
 
       <div className="card">
         <h3 className="section-title">분류</h3>

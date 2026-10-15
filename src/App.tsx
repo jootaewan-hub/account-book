@@ -195,8 +195,8 @@ function Ledger({ household, meta, userId, email }: {
           </div>
         )}
         {tab === 'cal' && (
-          <CalendarView ym={ym} today={today} sel={sel} cur={cur} prev={prev} lookup={lookup}
-            onSelect={setSel} onEdit={(t) => setSheet({ open: true, editing: t })} />
+          <CalendarView ym={ym} today={today} sel={sel} cur={cur} prev={prev} lookup={lookup} annivs={meta.anniversaries}
+            onSelect={setSel} onJump={(d) => { setYm(d.slice(0, 7)); setSel(d) }} onEdit={(t) => setSheet({ open: true, editing: t })} />
         )}
         {tab === 'list' && <ListView cur={cur} lookup={lookup} onEdit={(t) => setSheet({ open: true, editing: t })} />}
         {tab === 'stats' && (
@@ -209,7 +209,7 @@ function Ledger({ household, meta, userId, email }: {
         )}
         {tab === 'settings' && (
           <>
-            <SettingsView household={household} categories={meta.categories}
+            <SettingsView household={household} categories={meta.categories} annivs={meta.anniversaries} today={today}
               lookup={lookup} email={email} onChanged={meta.reload} toast={toast} />
             <div style={{ height: 16 }} />
             <ExportCard householdId={household.id} today={today} lookup={lookup} toast={toast} />

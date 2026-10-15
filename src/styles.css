@@ -65,10 +65,10 @@ button { cursor: pointer; touch-action: manipulation; user-select: none; -webkit
 .app { max-width: var(--col); margin: 0 auto; min-height: 100%; }
 
 /* 누름 반응: 손이 닿는 순간 살짝 줄어든다 */
-.primary, .ghost, .danger, .chip, .fab, .smart-btn, .keypad button, .icon-btn, .today-btn, .seg button, .link-btn, .svc-pick, .pv-x, .update-bar {
+.primary, .ghost, .danger, .chip, .anniv-chip, .fab, .smart-btn, .keypad button, .icon-btn, .today-btn, .seg button, .link-btn, .svc-pick, .pv-x, .update-bar {
   transition: transform var(--dur-press) var(--ease-out);
 }
-.primary:active:not(:disabled), .ghost:active:not(:disabled), .danger:active:not(:disabled), .chip:active, .fab:active, .smart-btn:active,
+.primary:active:not(:disabled), .ghost:active:not(:disabled), .danger:active:not(:disabled), .chip:active, .anniv-chip:active, .fab:active, .smart-btn:active,
 .keypad button:active, .icon-btn:active:not(:disabled), .today-btn:active, .seg button:active, .svc-pick:active, .update-bar:active { transform: scale(0.97); }
 .tx:active, .rc-row:active, .day:active { background: var(--oat); }
 
@@ -130,6 +130,29 @@ main.wrap { padding-block: 4px calc(150px + env(safe-area-inset-bottom, 0px)); }
 .day .amt.exp { color: var(--ink-2); } .day .amt.inc { color: var(--indigo); }
 .day .hname { display: none; }
 .day.blank { visibility: hidden; pointer-events: none; }
+
+/* 기념일: 달력 숫자 옆 작은 표시, 고른 날의 기념일 줄, 다가오는 기념일 칩, 설정 목록 */
+.day .n { position: relative; }
+.anniv-mark { position: absolute; top: -5px; right: -8px; width: 14px; height: 14px; color: var(--clay); pointer-events: none; }
+.anniv-mark svg { width: 100%; height: 100%; display: block; stroke-width: 2.6; }
+.anniv-mark.k-memorial { color: var(--ink-3); }
+.anniv-list { display: flex; flex-direction: column; gap: 6px; margin: 6px 0 8px; }
+.anniv-row { display: flex; align-items: center; gap: 10px; background: var(--blush-soft); color: var(--rose-ink); border-radius: var(--r-sm); padding: 10px 12px; font-size: 13px; }
+.anniv-row svg { width: 20px; height: 20px; flex: none; }
+.anniv-row b { font-size: 15px; font-weight: 700; color: var(--ink); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.anniv-row span { margin-left: auto; color: var(--ink-2); flex: none; }
+.anniv-row.k-memorial, .anniv-chip.k-memorial { background: var(--oat); color: var(--ink-2); }
+.anniv-soon { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; padding: 2px 0; }
+.anniv-soon::-webkit-scrollbar { display: none; }
+.anniv-chip { flex: none; border: 0; display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 0 12px; border-radius: 999px; background: var(--blush-soft); color: var(--rose-ink); font-size: 14px; font-weight: 600; }
+.anniv-chip svg { width: 16px; height: 16px; flex: none; }
+.anniv-chip span { color: var(--ink); }
+.anniv-chip b { font-weight: 800; }
+.anniv-ic { width: 36px; height: 36px; flex: none; border-radius: 50%; background: var(--blush-soft); color: var(--rose-ink); display: grid; place-items: center; }
+.anniv-ic svg { width: 20px; height: 20px; }
+.anniv-ic.k-memorial { background: var(--canvas); color: var(--ink-3); }
+.anniv-item .rc-main { flex: 1; }
+.anniv-form { display: flex; flex-direction: column; gap: 8px; padding: 12px 0; border-top: 1px solid var(--oat-deep); }
 
 /* 내역 */
 .day-group { display: flex; flex-direction: column; }
@@ -406,8 +429,8 @@ select.input { padding: 9px 10px; }
 
 /* 동작 줄이기: 이동·크기 변화는 빼고 투명도만 */
 @media (prefers-reduced-motion: reduce) {
-  .primary, .ghost, .danger, .chip, .fab, .smart-btn, .keypad button, .icon-btn, .today-btn, .seg button, .svc-pick, .update-bar { transition: none; }
-  .primary:active, .ghost:active, .danger:active, .chip:active, .fab:active, .smart-btn:active, .keypad button:active, .icon-btn:active, .today-btn:active, .seg button:active, .svc-pick:active { transform: none; }
+  .primary, .ghost, .danger, .chip, .anniv-chip, .fab, .smart-btn, .keypad button, .icon-btn, .today-btn, .seg button, .svc-pick, .update-bar { transition: none; }
+  .primary:active, .ghost:active, .danger:active, .chip:active, .anniv-chip:active, .fab:active, .smart-btn:active, .keypad button:active, .icon-btn:active, .today-btn:active, .seg button:active, .svc-pick:active { transform: none; }
   .sheet { transform: none; opacity: 0; transition: opacity 200ms ease; }
   .sheet.on { opacity: 1; }
   .seg::before, .spend-bar > i { transition: none; }

@@ -2,8 +2,8 @@ import { addMonths, monthRange } from './dates'
 import { removeItemImages } from './itemImages'
 import { sb } from './supabase'
 import type {
-  BillCharge, BillUsage, Category, Household, Member, MonthTotal, PaymentMethod, Recurring, RecurringInput, Spouse, Transaction,
-  TxInput, UtilityBill,
+  Anniversary, AnniversaryInput, BillCharge, BillUsage, Category, Household, Member, MonthTotal, PaymentMethod, Recurring, RecurringInput,
+  Spouse, Transaction, TxInput, UtilityBill,
 } from './types'
 
 const TX_COLUMNS =
@@ -39,16 +39,32 @@ export async function fetchHouseholdBundle(): Promise<{
   members: Member[]
   methods: PaymentMethod[]
   categories: Category[]
+  anniversaries: Anniversary[]
 }> {
   const households = check(await sb().from('households').select('id, name, invite_code, share_ratio').limit(1))
   const household = households[0] ? { ...households[0], share_ratio: Number(households[0].share_ratio) } : null
-  if (!household) return { household: null, members: [], methods: [], categories: [] }
-  const [members, methods, categories] = await Promise.all([
+  if (!household) return { household: null, members: [], methods: [], categories: [], anniversaries: [] }
+  const [members, methods, categories, anniversaries] = await Promise.all([
     sb().from('members').select('household_id, user_id, display_name, role, spouse_role').order('role'), // owner, partner 순
     sb().from('payment_methods').select('*').order('sort').order('name'),
     sb().from('categories').select('*').order('type').order('sort'),
+    sb().from('anniversaries').select(ANNIV_COLUMNS).order('month').order('day'),
   ])
-  return { household, members: check(members), methods: check(methods), categories: check(categories) }
+  return { household, members: check(members), methods: check(methods), categories: check(categories), anniversaries: check(anniversaries) }
+}
+
+const ANNIV_COLUMNS = 'id, household_id, name, kind, lunar, month, day'
+
+export async function insertAnniversary(householdId: string, a: AnniversaryInput): Promise<void> {
+  check(await sb().from('anniversaries').insert({ ...a, household_id: householdId }))
+}
+
+export async function updateAnniversary(id: string, a: AnniversaryInput): Promise<void> {
+  check(await sb().from('anniversaries').update(a).eq('id', id))
+}
+
+export async function deleteAnniversary(id: string): Promise<void> {
+  check(await sb().from('anniversaries').delete().eq('id', id))
 }
 
 /** 보고 있는 달과 그 전달의 내역 (전월 비교용) */

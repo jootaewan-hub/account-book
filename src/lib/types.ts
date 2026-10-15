@@ -140,3 +140,19 @@ export interface UtilityBill {
   usages: BillUsage[]
   transaction_id: string | null
 }
+
+/** 기념일 종류: 생일, 우리 둘(만난 날·결혼기념일 등), 추모, 그 밖 */
+export type AnnivKind = 'birthday' | 'couple' | 'memorial' | 'other'
+
+export interface Anniversary {
+  id: string
+  household_id: string
+  name: string
+  kind: AnnivKind
+  /** true면 month·day가 음력 (윤달이 아닌 달) */
+  lunar: boolean
+  month: number
+  day: number
+}
+
+export type AnniversaryInput = Pick<Anniversary, 'name' | 'kind' | 'lunar' | 'month' | 'day'>

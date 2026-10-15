@@ -19,6 +19,7 @@ const EXPORT_PLATFORM = read('20261015090000_export_platform.sql')
 const DROP_OLD_EXPORT = read('20261015100000_drop_old_export_rows.sql')
 const BILLS = read('20261015110000_utility_bills.sql')
 const REVOKE_ANON = read('20261015120000_revoke_anon.sql')
+const ANNIV = read('20261015130000_anniversaries.sql')
 
 const SUPABASE_STUB = `
 create schema auth;
@@ -89,7 +90,7 @@ async function freshDb(migrations: string[]) {
 }
 
 beforeAll(async () => {
-  db = await freshDb([INIT, ROLES, SMART, HOOK, RECUR, EXPORT_SVC, ITEMS_IMG, CHILD, PLATFORM, EXPORT_PLATFORM, DROP_OLD_EXPORT, BILLS, REVOKE_ANON])
+  db = await freshDb([INIT, ROLES, SMART, HOOK, RECUR, EXPORT_SVC, ITEMS_IMG, CHILD, PLATFORM, EXPORT_PLATFORM, DROP_OLD_EXPORT, BILLS, REVOKE_ANON, ANNIV])
 })
 
 describe('가구 만들기와 참여', () => {
@@ -387,7 +388,7 @@ describe('자녀 (20261015070000_child)', () => {
     await old.exec('set role authenticated')
     await old.query(`select public.create_household('나', 'husband')`)
     await old.exec('reset role')
-    for (const m of [SMART, HOOK, RECUR, EXPORT_SVC, ITEMS_IMG, CHILD, PLATFORM, EXPORT_PLATFORM, DROP_OLD_EXPORT, BILLS, REVOKE_ANON]) await old.exec(m)
+    for (const m of [SMART, HOOK, RECUR, EXPORT_SVC, ITEMS_IMG, CHILD, PLATFORM, EXPORT_PLATFORM, DROP_OLD_EXPORT, BILLS, REVOKE_ANON, ANNIV]) await old.exec(m)
     const rows = (await old.query<{ n: number }>(`select count(*)::int as n from public.categories where name = '자녀'`)).rows
     expect(rows).toEqual([{ n: 1 }])
   })
@@ -480,5 +481,30 @@ describe('관리비 고지서 (20261015110000_utility_bills)', () => {
       .toContain('foreign key')
     await as(A, `delete from public.transactions where id = $1`, [txA])
     expect(await as(B, `select transaction_id from public.utility_bills where bill_month = '2026-09-01'`)).toEqual([{ transaction_id: null }])
+  })
+})
+
+describe('기념일 (20261015130000_anniversaries)', () => {
+  it('같은 가구만 보고 쓰며, 음력은 30일까지, 양력은 그 달에 있는 날만 받는다', async () => {
+    await as(A, `insert into public.anniversaries (household_id, name, kind, lunar, month, day) values ($1, '어머니 생신', 'birthday', true, 8, 22)`, [hhA])
+    await as(B, `insert into public.anniversaries (household_id, name, kind, month, day) values ($1, '결혼기념일', 'couple', 9, 13)`, [hhA])
+    const rows = await as<{ name: string; lunar: boolean }>(A, `select name, lunar from public.anniversaries order by month`)
+    expect(rows).toEqual([{ name: '어머니 생신', lunar: true }, { name: '결혼기념일', lunar: false }])
+    expect(await as(C, `select * from public.anniversaries`)).toHaveLength(0)
+    expect(await errorOf(as(null, `select * from public.anniversaries`))).toContain('permission denied')
+    expect(await errorOf(as(C, `insert into public.anniversaries (household_id, name, month, day) values ($1, 'x', 1, 1)`, [hhA])))
+      .toContain('row-level security')
+    // 양력 2월 29일은 되고 30일은 안 된다, 음력 30일은 되고 31일은 안 된다
+    await as(A, `insert into public.anniversaries (household_id, name, month, day) values ($1, '윤일 생일', 2, 29)`, [hhA])
+    expect(await errorOf(as(A, `insert into public.anniversaries (household_id, name, month, day) values ($1, 'x', 2, 30)`, [hhA]))).toContain('check')
+    expect(await errorOf(as(A, `insert into public.anniversaries (household_id, name, month, day) values ($1, 'x', 4, 31)`, [hhA]))).toContain('check')
+    await as(A, `insert into public.anniversaries (household_id, name, lunar, month, day) values ($1, '그믐 생일', true, 12, 30)`, [hhA])
+    expect(await errorOf(as(A, `insert into public.anniversaries (household_id, name, lunar, month, day) values ($1, 'x', true, 1, 31)`, [hhA]))).toContain('check')
+    expect(await errorOf(as(A, `insert into public.anniversaries (household_id, name, kind, month, day) values ($1, 'x', 'party', 1, 1)`, [hhA]))).toContain('check')
+    expect(await errorOf(as(A, `insert into public.anniversaries (household_id, name, month, day) values ($1, '  ', 1, 1)`, [hhA]))).toContain('check')
+    // 배우자가 수정·삭제할 수 있다
+    await as(B, `update public.anniversaries set day = 14 where name = '결혼기념일'`)
+    await as(B, `delete from public.anniversaries where name = '윤일 생일'`)
+    expect((await as<{ name: string; day: number }>(A, `select name, day from public.anniversaries where not lunar`)).map((r) => [r.name, r.day])).toEqual([['결혼기념일', 14]])
   })
 })

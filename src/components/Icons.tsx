@@ -1,3 +1,5 @@
+import type { AnnivKind } from '../lib/types'
+
 const base = { viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeLinecap: 'round', strokeLinejoin: 'round' } as const
 
 export const ChevronLeft = () => <svg {...base} strokeWidth={2}><path d="M15 18l-6-6 6-6" /></svg>
@@ -24,4 +26,14 @@ export const RepeatIcon = () => (
 )
 export const CameraIcon = () => (
   <svg {...base} strokeWidth={1.75}><path d="M4 8h3l2-3h6l2 3h3v11H4z" /><circle cx="12" cy="13" r="3.5" /></svg>
+)
+
+/** 기념일 종류별 아이콘: 케이크(생일), 하트(우리 둘), 초(추모), 별(그 밖) */
+export const AnnivIcon = ({ kind }: { kind: AnnivKind }) => (
+  <svg {...base} strokeWidth={1.8} aria-hidden="true">
+    {kind === 'birthday' && <path d="M4 20h16M5 20v-6.5A1.5 1.5 0 016.5 12h11a1.5 1.5 0 011.5 1.5V20M5 16c1.2.9 2.6.9 3.8 0s2.6-.9 3.7 0 2.6.9 3.8 0 2.4-.9 2.7-.4M12 12V9M12 6.6c-.9-.9-.9-2 0-3 .9 1 .9 2.1 0 3z" />}
+    {kind === 'couple' && <path d="M12 20s-7.5-4.6-7.5-10.2A4.1 4.1 0 0112 7.6a4.1 4.1 0 017.5 2.2C19.5 15.4 12 20 12 20z" />}
+    {kind === 'memorial' && <path d="M8.5 21h7M10 21V11h4v10M12 11V8.6M12 6.4c-1-.9-1-2.1 0-3.2 1 1.1 1 2.3 0 3.2z" />}
+    {kind === 'other' && <path d="M12 3.8l2.5 5.1 5.6.8-4.1 4 1 5.6-5-2.7-5 2.7 1-5.6-4.1-4 5.6-.8z" />}
+  </svg>
 )

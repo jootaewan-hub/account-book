@@ -1,20 +1,21 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { fetchHouseholdBundle, fetchTwoMonths } from '../lib/api'
 import { sb } from '../lib/supabase'
-import type { Category, Household, Member, PaymentMethod, Transaction } from '../lib/types'
+import type { Anniversary, Category, Household, Member, PaymentMethod, Transaction } from '../lib/types'
 
 export interface LedgerMeta {
   household: Household | null | undefined // undefined: 불러오는 중, null: 아직 가구 없음
   members: Member[]
   methods: PaymentMethod[]
   categories: Category[]
+  anniversaries: Anniversary[]
   error: string | null
   reload: () => Promise<void>
 }
 
 export function useLedgerMeta(): LedgerMeta {
   const [state, setState] = useState<Omit<LedgerMeta, 'reload'>>({
-    household: undefined, members: [], methods: [], categories: [], error: null,
+    household: undefined, members: [], methods: [], categories: [], anniversaries: [], error: null,
   })
   const reload = useCallback(async () => {
     try {
@@ -77,6 +78,7 @@ export function useLiveUpdates(householdId: string | undefined, onTx: () => void
       .on('postgres_changes', { event: '*', schema: 'public', table: 'payment_methods', filter }, meta)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'categories', filter }, meta)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'members', filter }, meta)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'anniversaries', filter }, meta)
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'households', filter: `id=eq.${householdId}` }, meta)
       .subscribe()
 
