@@ -1,11 +1,24 @@
 import { addMonths, monthRange } from './dates'
+import { removeItemImages } from './itemImages'
 import { sb } from './supabase'
 import type {
-  Category, Household, Member, MonthTotal, PaymentMethod, Recurring, RecurringInput, SettlementRecord, Spouse, Transaction, TxInput,
+  Category, Household, Member, MonthTotal, PaymentMethod, Recurring, RecurringInput, Spouse, Transaction, TxInput,
 } from './types'
 
 const TX_COLUMNS =
   'id, household_id, type, occurred_on, amount, title, memo, category_id, payment_method_id, scope, source, created_by, created_at, recurring_id'
+const TX_WITH_ITEMS = `${TX_COLUMNS}, transaction_items(id, name, quantity, amount, image_path, sort)`
+
+type TxRowWithItems = Omit<Transaction, 'items'> & {
+  transaction_items?: { id: string; name: string; quantity: number | string; amount: number | string; image_path: string | null; sort: number }[]
+}
+
+function withItems(r: TxRowWithItems): Transaction {
+  const { transaction_items: raw, ...t } = r
+  const items = (raw ?? []).map((i) => ({ ...i, quantity: Number(i.quantity), amount: Number(i.amount) }))
+    .sort((a, b) => a.sort - b.sort)
+  return { ...t, amount: Number(t.amount), items }
+}
 
 function check<T>(res: { data: T | null; error: { message: string } | null }): T {
   if (res.error) throw new Error(res.error.message)
@@ -36,14 +49,14 @@ export async function fetchTwoMonths(householdId: string, ym: string): Promise<T
   const rows = check(
     await sb()
       .from('transactions')
-      .select(TX_COLUMNS)
+      .select(TX_WITH_ITEMS)
       .eq('household_id', householdId)
       .gte('occurred_on', start)
       .lte('occurred_on', end)
       .order('occurred_on', { ascending: false })
       .order('created_at', { ascending: false }),
-  )
-  return rows.map((r) => ({ ...r, amount: Number(r.amount) }))
+  ) as unknown as TxRowWithItems[]
+  return rows.map(withItems)
 }
 
 export async function insertTransaction(householdId: string, input: TxInput): Promise<void> {
@@ -55,7 +68,11 @@ export async function updateTransaction(id: string, input: TxInput): Promise<voi
 }
 
 export async function deleteTransaction(id: string): Promise<void> {
+  // 품목 사진도 함께 지운다 (사진 삭제가 실패해도 내역은 지운다)
+  const items = check(await sb().from('transaction_items').select('image_path').eq('transaction_id', id))
   check(await sb().from('transactions').delete().eq('id', id))
+  const paths = items.map((i) => i.image_path).filter((p): p is string => Boolean(p))
+  await removeItemImages(paths).catch(() => undefined)
 }
 
 export async function createHousehold(displayName: string, role: Spouse): Promise<void> {
@@ -152,20 +169,6 @@ export async function recordRecurring(householdId: string, r: Recurring, month: 
   }))
 }
 
-export async function fetchSettlement(householdId: string, month: string): Promise<SettlementRecord | null> {
-  const rows = check(await sb().from('settlements').select('month, from_role, to_role, amount, settled_at')
-    .eq('household_id', householdId).eq('month', month).limit(1))
-  return rows[0] ? { ...rows[0], amount: Number(rows[0].amount) } as SettlementRecord : null
-}
-
-export async function markSettled(householdId: string, s: Omit<SettlementRecord, 'settled_at'>): Promise<void> {
-  check(await sb().from('settlements').insert({ ...s, household_id: householdId }))
-}
-
-export async function unmarkSettled(householdId: string, month: string): Promise<void> {
-  check(await sb().from('settlements').delete().eq('household_id', householdId).eq('month', month))
-}
-
 /** 구글 시트 연동 주소의 토큰. rotate면 새로 만들고 이전 주소는 끊긴다 */
 export async function exportToken(householdId: string, rotate = false): Promise<string> {
   return String(check(await sb().rpc('export_token', { p_household_id: householdId, p_rotate: rotate })))
@@ -180,7 +183,7 @@ export function friendlyError(e: unknown): string {
   if (msg.includes('duplicate key') && msg.includes('categories')) return '같은 이름의 분류가 이미 있어요.'
   if (msg.includes('members_household_spouse_role_key')) return '배우자가 이미 그 역할로 등록돼 있어요.'
   if (msg.includes('transactions_recurring_month_key')) return '이번 달 분은 이미 들어가 있어요.'
-  if (msg.includes('settlements_pkey')) return '이미 정산 완료로 표시돼 있어요.'
+  if (msg.includes('transactions_scope_check') || msg.includes('recurring_scope_check')) return "'자녀'는 DB 설정을 마친 뒤에 쓸 수 있어요. 잠시 다른 항목을 골라 주세요."
   if (msg.includes('Failed to fetch') || msg.includes('NetworkError')) return '인터넷 연결을 확인해 주세요.'
   const lower = msg.toLowerCase()
   if (lower.includes('invalid login credentials')) return '이메일 또는 비밀번호가 맞지 않아요.'

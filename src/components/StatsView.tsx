@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
-import { fetchMonthlyTotals, fetchRange, fetchSettlement, friendlyError, markSettled, unmarkSettled } from '../lib/api'
+import { fetchMonthlyTotals, fetchRange, friendlyError } from '../lib/api'
 import { addMonths, dayOf, monthRange, parseYM } from '../lib/dates'
 import { won } from '../lib/format'
-import { settle, sumType } from '../lib/ledger'
+import { sumType } from '../lib/ledger'
 import { SCOPE_LABEL, SCOPES, type Lookup } from '../lib/lookup'
-import { categoryBreakdown, monthSeries, pctChange, scopeSplit, type MonthPoint } from '../lib/stats'
-import type { Category, Household, MonthTotal, SettlementRecord, Transaction } from '../lib/types'
+import { categoryBreakdown, monthSeries, OTHER_PLATFORM, pctChange, platformBreakdown, scopeSplit, type MonthPoint } from '../lib/stats'
+import type { Category, Household, MonthTotal, Transaction } from '../lib/types'
 
 interface Props {
   household: Household
@@ -15,15 +15,13 @@ interface Props {
   prev: Transaction[]
   lookup: Lookup
   categories: Category[]
-  toast: (msg: string) => void
 }
 
 const man = (n: number) => (n >= 10_000 ? `${Math.round(n / 10_000).toLocaleString('ko-KR')}만` : won(n))
 
-export function StatsView({ household, ym, today, cur, prev, lookup, categories, toast }: Props) {
+export function StatsView({ household, ym, today, cur, prev, lookup, categories }: Props) {
   const [totals, setTotals] = useState<MonthTotal[] | null>(null)
   const [lastYear, setLastYear] = useState<Transaction[]>([])
-  const [settled, setSettled] = useState<SettlementRecord | null | undefined>(undefined)
   const [sel, setSel] = useState(ym)
   const [err, setErr] = useState('')
 
@@ -34,8 +32,7 @@ export function StatsView({ household, ym, today, cur, prev, lookup, categories,
     Promise.all([
       fetchMonthlyTotals(household.id, `${addMonths(ym, -12)}-01`, monthRange(ym).end),
       fetchRange(household.id, monthRange(ly).start, monthRange(ly).end),
-      fetchSettlement(household.id, `${ym}-01`),
-    ]).then(([t, l, s]) => { if (alive) { setTotals(t); setLastYear(l); setSettled(s); setErr('') } })
+    ]).then(([t, l]) => { if (alive) { setTotals(t); setLastYear(l); setErr('') } })
       .catch((e) => { if (alive) setErr(friendlyError(e)) })
     return () => { alive = false }
   }, [household.id, ym, cur])
@@ -43,8 +40,7 @@ export function StatsView({ household, ym, today, cur, prev, lookup, categories,
   const series = useMemo(() => (totals ? monthSeries(totals, ym) : []), [totals, ym])
   const cats = useMemo(() => categoryBreakdown(cur, prev, categories), [cur, prev, categories])
   const split = useMemo(() => scopeSplit(cur), [cur])
-  const result = useMemo(() => settle(cur, lookup.methods, lookup.roleOf, household.share_ratio),
-    [cur, lookup, household.share_ratio])
+  const platforms = useMemo(() => platformBreakdown(cur, prev), [cur, prev])
 
   const isCurrent = ym === today.slice(0, 7)
   const upto = isCurrent ? dayOf(today) : undefined
@@ -56,6 +52,7 @@ export function StatsView({ household, ym, today, cur, prev, lookup, categories,
   })
   const selPoint = series.find((p) => p.ym === sel)
   const maxCat = cats[0]?.amount ?? 0
+  const maxPlat = Math.max(0, ...platforms.map((p) => p.amount))
 
   return (
     <section className="view">
@@ -123,30 +120,19 @@ export function StatsView({ household, ym, today, cur, prev, lookup, categories,
       </div>
 
       <div className="card">
-        <h3 className="section-title">{m}월 정산 · 분담 비율 남편 {Math.round(household.share_ratio * 100)} : 아내 {Math.round((1 - household.share_ratio) * 100)}</h3>
-        <div className="set-row"><span>공동 지출 중 남편 개인 돈으로 낸 것</span><span className="num">{won(result.paid.husband)}원</span></div>
-        <div className="set-row"><span>공동 지출 중 아내 개인 돈으로 낸 것</span><span className="num">{won(result.paid.wife)}원</span></div>
-        <p className="settle-result">
-          {result.amount === 0 || !result.from || !result.to
-            ? '주고받을 돈이 없어요'
-            : <>{SCOPE_LABEL[result.from]} → {SCOPE_LABEL[result.to]} <b className="num">{won(result.amount)}원</b></>}
-        </p>
-        <p className="note">공동 통장·공동 카드로 낸 돈은 이미 함께 낸 것이라 빼고, 공동 지출을 개인 카드·현금으로 낸 것만 나눕니다. 분담 비율은 설정에서 바꿔요.</p>
-        {settled === undefined ? null : settled ? (
-          <div className="set-row">
-            <span>정산 완료 · {new Date(settled.settled_at).toLocaleDateString('ko-KR')} · {won(settled.amount)}원</span>
-            <button className="link-btn" onClick={async () => {
-              try { await unmarkSettled(household.id, `${ym}-01`); setSettled(null); toast('정산 완료를 취소했어요') } catch (e) { toast(friendlyError(e)) }
-            }}>취소</button>
+        <h3 className="section-title">플랫폼별 지출 · 지난달 대비</h3>
+        {platforms.length === 0 && <p className="empty">이번 달 지출이 없어요</p>}
+        {platforms.map((p) => (
+          <div className="cat-row" key={p.name}>
+            <div className="cat-top">
+              <span>{p.name} <span className="muted num">{p.count}건</span></span>
+              <b className="num">{won(p.amount)}</b>
+            </div>
+            <div className="cat-bar"><i className={p.name === OTHER_PLATFORM ? 'other' : ''} style={{ width: `${maxPlat ? (p.amount / maxPlat) * 100 : 0}%` }} /></div>
+            <span className="delta">{p.prev ? <Delta diff={p.amount - p.prev} pct={pctChange(p.amount, p.prev)} /> : <span className="muted">지난달 없음</span>}</span>
           </div>
-        ) : (
-          <button className="ghost full-btn" onClick={async () => {
-            try {
-              await markSettled(household.id, { month: `${ym}-01`, from_role: result.from, to_role: result.to, amount: result.amount })
-              setSettled(await fetchSettlement(household.id, `${ym}-01`)); toast('정산 완료로 표시했어요')
-            } catch (e) { toast(friendlyError(e)) }
-          }}>정산 완료로 표시</button>
-        )}
+        ))}
+        <p className="note">내역 이름(가맹점)으로 쿠팡·오늘의집·컬리·네이버 등을 알아봅니다. 쇼핑 캡처로 넣으면 이름이 쇼핑몰로 들어가요.</p>
       </div>
     </section>
   )

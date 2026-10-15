@@ -11,6 +11,8 @@ const SMART = read('20261015020000_smart_input.sql')
 const HOOK = read('20261015030000_wif_audience_hook.sql')
 const RECUR = read('20261015040000_recurring_stats_export.sql')
 const EXPORT_SVC = read('20261015050000_export_rows_service_only.sql')
+const ITEMS_IMG = read('20261015060000_items_images_no_shared.sql')
+const CHILD = read('20261015070000_child.sql')
 
 const SUPABASE_STUB = `
 create schema auth;
@@ -28,6 +30,14 @@ create role service_role nologin;
 grant usage on schema public to service_role;
 create role supabase_auth_admin nologin;
 create publication supabase_realtime;
+create schema storage;
+create table storage.buckets (id text primary key, name text not null, public boolean default false,
+  file_size_limit bigint, allowed_mime_types text[]);
+create table storage.objects (id uuid primary key default gen_random_uuid(), bucket_id text references storage.buckets (id),
+  name text not null, owner uuid default auth.uid(), created_at timestamptz default now());
+alter table storage.objects enable row level security;
+grant usage on schema storage to anon, authenticated;
+grant select, insert, update, delete on storage.objects to authenticated;
 `
 
 const A = '00000000-0000-4000-8000-00000000000a'
@@ -73,7 +83,7 @@ async function freshDb(migrations: string[]) {
 }
 
 beforeAll(async () => {
-  db = await freshDb([INIT, ROLES, SMART, HOOK, RECUR, EXPORT_SVC])
+  db = await freshDb([INIT, ROLES, SMART, HOOK, RECUR, EXPORT_SVC, ITEMS_IMG, CHILD])
 })
 
 describe('가구 만들기와 참여', () => {
@@ -83,7 +93,8 @@ describe('가구 만들기와 참여', () => {
     const [hh] = await as<{ invite_code: string }>(A, `select invite_code from public.households`)
     expect(hh.invite_code).toMatch(/^[A-HJ-NP-Z2-9]{8}$/)
     const cats = await as(A, `select type, name from public.categories order by type, sort`)
-    expect(cats.filter((c) => c.type === 'expense')).toHaveLength(15)
+    expect(cats.filter((c) => c.type === 'expense')).toHaveLength(16)
+    expect(cats.some((c) => c.name === '자녀')).toBe(true)
     expect(cats.filter((c) => c.type === 'income')).toHaveLength(4)
     const methods = await as<{ name: string; owner: string }>(A, `select name, owner from public.payment_methods order by sort`)
     expect(methods).toEqual([
@@ -325,6 +336,54 @@ describe('고정지출·통계·정산·내보내기 (20261015040000_recurring_s
     expect(await asService(`select * from public.export_rows($1)`, [tok])).toHaveLength(0)
     expect(await asService(`select * from public.export_rows($1)`, ['short'])).toHaveLength(0)
     expect(await errorOf(as(null, `select * from private.export_tokens`))).toContain('permission denied')
+  })
+})
+
+describe('품목 사진 (20261015060000_items_images_no_shared)', () => {
+  it('품목 사진 경로는 자기 가구 폴더만 저장된다', async () => {
+    const tx = JSON.stringify({ type: 'expense', occurred_on: '2026-10-11', amount: 15800, title: '쿠팡', scope: 'husband', source: 'photo' })
+    const [{ id }] = await as<{ id: string }>(A, `select public.add_transaction_with_items($1, $2, $3) as id`, [hhA, tx, JSON.stringify([
+      { name: '물티슈', quantity: 2, amount: 9800, image_path: `${hhA}/a.jpg` },
+      { name: '수세미', quantity: 1, amount: 6000, image_path: `${hhC}/stolen.jpg` },
+    ])])
+    const items = await as<{ name: string; image_path: string | null }>(B,
+      `select name, image_path from public.transaction_items where transaction_id = $1 order by sort`, [id])
+    expect(items).toEqual([{ name: '물티슈', image_path: `${hhA}/a.jpg` }, { name: '수세미', image_path: null }])
+  })
+
+  it('사진 저장소: 자기 가구 폴더에만 올리고, 다른 가구 사진은 보이지도 않는다', async () => {
+    await as(A, `insert into storage.objects (bucket_id, name) values ('item-images', $1)`, [`${hhA}/p1.jpg`])
+    expect(await as(B, `select name from storage.objects`)).toEqual([{ name: `${hhA}/p1.jpg` }])
+    expect(await as(C, `select name from storage.objects`)).toHaveLength(0)
+    expect(await errorOf(as(C, `insert into storage.objects (bucket_id, name) values ('item-images', $1)`, [`${hhA}/x.jpg`])))
+      .toContain('row-level security')
+    expect(await errorOf(as(A, `insert into storage.objects (bucket_id, name) values ('item-images', 'not-a-uuid/x.jpg')`)))
+      .toContain('row-level security')
+    expect(await errorOf(as(A, `insert into storage.objects (bucket_id, name) values ('other', $1)`, [`${hhA}/x.jpg`])))
+      .toContain('row-level security')
+    await as(C, `delete from storage.objects`)
+    expect(await as(A, `select name from storage.objects`)).toHaveLength(1)
+  })
+})
+
+describe('자녀 (20261015070000_child)', () => {
+  it('용도에 자녀를 쓸 수 있고, 그 밖의 값은 막힌다', async () => {
+    await as(A, `insert into public.transactions (household_id, type, occurred_on, amount, title, scope) values ($1, 'expense', '2026-10-09', 32000, '학원 교재', 'child')`, [hhA])
+    expect(await as(B, `select scope from public.transactions where title = '학원 교재'`)).toEqual([{ scope: 'child' }])
+    expect(await errorOf(as(A, `insert into public.transactions (household_id, type, occurred_on, amount, scope) values ($1, 'expense', '2026-10-09', 1, 'dog')`, [hhA])))
+      .toContain('transactions_scope_check')
+    await as(A, `insert into public.recurring (household_id, kind, title, amount, day_of_month, start_month, scope) values ($1, 'fixed', '태권도', 150000, 5, '2026-11-01', 'child')`, [hhA])
+  })
+
+  it('이미 있던 가구에도 자녀 분류가 하나만 생긴다', async () => {
+    const old = await freshDb([INIT, ROLES])
+    await old.query(`select set_config('request.jwt.claim.sub', $1, false)`, [A])
+    await old.exec('set role authenticated')
+    await old.query(`select public.create_household('나', 'husband')`)
+    await old.exec('reset role')
+    for (const m of [SMART, HOOK, RECUR, EXPORT_SVC, ITEMS_IMG, CHILD]) await old.exec(m)
+    const rows = (await old.query<{ n: number }>(`select count(*)::int as n from public.categories where name = '자녀'`)).rows
+    expect(rows).toEqual([{ n: 1 }])
   })
 })
 

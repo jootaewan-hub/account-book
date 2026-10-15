@@ -1,7 +1,7 @@
 export type TxType = 'expense' | 'income'
 export type Spouse = 'husband' | 'wife'
 /** 누구를 위한 지출(수입)인가 */
-export type Scope = 'shared' | Spouse
+export type Scope = 'shared' | Spouse | 'child'
 /** 결제수단의 주인: 남편·아내·공동 돈, 또는 입력한 사람의 돈(현금) */
 export type MethodOwner = Spouse | 'shared' | 'entered_by'
 export type MethodKind = 'card' | 'account' | 'cash' | 'easypay'
@@ -57,6 +57,17 @@ export interface Transaction {
   created_by: string
   created_at: string
   recurring_id: string | null
+  /** 품목 (영수증·쇼핑 주문). 목록 화면에서 불러온 경우에만 있음 */
+  items?: TxItem[]
+}
+
+export interface TxItem {
+  id: string
+  name: string
+  quantity: number
+  amount: number
+  image_path: string | null
+  sort: number
 }
 
 export type TxInput = Pick<
@@ -92,12 +103,4 @@ export interface MonthTotal {
   type: TxType
   total: number
   n: number
-}
-
-export interface SettlementRecord {
-  month: string
-  from_role: Spouse | null
-  to_role: Spouse | null
-  amount: number
-  settled_at: string
 }

@@ -109,7 +109,6 @@ function Ledger({ household, meta, userId, email }: {
     return m
   }, [txs])
 
-  const activeMethods = meta.methods.filter((m) => !m.archived)
   const activeCats = meta.categories.filter((c) => !c.archived)
 
   function goMonth(n: number) {
@@ -185,15 +184,15 @@ function Ledger({ household, meta, userId, email }: {
         {tab === 'list' && <ListView cur={cur} lookup={lookup} onEdit={(t) => setSheet({ open: true, editing: t })} />}
         {tab === 'stats' && (
           <StatsView household={household} ym={ym} today={today} cur={cur} prev={prev} lookup={lookup}
-            categories={meta.categories} toast={toast} />
+            categories={meta.categories} />
         )}
         {tab === 'fixed' && (
-          <RecurringView householdId={household.id} today={today} lookup={lookup} methods={activeMethods}
+          <RecurringView householdId={household.id} today={today} lookup={lookup}
             categories={activeCats} onTxChanged={reload} toast={toast} />
         )}
         {tab === 'settings' && (
           <>
-            <SettingsView household={household} methods={meta.methods} categories={meta.categories}
+            <SettingsView household={household} categories={meta.categories}
               lookup={lookup} email={email} onChanged={meta.reload} toast={toast} />
             <div style={{ height: 14 }} />
             <ExportCard householdId={household.id} today={today} lookup={lookup} toast={toast} />
@@ -216,12 +215,12 @@ function Ledger({ household, meta, userId, email }: {
       </nav>
 
       <EntrySheet open={sheet.open} editing={sheet.editing} defaultDate={sel.startsWith(ym) ? sel : today}
-        lookup={lookup} methods={activeMethods} categories={activeCats} usage={usage}
+        lookup={lookup} categories={activeCats} usage={usage}
         onSave={save} onDelete={remove} onClose={() => setSheet({ open: false, editing: null })}
         onSmart={(mode) => { setSheet({ open: false, editing: null }); setSmart({ open: true, mode }) }} />
 
       <SmartSheet open={smart.open} mode={smart.mode} today={today} householdId={household.id}
-        lookup={lookup} methods={activeMethods} categories={activeCats} existing={txs}
+        lookup={lookup} categories={activeCats} existing={txs}
         onSaved={smartSaved} onClose={() => setSmart((s) => ({ ...s, open: false }))}
         onManual={() => { setSmart((s) => ({ ...s, open: false })); setSheet({ open: true, editing: null }) }} />
 

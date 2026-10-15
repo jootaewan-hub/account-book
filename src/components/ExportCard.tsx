@@ -39,19 +39,18 @@ export function ExportCard({ householdId, today, lookup, toast }: Props) {
     try {
       const { from, to } = range(period, today)
       let q = sb().from('transactions')
-        .select('occurred_on, occurred_at, type, amount, title, memo, scope, source, created_by, category_id, payment_method_id, transaction_items(name, quantity, amount, sort)')
+        .select('occurred_on, occurred_at, type, amount, title, memo, scope, source, created_by, category_id, transaction_items(name, quantity, amount, sort)')
         .eq('household_id', householdId)
       if (from) q = q.gte('occurred_on', from)
       if (to) q = q.lte('occurred_on', to)
       const { data, error } = await q.order('occurred_on').order('created_at')
       if (error) throw new Error(error.message)
       const rows: ExportRow[] = (data ?? []).map((t) => {
-        const m = t.payment_method_id ? lookup.methods.get(t.payment_method_id) : undefined
         const role = lookup.roleOf(t.created_by)
         const items = [...(t.transaction_items ?? [])].sort((a, b) => a.sort - b.sort)
         return {
           occurred_on: t.occurred_on, occurred_at: t.occurred_at, type: t.type, amount: Number(t.amount), title: t.title,
-          category: t.category_id ? lookup.categoryName(t.category_id) : null, method: m?.name ?? null, method_owner: m?.owner ?? null,
+          category: t.category_id ? lookup.categoryName(t.category_id) : null,
           scope: t.scope, source: t.source, entered_by: role ? SCOPE_LABEL[role] : lookup.personLabel(t.created_by), memo: t.memo,
           items: items.length ? items.map((i) => `${i.name}${qty(Number(i.quantity))} ${Number(i.amount)}`).join(', ') : null,
         }

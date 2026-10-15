@@ -4,14 +4,13 @@ import { addMonths } from '../lib/dates'
 import { won } from '../lib/format'
 import { SCOPE_LABEL, type Lookup } from '../lib/lookup'
 import { KIND_LABEL, monthlyAmount, nextDue, pastAmounts, pendingInputs, subscriptionCandidates } from '../lib/recurring'
-import type { Category, PaymentMethod, Recurring, RecurringKind, Transaction } from '../lib/types'
+import type { Category, Recurring, RecurringKind, Transaction } from '../lib/types'
 import { draftFrom, RecurringSheet, type RecurringDraft } from './RecurringSheet'
 
 interface Props {
   householdId: string
   today: string
   lookup: Lookup
-  methods: PaymentMethod[]
   categories: Category[]
   /** 내역이 새로 들어갔을 때 달력·내역을 다시 불러온다 */
   onTxChanged: () => Promise<void>
@@ -21,7 +20,7 @@ interface Props {
 const KINDS: RecurringKind[] = ['fixed', 'subscription', 'utility']
 const md = (date: string) => `${Number(date.slice(5, 7))}/${Number(date.slice(8, 10))}`
 
-export function RecurringView({ householdId, today, lookup, methods, categories, onTxChanged, toast }: Props) {
+export function RecurringView({ householdId, today, lookup, categories, onTxChanged, toast }: Props) {
   const [list, setList] = useState<Recurring[] | null>(null)
   const [history, setHistory] = useState<Transaction[]>([])
   const [err, setErr] = useState('')
@@ -105,7 +104,6 @@ export function RecurringView({ householdId, today, lookup, methods, categories,
                     <span className="tx-meta">
                       {r.every_months === 12 ? `매년 ${Number(r.start_month.slice(5, 7))}월 ` : '매달 '}
                       {r.day_of_month === 31 ? '말일' : `${r.day_of_month}일`}
-                      {r.payment_method_id && ` · ${lookup.methodLabel(r.payment_method_id)}`}
                       {` · ${SCOPE_LABEL[r.scope]}`}
                       {!r.active && ' · 꺼 둠'}
                     </span>
@@ -145,7 +143,7 @@ export function RecurringView({ householdId, today, lookup, methods, categories,
       )}
 
       <RecurringSheet open={sheet !== null} draft={sheet} householdId={householdId} today={today} lookup={lookup}
-        methods={methods} categories={categories} onSaved={saved} onClose={() => setSheet(null)} />
+        categories={categories} onSaved={saved} onClose={() => setSheet(null)} />
     </section>
   )
 }

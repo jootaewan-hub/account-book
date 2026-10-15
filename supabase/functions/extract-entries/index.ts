@@ -9,13 +9,15 @@ import { oidcFederationProvider } from '@anthropic-ai/sdk/lib/credentials/oidc-f
 import { WorkloadIdentityError } from '@anthropic-ai/sdk/lib/credentials/types'
 import { createClient } from '@supabase/supabase-js'
 import {
-  buildUserText, checkEntries, hasItemMismatch, IMAGE_MEDIA_TYPES, MAX_IMAGE_BASE64_CHARS, MAX_TEXT_CHARS,
-  ResultSchema, SYSTEM_PROMPT, type CheckedEntry,
+  buildUserText, checkEntries, hasItemMismatch, IMAGE_MEDIA_TYPES, MAX_IMAGE_BASE64_CHARS, MAX_IMAGES, MAX_TEXT_CHARS,
+  MAX_TOTAL_IMAGE_CHARS, ResultSchema, SYSTEM_PROMPT, type CheckedEntry, type ImageSize,
 } from './extract.ts'
 import { WIF } from './wif-config.ts'
 
 const PRIMARY_MODEL = Deno.env.get('EXTRACT_MODEL') ?? 'claude-haiku-5-5'
 const RETRY_MODEL = Deno.env.get('EXTRACT_RETRY_MODEL') ?? 'claude-sonnet-5-5'
+// 쇼핑 주문 캡처: 상품 사진 위치(픽셀 좌표)가 필요해 고해상도 이미지를 지원하는 모델을 쓴다
+const SHOP_MODEL = Deno.env.get('EXTRACT_SHOP_MODEL') ?? 'claude-sonnet-5-5'
 
 const cors = {
   'Access-Control-Allow-Origin': '*',
@@ -65,9 +67,22 @@ function anthropicFor(userId: string, jwt: string): Anthropic | null {
   return apiKey ? new Anthropic({ apiKey, maxRetries: 1 }) : null
 }
 
+type MediaType = (typeof IMAGE_MEDIA_TYPES)[number]
+type Img = { media_type: MediaType; data: string; width: number; height: number }
 type Input =
   | { kind: 'text'; text: string; today: string }
-  | { kind: 'image'; image: { media_type: (typeof IMAGE_MEDIA_TYPES)[number]; data: string }; today: string }
+  | { kind: 'image'; images: Img[]; shop: boolean; today: string }
+
+function parseImage(v: unknown): Img | string {
+  const img = v as Record<string, unknown> | undefined
+  const mediaType = img?.media_type
+  const data = img?.data
+  if (typeof data !== 'string' || !IMAGE_MEDIA_TYPES.includes(mediaType as never)) return '사진 형식이 잘못됐어요.'
+  if (data.length > MAX_IMAGE_BASE64_CHARS) return '사진이 너무 커요.'
+  const width = Number(img?.width) || 0
+  const height = Number(img?.height) || 0
+  return { media_type: mediaType as MediaType, data, width, height }
+}
 
 function parseInput(body: unknown): Input | string {
   if (!body || typeof body !== 'object') return '요청 형식이 잘못됐어요.'
@@ -82,34 +97,41 @@ function parseInput(body: unknown): Input | string {
     return { kind: 'text', text, today }
   }
   if (b.kind === 'image') {
-    const img = b.image as Record<string, unknown> | undefined
-    const mediaType = img?.media_type
-    const data = img?.data
-    if (typeof data !== 'string' || !IMAGE_MEDIA_TYPES.includes(mediaType as never)) return '사진 형식이 잘못됐어요.'
-    if (data.length > MAX_IMAGE_BASE64_CHARS) return '사진이 너무 커요.'
-    return { kind: 'image', image: { media_type: mediaType as (typeof IMAGE_MEDIA_TYPES)[number], data }, today }
+    const raw = Array.isArray(b.images) ? b.images : b.image ? [b.image] : []
+    if (!raw.length) return '사진이 없어요.'
+    if (raw.length > MAX_IMAGES) return `사진은 한 번에 ${MAX_IMAGES}장까지 보낼 수 있어요.`
+    const images: Img[] = []
+    for (const r of raw) {
+      const img = parseImage(r)
+      if (typeof img === 'string') return img
+      images.push(img)
+    }
+    if (images.reduce((s, i) => s + i.data.length, 0) > MAX_TOTAL_IMAGE_CHARS) return '사진이 너무 커요. 장수를 줄여 주세요.'
+    return { kind: 'image', images, shop: b.mode === 'shop', today }
   }
   return '요청 형식이 잘못됐어요.'
 }
 
 async function extract(client: Anthropic, model: string, input: Input, categories: string[]) {
+  const sizes: ImageSize[] = input.kind === 'image' ? input.images.map(({ width, height }) => ({ width, height })) : []
   const userText = buildUserText({
     kind: input.kind, today: input.today, categories, text: input.kind === 'text' ? input.text : undefined,
+    images: sizes, shop: input.kind === 'image' && input.shop,
   })
   const content: Anthropic.ContentBlockParam[] = input.kind === 'image'
-    ? [{ type: 'image', source: { type: 'base64', media_type: input.image.media_type, data: input.image.data } },
+    ? [...input.images.map((im): Anthropic.ContentBlockParam => ({ type: 'image', source: { type: 'base64', media_type: im.media_type, data: im.data } })),
        { type: 'text', text: userText }]
     : [{ type: 'text', text: userText }]
   const res = await client.messages.parse({
     model,
-    max_tokens: 8000,
+    max_tokens: 12000,
     system: SYSTEM_PROMPT,
     messages: [{ role: 'user', content }],
-    output_config: { effort: 'low', format: zodOutputFormat(ResultSchema) },
+    output_config: { effort: input.kind === 'image' && input.shop ? 'medium' : 'low', format: zodOutputFormat(ResultSchema) },
   })
   if (res.stop_reason === 'refusal') return { refused: true as const, usage: res.usage }
   if (!res.parsed_output) throw new Error(`no_parsed_output (stop_reason=${res.stop_reason})`)
-  return { refused: false as const, result: res.parsed_output, entries: checkEntries(res.parsed_output), usage: res.usage }
+  return { refused: false as const, result: res.parsed_output, entries: checkEntries(res.parsed_output, sizes), usage: res.usage }
 }
 
 Deno.serve(async (req) => {
@@ -155,10 +177,11 @@ Deno.serve(async (req) => {
   if (!client) return fail('ai_not_configured', 'AI 연결 설정이 아직 안 됐어요.', 503)
 
   try {
-    let out = await extract(client, PRIMARY_MODEL, input, categories)
-    let model = PRIMARY_MODEL
+    const first = input.kind === 'image' && input.shop ? SHOP_MODEL : PRIMARY_MODEL
+    let out = await extract(client, first, input, categories)
+    let model = first
     // 품목 합계가 결제 금액과 안 맞으면 더 큰 모델로 한 번 더 읽는다
-    if (!out.refused && hasItemMismatch(out.entries) && RETRY_MODEL !== PRIMARY_MODEL) {
+    if (!out.refused && hasItemMismatch(out.entries) && RETRY_MODEL !== first) {
       const second = await extract(client, RETRY_MODEL, input, categories)
       if (!second.refused && !hasItemMismatch(second.entries)) { out = second; model = RETRY_MODEL }
     }

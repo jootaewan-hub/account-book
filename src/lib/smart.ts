@@ -1,5 +1,6 @@
 // 문자·사진 분석 결과를 저장할 수 있는 초안으로 바꾸고, Edge Function을 부른다.
 import type { CheckedEntry } from '../../supabase/functions/extract-entries/extract'
+import { uploadItemImage } from './itemImages'
 import { sb } from './supabase'
 import type { Category, PaymentMethod, Scope, Transaction, TxType } from './types'
 
@@ -10,6 +11,10 @@ export interface DraftItem {
   quantity: number
   unit_price: number | null
   amount: number
+  /** 상품 사진 위치 (몇 번째 이미지의 어느 영역) */
+  image_box?: { image: number; left: number; top: number; right: number; bottom: number } | null
+  /** 잘라 낸 상품 사진 (저장할 때 올린다) */
+  photo?: { blob: Blob; url: string } | null
 }
 
 export interface Draft {
@@ -149,10 +154,11 @@ export function toDrafts(entries: CheckedEntry[], ctx: {
     const match = matchMethodDetailed(e, ctx.methods)
     const method = match.method ?? null
     const remembered = method ? null : ctx.rememberedMethod?.(e.merchant) ?? null
-    if (!match.method && match.reason === 'unknown_last4' && !remembered) {
+    const cardsInUse = ctx.methods.length > 0 // 카드를 등록해 쓰는 경우에만 카드 관련 안내
+    if (cardsInUse && !match.method && match.reason === 'unknown_last4' && !remembered) {
       warnings.push(`끝자리 ${e.card_last4} 카드가 설정에 없어요. 설정 > 결제수단에 끝 4자리를 넣어 두면 다음부터 자동으로 골라요.`)
     }
-    if (!match.method && match.reason === 'ambiguous' && !remembered) {
+    if (cardsInUse && !match.method && match.reason === 'ambiguous' && !remembered) {
       warnings.push(`${match.issuer ?? '같은 끝자리'} 카드가 여러 장이라 고르지 못했어요. 결제수단을 골라 주세요.`)
     }
     if (e.items_match === false) warnings.push(`품목 합계 ${itemsSum(e.items).toLocaleString()}원이 결제 금액과 달라요.`)
@@ -184,10 +190,11 @@ async function errorPayload(error: unknown): Promise<{ code?: string; message?: 
   return null
 }
 
-export async function analyze(body:
+export type AnalyzeBody =
   | { kind: 'text'; text: string; today: string }
-  | { kind: 'image'; image: { media_type: 'image/jpeg'; data: string }; today: string },
-): Promise<AnalyzeResult> {
+  | { kind: 'image'; mode: 'receipt' | 'shop'; images: { media_type: 'image/jpeg'; data: string; width: number; height: number }[]; today: string }
+
+export async function analyze(body: AnalyzeBody): Promise<AnalyzeResult> {
   for (let attempt = 0; ; attempt++) {
     const { data, error } = await sb().functions.invoke<AnalyzeResult>('extract-entries', { body })
     if (!error && data) return data
@@ -203,13 +210,16 @@ export async function analyze(body:
 }
 
 export async function saveDraft(householdId: string, d: Draft, source: 'text' | 'photo'): Promise<void> {
+  // 상품 사진을 먼저 올리고 경로를 품목에 붙인다. 사진 올리기가 실패해도 내역은 저장한다
+  const paths = await Promise.all(d.items.map((it) =>
+    it.photo ? uploadItemImage(householdId, it.photo.blob).catch(() => null) : Promise.resolve(null)))
   const { error } = await sb().rpc('add_transaction_with_items', {
     p_household_id: householdId,
     p_tx: {
       type: d.type, occurred_on: d.date, occurred_at: d.time, amount: d.amount, title: d.title.trim().slice(0, 60),
       category_id: d.category_id, payment_method_id: d.payment_method_id, scope: d.scope, source,
     },
-    p_items: d.items.map((it) => ({ name: it.name, quantity: it.quantity, unit_price: it.unit_price, amount: it.amount })),
+    p_items: d.items.map((it, i) => ({ name: it.name, quantity: it.quantity, unit_price: it.unit_price, amount: it.amount, image_path: paths[i] })),
   })
   if (error) throw new Error(error.message)
 }

@@ -60,7 +60,69 @@ export function categoryBreakdown(cur: Transaction[], prev: Transaction[], categ
 
 /** 누구를 위한 지출인가별 합계 */
 export function scopeSplit(cur: Transaction[]): Record<Scope, number> {
-  const out: Record<Scope, number> = { shared: 0, husband: 0, wife: 0 }
+  const out: Record<Scope, number> = { shared: 0, husband: 0, wife: 0, child: 0 }
   for (const t of cur) if (t.type === 'expense') out[t.scope] += t.amount
   return out
+}
+
+// 온라인 쇼핑·배달 플랫폼. 내역 이름(가맹점)으로 알아본다. 긴 표기를 먼저 맞춘다(예: 쿠팡이츠 ≠ 쿠팡)
+const PLATFORMS: [string, string[]][] = [
+  ['쿠팡이츠', ['쿠팡이츠', 'coupangeats']],
+  ['쿠팡', ['쿠팡', 'coupang']],
+  ['오늘의집', ['오늘의집', 'ohou', '버킷플레이스']],
+  ['컬리', ['마켓컬리', '컬리', 'kurly']],
+  ['네이버', ['네이버페이', '네이버쇼핑', '스마트스토어', '네이버', 'naverpay', 'naver', 'npay']],
+  ['11번가', ['11번가', '십일번가', '11st']],
+  ['G마켓', ['g마켓', '지마켓', 'gmarket']],
+  ['옥션', ['옥션', 'auction']],
+  ['SSG닷컴', ['ssg닷컴', 'ssg.com', '쓱닷컴']],
+  ['무신사', ['무신사', 'musinsa']],
+  ['29CM', ['29cm']],
+  ['에이블리', ['에이블리', 'ably']],
+  ['지그재그', ['지그재그', 'zigzag']],
+  ['알리익스프레스', ['알리익스프레스', 'aliexpress', '알리']],
+  ['테무', ['테무', 'temu']],
+  ['배달의민족', ['배달의민족', '배민', '우아한형제들']],
+  ['요기요', ['요기요', 'yogiyo']],
+  ['카카오 선물하기', ['카카오선물하기', '카카오톡선물하기', '선물하기']],
+  ['당근', ['당근마켓', '당근페이', '당근']],
+]
+const PLATFORM_ALIASES = PLATFORMS.flatMap(([name, aliases]) => aliases.map((a) => [a, name] as const))
+  .sort((a, b) => b[0].length - a[0].length)
+
+export const OTHER_PLATFORM = '그 외 (매장 등)'
+
+/** 내역 이름으로 플랫폼을 알아본다. 모르면 null */
+export function platformOf(title: string): string | null {
+  const t = title.replace(/\s+/g, '').toLowerCase()
+  return PLATFORM_ALIASES.find(([alias]) => t.includes(alias))?.[1] ?? null
+}
+
+export interface PlatformRow {
+  name: string
+  amount: number
+  count: number
+  prev: number
+}
+
+/** 플랫폼별 지출, 큰 것부터. 알아보지 못한 지출은 마지막에 '그 외'로 묶는다 */
+export function platformBreakdown(cur: Transaction[], prev: Transaction[]): PlatformRow[] {
+  const sum = (txs: Transaction[]) => {
+    const m = new Map<string, { amount: number; count: number }>()
+    for (const t of txs) {
+      if (t.type !== 'expense') continue
+      const k = platformOf(t.title) ?? OTHER_PLATFORM
+      const v = m.get(k) ?? { amount: 0, count: 0 }
+      v.amount += t.amount; v.count++
+      m.set(k, v)
+    }
+    return m
+  }
+  const a = sum(cur)
+  const b = sum(prev)
+  const rows = [...a.entries()].map(([name, v]) => ({ name, ...v, prev: b.get(name)?.amount ?? 0 }))
+  return [
+    ...rows.filter((r) => r.name !== OTHER_PLATFORM).sort((x, y) => y.amount - x.amount),
+    ...rows.filter((r) => r.name === OTHER_PLATFORM),
+  ]
 }

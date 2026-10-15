@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { dueDate, monthlyAmount, nextDue, pendingInputs, subscriptionCandidates } from '../src/lib/recurring'
-import { categoryBreakdown, monthSeries, pctChange, scopeSplit, totalOf } from '../src/lib/stats'
+import { categoryBreakdown, monthSeries, OTHER_PLATFORM, pctChange, platformBreakdown, platformOf, scopeSplit, totalOf } from '../src/lib/stats'
 import type { Category, MonthTotal, Recurring, Transaction } from '../src/lib/types'
 
 const rec = (p: Partial<Recurring>): Recurring => ({
@@ -82,6 +82,22 @@ describe('통계', () => {
       { id: 'c2', name: '카페', amount: 10000, prev: 0, share: 0.2 },
       { id: null, name: '분류 없음', amount: 10000, prev: 0, share: 0.2 },
     ])
-    expect(scopeSplit(cur)).toEqual({ shared: 50000, husband: 0, wife: 0 })
+    expect(scopeSplit([...cur, tx({ scope: 'child', amount: 7000 })])).toEqual({ shared: 50000, husband: 0, wife: 0, child: 7000 })
+  })
+
+  it('플랫폼별 지출: 이름으로 알아보고, 큰 것부터, 모르는 것은 마지막에 그 외로', () => {
+    expect(platformOf('쿠팡이츠 - 버거킹')).toBe('쿠팡이츠')
+    expect(platformOf('Coupang 로켓배송')).toBe('쿠팡')
+    expect(platformOf('네이버페이 스마트스토어')).toBe('네이버')
+    expect(platformOf('마켓컬리')).toBe('컬리')
+    expect(platformOf('이마트에브리데이')).toBeNull()
+    const cur = [tx({ title: '쿠팡', amount: 30000 }), tx({ title: '쿠팡', amount: 12000 }), tx({ title: '오늘의집', amount: 89000 }),
+      tx({ title: '광동반점', amount: 38000 }), tx({ title: '쿠팡', type: 'income', amount: 5000 })]
+    const prev = [tx({ title: '쿠팡', amount: 50000 })]
+    expect(platformBreakdown(cur, prev)).toEqual([
+      { name: '오늘의집', amount: 89000, count: 1, prev: 0 },
+      { name: '쿠팡', amount: 42000, count: 2, prev: 50000 },
+      { name: OTHER_PLATFORM, amount: 38000, count: 1, prev: 0 },
+    ])
   })
 })

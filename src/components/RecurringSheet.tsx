@@ -4,7 +4,8 @@ import { formatDateLong } from '../lib/dates'
 import { won } from '../lib/format'
 import { SCOPE_LABEL, SCOPES, type Lookup } from '../lib/lookup'
 import { dueDate, KIND_LABEL } from '../lib/recurring'
-import type { Category, PaymentMethod, Recurring, RecurringInput, RecurringKind, Scope, TxType } from '../lib/types'
+import type { Category, Recurring, RecurringInput, RecurringKind, Scope, TxType } from '../lib/types'
+import { defaultScope } from './EntrySheet'
 import { Sheet } from './Sheet'
 
 export type RecurringDraft = Partial<RecurringInput> & { id?: string }
@@ -15,7 +16,6 @@ interface Props {
   householdId: string
   today: string
   lookup: Lookup
-  methods: PaymentMethod[]
   categories: Category[]
   onSaved: (msg: string) => Promise<void>
   onClose: () => void
@@ -24,7 +24,7 @@ interface Props {
 const KINDS: RecurringKind[] = ['fixed', 'subscription', 'utility']
 const DEFAULT_CATEGORY: Record<RecurringKind, string> = { fixed: '기타', subscription: '구독', utility: '관리비' }
 
-export function RecurringSheet({ open, draft, householdId, today, lookup, methods, categories, onSaved, onClose }: Props) {
+export function RecurringSheet({ open, draft, householdId, today, lookup, categories, onSaved, onClose }: Props) {
   const [kind, setKind] = useState<RecurringKind>('fixed')
   const [type, setType] = useState<TxType>('expense')
   const [title, setTitle] = useState('')
@@ -34,7 +34,6 @@ export function RecurringSheet({ open, draft, householdId, today, lookup, method
   const [every, setEvery] = useState<1 | 12>(1)
   const [startMonth, setStartMonth] = useState(today.slice(0, 7))
   const [categoryId, setCategoryId] = useState<string | null>(null)
-  const [methodId, setMethodId] = useState<string | null>(null)
   const [scope, setScope] = useState<Scope>('shared')
   const [active, setActive] = useState(true)
   const [err, setErr] = useState('')
@@ -56,8 +55,7 @@ export function RecurringSheet({ open, draft, householdId, today, lookup, method
     setEvery(draft.every_months ?? 1)
     setStartMonth((draft.start_month ?? today).slice(0, 7))
     setCategoryId(draft.category_id !== undefined ? draft.category_id : catFor(k, draft.type ?? 'expense'))
-    setMethodId(draft.payment_method_id ?? null)
-    setScope(draft.scope ?? 'shared')
+    setScope(draft.scope ?? defaultScope(lookup))
     setActive(draft.active ?? true)
     setErr(''); setBusy(false); setConfirmDelete(false)
     // 시트가 열릴 때만 초기화한다
@@ -76,7 +74,7 @@ export function RecurringSheet({ open, draft, householdId, today, lookup, method
   const n = parseInt(amount || '0', 10)
   const input: RecurringInput = {
     kind, type, title: title.trim(), amount: variable ? null : n, day_of_month: day, every_months: every,
-    category_id: categoryId, payment_method_id: methodId, scope, start_month: `${startMonth}-01`, end_month: null,
+    category_id: categoryId, payment_method_id: draft?.payment_method_id ?? null, scope, start_month: `${startMonth}-01`, end_month: null,
     active, memo: null,
   }
   const firstDue = dueDate(input, today.slice(0, 7)) ?? dueDate(input, startMonth)
@@ -160,13 +158,6 @@ export function RecurringSheet({ open, draft, householdId, today, lookup, method
             <button key={c.id} className="chip" aria-pressed={categoryId === c.id} onClick={() => setCategoryId(c.id)}>{c.name}</button>
           ))}
         </div>
-      </div>
-      <div className="field">
-        <label htmlFor="rc-method">결제수단 · 누가 내는지</label>
-        <select id="rc-method" className="input" value={methodId ?? ''} onChange={(e) => setMethodId(e.target.value || null)}>
-          <option value="">고르지 않음</option>
-          {methods.map((m) => <option key={m.id} value={m.id}>{lookup.methodLabel(m.id)}</option>)}
-        </select>
       </div>
       <div className="field">
         <span className="lbl">{type === 'income' ? '누구의 수입인가요' : '누구를 위한 지출인가요'}</span>

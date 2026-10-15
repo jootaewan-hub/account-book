@@ -1,13 +1,14 @@
 import { useEffect, useRef, useState } from 'react'
 import { friendlyError } from '../lib/api'
-import { fileToJpeg } from '../lib/image'
+import { won } from '../lib/format'
+import { cropImage, fileToJpeg, type PreparedImage } from '../lib/image'
 import { SCOPE_LABEL, SCOPES, type Lookup } from '../lib/lookup'
-import { analyze, itemsSum, saveDraft, SmartError, toDrafts, type Draft } from '../lib/smart'
-import type { Category, PaymentMethod, Transaction, TxType } from '../lib/types'
-import { defaultMethodId, defaultScope, lsGet, lsSet } from './EntrySheet'
+import { analyze, itemsSum, saveDraft, SmartError, toDrafts, type AnalyzeBody, type Draft } from '../lib/smart'
+import type { Category, Transaction, TxType } from '../lib/types'
+import { defaultScope } from './EntrySheet'
 import { Sheet } from './Sheet'
 
-export type SmartMode = 'text' | 'photo'
+export type SmartMode = 'text' | 'photo' | 'shop'
 
 interface Props {
   open: boolean
@@ -15,7 +16,6 @@ interface Props {
   today: string
   householdId: string
   lookup: Lookup
-  methods: PaymentMethod[]
   categories: Category[]
   existing: Transaction[]
   onSaved: (count: number, lastDate: string) => Promise<void>
@@ -25,15 +25,14 @@ interface Props {
 
 type Stage = 'input' | 'loading' | 'review'
 
-/** 가맹점별로 마지막에 고른 결제수단을 기억한다 (카드를 여러 장 쓸 때 다음부터 자동 선택) */
-const merchantKey = (merchant: string) => `ab:merchant:${merchant.replace(/\(주\)|㈜|\s+/g, '').toLowerCase()}`
-
+const MAX_PHOTOS = 5
 const SAMPLE = '[Web발신]\n신한카드(1234)승인\n홍*동\n12,400원 일시불\n10/13 18:42 이마트24\n누적1,234,560원'
+const TITLE: Record<SmartMode, string> = { text: '문자로 입력', photo: '영수증으로 입력', shop: '쇼핑 주문으로 입력' }
 
-export function SmartSheet({ open, mode, today, householdId, lookup, methods, categories, existing, onSaved, onManual, onClose }: Props) {
+export function SmartSheet({ open, mode, today, householdId, lookup, categories, existing, onSaved, onManual, onClose }: Props) {
   const [stage, setStage] = useState<Stage>('input')
   const [text, setText] = useState('')
-  const [preview, setPreview] = useState<string | null>(null)
+  const [images, setImages] = useState<PreparedImage[]>([])
   const [drafts, setDrafts] = useState<Draft[]>([])
   const [note, setNote] = useState<string | null>(null)
   const [err, setErr] = useState('')
@@ -43,21 +42,28 @@ export function SmartSheet({ open, mode, today, householdId, lookup, methods, ca
   useEffect(() => {
     if (!open) return
     setStage('input'); setText(''); setDrafts([]); setNote(null); setErr(''); setBusy(false)
-    setPreview((p) => { if (p) URL.revokeObjectURL(p); return null })
+    setImages((prev) => { prev.forEach((i) => URL.revokeObjectURL(i.preview)); return [] })
   }, [open, mode])
 
-  async function run(body: Parameters<typeof analyze>[0]) {
+  async function run(body: AnalyzeBody, imgs: PreparedImage[] = []) {
     setStage('loading'); setErr('')
     try {
       const res = await analyze(body)
       const ds = toDrafts(res.entries, {
-        today, methods, categories, existing,
-        fallbackMethodId: defaultMethodId(methods, lookup), fallbackScope: defaultScope(lookup),
-        rememberedMethod: (merchant) => {
-          const id = lsGet(merchantKey(merchant))
-          return id && methods.some((m) => m.id === id) ? id : null
-        },
+        today, methods: [], categories, existing, fallbackMethodId: null, fallbackScope: defaultScope(lookup),
       })
+      // 상품 사진: 모델이 알려 준 영역을 원본에서 잘라 둔다 (실패하면 사진 없이)
+      for (const d of ds) {
+        for (const it of d.items) {
+          const box = it.image_box
+          const src = box ? imgs[box.image - 1] : undefined
+          if (!box || !src) continue
+          try {
+            const blob = await cropImage(src.blob, box)
+            it.photo = { blob, url: URL.createObjectURL(blob) }
+          } catch { it.photo = null }
+        }
+      }
       setDrafts(ds); setNote(res.note)
       if (!ds.length) { setErr(res.note ?? '거래 내역을 찾지 못했어요.'); setStage('input'); return }
       setStage('review')
@@ -76,13 +82,18 @@ export function SmartSheet({ open, mode, today, householdId, lookup, methods, ca
     }
   }
 
-  async function onFile(file: File | undefined) {
-    if (!file) return
+  async function onFiles(list: FileList | null) {
+    const files = [...(list ?? [])].slice(0, MAX_PHOTOS)
+    if (!files.length) return
     setErr('')
     try {
-      const img = await fileToJpeg(file)
-      setPreview((p) => { if (p) URL.revokeObjectURL(p); return img.preview })
-      await run({ kind: 'image', image: { media_type: img.media_type, data: img.data }, today })
+      const prepared = await Promise.all(files.map(fileToJpeg))
+      setImages(prepared)
+      await run({
+        kind: 'image', mode: mode === 'shop' ? 'shop' : 'receipt', today,
+        images: prepared.map(({ media_type, data, width, height }) => ({ media_type, data, width, height })),
+      }, prepared)
+      if ((list?.length ?? 0) > MAX_PHOTOS) setErr(`사진은 한 번에 ${MAX_PHOTOS}장까지라 앞의 ${MAX_PHOTOS}장만 읽었어요.`)
     } catch (e) {
       setErr(e instanceof SmartError ? e.message : '사진을 읽지 못했어요. 다른 사진으로 해 보세요.'); setStage('input')
     }
@@ -101,8 +112,7 @@ export function SmartSheet({ open, mode, today, householdId, lookup, methods, ca
     let saved = 0
     try {
       for (const d of chosen) {
-        await saveDraft(householdId, d, mode === 'photo' ? 'photo' : 'text')
-        if (d.payment_method_id && d.title.trim()) lsSet(merchantKey(d.title), d.payment_method_id)
+        await saveDraft(householdId, d, mode === 'text' ? 'text' : 'photo')
         saved++
         patch(d.key, { include: false })
       }
@@ -112,10 +122,12 @@ export function SmartSheet({ open, mode, today, householdId, lookup, methods, ca
     }
   }
 
-  const title = mode === 'photo' ? '사진으로 입력' : '문자로 입력'
+  const previews = images.length > 0 && (
+    <div className="smart-previews">{images.map((im) => <img key={im.preview} src={im.preview} alt="고른 사진" />)}</div>
+  )
 
   return (
-    <Sheet open={open} title={title} onClose={onClose}>
+    <Sheet open={open} title={TITLE[mode]} onClose={onClose}>
       {stage === 'input' && mode === 'text' && (
         <>
           <p className="note">카드 승인 문자, 카카오톡 알림톡, 은행 입금 알림을 그대로 붙여넣으세요. 여러 건을 한꺼번에 넣어도 됩니다.</p>
@@ -127,20 +139,24 @@ export function SmartSheet({ open, mode, today, householdId, lookup, methods, ca
         </>
       )}
 
-      {stage === 'input' && mode === 'photo' && (
+      {stage === 'input' && mode !== 'text' && (
         <>
-          <p className="note">종이 영수증, 배달·쇼핑 주문내역, 카드앱 결제 화면을 찍거나 캡처해서 고르세요. 품목과 수량까지 읽어 옵니다.</p>
-          <input ref={fileRef} type="file" accept="image/*" hidden onChange={(e) => { void onFile(e.target.files?.[0]); e.target.value = '' }} />
-          <button className="primary" onClick={() => fileRef.current?.click()}>사진 고르기 · 찍기</button>
-          {preview && <img className="smart-preview" src={preview} alt="고른 사진" />}
+          <p className="note">
+            {mode === 'shop'
+              ? '쿠팡·오늘의집·컬리·네이버페이·스마트스토어의 주문·결제 내역 화면을 캡처해서 고르세요. 상품 이름·수량·금액과 상품 사진까지 함께 저장합니다. 한 주문이 길면 이어서 찍은 캡처 여러 장(최대 5장)을 한 번에 고르세요.'
+              : '종이 영수증, 카드앱 결제 화면, 배달 주문내역을 찍거나 캡처해서 고르세요. 여러 장(최대 5장)을 한 번에 골라도 됩니다.'}
+          </p>
+          <input ref={fileRef} type="file" accept="image/*" multiple hidden onChange={(e) => { void onFiles(e.target.files); e.target.value = '' }} />
+          <button className="primary" onClick={() => fileRef.current?.click()}>{mode === 'shop' ? '주문내역 캡처 고르기' : '사진 고르기 · 찍기'}</button>
+          {previews}
           <p className="err" role="alert">{err}</p>
         </>
       )}
 
       {stage === 'loading' && (
         <div className="smart-loading" role="status">
-          {preview && <img className="smart-preview" src={preview} alt="" />}
-          <p className="lead">읽는 중이에요… 보통 5~15초 걸려요.</p>
+          {previews}
+          <p className="lead">읽는 중이에요… {mode === 'shop' ? '상품 사진까지 찾느라 20~40초쯤 걸려요.' : '보통 5~15초 걸려요.'}</p>
         </div>
       )}
 
@@ -148,7 +164,7 @@ export function SmartSheet({ open, mode, today, householdId, lookup, methods, ca
         <>
           {note && <p className="note">{note}</p>}
           {drafts.map((d) => (
-            <DraftCard key={d.key} d={d} lookup={lookup} methods={methods} categories={categories} onChange={(p) => patch(d.key, p)} />
+            <DraftCard key={d.key} d={d} categories={categories} onChange={(p) => patch(d.key, p)} />
           ))}
           <p className="err" role="alert">{err}</p>
           <button className="primary" disabled={busy || !chosen.length} onClick={saveAll}>
@@ -163,21 +179,21 @@ export function SmartSheet({ open, mode, today, householdId, lookup, methods, ca
   )
 }
 
-function DraftCard({ d, lookup, methods, categories, onChange }: {
+function DraftCard({ d, categories, onChange }: {
   d: Draft
-  lookup: Lookup
-  methods: PaymentMethod[]
   categories: Category[]
   onChange: (p: Partial<Draft>) => void
 }) {
   const sum = itemsSum(d.items)
   const cats = categories.filter((c) => c.type === d.type)
+  const removePhoto = (i: number) =>
+    onChange({ items: d.items.map((it, j) => (j === i ? { ...it, photo: null } : it)) })
   return (
     <div className={`card draft${d.include ? '' : ' off'}`}>
       <label className="draft-head">
         <input type="checkbox" checked={d.include} onChange={(e) => onChange({ include: e.target.checked })} />
         <span>{d.include ? '저장' : '빼기'}</span>
-        <b className={`num ${d.type === 'income' ? 'inc' : 'exp'}`}>{d.type === 'income' ? '+' : '-'}{d.amount.toLocaleString()}원</b>
+        <b className={`num ${d.type === 'income' ? 'inc' : 'exp'}`}>{d.type === 'income' ? '+' : '-'}{won(d.amount)}원</b>
       </label>
       {d.warnings.map((w) => <p key={w} className="banner">{w}</p>)}
       <div className="seg" role="group" aria-label="구분">
@@ -209,13 +225,6 @@ function DraftCard({ d, lookup, methods, categories, onChange }: {
         </div>
       </div>
       <div className="field">
-        <label>결제수단 · 누가 냈는지</label>
-        <select className="input" value={d.payment_method_id ?? ''} onChange={(e) => onChange({ payment_method_id: e.target.value || null })}>
-          <option value="">고르지 않음 (입력한 사람)</option>
-          {methods.map((m) => <option key={m.id} value={m.id}>{lookup.methodLabel(m.id)}</option>)}
-        </select>
-      </div>
-      <div className="field">
         <span className="lbl">{d.type === 'income' ? '누구의 수입인가요' : '누구를 위한 지출인가요'}</span>
         <div className="seg" role="group">
           {SCOPES.map((s) => (
@@ -224,17 +233,23 @@ function DraftCard({ d, lookup, methods, categories, onChange }: {
         </div>
       </div>
       {d.items.length > 0 && (
-        <details className="items">
-          <summary>품목 {d.items.length}개 · 합계 <span className="num">{sum.toLocaleString()}</span>원</summary>
-          <ul>
+        <div className="field">
+          <span className="lbl">품목 {d.items.length}개 · 합계 <span className="num">{won(sum)}</span>원</span>
+          <ul className="item-list">
             {d.items.map((it, i) => (
               <li key={i}>
-                <span>{it.name}{it.quantity !== 1 && <span className="num"> ×{it.quantity}</span>}</span>
-                <span className="num">{it.amount.toLocaleString()}</span>
+                {it.photo
+                  ? <button className="thumb-btn" onClick={() => removePhoto(i)} aria-label={`${it.name} 사진 빼기`}>
+                      <img className="item-thumb" src={it.photo.url} alt="" /><span className="thumb-x">×</span>
+                    </button>
+                  : <span className="item-thumb empty" aria-hidden="true" />}
+                <span className="item-name">{it.name}{it.quantity !== 1 && <span className="muted num"> ×{it.quantity}</span>}</span>
+                <span className="num">{won(it.amount)}</span>
               </li>
             ))}
           </ul>
-        </details>
+          {d.items.some((it) => it.photo) && <span className="tx-meta">사진이 잘못 잘렸으면 사진을 눌러 빼세요.</span>}
+        </div>
       )}
     </div>
   )

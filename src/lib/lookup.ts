@@ -1,9 +1,9 @@
 import type { Category, Member, PaymentMethod, Scope, Spouse } from './types'
 
-export type WhoColor = 'shared' | 'a' | 'b'
+export type WhoColor = 'shared' | 'a' | 'b' | 'c'
 
-export const SCOPES: Scope[] = ['shared', 'husband', 'wife']
-export const SCOPE_LABEL: Record<Scope, string> = { shared: '공동', husband: '남편', wife: '아내' }
+export const SCOPES: Scope[] = ['shared', 'husband', 'wife', 'child']
+export const SCOPE_LABEL: Record<Scope, string> = { shared: '공동', husband: '남편', wife: '아내', child: '자녀' }
 
 export interface Lookup {
   me: string
@@ -47,7 +47,7 @@ export function makeLookup(me: string, members: Member[], methods: PaymentMethod
       return members.find((m) => m.user_id === id)?.display_name ?? '알 수 없음'
     },
     colorOf(scope) {
-      return scope === 'shared' ? 'shared' : scope === 'husband' ? 'a' : 'b'
+      return scope === 'shared' ? 'shared' : scope === 'husband' ? 'a' : scope === 'wife' ? 'b' : 'c'
     },
     methodLabel(id) {
       const m = id ? methodMap.get(id) : undefined

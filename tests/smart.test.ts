@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { buildUserText, checkEntries, hasItemMismatch, ResultSchema, type Entry } from '../supabase/functions/extract-entries/extract'
-import { fitImage, imageTokens, MAX_IMAGE_TOKENS } from '../src/lib/image'
+import { buildUserText, checkBox, checkEntries, hasItemMismatch, ResultSchema, type Entry } from '../supabase/functions/extract-entries/extract'
+import { fitImage, imageTokens, MAX_IMAGE_TOKENS, squareBox } from '../src/lib/image'
 import { issuerOf, last4Matches, matchMethod, matchMethodDetailed, toDrafts } from '../src/lib/smart'
 import type { Category, PaymentMethod, Transaction } from '../src/lib/types'
 
@@ -12,13 +12,13 @@ const entry = (p: Partial<Entry>): Entry => ({
 describe('모델 출력 정리 (checkEntries)', () => {
   it('품목 합계를 검사하고, 할인 줄(음수)도 합계에 넣는다', () => {
     const [e] = checkEntries({ note: null, entries: [entry({ items: [
-      { name: '우유', quantity: 2, unit_price: 2800, amount: 5600 },
-      { name: '빵', quantity: 1, unit_price: null, amount: 7800 },
-      { name: '행사할인', quantity: 1, unit_price: null, amount: -1000 },
+      { name: '우유', quantity: 2, unit_price: 2800, amount: 5600, image_box: null },
+      { name: '빵', quantity: 1, unit_price: null, amount: 7800, image_box: null },
+      { name: '행사할인', quantity: 1, unit_price: null, amount: -1000, image_box: null },
     ] })] })
     expect(e.items_match).toBe(true)
     expect(e.type).toBe('expense')
-    const [bad] = checkEntries({ note: null, entries: [entry({ items: [{ name: '우유', quantity: 1, unit_price: null, amount: 5600 }] })] })
+    const [bad] = checkEntries({ note: null, entries: [entry({ items: [{ name: '우유', quantity: 1, unit_price: null, amount: 5600, image_box: null }] })] })
     expect(bad.items_match).toBe(false)
     expect(hasItemMismatch([e, bad])).toBe(true)
   })
@@ -42,6 +42,45 @@ describe('모델 출력 정리 (checkEntries)', () => {
   it('스키마가 모델 응답 JSON을 그대로 받아들인다', () => {
     const parsed = ResultSchema.parse({ note: null, entries: [entry({ card_last4: '1234', category: '장보기' })] })
     expect(parsed.entries[0].card_last4).toBe('1234')
+  })
+})
+
+describe('쇼핑 캡처의 상품 사진 영역', () => {
+  const sizes = [{ width: 1107, height: 2400 }, { width: 1107, height: 2400 }]
+
+  it('이미지 안으로 맞추고, 번호가 없거나 너무 작거나 화면 절반보다 크면 버린다', () => {
+    expect(checkBox({ image: 2, left: 40, top: 300, right: 260, bottom: 520 }, sizes)).toEqual({ image: 2, left: 40, top: 300, right: 260, bottom: 520 })
+    expect(checkBox({ image: 1, left: 260, top: 520, right: -10, bottom: 300 }, sizes)).toEqual({ image: 1, left: 0, top: 300, right: 260, bottom: 520 })
+    expect(checkBox({ image: 3, left: 0, top: 0, right: 100, bottom: 100 }, sizes)).toBeNull()
+    expect(checkBox({ image: 1, left: 0, top: 0, right: 10, bottom: 10 }, sizes)).toBeNull()
+    expect(checkBox({ image: 1, left: 0, top: 0, right: 1107, bottom: 2000 }, sizes)).toBeNull()
+    expect(checkBox(null, sizes)).toBeNull()
+  })
+
+  it('품목의 사진 영역은 모델 출력 정리 때 함께 검사된다', () => {
+    const [e] = checkEntries({ note: null, entries: [entry({ merchant: '쿠팡', amount: 9800, items: [
+      { name: '물티슈', quantity: 2, unit_price: 4900, amount: 9800, image_box: { image: 1, left: 30, top: 400, right: 250, bottom: 620 } },
+    ] })] }, sizes)
+    expect(e.items[0].image_box).toEqual({ image: 1, left: 30, top: 400, right: 250, bottom: 620 })
+    expect(checkEntries({ note: null, entries: [entry({ items: [
+      { name: 'x', quantity: 1, unit_price: null, amount: 12400, image_box: { image: 1, left: 30, top: 400, right: 250, bottom: 620 } },
+    ] })] })[0].items[0].image_box).toBeNull() // 이미지 크기를 모르면(문자 입력) 버린다
+  })
+
+  it('잘라 낼 영역을 정사각형으로 넓히되 이미지 밖으로 나가지 않는다', () => {
+    const sq = squareBox({ left: 0, top: 100, right: 200, bottom: 160 }, 1107, 2400)
+    expect(sq.right - sq.left).toBe(sq.bottom - sq.top)
+    expect(sq.left).toBe(0)
+    expect(sq.right - sq.left).toBe(216)
+    const edge = squareBox({ left: 1000, top: 2300, right: 1107, bottom: 2400 }, 1107, 2400)
+    expect(edge.right).toBeLessThanOrEqual(1107)
+    expect(edge.bottom).toBeLessThanOrEqual(2400)
+  })
+
+  it('쇼핑 캡처 요청에는 이미지 크기와 사진 위치 안내가 들어간다', () => {
+    const t = buildUserText({ kind: 'image', today: '2026-10-15', categories: ['생활용품'], images: sizes, shop: true })
+    expect(t).toContain('이미지 1 크기: 1107×2400 픽셀')
+    expect(t).toContain('image_box')
   })
 })
 
