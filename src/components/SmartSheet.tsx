@@ -31,7 +31,7 @@ interface Props {
 
 type Stage = 'input' | 'loading' | 'review'
 
-const MAX_PHOTOS = 10
+const MAX_PHOTOS = 20
 const SAMPLE = '[Web발신]\n신한카드(1234)승인\n홍*동\n12,400원 일시불\n10/13 18:42 이마트24\n누적1,234,560원'
 const TITLE: Record<SmartMode, string> = { text: '문자로 입력', photo: '영수증으로 입력', shop: '쇼핑 주문으로 입력', bill: '관리비 고지서로 입력' }
 
@@ -223,8 +223,8 @@ export function SmartSheet({ open, mode, today, householdId, lookup, categories,
             {mode === 'bill'
               ? '아파트 관리비 고지서(내역서)를 찍거나 관리비 앱 화면을 캡처해서 고르세요. 항목별 금액과 전기·수도·난방 사용량을 읽어 전월·전년 같은 달과 비교합니다. 앞뒤 여러 장이면 모두 넣으세요(최대 5장).'
               : mode === 'shop'
-              ? '쿠팡·오늘의집·컬리·네이버페이·스마트스토어의 주문·결제 내역 화면을 캡처해서 고르세요. 상품 이름·수량·금액과 상품 사진까지 함께 저장합니다. 여러 쇼핑몰 캡처를 섞어 넣어도 되고, 한 주문이 길면 이어서 찍은 캡처를 모두 넣으세요. 최대 10장, 여러 번에 나눠 넣어도 됩니다.'
-              : '종이 영수증, 카드앱 결제 화면, 배달 주문내역을 찍거나 캡처해서 고르세요. 사진은 최대 10장까지 모아서 한 번에 분석합니다. 여러 번에 나눠 넣어도 됩니다.'}
+              ? '쿠팡·오늘의집·컬리·네이버페이·스마트스토어의 주문·결제 내역 화면을 캡처해서 고르세요. 상품 이름·수량·금액과 상품 사진까지 함께 저장합니다. 여러 쇼핑몰 캡처를 섞어 넣어도 되고, 한 주문이 길면 이어서 찍은 캡처를 모두 넣으세요. 최대 20장, 여러 번에 나눠 넣어도 됩니다.'
+              : '종이 영수증, 카드앱 결제 화면, 배달 주문내역을 찍거나 캡처해서 고르세요. 사진은 최대 20장까지 모아서 한 번에 분석합니다. 여러 번에 나눠 넣어도 됩니다.'}
           </p>
           <input ref={fileRef} type="file" accept="image/*" multiple hidden onChange={(e) => { void addFiles(e.target.files); e.target.value = '' }} />
           {images.length > 0 && (
