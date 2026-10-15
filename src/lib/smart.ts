@@ -124,7 +124,7 @@ export async function analyze(body:
     if (!error && data) return data
     const p = await errorPayload(error)
     // WIF 토큰 교환이 거절되면 새 로그인 토큰으로 한 번 더 (재사용된 토큰·갱신 전 권한 정보 대비)
-    if (p?.code === 'wif_denied' && attempt === 0) {
+    if ((p?.code === 'wif_denied' || p?.code === 'wif_aud_missing') && attempt === 0) {
       await sb().auth.refreshSession()
       continue
     }

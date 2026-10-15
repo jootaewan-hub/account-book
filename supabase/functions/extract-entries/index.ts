@@ -135,6 +135,12 @@ Deno.serve(async (req) => {
     console.error('wif_unsupported_jwt_alg', claimsData?.header?.alg)
     return fail('wif_unsupported_jwt', 'Supabase 로그인 토큰 서명 방식이 WIF와 맞지 않아요 (JWT Keys를 비대칭 키로 바꿔야 해요).', 500)
   }
+  // Anthropic은 aud에 https://api.anthropic.com이 있는 토큰만 받는다 (custom_access_token_hook이 덧붙임)
+  const aud = claimsData?.claims?.aud
+  if (useWif && !(Array.isArray(aud) ? aud : [aud]).includes('https://api.anthropic.com')) {
+    console.error('wif_aud_missing', aud)
+    return fail('wif_aud_missing', '로그인 토큰에 Anthropic 대상(aud)이 없어요. Supabase Auth Hook을 켠 뒤 다시 로그인해 주세요.', 500)
+  }
 
   const input = parseInput(await req.json().catch(() => null))
   if (typeof input === 'string') return fail('bad_request', input, 400)
