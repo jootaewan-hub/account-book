@@ -19,7 +19,7 @@ interface Props {
   onDelete: (id: string) => Promise<void>
   onClose: () => void
   /** 문자 붙여넣기·사진·쇼핑 캡처 입력으로 전환 */
-  onSmart?: (mode: 'text' | 'photo' | 'shop') => void
+  onSmart?: (mode: 'text' | 'photo' | 'shop' | 'bill') => void
 }
 
 const KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '00', '0', '⌫']
@@ -132,6 +132,9 @@ export function EntrySheet({ open, editing, defaultDate, lookup, categories, usa
           </button>
           <button className="smart-btn" onClick={() => onSmart('shop')}>
             <b>쇼핑 주문</b><span>쿠팡 · 컬리 등</span>
+          </button>
+          <button className="smart-btn" onClick={() => onSmart('bill')}>
+            <b>관리비</b><span>고지서 사진</span>
           </button>
         </div>
       )}

@@ -2,12 +2,16 @@ import { won } from '../lib/format'
 import { SCOPE_LABEL, type Lookup } from '../lib/lookup'
 import type { Transaction } from '../lib/types'
 import { useItemImages } from '../hooks/useItemImages'
+import { serviceOf } from '../lib/services'
 import { qtyPriceLabel } from '../lib/units'
+import { ServiceLogo } from './ServiceLogo'
 
 export function TxRow({ t, lookup, onClick }: { t: Transaction; lookup: Lookup; onClick: () => void }) {
   const cat = lookup.categoryName(t.category_id)
   const photo = t.items?.find((i) => i.image_path)?.image_path ?? null
   const urls = useItemImages(photo ? [photo] : [])
+  // 구독(반복 내역·구독 분류)이면 서비스 로고를 그린다
+  const logo = !photo && (t.recurring_id || cat === '구독') && serviceOf(t.title) !== null
   const items = t.items?.length ?? 0
   // 상품 하나짜리 내역은 이름이 곧 상품명이라 품목 수 대신 수량 × 개당 가격을 보여 준다
   const one = items === 1 && t.items![0].quantity !== 1 ? qtyPriceLabel(t.items![0]) : null
@@ -15,6 +19,7 @@ export function TxRow({ t, lookup, onClick }: { t: Transaction; lookup: Lookup; 
     <button className="tx" onClick={onClick}>
       {photo && urls.get(photo)
         ? <img className="tx-thumb" src={urls.get(photo)} alt="" loading="lazy" />
+        : logo ? <ServiceLogo name={t.title} size={36} />
         : <span className={`glyph${t.type === 'income' ? ' inc' : ''}`} aria-hidden="true">{cat.charAt(0)}</span>}
       <span style={{ minWidth: 0 }}>
         <span className="tx-title" style={{ display: 'block' }}>{t.title || cat}</span>

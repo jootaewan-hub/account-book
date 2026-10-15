@@ -1,11 +1,11 @@
 // 문자·사진 분석 결과를 저장할 수 있는 초안으로 바꾸고, Edge Function을 부른다.
-import type { CheckedEntry } from '../../supabase/functions/extract-entries/extract'
+import type { CheckedBill, CheckedEntry } from '../../supabase/functions/extract-entries/extract'
 import { uploadItemImage } from './itemImages'
 import { DELIVERY_PLATFORMS, normalizePlatform, platformOf } from './platform'
 import { sb } from './supabase'
 import type { Category, PaymentMethod, Scope, Transaction, TxType } from './types'
 
-export type { CheckedEntry }
+export type { CheckedBill, CheckedEntry }
 
 export interface DraftItem {
   name: string
@@ -294,11 +294,25 @@ async function errorPayload(error: unknown): Promise<{ code?: string; message?: 
 
 export type AnalyzeBody =
   | { kind: 'text'; text: string; today: string }
-  | { kind: 'image'; mode: 'receipt' | 'shop'; images: { media_type: 'image/jpeg'; data: string; width: number; height: number }[]; today: string }
+  | { kind: 'image'; mode: 'receipt' | 'shop' | 'bill'; images: { media_type: 'image/jpeg'; data: string; width: number; height: number }[]; today: string }
 
-export async function analyze(body: AnalyzeBody): Promise<AnalyzeResult> {
+export function analyze(body: AnalyzeBody): Promise<AnalyzeResult> {
+  return invoke<AnalyzeResult>(body)
+}
+
+export interface BillResult {
+  bill: CheckedBill
+  model: string
+}
+
+/** 관리비 고지서 사진(같은 고지서의 여러 부분)을 읽는다 */
+export function analyzeBill(images: { media_type: 'image/jpeg'; data: string; width: number; height: number }[], today: string): Promise<BillResult> {
+  return invoke<BillResult>({ kind: 'image', mode: 'bill', images, today })
+}
+
+async function invoke<T>(body: AnalyzeBody): Promise<T> {
   for (let attempt = 0; ; attempt++) {
-    const { data, error } = await sb().functions.invoke<AnalyzeResult>('extract-entries', { body })
+    const { data, error } = await sb().functions.invoke<T>('extract-entries', { body })
     if (!error && data) return data
     const p = await errorPayload(error)
     // WIF 토큰 교환이 거절되면 새 로그인 토큰으로 한 번 더 (재사용된 토큰·갱신 전 권한 정보 대비)
@@ -309,6 +323,55 @@ export async function analyze(body: AnalyzeBody): Promise<AnalyzeResult> {
     if (p?.message) throw new SmartError(p.code ?? 'error', p.message)
     throw new SmartError('network', '분석 서버에 연결하지 못했어요. 인터넷 연결을 확인해 주세요.')
   }
+}
+
+/** 한 번에 보내는 사진 수. Edge Function이 150초 안에 끝나도록 나눠 보낸다 */
+export const BATCH_SIZE = 5
+
+type BatchImage = { media_type: 'image/jpeg'; data: string; width: number; height: number }
+
+export interface BatchResult extends AnalyzeResult {
+  /** 읽지 못한 묶음 (사진 번호는 1부터) */
+  failed: { from: number; to: number; message: string }[]
+}
+
+/** 묶음별 결과를 합친다. 상품 사진 위치의 이미지 번호를 전체 사진 기준으로 바꾼다 */
+export function mergeBatches(results: (AnalyzeResult | Error)[], sizes: number[]): BatchResult {
+  const out: BatchResult = { entries: [], note: null, model: '', failed: [] }
+  const notes: string[] = []
+  let offset = 0
+  results.forEach((r, k) => {
+    if (r instanceof Error) {
+      out.failed.push({ from: offset + 1, to: offset + sizes[k], message: r.message })
+    } else {
+      out.entries.push(...r.entries.map((e) => ({
+        ...e, items: e.items.map((it) => (it.image_box ? { ...it, image_box: { ...it.image_box, image: it.image_box.image + offset } } : it)),
+      })))
+      if (r.note) notes.push(results.length > 1 ? `사진 ${offset + 1}~${offset + sizes[k]}: ${r.note}` : r.note)
+      out.model ||= r.model
+    }
+    offset += sizes[k]
+  })
+  out.note = notes.join('\n') || null
+  return out
+}
+
+/** 사진을 BATCH_SIZE장씩 나눠 동시에 분석한다. 일부 묶음이 실패해도 나머지 결과는 돌려준다 */
+export async function analyzeImages(
+  images: BatchImage[], mode: 'receipt' | 'shop', today: string, onProgress?: (done: number, total: number) => void,
+): Promise<BatchResult> {
+  const batches: BatchImage[][] = []
+  for (let i = 0; i < images.length; i += BATCH_SIZE) batches.push(images.slice(i, i + BATCH_SIZE))
+  let done = 0
+  const results = await Promise.all(batches.map((b) =>
+    analyze({ kind: 'image', mode, today, images: b })
+      .catch((e: unknown) => (e instanceof Error ? e : new Error(String(e))))
+      .finally(() => onProgress?.(++done, batches.length))))
+  const merged = mergeBatches(results, batches.map((b) => b.length))
+  // 전부 실패하면 첫 오류를 그대로 알린다
+  const firstError = results.find((r): r is Error => r instanceof Error)
+  if (merged.failed.length === batches.length && firstError) throw firstError
+  return merged
 }
 
 export async function saveDraft(householdId: string, d: Draft, source: 'text' | 'photo'): Promise<void> {

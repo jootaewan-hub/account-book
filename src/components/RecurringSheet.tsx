@@ -4,8 +4,10 @@ import { formatDateLong } from '../lib/dates'
 import { won } from '../lib/format'
 import { SCOPE_LABEL, SCOPES, type Lookup } from '../lib/lookup'
 import { dueDate, KIND_LABEL } from '../lib/recurring'
+import { POPULAR } from '../lib/services'
 import type { Category, Recurring, RecurringInput, RecurringKind, Scope, TxType } from '../lib/types'
 import { defaultScope } from './EntrySheet'
+import { ServiceLogo } from './ServiceLogo'
 import { Sheet } from './Sheet'
 
 export type RecurringDraft = Partial<RecurringInput> & { id?: string }
@@ -78,7 +80,7 @@ export function RecurringSheet({ open, draft, householdId, today, lookup, catego
     active, memo: null,
   }
   const firstDue = dueDate(input, today.slice(0, 7)) ?? dueDate(input, startMonth)
-  const willAddNow = !draft?.id && !variable && firstDue !== null && firstDue <= today && startMonth <= today.slice(0, 7)
+  const willAddNow = !draft?.id && !variable && n > 0 && firstDue !== null && firstDue <= today && startMonth <= today.slice(0, 7)
 
   async function save() {
     if (!input.title) return setErr('이름을 입력하세요.')
@@ -114,11 +116,26 @@ export function RecurringSheet({ open, draft, householdId, today, lookup, catego
           <button aria-pressed={type === 'income'} onClick={() => { setType('income'); setCategoryId(null) }}>수입 (월급 등)</button>
         </div>
       )}
+      {kind === 'subscription' && !draft?.id && (
+        <div className="field">
+          <span className="lbl">자주 쓰는 구독 (누르면 이름이 들어가요)</span>
+          <div className="svc-picks">
+            {POPULAR.map((s) => (
+              <button key={s.name} className="svc-pick" onClick={() => setTitle(s.name)} aria-pressed={title === s.name}>
+                <ServiceLogo name={s.name} size={44} /><span>{s.name}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
       <div className="field">
         <label htmlFor="rc-title">이름</label>
-        <input id="rc-title" className="input" value={title} maxLength={60}
-          placeholder={kind === 'subscription' ? '예: 넷플릭스' : kind === 'utility' ? '예: 아파트 관리비' : '예: 월세, 보험료'}
-          onChange={(e) => setTitle(e.target.value)} />
+        <div className="svc-name-row">
+          {kind === 'subscription' && <ServiceLogo name={title || '?'} size={40} />}
+          <input id="rc-title" className="input" value={title} maxLength={60}
+            placeholder={kind === 'subscription' ? '예: 넷플릭스' : kind === 'utility' ? '예: 아파트 관리비' : '예: 월세, 보험료'}
+            onChange={(e) => setTitle(e.target.value)} />
+        </div>
       </div>
       <div className="field">
         <label htmlFor="rc-amount">금액</label>

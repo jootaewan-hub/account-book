@@ -141,7 +141,7 @@ main.wrap { padding-block: 12px calc(132px + env(safe-area-inset-bottom, 0px)); 
 .primary:disabled { opacity: .5; cursor: default; }
 .ghost { border: 1px solid var(--line); background: var(--surface); border-radius: 12px; padding: 10px 14px; font-size: 14px; font-weight: 500; color: var(--ink-2); }
 .danger { border: 1px solid var(--expense); background: none; color: var(--expense); border-radius: 12px; padding: 12px; font-size: 15px; font-weight: 500; width: 100%; }
-.err { color: var(--expense); font-size: 13px; min-height: 1em; margin: 0; }
+.err { color: var(--expense); font-size: 13px; min-height: 1em; margin: 0; white-space: pre-line; }
 .note { font-size: 12.5px; color: var(--ink-2); background: var(--surface-2); border-radius: var(--r-sm); padding: 10px 12px; margin: 0; }
 
 /* settings */
@@ -164,7 +164,7 @@ select.input { padding: 9px 10px; }
 /* iOS Safari의 날짜 입력은 고유 최소 너비가 있어 옆 칸을 침범한다. 너비를 칸에 맞춘다. */
 .date-input { -webkit-appearance: none; appearance: none; display: block; min-width: 0; max-width: 100%; min-height: 44px; text-align: left; }
 .date-input::-webkit-date-and-time-value { text-align: left; }
-.smart-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.smart-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
 .smart-btn { border: 1px solid var(--line); background: var(--surface-2); border-radius: var(--r-md); padding: 10px 12px; text-align: left; display: flex; flex-direction: column; gap: 2px; }
 .smart-btn b { font-size: 14px; font-weight: 600; color: var(--ink); }
 .smart-btn span { font-size: 11.5px; color: var(--ink-3); }
@@ -199,6 +199,7 @@ select.input { padding: 9px 10px; }
 .rc-row:first-of-type { border-top: 0; }
 .rc-row.off { opacity: .5; }
 .rc-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.rc-row > .svc-logo + .rc-main { flex: 1; }
 .rc-main b { font-weight: 600; font-size: 15px; color: var(--ink); }
 .rc-side { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; flex: none; font-size: 14.5px; color: var(--ink); }
 .rc-side .inc { color: var(--income); }
@@ -264,3 +265,30 @@ select.input { padding: 9px 10px; }
 .app-version { text-align: center; font-size: 12px; color: var(--ink-3); margin: 4px 0 0; }
 .thumb-btn { position: relative; border: 0; padding: 0; background: none; width: 44px; height: 44px; }
 .thumb-x { position: absolute; top: -4px; right: -4px; width: 18px; height: 18px; border-radius: 50%; background: var(--ink); color: var(--bg); font-size: 12px; line-height: 18px; text-align: center; }
+
+/* 관리비 비교표 */
+.bill-table { display: flex; flex-direction: column; font-size: 13px; margin-top: 4px; }
+.bt-row { display: grid; grid-template-columns: minmax(0, 1.3fr) repeat(3, minmax(0, 1fr)); gap: 6px; align-items: baseline; padding: 6px 0; border-top: 1px solid var(--line); }
+.bt-row > span:not(:first-child) { text-align: right; display: flex; flex-direction: column; align-items: flex-end; }
+.bt-head { color: var(--ink-3); font-size: 11.5px; border-top: 0; padding-top: 12px; }
+.bt-head > span:first-child { color: var(--ink-2); font-weight: 600; font-size: 12.5px; }
+.bt-name { min-width: 0; overflow-wrap: anywhere; }
+.bt-pct { font-size: 11px; color: var(--ink-3); }
+.bill-table details summary { color: var(--ink-2); cursor: pointer; padding: 6px 0; font-size: 12.5px; }
+.bill-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.bill-nav { display: flex; gap: 4px; }
+.bill-trend { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 4px; height: 84px; margin-top: 12px; align-items: end; }
+.bt-bar { height: 100%; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; gap: 2px; }
+.bt-bar i { display: block; width: 60%; max-width: 14px; background: var(--chart-exp); opacity: 0.45; border-radius: 4px 4px 0 0; }
+.bt-bar.on i { opacity: 1; }
+.bt-bar span { font-size: 10.5px; color: var(--ink-3); }
+
+/* 구독 서비스 로고 */
+.svc-logo { display: inline-flex; align-items: center; justify-content: center; flex: none; font-weight: 800; letter-spacing: -0.02em;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ink) 12%, transparent); overflow: hidden; line-height: 1; }
+.svc-logo.unknown { background: var(--surface-2); color: var(--ink-2); font-weight: 700; }
+.svc-picks { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; }
+.svc-pick { display: flex; flex-direction: column; align-items: center; gap: 4px; flex: none; width: 64px; border: 0; background: none; padding: 0; color: var(--ink-2); font-size: 11px; }
+.svc-pick span:last-child { width: 100%; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.svc-name-row { display: flex; align-items: center; gap: 10px; }
+.svc-name-row .input { flex: 1; min-width: 0; }

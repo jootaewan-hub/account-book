@@ -9,8 +9,9 @@ import { oidcFederationProvider } from '@anthropic-ai/sdk/lib/credentials/oidc-f
 import { WorkloadIdentityError } from '@anthropic-ai/sdk/lib/credentials/types'
 import { createClient } from '@supabase/supabase-js'
 import {
-  buildUserText, checkEntries, hasItemMismatch, IMAGE_MEDIA_TYPES, MAX_IMAGE_BASE64_CHARS, MAX_IMAGES, MAX_TEXT_CHARS,
-  MAX_TOTAL_IMAGE_CHARS, ResultSchema, SYSTEM_PROMPT, type CheckedEntry, type ImageSize,
+  BILL_PROMPT, BillSchema, buildBillText, buildUserText, checkBill, checkEntries, hasItemMismatch, IMAGE_MEDIA_TYPES,
+  MAX_IMAGE_BASE64_CHARS, MAX_IMAGES, MAX_TEXT_CHARS, MAX_TOTAL_IMAGE_CHARS, ResultSchema, SYSTEM_PROMPT, type CheckedEntry,
+  type ImageSize,
 } from './extract.ts'
 import { WIF } from './wif-config.ts'
 
@@ -20,6 +21,8 @@ const PRIMARY_MODEL = 'claude-haiku-5-5'
 const RETRY_MODEL = 'claude-sonnet-5-5'
 // 쇼핑 주문 캡처: 상품 사진 위치(픽셀 좌표)가 필요해 고해상도 이미지를 지원하는 Sonnet 5.5를 쓴다
 const SHOP_MODEL = 'claude-sonnet-5-5'
+// 관리비 고지서: 작은 글씨의 표를 정확히 읽어야 해서 Sonnet 5.5
+const BILL_MODEL = 'claude-sonnet-5-5'
 
 const cors = {
   'Access-Control-Allow-Origin': '*',
@@ -73,7 +76,7 @@ type MediaType = (typeof IMAGE_MEDIA_TYPES)[number]
 type Img = { media_type: MediaType; data: string; width: number; height: number }
 type Input =
   | { kind: 'text'; text: string; today: string }
-  | { kind: 'image'; images: Img[]; shop: boolean; today: string }
+  | { kind: 'image'; images: Img[]; mode: 'receipt' | 'shop' | 'bill'; today: string }
 
 function parseImage(v: unknown): Img | string {
   const img = v as Record<string, unknown> | undefined
@@ -109,16 +112,17 @@ function parseInput(body: unknown): Input | string {
       images.push(img)
     }
     if (images.reduce((s, i) => s + i.data.length, 0) > MAX_TOTAL_IMAGE_CHARS) return '사진이 너무 커요. 장수를 줄여 주세요.'
-    return { kind: 'image', images, shop: b.mode === 'shop', today }
+    return { kind: 'image', images, mode: b.mode === 'shop' || b.mode === 'bill' ? b.mode : 'receipt', today }
   }
   return '요청 형식이 잘못됐어요.'
 }
 
 async function extract(client: Anthropic, model: string, input: Input, categories: string[]) {
   const sizes: ImageSize[] = input.kind === 'image' ? input.images.map(({ width, height }) => ({ width, height })) : []
+  const shop = input.kind === 'image' && input.mode === 'shop'
   const userText = buildUserText({
     kind: input.kind, today: input.today, categories, text: input.kind === 'text' ? input.text : undefined,
-    images: sizes, shop: input.kind === 'image' && input.shop,
+    images: sizes, shop,
   })
   const content: Anthropic.ContentBlockParam[] = input.kind === 'image'
     ? [...input.images.map((im): Anthropic.ContentBlockParam => ({ type: 'image', source: { type: 'base64', media_type: im.media_type, data: im.data } })),
@@ -129,13 +133,31 @@ async function extract(client: Anthropic, model: string, input: Input, categorie
     max_tokens: 12000,
     system: SYSTEM_PROMPT,
     messages: [{ role: 'user', content }],
-    output_config: { effort: input.kind === 'image' && input.shop ? 'medium' : 'low', format: zodOutputFormat(ResultSchema) },
+    output_config: { effort: shop ? 'medium' : 'low', format: zodOutputFormat(ResultSchema) },
   })
   if (res.stop_reason === 'refusal') return { refused: true as const, usage: res.usage }
   if (!res.parsed_output) throw new Error(`no_parsed_output (stop_reason=${res.stop_reason})`)
   // 실제로 응답한 모델 (요청한 이름과 다르면 로그로 알 수 있게)
   console.log('extract_ok', model, '->', res.model, res.usage.input_tokens, res.usage.output_tokens)
   return { refused: false as const, result: res.parsed_output, entries: checkEntries(res.parsed_output, sizes), usage: res.usage, model: res.model }
+}
+
+function imageBlocks(images: Img[]): Anthropic.ContentBlockParam[] {
+  return images.map((im) => ({ type: 'image', source: { type: 'base64', media_type: im.media_type, data: im.data } }))
+}
+
+async function extractBill(client: Anthropic, input: Extract<Input, { kind: 'image' }>) {
+  const res = await client.messages.parse({
+    model: BILL_MODEL,
+    max_tokens: 8000,
+    system: BILL_PROMPT,
+    messages: [{ role: 'user', content: [...imageBlocks(input.images), { type: 'text', text: buildBillText(input.today, input.images.length) }] }],
+    output_config: { effort: 'low', format: zodOutputFormat(BillSchema) },
+  })
+  if (res.stop_reason === 'refusal') return null
+  if (!res.parsed_output) throw new Error(`no_parsed_output (stop_reason=${res.stop_reason})`)
+  console.log('bill_ok', BILL_MODEL, '->', res.model, res.usage.input_tokens, res.usage.output_tokens)
+  return { bill: checkBill(res.parsed_output), model: res.model, usage: res.usage }
 }
 
 Deno.serve(async (req) => {
@@ -181,7 +203,12 @@ Deno.serve(async (req) => {
   if (!client) return fail('ai_not_configured', 'AI 연결 설정이 아직 안 됐어요.', 503)
 
   try {
-    const first = input.kind === 'image' && input.shop ? SHOP_MODEL : PRIMARY_MODEL
+    if (input.kind === 'image' && input.mode === 'bill') {
+      const out = await extractBill(client, input)
+      if (!out) return fail('refused', '이 사진은 읽을 수 없어요. 직접 입력해 주세요.', 422)
+      return json(out)
+    }
+    const first = input.kind === 'image' && input.mode === 'shop' ? SHOP_MODEL : PRIMARY_MODEL
     let out = await extract(client, first, input, categories)
     // 품목 합계가 결제 금액과 안 맞으면 더 큰 모델로 한 번 더 읽는다
     if (!out.refused && hasItemMismatch(out.entries) && RETRY_MODEL !== first) {

@@ -6,6 +6,7 @@ import { sumType } from '../lib/ledger'
 import { SCOPE_LABEL, SCOPES, type Lookup } from '../lib/lookup'
 import { categoryBreakdown, monthSeries, OTHER_PLATFORM, pctChange, platformBreakdown, scopeSplit, type MonthPoint } from '../lib/stats'
 import type { Category, Household, MonthTotal, Transaction } from '../lib/types'
+import { BillCard } from './BillCard'
 
 interface Props {
   household: Household
@@ -15,11 +16,15 @@ interface Props {
   prev: Transaction[]
   lookup: Lookup
   categories: Category[]
+  /** 관리비 고지서를 새로 저장하면 바뀐다 */
+  billsVersion: number
+  /** 관리비 고지서 넣기 */
+  onBill: () => void
 }
 
 const man = (n: number) => (n >= 10_000 ? `${Math.round(n / 10_000).toLocaleString('ko-KR')}만` : won(n))
 
-export function StatsView({ household, ym, today, cur, prev, lookup, categories }: Props) {
+export function StatsView({ household, ym, today, cur, prev, lookup, categories, billsVersion, onBill }: Props) {
   const [totals, setTotals] = useState<MonthTotal[] | null>(null)
   const [lastYear, setLastYear] = useState<Transaction[]>([])
   const [sel, setSel] = useState(ym)
@@ -132,8 +137,10 @@ export function StatsView({ household, ym, today, cur, prev, lookup, categories 
             <span className="delta">{p.prev ? <Delta diff={p.amount - p.prev} pct={pctChange(p.amount, p.prev)} /> : <span className="muted">지난달 없음</span>}</span>
           </div>
         ))}
-        <p className="note">내역 이름(가맹점)으로 쿠팡·오늘의집·컬리·네이버 등을 알아봅니다. 쇼핑 캡처로 넣으면 이름이 쇼핑몰로 들어가요.</p>
+        <p className="note">내역의 플랫폼 칸으로 묶어요. 플랫폼이 비어 있는 예전 내역은 이름(가맹점)으로 쿠팡·네이버 등을 짐작해요.</p>
       </div>
+
+      <BillCard householdId={household.id} reloadKey={billsVersion} onAdd={onBill} />
     </section>
   )
 }

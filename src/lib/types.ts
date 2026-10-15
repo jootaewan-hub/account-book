@@ -111,3 +111,32 @@ export interface MonthTotal {
   total: number
   n: number
 }
+
+/** 관리비 고지서 항목 (원). prev_month·last_year는 고지서에 적혀 있던 값 */
+export interface BillCharge {
+  name: string
+  amount: number
+  prev_month: number | null
+  last_year: number | null
+}
+
+/** 관리비 고지서의 세대 사용량 (전기·수도·온수·난방·가스) */
+export interface BillUsage {
+  name: string
+  amount: number
+  unit: string | null
+  prev_month: number | null
+  last_year: number | null
+}
+
+export interface UtilityBill {
+  id: string
+  household_id: string
+  /** 몇 월분인지 (YYYY-MM-01) */
+  bill_month: string
+  total: number
+  due_date: string | null
+  charges: BillCharge[]
+  usages: BillUsage[]
+  transaction_id: string | null
+}

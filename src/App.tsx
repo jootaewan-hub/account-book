@@ -81,6 +81,8 @@ function Ledger({ household, meta, userId, email }: {
   const [tab, setTab] = useState<Tab>('cal')
   const [sheet, setSheet] = useState<{ open: boolean; editing: Transaction | null }>({ open: false, editing: null })
   const [smart, setSmart] = useState<{ open: boolean; mode: SmartMode }>({ open: false, mode: 'text' })
+  // 관리비 고지서를 저장하면 통계 탭의 관리비 분석을 다시 불러온다
+  const [billsVersion, setBillsVersion] = useState(0)
   const [toastMsg, setToastMsg] = useState('')
 
   const { txs, error, reload } = useMonthTransactions(household.id, ym)
@@ -136,12 +138,13 @@ function Ledger({ household, meta, userId, email }: {
     toast(id ? '수정했어요' : '저장했어요')
   }
 
-  async function smartSaved(count: number, lastDate: string) {
+  async function smartSaved(count: number, lastDate: string, msg?: string) {
     setSmart((s) => ({ ...s, open: false }))
     setYm(lastDate.slice(0, 7))
     setSel(lastDate)
     await reload()
-    toast(`${count}건 저장했어요`)
+    setBillsVersion((v) => v + 1)
+    toast(msg ?? `${count}건 저장했어요`)
   }
 
   async function remove(id: string) {
@@ -193,7 +196,7 @@ function Ledger({ household, meta, userId, email }: {
         {tab === 'list' && <ListView cur={cur} lookup={lookup} onEdit={(t) => setSheet({ open: true, editing: t })} />}
         {tab === 'stats' && (
           <StatsView household={household} ym={ym} today={today} cur={cur} prev={prev} lookup={lookup}
-            categories={meta.categories} />
+            categories={meta.categories} billsVersion={billsVersion} onBill={() => setSmart({ open: true, mode: 'bill' })} />
         )}
         {tab === 'fixed' && (
           <RecurringView householdId={household.id} today={today} lookup={lookup}

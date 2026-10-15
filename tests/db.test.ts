@@ -17,6 +17,8 @@ const CHILD = read('20261015070000_child.sql')
 const PLATFORM = read('20261015080000_platform_units.sql')
 const EXPORT_PLATFORM = read('20261015090000_export_platform.sql')
 const DROP_OLD_EXPORT = read('20261015100000_drop_old_export_rows.sql')
+const BILLS = read('20261015110000_utility_bills.sql')
+const REVOKE_ANON = read('20261015120000_revoke_anon.sql')
 
 const SUPABASE_STUB = `
 create schema auth;
@@ -87,7 +89,7 @@ async function freshDb(migrations: string[]) {
 }
 
 beforeAll(async () => {
-  db = await freshDb([INIT, ROLES, SMART, HOOK, RECUR, EXPORT_SVC, ITEMS_IMG, CHILD, PLATFORM, EXPORT_PLATFORM, DROP_OLD_EXPORT])
+  db = await freshDb([INIT, ROLES, SMART, HOOK, RECUR, EXPORT_SVC, ITEMS_IMG, CHILD, PLATFORM, EXPORT_PLATFORM, DROP_OLD_EXPORT, BILLS, REVOKE_ANON])
 })
 
 describe('가구 만들기와 참여', () => {
@@ -385,7 +387,7 @@ describe('자녀 (20261015070000_child)', () => {
     await old.exec('set role authenticated')
     await old.query(`select public.create_household('나', 'husband')`)
     await old.exec('reset role')
-    for (const m of [SMART, HOOK, RECUR, EXPORT_SVC, ITEMS_IMG, CHILD, PLATFORM, EXPORT_PLATFORM, DROP_OLD_EXPORT]) await old.exec(m)
+    for (const m of [SMART, HOOK, RECUR, EXPORT_SVC, ITEMS_IMG, CHILD, PLATFORM, EXPORT_PLATFORM, DROP_OLD_EXPORT, BILLS, REVOKE_ANON]) await old.exec(m)
     const rows = (await old.query<{ n: number }>(`select count(*)::int as n from public.categories where name = '자녀'`)).rows
     expect(rows).toEqual([{ n: 1 }])
   })
@@ -450,5 +452,33 @@ describe('플랫폼·용량 (20261015080000_platform_units)', () => {
     } finally {
       await db.exec('reset role')
     }
+  })
+})
+
+describe('관리비 고지서 (20261015110000_utility_bills)', () => {
+  it('같은 가구만 보고 쓰며, 한 달에 하나, 다른 가구 내역은 연결할 수 없고, 내역을 지우면 연결만 풀린다', async () => {
+    const [{ id: txA }] = await as<{ id: string }>(A,
+      `insert into public.transactions (household_id, type, occurred_on, amount, title, scope) values ($1, 'expense', '2026-10-25', 254000, '관리비 (9월분)', 'shared') returning id`, [hhA])
+    const charges = JSON.stringify([{ name: '일반관리비', amount: 54000, prev_month: 53000, last_year: null }])
+    const usages = JSON.stringify([{ name: '전기', amount: 312, unit: 'kWh', prev_month: 280, last_year: 350 }])
+    await as(A, `insert into public.utility_bills (household_id, bill_month, total, charges, usages, transaction_id) values ($1, '2026-09-01', 254000, $2, $3, $4)`,
+      [hhA, charges, usages, txA])
+    const rows = await as<{ total: string; usages: { name: string; amount: number }[] }>(B, `select total, usages from public.utility_bills`)
+    expect(rows.map((r) => [Number(r.total), r.usages[0].name, r.usages[0].amount])).toEqual([[254000, '전기', 312]])
+    expect(await as(C, `select * from public.utility_bills`)).toHaveLength(0)
+    expect(await errorOf(as(null, `select * from public.utility_bills`))).toContain('permission denied')
+    expect(await errorOf(as(C, `insert into public.utility_bills (household_id, bill_month, total) values ($1, '2026-08-01', 1)`, [hhA])))
+      .toContain('row-level security')
+    expect(await errorOf(as(B, `insert into public.utility_bills (household_id, bill_month, total) values ($1, '2026-09-01', 1)`, [hhA])))
+      .toContain('duplicate key')
+    expect(await errorOf(as(A, `insert into public.utility_bills (household_id, bill_month, total) values ($1, '2026-08-15', 1)`, [hhA])))
+      .toContain('check')
+    // 다른 가구의 내역 id로는 연결할 수 없다
+    const [{ id: txC }] = await as<{ id: string }>(C,
+      `insert into public.transactions (household_id, type, occurred_on, amount, scope) values ($1, 'expense', '2026-10-25', 1000, 'shared') returning id`, [hhC])
+    expect(await errorOf(as(A, `insert into public.utility_bills (household_id, bill_month, total, transaction_id) values ($1, '2026-07-01', 1, $2)`, [hhA, txC])))
+      .toContain('foreign key')
+    await as(A, `delete from public.transactions where id = $1`, [txA])
+    expect(await as(B, `select transaction_id from public.utility_bills where bill_month = '2026-09-01'`)).toEqual([{ transaction_id: null }])
   })
 })

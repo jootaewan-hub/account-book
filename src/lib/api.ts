@@ -2,7 +2,8 @@ import { addMonths, monthRange } from './dates'
 import { removeItemImages } from './itemImages'
 import { sb } from './supabase'
 import type {
-  Category, Household, Member, MonthTotal, PaymentMethod, Recurring, RecurringInput, Spouse, Transaction, TxInput,
+  BillCharge, BillUsage, Category, Household, Member, MonthTotal, PaymentMethod, Recurring, RecurringInput, Spouse, Transaction,
+  TxInput, UtilityBill,
 } from './types'
 
 const TX_COLUMNS =
@@ -175,6 +176,67 @@ export async function recordRecurring(householdId: string, r: Recurring, month: 
     category_id: r.category_id, payment_method_id: r.payment_method_id, scope: r.scope, source: 'recurring',
     recurring_id: r.id, recurring_month: month,
   }))
+}
+
+const BILL_COLUMNS = 'id, household_id, bill_month, total, due_date, charges, usages, transaction_id'
+
+/** 관리비 고지서 (최근 3년, 최신 달부터) */
+export async function fetchBills(householdId: string): Promise<UtilityBill[]> {
+  const rows = check(await sb().from('utility_bills').select(BILL_COLUMNS).eq('household_id', householdId)
+    .order('bill_month', { ascending: false }).limit(36)) as (Omit<UtilityBill, 'total'> & { total: number | string })[]
+  return rows.map((r) => ({ ...r, total: Number(r.total) }))
+}
+
+export interface BillInput {
+  bill_month: string // YYYY-MM-01
+  total: number
+  due_date: string | null
+  charges: BillCharge[]
+  usages: BillUsage[]
+}
+
+export interface BillExpense {
+  occurred_on: string
+  title: string
+  category_id: string | null
+  scope: Transaction['scope']
+  /** 금액을 매달 넣는 관리비 반복 항목이 있으면 그 달 분으로 연결한다 (입력할 차례 알림이 꺼진다) */
+  recurring: Recurring | null
+}
+
+/**
+ * 고지서를 저장하고, expense가 있으면 가계부 지출도 넣는다.
+ * 같은 달 고지서를 다시 넣으면 고지서와 연결된 지출을 고친다(두 번 들어가지 않게).
+ */
+export async function saveUtilityBill(householdId: string, bill: BillInput, expense: BillExpense | null): Promise<void> {
+  const existing = check(await sb().from('utility_bills').select('id, transaction_id')
+    .eq('household_id', householdId).eq('bill_month', bill.bill_month).maybeSingle()) as { id: string; transaction_id: string | null } | null
+  let txId = existing?.transaction_id ?? null
+  if (expense) {
+    const r = expense.recurring
+    const month = `${expense.occurred_on.slice(0, 7)}-01`
+    const fields = {
+      type: 'expense' as const, occurred_on: expense.occurred_on, amount: bill.total, title: expense.title,
+      category_id: expense.category_id, scope: expense.scope,
+      memo: `관리비 고지서 ${Number(bill.bill_month.slice(5, 7))}월분`,
+      ...(r ? { recurring_id: r.id, recurring_month: month } : {}),
+    }
+    if (!txId && r) {
+      // 이번 달 관리비를 이미 직접 넣었으면 그 내역을 쓴다
+      const same = check(await sb().from('transactions').select('id').eq('recurring_id', r.id).eq('recurring_month', month).maybeSingle()) as { id: string } | null
+      txId = same?.id ?? null
+    }
+    if (txId) {
+      check(await sb().from('transactions').update(fields).eq('id', txId))
+    } else {
+      const row = check(await sb().from('transactions')
+        .insert({ ...fields, household_id: householdId, source: 'photo' }).select('id').single()) as { id: string }
+      txId = row.id
+    }
+  }
+  check(await sb().from('utility_bills').upsert({
+    household_id: householdId, ...bill, transaction_id: txId,
+  }, { onConflict: 'household_id,bill_month' }))
 }
 
 /** 구글 시트 연동 주소의 토큰. rotate면 새로 만들고 이전 주소는 끊긴다 */

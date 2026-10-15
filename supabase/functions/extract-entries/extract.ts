@@ -66,6 +66,7 @@ export const SYSTEM_PROMPT = `당신은 한국 가정의 가계부 입력을 돕
 - platform은 주문·결제한 온라인 플랫폼입니다. 화면의 로고·앱 이름·메뉴 문구·주문번호 형식·배송 표시(로켓배송, 샛별배송, 오늘출발 등)로 판단합니다.
   이름은 다음 중 하나로 씁니다: 쿠팡, 쿠팡이츠, 네이버(네이버페이·스마트스토어·네이버쇼핑), 오늘의집, 컬리(마켓컬리), 11번가, G마켓, 옥션, SSG닷컴, 무신사, 29CM, 에이블리, 지그재그, 알리익스프레스, 테무, 배달의민족, 요기요, 카카오 선물하기, 당근.
   목록에 없는 온라인 플랫폼이면 화면에 보이는 이름을 씁니다. 매장에서 결제한 영수증·카드 문자는 null입니다(카드 문자 가맹점이 "쿠팡"처럼 플랫폼이면 그 이름).
+  여러 이미지가 서로 다른 플랫폼일 수 있습니다(예: 1번 쿠팡, 2번 네이버, 3번 컬리). 플랫폼은 그 주문이 보이는 이미지마다 따로 판단하고, 플랫폼이 다른 주문은 절대 합치지 않습니다.
 - 쇼핑몰·배달앱 주문·결제 내역 화면이면:
   · 주문(결제) 한 건이 entries 하나입니다. 주문일·주문번호가 다르면 따로 만듭니다. 여러 이미지가 같은 주문을 이어서 찍은 것이면 하나로 합치고 같은 상품을 두 번 넣지 않습니다.
   · 한 상품은 entries 전체에서 한 번만 나옵니다. 주문 목록 화면과 주문 상세 화면을 함께 찍었더라도 같은 상품을 다른 entries에 또 넣지 않습니다.
@@ -99,7 +100,7 @@ export function buildUserText(opts: {
   } else {
     const imgs = opts.images ?? []
     lines.push('', opts.shop
-      ? '위 이미지는 사용자가 올린 쇼핑몰 주문·결제 내역 캡처입니다. 상품마다 사진 위치(image_box)도 넣어 주세요.'
+      ? '위 이미지는 사용자가 올린 쇼핑몰 주문·결제 내역 캡처입니다. 이미지마다 쇼핑몰이 다를 수 있습니다. 상품마다 사진 위치(image_box)도 넣어 주세요.'
       : '위 이미지는 사용자가 올린 영수증·주문내역·결제 화면입니다.')
     imgs.forEach((im, i) => lines.push(`이미지 ${i + 1} 크기: ${im.width}×${im.height} 픽셀`))
   }
@@ -189,4 +190,110 @@ export function checkEntries(result: ExtractResult, images: ImageSize[] = []): C
 
 export function hasItemMismatch(entries: CheckedEntry[]): boolean {
   return entries.some((e) => e.items_match === false)
+}
+
+// ---------------------------------------------------------------------------
+// 관리비 고지서
+// ---------------------------------------------------------------------------
+
+export const BillChargeSchema = z.object({
+  name: z.string().describe('고지서에 적힌 항목 이름 그대로 (예: 일반관리비, 세대전기료, 수도료, 난방비)'),
+  amount: z.number().describe('이번 달 금액(원). 감면·할인은 음수'),
+  prev_month: z.number().nullable().describe('고지서에 적힌 전월 금액. 없으면 null'),
+  last_year: z.number().nullable().describe('고지서에 적힌 전년 같은 달 금액. 없으면 null'),
+})
+
+export const BillUsageSchema = z.object({
+  name: z.string().describe('전기, 수도, 온수, 난방, 가스 중 하나. 그 밖은 고지서 표기'),
+  amount: z.number().describe('이번 달 사용량 (계량기 지침이 아니라 사용량)'),
+  unit: z.string().nullable().describe('kWh, m³, Gcal, MWh 등 고지서 표기'),
+  prev_month: z.number().nullable().describe('고지서에 적힌 전월 사용량. 없으면 null'),
+  last_year: z.number().nullable().describe('고지서에 적힌 전년 같은 달 사용량. 없으면 null'),
+})
+
+export const BillSchema = z.object({
+  is_bill: z.boolean().describe('관리비 고지서·내역서이면 true'),
+  bill_month: z.string().nullable().describe('YYYY-MM. 몇 월분 관리비인지 (예: 9월분 → 2026-09)'),
+  due_date: z.string().nullable().describe('납부 마감일 YYYY-MM-DD. 없으면 null'),
+  total: z.number().nullable().describe('이번 달 부과 금액 합계(원, 납기 내 금액). 없으면 null'),
+  charges: z.array(BillChargeSchema),
+  usages: z.array(BillUsageSchema),
+  note: z.string().nullable().describe('읽기 어려웠던 부분 등 사용자에게 알릴 말. 없으면 null'),
+})
+
+export type Bill = z.infer<typeof BillSchema>
+
+export const BILL_PROMPT = `당신은 한국 아파트 관리비 고지서(관리비 내역서)를 읽어 가계부에 넣을 값을 주어진 JSON 형식으로만 답합니다.
+
+규칙:
+- bill_month는 몇 월분 관리비인지입니다("2026년 9월분" → 2026-09). 청구·납부하는 달이 아니라 부과 대상 달입니다. 연도가 없으면 기준일(오늘)을 보고 가장 가까운 과거 달로 정합니다.
+- total은 이번 달에 내야 할 금액(당월 부과액, 납기 내 금액)입니다. 미납액·연체료를 더한 금액이 아닙니다.
+- charges에는 항목별 이번 달 금액을 고지서 표기 그대로 넣습니다(일반관리비, 청소비, 경비비, 승강기유지비, 장기수선충당금, 세대전기료, 공동전기료, 수도료, 난방비, 급탕비 등). 소계·합계·"계" 줄은 넣지 않습니다. 감면·할인·절사는 음수입니다.
+- 고지서에 전월 금액·전년 같은 달 금액 칸이 있으면 prev_month·last_year에 넣고, 없으면 null입니다.
+- usages에는 우리 집(세대) 사용량을 넣습니다: 전기(kWh), 수도(m³), 온수(m³), 난방(Gcal·MWh 등), 가스(m³). 계량기 지침(당월 지침·전월 지침)이 아니라 사용량입니다. 전월·전년 같은 달 사용량이 적혀 있으면 함께 넣습니다. 단지 전체·평균 사용량은 넣지 않습니다.
+- 숫자는 쉼표와 단위를 뺀 값입니다. 보이지 않거나 확실하지 않은 값은 지어내지 말고 null로 둡니다.
+- 관리비 고지서가 아니면 is_bill을 false로 하고 note에 이유를 적습니다.`
+
+export function buildBillText(today: string, imageCount: number): string {
+  return [
+    `기준일(오늘): ${today}`,
+    '',
+    imageCount > 1
+      ? `위 이미지 ${imageCount}장은 관리비 고지서 한 장의 여러 부분(앞뒤·위아래)입니다. 같은 항목을 두 번 넣지 마세요.`
+      : '위 이미지는 관리비 고지서입니다.',
+  ].join('\n')
+}
+
+const USAGE_NAMES: [RegExp, string][] = [
+  [/온수|급탕/, '온수'], [/난방/, '난방'], [/가스/, '가스'], [/전기|전력/, '전기'], [/수도|상수/, '수도'],
+]
+const UNIT_NAMES: [RegExp, string][] = [
+  [/^(m3|㎥|m\^3|m³|입방미터|톤|ton)$/i, 'm³'], [/^kwh$/i, 'kWh'], [/^mwh$/i, 'MWh'], [/^gcal$/i, 'Gcal'], [/^mcal$/i, 'Mcal'],
+]
+
+export interface CheckedBill {
+  is_bill: boolean
+  bill_month: string | null
+  due_date: string | null
+  total: number | null
+  charges: { name: string; amount: number; prev_month: number | null; last_year: number | null }[]
+  usages: { name: string; amount: number; unit: string | null; prev_month: number | null; last_year: number | null }[]
+  /** 항목 합계가 부과 금액과 같은지 (항목이 없거나 합계를 모르면 null) */
+  sum_match: boolean | null
+  note: string | null
+}
+
+const finiteOrNull = (v: number | null, digits = 0) =>
+  v === null || !Number.isFinite(v) ? null : Math.round(v * 10 ** digits) / 10 ** digits
+
+/** 모델이 읽은 고지서를 저장할 수 있는 모양으로 정리한다 */
+export function checkBill(b: Bill): CheckedBill {
+  const charges = b.charges
+    .filter((c) => c.name.trim() && Number.isFinite(c.amount))
+    .map((c) => ({ name: c.name.trim().slice(0, 30), amount: Math.round(c.amount), prev_month: finiteOrNull(c.prev_month), last_year: finiteOrNull(c.last_year) }))
+  const usages = b.usages
+    .filter((u) => u.name.trim() && Number.isFinite(u.amount) && u.amount >= 0)
+    .map((u) => {
+      const raw = u.name.trim()
+      const unit = u.unit?.trim().replace(/\s+/g, '') || null
+      return {
+        name: USAGE_NAMES.find(([re]) => re.test(raw))?.[1] ?? raw.slice(0, 20),
+        amount: finiteOrNull(u.amount, 3) ?? 0,
+        unit: unit ? UNIT_NAMES.find(([re]) => re.test(unit))?.[1] ?? unit.slice(0, 10) : null,
+        prev_month: finiteOrNull(u.prev_month, 3),
+        last_year: finiteOrNull(u.last_year, 3),
+      }
+    })
+  const total = finiteOrNull(b.total)
+  const sum = charges.reduce((s, c) => s + c.amount, 0)
+  return {
+    is_bill: b.is_bill,
+    bill_month: b.bill_month && /^\d{4}-(0[1-9]|1[0-2])$/.test(b.bill_month) ? b.bill_month : null,
+    due_date: b.due_date && /^\d{4}-\d{2}-\d{2}$/.test(b.due_date) && !Number.isNaN(Date.parse(b.due_date)) ? b.due_date : null,
+    total: total !== null && total >= 0 ? total : charges.length ? sum : null,
+    charges,
+    usages,
+    sum_match: charges.length && total !== null ? sum === total : null,
+    note: b.note,
+  }
 }

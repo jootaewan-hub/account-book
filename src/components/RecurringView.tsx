@@ -6,6 +6,7 @@ import { SCOPE_LABEL, type Lookup } from '../lib/lookup'
 import { KIND_LABEL, monthlyAmount, nextDue, pastAmounts, pendingInputs, subscriptionCandidates } from '../lib/recurring'
 import type { Category, Recurring, RecurringKind, Transaction } from '../lib/types'
 import { draftFrom, RecurringSheet, type RecurringDraft } from './RecurringSheet'
+import { ServiceLogo } from './ServiceLogo'
 
 interface Props {
   householdId: string
@@ -99,6 +100,7 @@ export function RecurringView({ householdId, today, lookup, categories, onTxChan
               const last = r.amount === null ? pastAmounts(r, history)[0] : undefined
               return (
                 <button key={r.id} className={`rc-row${r.active ? '' : ' off'}`} onClick={() => setSheet(draftFrom(r))}>
+                  {k === 'subscription' && <ServiceLogo name={r.title} size={34} />}
                   <span className="rc-main">
                     <b>{r.title}</b>
                     <span className="tx-meta">
@@ -127,7 +129,8 @@ export function RecurringView({ householdId, today, lookup, categories, onTxChan
           <h3 className="section-title">구독 같아요 · 최근 6개월에 같은 금액이 여러 달 나왔어요</h3>
           {candidates.slice(0, 5).map((c) => (
             <div className="set-row" key={`${c.title}|${c.amount}`}>
-              <span style={{ minWidth: 0 }}>
+              <ServiceLogo name={c.title} size={28} />
+              <span style={{ minWidth: 0, flex: 1 }}>
                 {c.title} <span className="num">{won(c.amount)}원</span>
                 <span className="r"> {c.months.map((m) => `${Number(m.slice(5))}월`).join('·')}</span>
               </span>

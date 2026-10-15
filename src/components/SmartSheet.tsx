@@ -4,16 +4,17 @@ import { won } from '../lib/format'
 import { cropImage, fileToJpeg, type PreparedImage } from '../lib/image'
 import { SCOPE_LABEL, SCOPES, type Lookup } from '../lib/lookup'
 import {
-  analyze, canSplit, entryDrafts, isProductLine, itemsSum, markRepeats, modelLabel, saveDraft, SmartError,
-  type AnalyzeBody, type CheckedEntry, type Draft, type DraftContext,
+  analyze, analyzeBill, analyzeImages, BATCH_SIZE, canSplit, entryDrafts, isProductLine, itemsSum, markRepeats, modelLabel, saveDraft, SmartError,
+  type AnalyzeResult, type CheckedBill, type CheckedEntry, type Draft, type DraftContext,
 } from '../lib/smart'
+import { BillReview } from './BillReview'
 import type { Category, Transaction, TxType } from '../lib/types'
 import { defaultScope } from './EntrySheet'
 import { ItemInfo } from './ItemInfo'
 import { PlatformInput } from './PlatformInput'
 import { Sheet } from './Sheet'
 
-export type SmartMode = 'text' | 'photo' | 'shop'
+export type SmartMode = 'text' | 'photo' | 'shop' | 'bill'
 
 interface Props {
   open: boolean
@@ -23,17 +24,16 @@ interface Props {
   lookup: Lookup
   categories: Category[]
   existing: Transaction[]
-  onSaved: (count: number, lastDate: string) => Promise<void>
+  onSaved: (count: number, lastDate: string, msg?: string) => Promise<void>
   onManual: () => void
   onClose: () => void
 }
 
 type Stage = 'input' | 'loading' | 'review'
 
-const MAX_PHOTOS = 5
-const MAX_TOTAL_CHARS = 14_000_000 // 서버(extract.ts MAX_TOTAL_IMAGE_CHARS)와 같은 값
+const MAX_PHOTOS = 10
 const SAMPLE = '[Web발신]\n신한카드(1234)승인\n홍*동\n12,400원 일시불\n10/13 18:42 이마트24\n누적1,234,560원'
-const TITLE: Record<SmartMode, string> = { text: '문자로 입력', photo: '영수증으로 입력', shop: '쇼핑 주문으로 입력' }
+const TITLE: Record<SmartMode, string> = { text: '문자로 입력', photo: '영수증으로 입력', shop: '쇼핑 주문으로 입력', bill: '관리비 고지서로 입력' }
 
 /** 분석 결과 한 건(주문·영수증)과 상품별로 나눠 저장할지 */
 interface Group {
@@ -59,18 +59,22 @@ export function SmartSheet({ open, mode, today, householdId, lookup, categories,
   const [err, setErr] = useState('')
   const [busy, setBusy] = useState(false)
   const [preparing, setPreparing] = useState(false)
+  const [progress, setProgress] = useState('')
+  const [bill, setBill] = useState<CheckedBill | null>(null)
+  // 관리비 고지서는 한 장의 여러 부분이라 한 번에 보낸다
+  const maxPhotos = mode === 'bill' ? BATCH_SIZE : MAX_PHOTOS
   const fileRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     if (!open) return
-    setStage('input'); setText(''); setDrafts([]); setGroups([]); setNote(null); setModel(null); setErr(''); setBusy(false); setPreparing(false)
+    setStage('input'); setText(''); setDrafts([]); setGroups([]); setNote(null); setModel(null); setErr(''); setBusy(false); setPreparing(false); setProgress(''); setBill(null)
     setImages((prev) => { prev.forEach((i) => URL.revokeObjectURL(i.preview)); return [] })
   }, [open, mode])
 
-  async function run(body: AnalyzeBody, imgs: PreparedImage[] = []) {
-    setStage('loading'); setErr('')
+  async function run(request: () => Promise<AnalyzeResult & { failed?: { from: number; to: number; message: string }[] }>, imgs: PreparedImage[] = []) {
+    setStage('loading'); setErr(''); setProgress('')
     try {
-      const res = await analyze(body)
+      const res = await request()
       // 상품 사진: 모델이 알려 준 영역을 원본에서 잘라 둔다 (실패하면 사진 없이)
       photos.current = new Map()
       for (const [i, e] of res.entries.entries()) {
@@ -88,7 +92,9 @@ export function SmartSheet({ open, mode, today, householdId, lookup, categories,
       const gs = res.entries.map((entry, index) => ({ index, entry, split: canSplit(entry) }))
       const ds = markRepeats(gs.flatMap((g) => withPhotos(entryDrafts(g.entry, g.index, draftContext(), g.split))))
       setGroups(gs); setDrafts(ds); setNote(res.note); setModel(modelLabel(res.model))
-      if (!ds.length) { setErr(res.note ?? '거래 내역을 찾지 못했어요.'); setStage('input'); return }
+      const failed = (res.failed ?? []).map((f) => `사진 ${f.from}~${f.to}번은 읽지 못했어요 (${f.message}). 그 사진만 다시 넣어 주세요.`).join('\n')
+      if (!ds.length) { setErr(failed || res.note || '거래 내역을 찾지 못했어요.'); setStage('input'); return }
+      setErr(failed)
       setStage('review')
     } catch (e) {
       setErr(e instanceof SmartError ? e.message : friendlyError(e)); setStage('input')
@@ -130,8 +136,8 @@ export function SmartSheet({ open, mode, today, householdId, lookup, categories,
   async function addFiles(list: FileList | null) {
     const files = [...(list ?? [])]
     if (!files.length) return
-    const room = MAX_PHOTOS - images.length
-    if (room <= 0) return setErr(`사진은 최대 ${MAX_PHOTOS}장까지예요.`)
+    const room = maxPhotos - images.length
+    if (room <= 0) return setErr(`사진은 최대 ${maxPhotos}장까지예요.`)
     setErr(''); setPreparing(true)
     const added: PreparedImage[] = []
     let failed = 0
@@ -141,7 +147,7 @@ export function SmartSheet({ open, mode, today, householdId, lookup, categories,
     }
     setImages((prev) => [...prev, ...added])
     setPreparing(false)
-    if (files.length > room) setErr(`사진은 최대 ${MAX_PHOTOS}장까지라 ${room}장만 넣었어요.`)
+    if (files.length > room) setErr(`사진은 최대 ${maxPhotos}장까지라 ${room}장만 넣었어요.`)
     else if (failed) setErr(`${failed}장은 읽지 못했어요. 다른 사진으로 해 보세요.`)
   }
 
@@ -155,11 +161,20 @@ export function SmartSheet({ open, mode, today, householdId, lookup, categories,
 
   async function analyzePhotos() {
     if (!images.length) return
-    if (images.reduce((s, im) => s + im.data.length, 0) > MAX_TOTAL_CHARS) return setErr('사진이 너무 커요. 장수를 줄여 주세요.')
-    await run({
-      kind: 'image', mode: mode === 'shop' ? 'shop' : 'receipt', today,
-      images: images.map(({ media_type, data, width, height }) => ({ media_type, data, width, height })),
-    }, images)
+    const payload = images.map(({ media_type, data, width, height }) => ({ media_type, data, width, height }))
+    if (mode === 'bill') {
+      setStage('loading'); setErr('')
+      try {
+        const res = await analyzeBill(payload, today)
+        setBill(res.bill); setModel(modelLabel(res.model)); setStage('review')
+      } catch (e) {
+        setErr(e instanceof SmartError ? e.message : friendlyError(e)); setStage('input')
+      }
+      return
+    }
+    await run(() => analyzeImages(payload, mode === 'shop' ? 'shop' : 'receipt', today, (done, total) => {
+      if (total > 1) setProgress(`${total}묶음 중 ${done}묶음 읽음`)
+    }), images)
   }
 
   function patch(key: string, p: Partial<Draft>) {
@@ -198,16 +213,18 @@ export function SmartSheet({ open, mode, today, householdId, lookup, categories,
           <textarea className="input smart-text" aria-label="붙여넣을 문자" placeholder={SAMPLE} value={text}
             maxLength={6000} onChange={(e) => setText(e.target.value)} />
           <p className="err" role="alert">{err}</p>
-          <button className="primary" disabled={!text.trim()} onClick={() => run({ kind: 'text', text, today })}>분석하기</button>
+          <button className="primary" disabled={!text.trim()} onClick={() => run(() => analyze({ kind: 'text', text, today }))}>분석하기</button>
         </>
       )}
 
       {stage === 'input' && mode !== 'text' && (
         <>
           <p className="note">
-            {mode === 'shop'
-              ? '쿠팡·오늘의집·컬리·네이버페이·스마트스토어의 주문·결제 내역 화면을 캡처해서 고르세요. 상품 이름·수량·금액과 상품 사진까지 함께 저장합니다. 한 주문이 길면 이어서 찍은 캡처를 모두 넣으세요. 최대 5장, 여러 번에 나눠 넣어도 됩니다.'
-              : '종이 영수증, 카드앱 결제 화면, 배달 주문내역을 찍거나 캡처해서 고르세요. 사진은 최대 5장까지 모아서 한 번에 분석합니다. 여러 번에 나눠 넣어도 됩니다.'}
+            {mode === 'bill'
+              ? '아파트 관리비 고지서(내역서)를 찍거나 관리비 앱 화면을 캡처해서 고르세요. 항목별 금액과 전기·수도·난방 사용량을 읽어 전월·전년 같은 달과 비교합니다. 앞뒤 여러 장이면 모두 넣으세요(최대 5장).'
+              : mode === 'shop'
+              ? '쿠팡·오늘의집·컬리·네이버페이·스마트스토어의 주문·결제 내역 화면을 캡처해서 고르세요. 상품 이름·수량·금액과 상품 사진까지 함께 저장합니다. 여러 쇼핑몰 캡처를 섞어 넣어도 되고, 한 주문이 길면 이어서 찍은 캡처를 모두 넣으세요. 최대 10장, 여러 번에 나눠 넣어도 됩니다.'
+              : '종이 영수증, 카드앱 결제 화면, 배달 주문내역을 찍거나 캡처해서 고르세요. 사진은 최대 10장까지 모아서 한 번에 분석합니다. 여러 번에 나눠 넣어도 됩니다.'}
           </p>
           <input ref={fileRef} type="file" accept="image/*" multiple hidden onChange={(e) => { void addFiles(e.target.files); e.target.value = '' }} />
           {images.length > 0 && (
@@ -223,16 +240,16 @@ export function SmartSheet({ open, mode, today, householdId, lookup, categories,
           <p className="err" role="alert">{err}</p>
           {images.length === 0 ? (
             <button className="primary" disabled={preparing} onClick={() => fileRef.current?.click()}>
-              {preparing ? '사진 준비 중…' : mode === 'shop' ? '주문내역 캡처 고르기' : '사진 고르기 · 찍기'}
+              {preparing ? '사진 준비 중…' : mode === 'shop' ? '주문내역 캡처 고르기' : mode === 'bill' ? '고지서 찍기 · 고르기' : '사진 고르기 · 찍기'}
             </button>
           ) : (
             <>
               <button className="primary" disabled={preparing} onClick={() => void analyzePhotos()}>
                 {preparing ? '사진 준비 중…' : `사진 ${images.length}장 분석하기`}
               </button>
-              {images.length < MAX_PHOTOS && (
+              {images.length < maxPhotos && (
                 <button className="ghost" disabled={preparing} onClick={() => fileRef.current?.click()}>
-                  사진 더 넣기 ({images.length}/{MAX_PHOTOS})
+                  사진 더 넣기 ({images.length}/{maxPhotos})
                 </button>
               )}
             </>
@@ -243,11 +260,23 @@ export function SmartSheet({ open, mode, today, householdId, lookup, categories,
       {stage === 'loading' && (
         <div className="smart-loading" role="status">
           {previews}
-          <p className="lead">읽는 중이에요… {mode === 'shop' ? '상품 사진까지 찾느라 20~40초쯤 걸려요.' : '보통 5~15초 걸려요.'}</p>
+          <p className="lead">
+            읽는 중이에요… {mode === 'shop' ? '상품 사진까지 찾느라 20~40초쯤 걸려요.' : mode === 'bill' ? '고지서 표를 읽느라 10~30초쯤 걸려요.' : '보통 5~15초 걸려요.'}
+            {mode !== 'bill' && images.length > BATCH_SIZE && ` 사진이 많아 ${BATCH_SIZE}장씩 나눠 동시에 읽어요.`}
+          </p>
+          {progress && <p className="tx-meta">{progress}</p>}
         </div>
       )}
 
-      {stage === 'review' && (
+      {stage === 'review' && mode === 'bill' && bill && (
+        <>
+          <BillReview bill={bill} householdId={householdId} today={today} categories={categories} onSaved={onSaved}
+            onRetry={() => { setStage('input'); setErr('') }} />
+          {model && <p className="tx-meta">{model}로 읽었어요</p>}
+        </>
+      )}
+
+      {stage === 'review' && mode !== 'bill' && (
         <>
           {note && <p className="note">{note}</p>}
           {groups.map((g) => (
