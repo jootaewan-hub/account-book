@@ -5,6 +5,7 @@ import { EntrySheet } from './components/EntrySheet'
 import { ExportCard } from './components/ExportCard'
 import { CalendarIcon, ChartIcon, ChevronLeft, ChevronRight, GearIcon, ListIcon, Plus, RepeatIcon } from './components/Icons'
 import { ListView } from './components/ListView'
+import { Soft, Toast } from './components/Motion'
 import { PlatformDatalist } from './components/PlatformInput'
 import { Login, NewPassword } from './components/Login'
 import { Onboarding } from './components/Onboarding'
@@ -29,7 +30,7 @@ function UpdateBar() {
   const [show, setShow] = useState(updateReady)
   useEffect(() => onUpdateReady(() => setShow(true)), [])
   if (!show) return null
-  return <button className="update-bar" onClick={() => window.location.reload()}>새 버전이 있어요 · 눌러서 새로 고침</button>
+  return <button className="update-bar" onClick={() => window.location.reload()}>새 버전이 있어요. 눌러서 새로 고침</button>
 }
 
 function SetupNeeded() {
@@ -156,20 +157,24 @@ function Ledger({ household, meta, userId, email }: {
 
   const { y, m } = parseYM(ym)
   const showMonth = tab === 'cal' || tab === 'list' || tab === 'stats'
+  const TITLE: Record<Tab, string> = { cal: '우리집', list: '내역', stats: '통계', fixed: '고정 지출', settings: '설정' }
 
   return (
     <div className="app">
       <header className="topbar">
         <div className="wrap">
-          {showMonth ? (
-            <div className="month-nav">
-              <button className="icon-btn" onClick={() => goMonth(-1)} aria-label="이전 달"><ChevronLeft /></button>
-              <h1 className="num">{y}년 {m}월</h1>
-              <button className="icon-btn" onClick={() => goMonth(1)} aria-label="다음 달"><ChevronRight /></button>
+          <h1 className={tab === 'cal' ? 'brand-mark' : undefined}>{TITLE[tab]}</h1>
+          {showMonth && (
+            <div className="top-right">
+              {ym !== today.slice(0, 7) && (
+                <button className="today-btn" onClick={() => { setYm(today.slice(0, 7)); setSel(today) }}>오늘</button>
+              )}
+              <div className="month-nav">
+                <button className="icon-btn" onClick={() => goMonth(-1)} aria-label="이전 달"><ChevronLeft /></button>
+                <span className="ym num" aria-live="polite"><Soft value={y === Number(today.slice(0, 4)) ? `${m}월` : `${y}년 ${m}월`} /></span>
+                <button className="icon-btn" onClick={() => goMonth(1)} aria-label="다음 달"><ChevronRight /></button>
+              </div>
             </div>
-          ) : <h1>{tab === 'fixed' ? '고정지출 · 구독 · 관리비' : '설정'}</h1>}
-          {showMonth && ym !== today.slice(0, 7) && (
-            <button className="today-btn" onClick={() => { setYm(today.slice(0, 7)); setSel(today) }}>오늘</button>
           )}
         </div>
       </header>
@@ -177,9 +182,9 @@ function Ledger({ household, meta, userId, email }: {
       <main className="wrap">
         {error && <p className="banner" role="alert">내역을 불러오지 못했어요: {error}</p>}
         {!lookup.myRole && tab !== 'settings' && (
-          <div className="card role-card" style={{ marginBottom: 14 }}>
+          <div className="card role-card" style={{ marginBottom: 16 }}>
             <b>나는 남편인가요, 아내인가요?</b>
-            <span className="lead" style={{ fontSize: 13 }}>내역에 누가 입력했는지 "남편 · 아내"로 표시하는 데 씁니다. 설정에서 바꿀 수 있어요.</span>
+            <span className="lead" style={{ fontSize: 14 }}>내역에 누가 입력했는지 남편, 아내로 표시하는 데 써요. 설정에서 바꿀 수 있어요.</span>
             <div className="seg" role="group">
               {(['husband', 'wife'] as Spouse[]).map((r) => (
                 <button key={r} onClick={async () => {
@@ -206,14 +211,14 @@ function Ledger({ household, meta, userId, email }: {
           <>
             <SettingsView household={household} categories={meta.categories}
               lookup={lookup} email={email} onChanged={meta.reload} toast={toast} />
-            <div style={{ height: 14 }} />
+            <div style={{ height: 16 }} />
             <ExportCard householdId={household.id} today={today} lookup={lookup} toast={toast} />
           </>
         )}
       </main>
 
       {(tab === 'cal' || tab === 'list') && (
-        <button className="fab" aria-label="내역 추가" onClick={() => setSheet({ open: true, editing: null })}><Plus /></button>
+        <button className="fab" onClick={() => setSheet({ open: true, editing: null })}><Plus />기록하기</button>
       )}
 
       <nav className="tabbar" aria-label="화면 전환">
@@ -236,7 +241,7 @@ function Ledger({ household, meta, userId, email }: {
         onSaved={smartSaved} onClose={() => setSmart((s) => ({ ...s, open: false }))}
         onManual={() => { setSmart((s) => ({ ...s, open: false })); setSheet({ open: true, editing: null }) }} />
 
-      {toastMsg && <div className="toast" role="status">{toastMsg}</div>}
+      <Toast msg={toastMsg} />
     </div>
   )
 }

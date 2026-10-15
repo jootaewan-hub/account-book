@@ -41,7 +41,9 @@
 | `supabase/functions/extract-entries/` | 문자·사진 → Claude 구조화 출력 → 내역 초안 (Edge Function) |
 | `supabase/functions/export-csv/` | 구글 시트 IMPORTDATA용 CSV (가구별 비밀 주소, 로그인 없이 호출) |
 | `src/lib/` | 날짜·금액·통계 계산, 사진 자르기, Supabase 호출 |
-| `src/components/` | 화면 |
+| `src/components/` | 화면 (`Motion.tsx`: 숫자 제자리 교체, 알림, 달 넘김 움직임) |
+| `src/styles.css` | 색·글자·움직임 토큰과 화면 스타일. 규칙은 `DESIGN.md` |
+| `src/assets/fonts/` | SUIT 2.0.5 가변 글꼴(SIL OFL 1.1, 원본 그대로). 라이선스 전문은 `public/fonts/SUIT-OFL.txt` |
 | `tests/db.test.ts` | 마이그레이션을 PGlite에 적용해 권한 규칙 검증 |
 | `tests/logic.test.ts` | 날짜·합계 계산 검증 |
 | `tests/smart.test.ts` | 모델 출력 정리, 상품 사진 영역 검사·자르기 영역, 중복 판단, 사진 크기 계산 검증 |

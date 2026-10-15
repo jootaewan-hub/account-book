@@ -173,7 +173,7 @@ export function SmartSheet({ open, mode, today, householdId, lookup, categories,
       return
     }
     await run(() => analyzeImages(payload, mode === 'shop' ? 'shop' : 'receipt', today, (done, total) => {
-      if (total > 1) setProgress(`${total}묶음 중 ${done}묶음 읽음`)
+      if (total > 1) setProgress(`${total}묶음 중 ${done}묶음 읽었어요`)
     }), images)
   }
 
@@ -240,7 +240,7 @@ export function SmartSheet({ open, mode, today, householdId, lookup, categories,
           <p className="err" role="alert">{err}</p>
           {images.length === 0 ? (
             <button className="primary" disabled={preparing} onClick={() => fileRef.current?.click()}>
-              {preparing ? '사진 준비 중…' : mode === 'shop' ? '주문내역 캡처 고르기' : mode === 'bill' ? '고지서 찍기 · 고르기' : '사진 고르기 · 찍기'}
+              {preparing ? '사진 준비 중…' : mode === 'shop' ? '주문내역 캡처 고르기' : mode === 'bill' ? '고지서 찍거나 고르기' : '사진 찍거나 고르기'}
             </button>
           ) : (
             <>
@@ -260,11 +260,12 @@ export function SmartSheet({ open, mode, today, householdId, lookup, categories,
       {stage === 'loading' && (
         <div className="smart-loading" role="status">
           {previews}
-          <p className="lead">
-            읽는 중이에요… {mode === 'shop' ? '상품 사진까지 찾느라 20~40초쯤 걸려요.' : mode === 'bill' ? '고지서 표를 읽느라 10~30초쯤 걸려요.' : '보통 5~15초 걸려요.'}
+          {/* 상태 문장은 실제 단계(묶음 진행)가 바뀔 때만 바뀐다. 기다리는 동안은 반짝임으로 살아 있음을 보여 준다 */}
+          <p className="lead shimmer">{progress || (mode === 'text' ? '문자를 읽는 중이에요' : `사진 ${images.length}장을 읽는 중이에요`)}</p>
+          <p className="tx-meta" style={{ justifyContent: 'center' }}>
+            {mode === 'shop' ? '상품 사진까지 찾느라 20~40초쯤 걸려요.' : mode === 'bill' ? '고지서 표를 읽느라 10~30초쯤 걸려요.' : '보통 5~15초 걸려요.'}
             {mode !== 'bill' && images.length > BATCH_SIZE && ` 사진이 많아 ${BATCH_SIZE}장씩 나눠 동시에 읽어요.`}
           </p>
-          {progress && <p className="tx-meta">{progress}</p>}
         </div>
       )}
 
@@ -285,7 +286,7 @@ export function SmartSheet({ open, mode, today, householdId, lookup, categories,
                 <label className="check split-toggle">
                   <input type="checkbox" checked={g.split} onChange={() => toggleSplit(g.index)} />
                   <span>
-                    {g.entry.platform || g.entry.merchant || '주문'} {won(g.entry.amount)}원 · 상품 {g.entry.items.filter(isProductLine).length}개를
+                    {g.entry.platform || g.entry.merchant || '주문'} {won(g.entry.amount)}원, 상품 {g.entry.items.filter(isProductLine).length}개를
                     {' '}{g.split ? '하나씩 따로 저장' : '한 내역으로 저장'} (눌러서 바꾸기)
                   </span>
                 </label>
@@ -369,7 +370,7 @@ function DraftCard({ d, categories, onChange }: {
       </div>
       {d.items.length > 0 && (
         <div className="field">
-          <span className="lbl">품목 {d.items.length}개 · 합계 <span className="num">{won(sum)}</span>원</span>
+          <span className="lbl">품목 {d.items.length}개, 합계 <span className="num">{won(sum)}</span>원</span>
           <ul className="item-list">
             {d.items.map((it, i) => (
               <li key={i}>

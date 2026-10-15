@@ -51,7 +51,7 @@ export function RecurringView({ householdId, today, lookup, categories, onTxChan
     const n = await generateRecurring(householdId, today).catch(() => 0)
     await load()
     if (n) await onTxChanged()
-    toast(n ? `${msg} · 내역 ${n}건을 넣었어요` : msg)
+    toast(n ? `${msg}. 내역 ${n}건을 넣었어요` : msg)
   }
 
   const monthTxs = useMemo(() => history.filter((t) => t.occurred_on.startsWith(today.slice(0, 7))), [history, today])
@@ -106,8 +106,8 @@ export function RecurringView({ householdId, today, lookup, categories, onTxChan
                     <span className="tx-meta">
                       {r.every_months === 12 ? `매년 ${Number(r.start_month.slice(5, 7))}월 ` : '매달 '}
                       {r.day_of_month === 31 ? '말일' : `${r.day_of_month}일`}
-                      {` · ${SCOPE_LABEL[r.scope]}`}
-                      {!r.active && ' · 꺼 둠'}
+                      {`, ${SCOPE_LABEL[r.scope]}`}
+                      {!r.active && ', 꺼 둠'}
                     </span>
                   </span>
                   <span className="rc-side">
@@ -126,13 +126,14 @@ export function RecurringView({ householdId, today, lookup, categories, onTxChan
 
       {candidates.length > 0 && (
         <div className="card">
-          <h3 className="section-title">구독 같아요 · 최근 6개월에 같은 금액이 여러 달 나왔어요</h3>
+          <h3 className="section-title">구독 같아요</h3>
+          <p className="tx-meta" style={{ marginTop: -6, marginBottom: 6 }}>최근 6개월에 같은 금액이 여러 달 나왔어요.</p>
           {candidates.slice(0, 5).map((c) => (
             <div className="set-row" key={`${c.title}|${c.amount}`}>
               <ServiceLogo name={c.title} size={28} />
               <span style={{ minWidth: 0, flex: 1 }}>
                 {c.title} <span className="num">{won(c.amount)}원</span>
-                <span className="r"> {c.months.map((m) => `${Number(m.slice(5))}월`).join('·')}</span>
+                <span className="r"> {c.months.map((m) => `${Number(m.slice(5))}월`).join(', ')}</span>
               </span>
               <button className="link-btn" onClick={() => setSheet({
                 kind: 'subscription', title: c.title.trim(), amount: c.amount, day_of_month: c.day,
@@ -165,7 +166,7 @@ function PendingCard({ r, due, past, onSave }: {
       <b>{r.title} 입력할 차례예요 ({md(due)})</b>
       {past.length > 0 && (
         <span className="tx-meta">
-          지난 금액: {past.slice(0, 3).map((p) => `${Number(p.date.slice(5, 7))}월 ${won(p.amount)}원`).join(' · ')}
+          지난 금액: {past.slice(0, 3).map((p) => `${Number(p.date.slice(5, 7))}월 ${won(p.amount)}원`).join(', ')}
         </span>
       )}
       <div className="form-grid">

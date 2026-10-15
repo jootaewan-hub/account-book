@@ -84,7 +84,7 @@ export function StatsView({ household, ym, today, cur, prev, lookup, categories,
         {totals ? <MonthChart points={series} sel={sel} onSelect={setSel} /> : <p className="lead">불러오는 중…</p>}
         {selPoint && (
           <p className="readout num">
-            {parseYM(selPoint.ym).y}년 {parseYM(selPoint.ym).m}월 · 지출 {won(selPoint.expense)} · 수입 {won(selPoint.income)} · 남은 돈 {won(selPoint.income - selPoint.expense)}
+            {parseYM(selPoint.ym).y}년 {parseYM(selPoint.ym).m}월에 {won(selPoint.expense)}원 쓰고 {won(selPoint.income)}원 들어와 {won(selPoint.income - selPoint.expense)}원 남았어요
           </p>
         )}
         <details className="table-view">
@@ -101,7 +101,7 @@ export function StatsView({ household, ym, today, cur, prev, lookup, categories,
       </div>
 
       <div className="card">
-        <h3 className="section-title">분류별 지출 · 지난달 대비</h3>
+        <h3 className="section-title">어디에 썼나</h3>
         {cats.length === 0 && <p className="empty">이번 달 지출이 없어요</p>}
         {cats.map((c) => (
           <div className="cat-row" key={c.id ?? 'none'}>
@@ -125,7 +125,7 @@ export function StatsView({ household, ym, today, cur, prev, lookup, categories,
       </div>
 
       <div className="card">
-        <h3 className="section-title">플랫폼별 지출 · 지난달 대비</h3>
+        <h3 className="section-title">어디서 샀나</h3>
         {platforms.length === 0 && <p className="empty">이번 달 지출이 없어요</p>}
         {platforms.map((p) => (
           <div className="cat-row" key={p.name}>

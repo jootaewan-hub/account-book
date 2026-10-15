@@ -27,7 +27,7 @@ export function BillCard({ householdId, reloadKey, onAdd }: { householdId: strin
   return (
     <div className="card">
       <div className="bill-head">
-        <h3 className="section-title">관리비{bill ? ` · ${bill.bill_month.slice(0, 4)}년 ${Number(bill.bill_month.slice(5, 7))}월분` : ''}</h3>
+        <h3 className="section-title">{bill ? `${bill.bill_month.slice(0, 4)}년 ${Number(bill.bill_month.slice(5, 7))}월분 관리비` : '관리비'}</h3>
         {bills && bills.length > 1 && (
           <span className="bill-nav">
             <button className="icon-btn" aria-label="이전 고지서" disabled={idx >= bills.length - 1} onClick={() => setIdx(idx + 1)}><ChevronLeft /></button>

@@ -48,7 +48,7 @@ export function SettingsView({ household, categories, lookup, email, onChanged, 
         </div>
         <div className="set-row">
           <span>배우자</span>
-          <span className="r">{partner ? `${lookup.personLabel(partner.user_id)} · 참여함` : '아직 참여 전'}</span>
+          <span className="r">{partner ? `${lookup.personLabel(partner.user_id)}, 참여함` : '아직 참여 전'}</span>
         </div>
         {!partner && (
           <p className="note">배우자에게 아래 초대 코드를 보내 주세요. 배우자가 앱에 가입한 뒤 "초대 코드로 참여"에서 입력하면 함께 쓰게 됩니다.</p>
@@ -68,7 +68,8 @@ export function SettingsView({ household, categories, lookup, email, onChanged, 
       </div>
 
       <div className="card">
-        <h3 className="section-title">분류 · 눌러서 숨기거나 다시 보이게</h3>
+        <h3 className="section-title">분류</h3>
+        <p className="tx-meta" style={{ marginTop: -6, marginBottom: 10 }}>눌러서 숨기거나 다시 보이게 할 수 있어요.</p>
         {(['expense', 'income'] as const).map((t) => (
           <div key={t} className="field" style={{ marginBottom: 10 }}>
             <span className="lbl">{t === 'expense' ? '지출' : '수입'}</span>

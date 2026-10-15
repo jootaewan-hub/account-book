@@ -4,6 +4,7 @@ import { won } from '../lib/format'
 import { SCOPE_LABEL, SCOPES, type Lookup } from '../lib/lookup'
 import { normalizePlatform } from '../lib/platform'
 import type { Category, Scope, Transaction, TxInput, TxType } from '../lib/types'
+import { CameraIcon } from './Icons'
 import { ItemList } from './ItemList'
 import { PlatformInput } from './PlatformInput'
 import { Sheet } from './Sheet'
@@ -121,26 +122,31 @@ export function EntrySheet({ open, editing, defaultDate, lookup, categories, usa
   }
 
   return (
-    <Sheet open={open} title={editing ? '내역 수정' : '내역 추가'} onClose={onClose}>
+    <Sheet open={open} title={editing ? '내역 수정' : '기록하기'} onClose={onClose}>
       {!editing && onSmart && (
-        <div className="smart-row">
-          <button className="smart-btn" onClick={() => onSmart('text')}>
-            <b>문자</b><span>카드 문자 · 알림톡</span>
-          </button>
-          <button className="smart-btn" onClick={() => onSmart('photo')}>
-            <b>영수증</b><span>사진 · 결제 화면</span>
-          </button>
-          <button className="smart-btn" onClick={() => onSmart('shop')}>
-            <b>쇼핑 주문</b><span>쿠팡 · 컬리 등</span>
-          </button>
-          <button className="smart-btn" onClick={() => onSmart('bill')}>
-            <b>관리비</b><span>고지서 사진</span>
-          </button>
-        </div>
+        <>
+          <div className="quick">
+            <div className="quick-top">
+              <span className="quick-ico" aria-hidden="true"><CameraIcon /></span>
+              <span><b>사진으로 기록하기</b><span>영수증, 쇼핑 캡처를 20장까지 한 번에</span></span>
+            </div>
+            <div className="smart-row">
+              <button className="smart-btn" onClick={() => onSmart('photo')}>영수증</button>
+              <button className="smart-btn" onClick={() => onSmart('shop')}>쇼핑 캡처</button>
+            </div>
+          </div>
+          <div className="smart-row sub">
+            <button className="smart-btn" onClick={() => onSmart('text')}>문자 붙여넣기</button>
+            <button className="smart-btn" onClick={() => onSmart('bill')}>관리비 고지서</button>
+          </div>
+        </>
       )}
-      <div className="seg" role="group" aria-label="구분">
-        <button aria-pressed={type === 'expense'} onClick={() => switchType('expense')}>지출</button>
-        <button aria-pressed={type === 'income'} onClick={() => switchType('income')}>수입</button>
+      <div className="manual-head">
+        <h3>{editing ? '금액' : '직접 입력'}</h3>
+        <div className="seg" role="group" aria-label="구분">
+          <button aria-pressed={type === 'expense'} onClick={() => switchType('expense')}>지출</button>
+          <button aria-pressed={type === 'income'} onClick={() => switchType('income')}>수입</button>
+        </div>
       </div>
       <div className={`amount num${n ? '' : ' empty-amt'}`} aria-live="polite">{won(n)}<small>원</small></div>
       <div className="keypad">
@@ -183,9 +189,9 @@ export function EntrySheet({ open, editing, defaultDate, lookup, categories, usa
         </div>
       )}
       <p className="err" role="alert">{err}</p>
-      <button className="primary" onClick={save} disabled={busy}>{busy ? '저장 중…' : '저장'}</button>
+      <button className="primary" onClick={save} disabled={busy}>{busy ? '저장 중…' : n ? `${won(n)}원 저장하기` : '저장하기'}</button>
       {editing && (
-        <button className="danger" onClick={remove} disabled={busy}>{confirmDelete ? '한 번 더 누르면 삭제됩니다' : '삭제'}</button>
+        <button className="danger" onClick={remove} disabled={busy}>{confirmDelete ? '한 번 더 누르면 지워요' : '삭제하기'}</button>
       )}
     </Sheet>
   )
