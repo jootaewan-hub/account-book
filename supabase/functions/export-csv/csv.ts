@@ -32,7 +32,7 @@ export interface ExportItem {
 
 /**
  * 품목 한 줄: '물티슈 100매 x 10팩 x2 19600 (개당 9800) (1매당 9.8)'.
- * DB 함수 export_rows(구글 시트용)와 같은 모양이어야 한다. 단위당 가격은 100 이상이면 정수, 아니면 소수 첫째 자리.
+ * DB 함수 export_rows_v2(구글 시트용)와 같은 모양이어야 한다. 단위당 가격은 100 이상이면 정수, 아니면 소수 첫째 자리.
  */
 export function itemText(i: ExportItem): string {
   const q = Number(i.quantity)

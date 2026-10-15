@@ -327,17 +327,17 @@ describe('고정지출·통계·정산·내보내기 (20261015040000_recurring_s
       await db.exec('set role service_role')
       try { return (await db.query<T>(sql, params)).rows } finally { await db.exec('reset role') }
     }
-    expect(await errorOf(as(null, `select * from public.export_rows($1)`, [tok]))).toContain('permission denied')
-    expect(await errorOf(as(A, `select * from public.export_rows($1)`, [tok]))).toContain('permission denied')
+    expect(await errorOf(as(null, `select * from public.export_rows_v2($1)`, [tok]))).toContain('permission denied')
+    expect(await errorOf(as(A, `select * from public.export_rows_v2($1)`, [tok]))).toContain('permission denied')
     const rows = await asService<{ title: string; entered_by: string; items: string | null }>(
-      `select title, entered_by, items from public.export_rows($1)`, [tok])
+      `select title, entered_by, items from public.export_rows_v2($1)`, [tok])
     expect(rows.find((r) => r.title === '이마트24')).toMatchObject({ entered_by: '남편', items: '우유 x2 5600 (개당 2800), 빵 6800' })
     expect(rows.length).toBeGreaterThanOrEqual(5)
 
     const [{ tok: tok2 }] = await as<{ tok: string }>(A, `select public.export_token($1, true) as tok`, [hhA])
     expect(tok2).not.toBe(tok)
-    expect(await asService(`select * from public.export_rows($1)`, [tok])).toHaveLength(0)
-    expect(await asService(`select * from public.export_rows($1)`, ['short'])).toHaveLength(0)
+    expect(await asService(`select * from public.export_rows_v2($1)`, [tok])).toHaveLength(0)
+    expect(await asService(`select * from public.export_rows_v2($1)`, ['short'])).toHaveLength(0)
     expect(await errorOf(as(null, `select * from private.export_tokens`))).toContain('permission denied')
   })
 })
@@ -441,7 +441,7 @@ describe('플랫폼·용량 (20261015080000_platform_units)', () => {
     await db.exec('set role service_role')
     try {
       const rows = (await db.query<{ platform: string | null; items: string | null }>(
-        `select platform, items from public.export_rows($1) where title = '물티슈 100매, 생수 2L'`, [tok])).rows
+        `select platform, items from public.export_rows_v2($1) where title = '물티슈 100매, 생수 2L'`, [tok])).rows
       expect(rows).toEqual([{
         platform: '쿠팡',
         items: EXPORT_ITEMS,

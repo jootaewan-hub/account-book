@@ -1,5 +1,7 @@
 -- 구글 시트 내보내기에 플랫폼 칸과 품목의 개당·단위당 가격을 더한다.
 -- 수량 10이 'x1'로 찍히던 문제도 고친다(정수 끝의 0을 지우던 것).
+-- 반환 칸이 달라 기존 export_rows를 고칠 수 없으므로 export_rows_v2를 새로 만들고 export-csv가 이것을 부른다.
+-- 기존 export_rows는 더 이상 쓰지 않는다(service role 전용이라 남아 있어도 밖에서 부를 수 없다).
 
 -- 숫자를 사람이 읽는 글자로: 2 → '2', 2.50 → '2.5' (정수 끝의 0은 지우지 않는다)
 create function private.num_text(n numeric)
@@ -13,9 +15,7 @@ $$;
 revoke execute on function private.num_text(numeric) from public;
 
 -- 내보내기: 플랫폼 칸을 더하고, 품목에 개당 가격·단위당 가격을 적는다
--- (반환 칸이 바뀌어 함수를 새로 만든다)
-drop function public.export_rows(text);
-create function public.export_rows(p_token text)
+create function public.export_rows_v2(p_token text)
 returns table (
   occurred_on date, occurred_at time, type text, amount bigint, title text, platform text, category text,
   scope text, source text, entered_by text, memo text, items text
@@ -48,5 +48,5 @@ as $$
   where e.token = p_token and char_length(p_token) >= 48
   order by t.occurred_on, t.created_at;
 $$;
-revoke execute on function public.export_rows(text) from public, anon, authenticated;
-grant execute on function public.export_rows(text) to service_role;
+revoke execute on function public.export_rows_v2(text) from public, anon, authenticated;
+grant execute on function public.export_rows_v2(text) to service_role;

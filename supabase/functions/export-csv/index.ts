@@ -1,5 +1,5 @@
 // 구글 시트 연동용 CSV. 시트 칸에 =IMPORTDATA("<이 주소>?t=<토큰>")를 넣으면 내역이 채워지고 주기적으로 새로 고쳐진다.
-// 로그인 대신 가구별 비밀 토큰으로 확인한다(verify_jwt 끔). 토큰 확인은 DB 함수 export_rows가 한다.
+// 로그인 대신 가구별 비밀 토큰으로 확인한다(verify_jwt 끔). 토큰 확인은 DB 함수 export_rows_v2가 한다.
 import { createClient } from '@supabase/supabase-js'
 import { toCsv, type ExportRow } from './csv.ts'
 
@@ -24,7 +24,7 @@ Deno.serve(async (req) => {
   const supabase = createClient(Deno.env.get('SUPABASE_URL')!, serviceKey(), {
     auth: { persistSession: false, autoRefreshToken: false },
   })
-  const { data, error } = await supabase.rpc('export_rows', { p_token: token })
+  const { data, error } = await supabase.rpc('export_rows_v2', { p_token: token })
   if (error) {
     console.error('export_rows_failed', error.message)
     return new Response('내역을 읽지 못했어요', { status: 500 })
