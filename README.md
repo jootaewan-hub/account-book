@@ -79,8 +79,8 @@ Anthropic이 이 토큰의 서명을 직접 확인할 수 있습니다.
 토큰 교환이 거절되면 앱이 로그인 토큰을 새로 받아 한 번 더 시도합니다. 거절 이유는 응답에 없고 Console의 Workload identity 인증 기록에만 남습니다.
 
 WIF 대신 API 키를 쓰려면 위 세 값 대신 `ANTHROPIC_API_KEY`만 넣으면 됩니다.
-모델은 `EXTRACT_MODEL`(문자·영수증, 기본 `claude-haiku-5-5`), 재시도 모델은 `EXTRACT_RETRY_MODEL`(기본 `claude-sonnet-5-5`),
-쇼핑 주문 모델은 `EXTRACT_SHOP_MODEL`(기본 `claude-sonnet-5-5`, 상품 사진 위치를 픽셀 좌표로 받기 위해)로 바꿀 수 있습니다.
+모델은 코드에 고정돼 있습니다: 문자·영수증은 `claude-haiku-5-5`, 품목 합계가 안 맞을 때 다시 읽기는 `claude-sonnet-5-5`,
+쇼핑 주문은 `claude-sonnet-5-5`(상품 사진 위치를 픽셀 좌표로 받기 위해). 확인 화면 아래에 실제로 응답한 모델 이름이 나옵니다.
 
 ### 3. 환경 변수
 

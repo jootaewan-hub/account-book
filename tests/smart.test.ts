@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { buildUserText, checkBox, checkEntries, hasItemMismatch, ResultSchema, type Entry } from '../supabase/functions/extract-entries/extract'
 import { fitImage, imageTokens, MAX_IMAGE_TOKENS, squareBox } from '../src/lib/image'
-import { issuerOf, last4Matches, matchMethod, matchMethodDetailed, toDrafts } from '../src/lib/smart'
+import { issuerOf, last4Matches, matchMethod, matchMethodDetailed, modelLabel, toDrafts } from '../src/lib/smart'
 import type { Category, PaymentMethod, Transaction } from '../src/lib/types'
 
 const entry = (p: Partial<Entry>): Entry => ({
@@ -162,5 +162,15 @@ describe('사진 줄이기', () => {
   it('긴 영수증 캡처는 긴 변 한도를 지키고, 작은 사진은 키우지 않는다', () => {
     expect(Math.max(...Object.values(fitImage(1170, 9000)))).toBeLessThanOrEqual(2400)
     expect(fitImage(800, 600)).toEqual({ w: 800, h: 600 })
+  })
+})
+
+describe('모델 이름 표시', () => {
+  it('모델 id를 읽기 쉬운 이름으로', () => {
+    expect(modelLabel('claude-haiku-5-5')).toBe('Claude Haiku 5.5')
+    expect(modelLabel('claude-sonnet-5-5-20261001')).toBe('Claude Sonnet 5.5')
+    expect(modelLabel('claude-opus-5')).toBe('Claude Opus 5')
+    expect(modelLabel('something-else')).toBe('something-else')
+    expect(modelLabel(undefined)).toBeNull()
   })
 })

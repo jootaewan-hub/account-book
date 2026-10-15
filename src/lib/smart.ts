@@ -39,6 +39,13 @@ export interface AnalyzeResult {
   model: string
 }
 
+/** 'claude-haiku-5-5' 또는 'claude-haiku-5-5-20261001' → 'Claude Haiku 5.5' */
+export function modelLabel(id: string | null | undefined): string | null {
+  const m = /^claude-([a-z]+)-(\d+)(?:-(\d{1,2}))?(?:-\d{8})?$/.exec(id ?? '')
+  if (!m) return id || null
+  return `Claude ${m[1][0].toUpperCase()}${m[1].slice(1)} ${m[2]}${m[3] ? `.${m[3]}` : ''}`
+}
+
 export class SmartError extends Error {
   constructor(public code: string, message: string) {
     super(message)

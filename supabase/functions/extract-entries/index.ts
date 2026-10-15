@@ -14,10 +14,12 @@ import {
 } from './extract.ts'
 import { WIF } from './wif-config.ts'
 
-const PRIMARY_MODEL = Deno.env.get('EXTRACT_MODEL') ?? 'claude-haiku-5-5'
-const RETRY_MODEL = Deno.env.get('EXTRACT_RETRY_MODEL') ?? 'claude-sonnet-5-5'
-// 쇼핑 주문 캡처: 상품 사진 위치(픽셀 좌표)가 필요해 고해상도 이미지를 지원하는 모델을 쓴다
-const SHOP_MODEL = Deno.env.get('EXTRACT_SHOP_MODEL') ?? 'claude-sonnet-5-5'
+// 모델은 코드에서만 정한다 (Secrets로 바뀌지 않게)
+// 문자·영수증: Haiku 5.5, 품목 합계가 안 맞을 때 다시 읽기: Sonnet 5.5
+const PRIMARY_MODEL = 'claude-haiku-5-5'
+const RETRY_MODEL = 'claude-sonnet-5-5'
+// 쇼핑 주문 캡처: 상품 사진 위치(픽셀 좌표)가 필요해 고해상도 이미지를 지원하는 Sonnet 5.5를 쓴다
+const SHOP_MODEL = 'claude-sonnet-5-5'
 
 const cors = {
   'Access-Control-Allow-Origin': '*',
@@ -131,7 +133,9 @@ async function extract(client: Anthropic, model: string, input: Input, categorie
   })
   if (res.stop_reason === 'refusal') return { refused: true as const, usage: res.usage }
   if (!res.parsed_output) throw new Error(`no_parsed_output (stop_reason=${res.stop_reason})`)
-  return { refused: false as const, result: res.parsed_output, entries: checkEntries(res.parsed_output, sizes), usage: res.usage }
+  // 실제로 응답한 모델 (요청한 이름과 다르면 로그로 알 수 있게)
+  console.log('extract_ok', model, '->', res.model, res.usage.input_tokens, res.usage.output_tokens)
+  return { refused: false as const, result: res.parsed_output, entries: checkEntries(res.parsed_output, sizes), usage: res.usage, model: res.model }
 }
 
 Deno.serve(async (req) => {
@@ -179,15 +183,14 @@ Deno.serve(async (req) => {
   try {
     const first = input.kind === 'image' && input.shop ? SHOP_MODEL : PRIMARY_MODEL
     let out = await extract(client, first, input, categories)
-    let model = first
     // 품목 합계가 결제 금액과 안 맞으면 더 큰 모델로 한 번 더 읽는다
     if (!out.refused && hasItemMismatch(out.entries) && RETRY_MODEL !== first) {
       const second = await extract(client, RETRY_MODEL, input, categories)
-      if (!second.refused && !hasItemMismatch(second.entries)) { out = second; model = RETRY_MODEL }
+      if (!second.refused && !hasItemMismatch(second.entries)) out = second
     }
     if (out.refused) return fail('refused', '이 내용은 읽을 수 없어요. 직접 입력해 주세요.', 422)
     const entries: CheckedEntry[] = out.entries
-    return json({ entries, note: out.result.note, model, usage: out.usage })
+    return json({ entries, note: out.result.note, model: out.model, usage: out.usage })
   } catch (e) {
     if (e instanceof WorkloadIdentityError) {
       // 토큰 교환 거절: 클라이언트가 세션을 새로 고친 뒤 한 번 다시 시도한다

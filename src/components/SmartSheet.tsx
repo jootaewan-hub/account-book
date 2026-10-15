@@ -3,7 +3,7 @@ import { friendlyError } from '../lib/api'
 import { won } from '../lib/format'
 import { cropImage, fileToJpeg, type PreparedImage } from '../lib/image'
 import { SCOPE_LABEL, SCOPES, type Lookup } from '../lib/lookup'
-import { analyze, itemsSum, saveDraft, SmartError, toDrafts, type AnalyzeBody, type Draft } from '../lib/smart'
+import { analyze, itemsSum, modelLabel, saveDraft, SmartError, toDrafts, type AnalyzeBody, type Draft } from '../lib/smart'
 import type { Category, Transaction, TxType } from '../lib/types'
 import { defaultScope } from './EntrySheet'
 import { Sheet } from './Sheet'
@@ -35,13 +35,14 @@ export function SmartSheet({ open, mode, today, householdId, lookup, categories,
   const [images, setImages] = useState<PreparedImage[]>([])
   const [drafts, setDrafts] = useState<Draft[]>([])
   const [note, setNote] = useState<string | null>(null)
+  const [model, setModel] = useState<string | null>(null)
   const [err, setErr] = useState('')
   const [busy, setBusy] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     if (!open) return
-    setStage('input'); setText(''); setDrafts([]); setNote(null); setErr(''); setBusy(false)
+    setStage('input'); setText(''); setDrafts([]); setNote(null); setModel(null); setErr(''); setBusy(false)
     setImages((prev) => { prev.forEach((i) => URL.revokeObjectURL(i.preview)); return [] })
   }, [open, mode])
 
@@ -64,7 +65,7 @@ export function SmartSheet({ open, mode, today, householdId, lookup, categories,
           } catch { it.photo = null }
         }
       }
-      setDrafts(ds); setNote(res.note)
+      setDrafts(ds); setNote(res.note); setModel(modelLabel(res.model))
       if (!ds.length) { setErr(res.note ?? '거래 내역을 찾지 못했어요.'); setStage('input'); return }
       setStage('review')
     } catch (e) {
@@ -171,6 +172,7 @@ export function SmartSheet({ open, mode, today, householdId, lookup, categories,
             {busy ? '저장 중…' : chosen.length ? `${chosen.length}건 저장` : '저장할 내역을 고르세요'}
           </button>
           <button className="ghost" disabled={busy} onClick={() => { setStage('input'); setErr('') }}>다시 하기</button>
+          {model && <p className="tx-meta">{model}로 읽었어요</p>}
         </>
       )}
 
