@@ -61,9 +61,10 @@ Anthropic이 이 토큰의 서명을 직접 확인할 수 있습니다.
      (가구 id는 `select id from public.households`. 다른 사람이 앱에 가입해도 우리 가구 구성원이 아니면 거절됩니다)
    - Scope: `workspace:inference` (Claude 호출만 허용)
 2. 만들어진 **organization ID**, **federation rule ID**(`fdrl_...`), **service account ID**(`svac_...`)를
-   Supabase > Edge Functions > Secrets에 넣습니다.
-   `ANTHROPIC_ORGANIZATION_ID`, `ANTHROPIC_FEDERATION_RULE_ID`, `ANTHROPIC_SERVICE_ACCOUNT_ID`
-   (규칙이 여러 워크스페이스에 걸쳐 있으면 `ANTHROPIC_WORKSPACE_ID`도)
+   `supabase/functions/extract-entries/wif-config.ts`에 적고 함수를 다시 배포합니다.
+   비밀값이 아닌 식별자라서 코드에 둡니다(Anthropic의 GitHub Actions 가이드도 워크플로 파일에 그대로 적습니다).
+   Supabase > Edge Functions > Secrets에 `ANTHROPIC_ORGANIZATION_ID`, `ANTHROPIC_FEDERATION_RULE_ID`,
+   `ANTHROPIC_SERVICE_ACCOUNT_ID`(필요하면 `ANTHROPIC_WORKSPACE_ID`)를 넣으면 그 값이 우선합니다.
 
 `household_id`는 가구에 참여할 때 DB 트리거가 `auth.users.raw_app_meta_data`에 넣고, 다음 토큰 갱신부터 JWT에 실립니다.
 토큰 교환이 거절되면 앱이 로그인 토큰을 새로 받아 한 번 더 시도합니다. 거절 이유는 Console의 Workload identity > History에 남습니다.

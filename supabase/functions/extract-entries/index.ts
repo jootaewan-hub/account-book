@@ -12,6 +12,7 @@ import {
   buildUserText, checkEntries, hasItemMismatch, IMAGE_MEDIA_TYPES, MAX_IMAGE_BASE64_CHARS, MAX_TEXT_CHARS,
   ResultSchema, SYSTEM_PROMPT, type CheckedEntry,
 } from './extract.ts'
+import { WIF } from './wif-config.ts'
 
 const PRIMARY_MODEL = Deno.env.get('EXTRACT_MODEL') ?? 'claude-haiku-5-5'
 const RETRY_MODEL = Deno.env.get('EXTRACT_RETRY_MODEL') ?? 'claude-sonnet-5-5'
@@ -34,9 +35,10 @@ function fail(code: string, message: string, status: number) {
 // 다시 교환할 때는 그 사용자의 가장 최근 JWT를 쓴다.
 const clients = new Map<string, { client: Anthropic; jwt: string }>()
 
-const ruleId = Deno.env.get('ANTHROPIC_FEDERATION_RULE_ID')
-const orgId = Deno.env.get('ANTHROPIC_ORGANIZATION_ID')
-const serviceAccountId = Deno.env.get('ANTHROPIC_SERVICE_ACCOUNT_ID')
+const ruleId = Deno.env.get('ANTHROPIC_FEDERATION_RULE_ID') || WIF.federationRuleId
+const orgId = Deno.env.get('ANTHROPIC_ORGANIZATION_ID') || WIF.organizationId
+const serviceAccountId = Deno.env.get('ANTHROPIC_SERVICE_ACCOUNT_ID') || WIF.serviceAccountId
+const workspaceId = Deno.env.get('ANTHROPIC_WORKSPACE_ID') || WIF.workspaceId || undefined
 const useWif = Boolean(ruleId && orgId && serviceAccountId)
 
 function anthropicFor(userId: string, jwt: string): Anthropic | null {
@@ -50,7 +52,7 @@ function anthropicFor(userId: string, jwt: string): Anthropic | null {
         federationRuleId: ruleId,
         organizationId: orgId,
         serviceAccountId,
-        workspaceId: Deno.env.get('ANTHROPIC_WORKSPACE_ID') || undefined,
+        workspaceId,
         baseURL: 'https://api.anthropic.com',
         fetch,
       }),
