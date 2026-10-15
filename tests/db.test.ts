@@ -3,6 +3,7 @@
 import { PGlite } from '@electric-sql/pglite'
 import { readFileSync } from 'node:fs'
 import { beforeAll, describe, expect, it } from 'vitest'
+import { EXPORT_ITEMS } from './fixtures'
 
 const read = (f: string) => readFileSync(new URL(`../supabase/migrations/${f}`, import.meta.url), 'utf8')
 const INIT = read('20261015000000_init.sql')
@@ -13,6 +14,8 @@ const RECUR = read('20261015040000_recurring_stats_export.sql')
 const EXPORT_SVC = read('20261015050000_export_rows_service_only.sql')
 const ITEMS_IMG = read('20261015060000_items_images_no_shared.sql')
 const CHILD = read('20261015070000_child.sql')
+const PLATFORM = read('20261015080000_platform_units.sql')
+const EXPORT_PLATFORM = read('20261015090000_export_platform.sql')
 
 const SUPABASE_STUB = `
 create schema auth;
@@ -83,7 +86,7 @@ async function freshDb(migrations: string[]) {
 }
 
 beforeAll(async () => {
-  db = await freshDb([INIT, ROLES, SMART, HOOK, RECUR, EXPORT_SVC, ITEMS_IMG, CHILD])
+  db = await freshDb([INIT, ROLES, SMART, HOOK, RECUR, EXPORT_SVC, ITEMS_IMG, CHILD, PLATFORM, EXPORT_PLATFORM])
 })
 
 describe('가구 만들기와 참여', () => {
@@ -326,9 +329,9 @@ describe('고정지출·통계·정산·내보내기 (20261015040000_recurring_s
     }
     expect(await errorOf(as(null, `select * from public.export_rows($1)`, [tok]))).toContain('permission denied')
     expect(await errorOf(as(A, `select * from public.export_rows($1)`, [tok]))).toContain('permission denied')
-    const rows = await asService<{ title: string; entered_by: string; items: string | null; method_owner: string | null }>(
-      `select title, entered_by, items, method_owner from public.export_rows($1)`, [tok])
-    expect(rows.find((r) => r.title === '이마트24')).toMatchObject({ entered_by: '남편', items: '우유 x2 5600, 빵 6800' })
+    const rows = await asService<{ title: string; entered_by: string; items: string | null }>(
+      `select title, entered_by, items from public.export_rows($1)`, [tok])
+    expect(rows.find((r) => r.title === '이마트24')).toMatchObject({ entered_by: '남편', items: '우유 x2 5600 (개당 2800), 빵 6800' })
     expect(rows.length).toBeGreaterThanOrEqual(5)
 
     const [{ tok: tok2 }] = await as<{ tok: string }>(A, `select public.export_token($1, true) as tok`, [hhA])
@@ -381,7 +384,7 @@ describe('자녀 (20261015070000_child)', () => {
     await old.exec('set role authenticated')
     await old.query(`select public.create_household('나', 'husband')`)
     await old.exec('reset role')
-    for (const m of [SMART, HOOK, RECUR, EXPORT_SVC, ITEMS_IMG, CHILD]) await old.exec(m)
+    for (const m of [SMART, HOOK, RECUR, EXPORT_SVC, ITEMS_IMG, CHILD, PLATFORM, EXPORT_PLATFORM]) await old.exec(m)
     const rows = (await old.query<{ n: number }>(`select count(*)::int as n from public.categories where name = '자녀'`)).rows
     expect(rows).toEqual([{ n: 1 }])
   })
@@ -412,5 +415,39 @@ describe('기존 데이터 변환 (20261015010000_spouse_roles)', () => {
     await old.exec(SMART)
     const [u] = (await old.query<{ hh: string }>(`select raw_app_meta_data->>'household_id' as hh from auth.users where id = $1`, [A])).rows
     expect(u.hh).toBe(hh)
+  })
+})
+
+describe('플랫폼·용량 (20261015080000_platform_units)', () => {
+  it('플랫폼과 품목 용량을 저장하고, 내보내기에 개당·단위당 가격이 들어간다', async () => {
+    const tx = JSON.stringify({ type: 'expense', occurred_on: '2026-10-12', amount: 31600, title: '물티슈 100매, 생수 2L', scope: 'shared', source: 'photo', platform: ' 쿠팡 ' })
+    const [{ id }] = await as<{ id: string }>(A, `select public.add_transaction_with_items($1, $2, $3) as id`, [hhA, tx, JSON.stringify([
+      { name: '물티슈 100매 x 10팩', quantity: 2, unit_price: 9800, amount: 19600, pack_size: 1000, pack_unit: '매' },
+      { name: '생수 2L x 6병', quantity: 10, unit_price: 1200, amount: 12000, pack_size: 12000, pack_unit: 'ml' },
+      { name: '쌀 10kg', quantity: 1, unit_price: 32900, amount: 32900, pack_size: 10000, pack_unit: 'g' },
+      { name: '배송비', quantity: 1, amount: 0, pack_size: 0, pack_unit: '개' },
+      { name: '단위만', quantity: 1, amount: 100, pack_unit: '개' },
+    ])])
+    expect(await as(B, `select platform from public.transactions where id = $1`, [id])).toEqual([{ platform: '쿠팡' }])
+    const items = await as<{ name: string; pack_size: string | null; pack_unit: string | null }>(B,
+      `select name, pack_size, pack_unit from public.transaction_items where transaction_id = $1 order by sort`, [id])
+    expect(items.map((i) => [i.name, i.pack_size === null ? null : Number(i.pack_size), i.pack_unit])).toEqual([
+      ['물티슈 100매 x 10팩', 1000, '매'], ['생수 2L x 6병', 12000, 'ml'], ['쌀 10kg', 10000, 'g'], ['배송비', null, null], ['단위만', null, null],
+    ])
+    expect(await errorOf(as(A, `insert into public.transactions (household_id, type, occurred_on, amount, scope, platform) values ($1, 'expense', '2026-10-12', 1, 'shared', '')`, [hhA])))
+      .toContain('check')
+
+    const [{ tok }] = await as<{ tok: string }>(A, `select public.export_token($1) as tok`, [hhA])
+    await db.exec('set role service_role')
+    try {
+      const rows = (await db.query<{ platform: string | null; items: string | null }>(
+        `select platform, items from public.export_rows($1) where title = '물티슈 100매, 생수 2L'`, [tok])).rows
+      expect(rows).toEqual([{
+        platform: '쿠팡',
+        items: EXPORT_ITEMS,
+      }])
+    } finally {
+      await db.exec('reset role')
+    }
   })
 })

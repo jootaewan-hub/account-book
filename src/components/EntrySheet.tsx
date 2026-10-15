@@ -2,8 +2,10 @@ import { useEffect, useMemo, useState } from 'react'
 import { friendlyError } from '../lib/api'
 import { won } from '../lib/format'
 import { SCOPE_LABEL, SCOPES, type Lookup } from '../lib/lookup'
+import { normalizePlatform } from '../lib/platform'
 import type { Category, Scope, Transaction, TxInput, TxType } from '../lib/types'
 import { ItemList } from './ItemList'
+import { PlatformInput } from './PlatformInput'
 import { Sheet } from './Sheet'
 
 interface Props {
@@ -45,6 +47,7 @@ export function EntrySheet({ open, editing, defaultDate, lookup, categories, usa
   const [scope, setScope] = useState<Scope>('shared')
   const [date, setDate] = useState(defaultDate)
   const [title, setTitle] = useState('')
+  const [platform, setPlatform] = useState('')
   const [err, setErr] = useState('')
   const [busy, setBusy] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
@@ -59,6 +62,7 @@ export function EntrySheet({ open, editing, defaultDate, lookup, categories, usa
       setScope(editing.scope)
       setDate(editing.occurred_on)
       setTitle(editing.title)
+      setPlatform(editing.platform ?? '')
       return
     }
     setType('expense')
@@ -67,6 +71,7 @@ export function EntrySheet({ open, editing, defaultDate, lookup, categories, usa
     setScope(defaultScope(lookup))
     setDate(defaultDate)
     setTitle('')
+    setPlatform('')
     // 시트가 열릴 때만 초기화한다
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, editing])
@@ -98,6 +103,7 @@ export function EntrySheet({ open, editing, defaultDate, lookup, categories, usa
     const input: TxInput = {
       type, occurred_on: date, amount: n, title: title.trim(),
       category_id: categoryId, payment_method_id: editing?.payment_method_id ?? null, scope,
+      platform: normalizePlatform(platform),
     }
     try {
       await onSave(input, editing?.id)
@@ -161,7 +167,11 @@ export function EntrySheet({ open, editing, defaultDate, lookup, categories, usa
       </div>
       <div className="field">
         <label htmlFor="entry-title">내용</label>
-        <input id="entry-title" className="input" value={title} maxLength={60} placeholder="예: 동네 마트" onChange={(e) => setTitle(e.target.value)} />
+        <input id="entry-title" className="input" value={title} maxLength={60} placeholder="예: 동네 마트, 물티슈 100매" onChange={(e) => setTitle(e.target.value)} />
+      </div>
+      <div className="field">
+        <label htmlFor="entry-platform">플랫폼</label>
+        <PlatformInput id="entry-platform" value={platform} onChange={setPlatform} />
       </div>
       {editing?.items && editing.items.length > 0 && (
         <div className="field">

@@ -1,6 +1,7 @@
 // 문자·사진 분석 결과를 저장할 수 있는 초안으로 바꾸고, Edge Function을 부른다.
 import type { CheckedEntry } from '../../supabase/functions/extract-entries/extract'
 import { uploadItemImage } from './itemImages'
+import { DELIVERY_PLATFORMS, normalizePlatform, platformOf } from './platform'
 import { sb } from './supabase'
 import type { Category, PaymentMethod, Scope, Transaction, TxType } from './types'
 
@@ -8,9 +9,13 @@ export type { CheckedEntry }
 
 export interface DraftItem {
   name: string
+  /** 상품이면 true, 배송비·할인 줄이면 false */
+  is_product?: boolean
   quantity: number
   unit_price: number | null
   amount: number
+  pack_size: number | null
+  pack_unit: string | null
   /** 상품 사진 위치 (몇 번째 이미지의 어느 영역) */
   image_box?: { image: number; left: number; top: number; right: number; bottom: number } | null
   /** 잘라 낸 상품 사진 (저장할 때 올린다) */
@@ -24,6 +29,8 @@ export interface Draft {
   date: string
   time: string | null
   title: string
+  /** 산 곳 (쿠팡·네이버 등). 매장이면 null */
+  platform: string | null
   amount: number
   category_id: string | null
   payment_method_id: string | null
@@ -144,6 +151,32 @@ export function itemsSum(items: DraftItem[]): number {
   return items.reduce((s, it) => s + it.amount, 0)
 }
 
+const TITLE_MAX = 60
+
+/** 상품 줄(배송비·할인 제외)의 이름으로 내역 이름을 만든다. 길면 '첫 상품 외 N건' */
+export function productTitle(items: Pick<DraftItem, 'name' | 'amount' | 'is_product'>[]): string | null {
+  const names = items.filter((it) => (it.is_product ?? true) && it.amount > 0 && !/^배송비/.test(it.name)).map((it) => it.name.trim())
+  if (!names.length) return null
+  const joined = names.join(', ')
+  if (joined.length <= TITLE_MAX) return joined
+  const rest = ` 외 ${names.length - 1}건`
+  const first = names[0].length + rest.length > TITLE_MAX ? `${names[0].slice(0, TITLE_MAX - rest.length - 1)}…` : names[0]
+  return names.length > 1 ? `${first}${rest}` : first
+}
+
+/** 플랫폼: 모델이 읽은 이름, 없으면 가맹점 이름으로 짐작 */
+export function draftPlatform(e: Pick<CheckedEntry, 'platform' | 'merchant'>): string | null {
+  return normalizePlatform(e.platform) ?? platformOf(e.merchant)
+}
+
+/** 내역 이름: 온라인 주문은 상품명, 배달·매장·카드 문자는 가게(가맹점) 이름 */
+export function draftTitle(e: Pick<CheckedEntry, 'merchant' | 'items'>, platform: string | null): string {
+  const merchantIsPlatform = !e.merchant || platformOf(e.merchant) !== null
+  if (platform && DELIVERY_PLATFORMS.has(platform) && !merchantIsPlatform) return e.merchant
+  if (platform) return productTitle(e.items) ?? e.merchant
+  return e.merchant
+}
+
 export function toDrafts(entries: CheckedEntry[], ctx: {
   today: string
   methods: PaymentMethod[]
@@ -172,13 +205,15 @@ export function toDrafts(entries: CheckedEntry[], ctx: {
     if (e.is_cancellation) warnings.push('승인 취소 문자예요. 원래 내역을 찾아 지워 주세요.')
     const dup = sameTransaction({ date, amount: e.amount, type: e.type }, ctx.existing)
     if (dup) warnings.push(`같은 날 같은 금액 내역이 이미 있어요${dup.title ? ` (${dup.title})` : ''}.`)
+    const platform = draftPlatform(e)
     return {
       key: `${i}-${date}-${e.amount}`,
       include: !e.is_cancellation && !dup,
       type: e.type,
       date,
       time: e.time,
-      title: e.merchant,
+      title: draftTitle(e, platform),
+      platform,
       amount: e.amount,
       category_id: matchCategory(e.category, e.type, ctx.categories),
       payment_method_id: method?.id ?? remembered ?? (match.method === null && match.reason !== 'none' ? null : ctx.fallbackMethodId),
@@ -225,8 +260,12 @@ export async function saveDraft(householdId: string, d: Draft, source: 'text' | 
     p_tx: {
       type: d.type, occurred_on: d.date, occurred_at: d.time, amount: d.amount, title: d.title.trim().slice(0, 60),
       category_id: d.category_id, payment_method_id: d.payment_method_id, scope: d.scope, source,
+      platform: normalizePlatform(d.platform),
     },
-    p_items: d.items.map((it, i) => ({ name: it.name, quantity: it.quantity, unit_price: it.unit_price, amount: it.amount, image_path: paths[i] })),
+    p_items: d.items.map((it, i) => ({
+      name: it.name, quantity: it.quantity, unit_price: it.unit_price, amount: it.amount,
+      pack_size: it.pack_size, pack_unit: it.pack_unit, image_path: paths[i],
+    })),
   })
   if (error) throw new Error(error.message)
 }

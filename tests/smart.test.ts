@@ -6,19 +6,19 @@ import type { Category, PaymentMethod, Transaction } from '../src/lib/types'
 
 const entry = (p: Partial<Entry>): Entry => ({
   date: '2026-10-13', time: '18:42', merchant: '이마트24', amount: 12400, is_income: false, is_cancellation: false,
-  card_last4: null, payment_hint: null, category: null, items: [], ...p,
+  card_last4: null, payment_hint: null, category: null, items: [], platform: null, ...p,
 })
 
 describe('모델 출력 정리 (checkEntries)', () => {
   it('품목 합계를 검사하고, 할인 줄(음수)도 합계에 넣는다', () => {
     const [e] = checkEntries({ note: null, entries: [entry({ items: [
-      { name: '우유', quantity: 2, unit_price: 2800, amount: 5600, image_box: null },
-      { name: '빵', quantity: 1, unit_price: null, amount: 7800, image_box: null },
-      { name: '행사할인', quantity: 1, unit_price: null, amount: -1000, image_box: null },
+      { name: '우유', is_product: true, pack_size: null, pack_unit: null, quantity: 2, unit_price: 2800, amount: 5600, image_box: null },
+      { name: '빵', is_product: true, pack_size: null, pack_unit: null, quantity: 1, unit_price: null, amount: 7800, image_box: null },
+      { name: '행사할인', is_product: true, pack_size: null, pack_unit: null, quantity: 1, unit_price: null, amount: -1000, image_box: null },
     ] })] })
     expect(e.items_match).toBe(true)
     expect(e.type).toBe('expense')
-    const [bad] = checkEntries({ note: null, entries: [entry({ items: [{ name: '우유', quantity: 1, unit_price: null, amount: 5600, image_box: null }] })] })
+    const [bad] = checkEntries({ note: null, entries: [entry({ items: [{ name: '우유', is_product: true, pack_size: null, pack_unit: null, quantity: 1, unit_price: null, amount: 5600, image_box: null }] })] })
     expect(bad.items_match).toBe(false)
     expect(hasItemMismatch([e, bad])).toBe(true)
   })
@@ -59,11 +59,11 @@ describe('쇼핑 캡처의 상품 사진 영역', () => {
 
   it('품목의 사진 영역은 모델 출력 정리 때 함께 검사된다', () => {
     const [e] = checkEntries({ note: null, entries: [entry({ merchant: '쿠팡', amount: 9800, items: [
-      { name: '물티슈', quantity: 2, unit_price: 4900, amount: 9800, image_box: { image: 1, left: 30, top: 400, right: 250, bottom: 620 } },
+      { name: '물티슈', is_product: true, pack_size: null, pack_unit: null, quantity: 2, unit_price: 4900, amount: 9800, image_box: { image: 1, left: 30, top: 400, right: 250, bottom: 620 } },
     ] })] }, sizes)
     expect(e.items[0].image_box).toEqual({ image: 1, left: 30, top: 400, right: 250, bottom: 620 })
     expect(checkEntries({ note: null, entries: [entry({ items: [
-      { name: 'x', quantity: 1, unit_price: null, amount: 12400, image_box: { image: 1, left: 30, top: 400, right: 250, bottom: 620 } },
+      { name: 'x', is_product: true, pack_size: null, pack_unit: null, quantity: 1, unit_price: null, amount: 12400, image_box: { image: 1, left: 30, top: 400, right: 250, bottom: 620 } },
     ] })] })[0].items[0].image_box).toBeNull() // 이미지 크기를 모르면(문자 입력) 버린다
   })
 

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { toCsv, type ExportRow } from '../../supabase/functions/export-csv/csv'
+import { itemText, toCsv, type ExportRow } from '../../supabase/functions/export-csv/csv'
 import { exportToken, friendlyError } from '../lib/api'
 import { addMonths, monthRange } from '../lib/dates'
 import { SCOPE_LABEL, type Lookup } from '../lib/lookup'
@@ -26,7 +26,6 @@ function range(p: Period, today: string): { from?: string; to?: string } {
   return {}
 }
 
-const qty = (q: number) => (q === 1 ? '' : ` x${Number(q)}`)
 
 export function ExportCard({ householdId, today, lookup, toast }: Props) {
   const [period, setPeriod] = useState<Period>('month')
@@ -39,7 +38,7 @@ export function ExportCard({ householdId, today, lookup, toast }: Props) {
     try {
       const { from, to } = range(period, today)
       let q = sb().from('transactions')
-        .select('occurred_on, occurred_at, type, amount, title, memo, scope, source, created_by, category_id, transaction_items(name, quantity, amount, sort)')
+        .select('occurred_on, occurred_at, type, amount, title, platform, memo, scope, source, created_by, category_id, transaction_items(name, quantity, unit_price, amount, pack_size, pack_unit, sort)')
         .eq('household_id', householdId)
       if (from) q = q.gte('occurred_on', from)
       if (to) q = q.lte('occurred_on', to)
@@ -49,10 +48,13 @@ export function ExportCard({ householdId, today, lookup, toast }: Props) {
         const role = lookup.roleOf(t.created_by)
         const items = [...(t.transaction_items ?? [])].sort((a, b) => a.sort - b.sort)
         return {
-          occurred_on: t.occurred_on, occurred_at: t.occurred_at, type: t.type, amount: Number(t.amount), title: t.title,
+          occurred_on: t.occurred_on, occurred_at: t.occurred_at, type: t.type, amount: Number(t.amount), title: t.title, platform: t.platform,
           category: t.category_id ? lookup.categoryName(t.category_id) : null,
           scope: t.scope, source: t.source, entered_by: role ? SCOPE_LABEL[role] : lookup.personLabel(t.created_by), memo: t.memo,
-          items: items.length ? items.map((i) => `${i.name}${qty(Number(i.quantity))} ${Number(i.amount)}`).join(', ') : null,
+          items: items.length ? items.map((i) => itemText({
+            name: i.name, quantity: Number(i.quantity), unit_price: i.unit_price === null ? null : Number(i.unit_price), amount: Number(i.amount),
+            pack_size: i.pack_size === null ? null : Number(i.pack_size), pack_unit: i.pack_unit,
+          })).join(', ') : null,
         }
       })
       const name = `가계부_${PERIOD_LABEL[period]}_${today}.csv`

@@ -1,6 +1,9 @@
 // 통계 화면 계산: 12개월 추이, 전월·전년 대비, 분류별·용도별 지출
 import { addMonths } from './dates'
+import { OTHER_PLATFORM, platformOfTx } from './platform'
 import type { Category, MonthTotal, Scope, Transaction } from './types'
+
+export { OTHER_PLATFORM, platformOf } from './platform'
 
 export interface MonthPoint {
   ym: string
@@ -65,39 +68,6 @@ export function scopeSplit(cur: Transaction[]): Record<Scope, number> {
   return out
 }
 
-// 온라인 쇼핑·배달 플랫폼. 내역 이름(가맹점)으로 알아본다. 긴 표기를 먼저 맞춘다(예: 쿠팡이츠 ≠ 쿠팡)
-const PLATFORMS: [string, string[]][] = [
-  ['쿠팡이츠', ['쿠팡이츠', 'coupangeats']],
-  ['쿠팡', ['쿠팡', 'coupang']],
-  ['오늘의집', ['오늘의집', 'ohou', '버킷플레이스']],
-  ['컬리', ['마켓컬리', '컬리', 'kurly']],
-  ['네이버', ['네이버페이', '네이버쇼핑', '스마트스토어', '네이버', 'naverpay', 'naver', 'npay']],
-  ['11번가', ['11번가', '십일번가', '11st']],
-  ['G마켓', ['g마켓', '지마켓', 'gmarket']],
-  ['옥션', ['옥션', 'auction']],
-  ['SSG닷컴', ['ssg닷컴', 'ssg.com', '쓱닷컴']],
-  ['무신사', ['무신사', 'musinsa']],
-  ['29CM', ['29cm']],
-  ['에이블리', ['에이블리', 'ably']],
-  ['지그재그', ['지그재그', 'zigzag']],
-  ['알리익스프레스', ['알리익스프레스', 'aliexpress', '알리']],
-  ['테무', ['테무', 'temu']],
-  ['배달의민족', ['배달의민족', '배민', '우아한형제들']],
-  ['요기요', ['요기요', 'yogiyo']],
-  ['카카오 선물하기', ['카카오선물하기', '카카오톡선물하기', '선물하기']],
-  ['당근', ['당근마켓', '당근페이', '당근']],
-]
-const PLATFORM_ALIASES = PLATFORMS.flatMap(([name, aliases]) => aliases.map((a) => [a, name] as const))
-  .sort((a, b) => b[0].length - a[0].length)
-
-export const OTHER_PLATFORM = '그 외 (매장 등)'
-
-/** 내역 이름으로 플랫폼을 알아본다. 모르면 null */
-export function platformOf(title: string): string | null {
-  const t = title.replace(/\s+/g, '').toLowerCase()
-  return PLATFORM_ALIASES.find(([alias]) => t.includes(alias))?.[1] ?? null
-}
-
 export interface PlatformRow {
   name: string
   amount: number
@@ -111,7 +81,7 @@ export function platformBreakdown(cur: Transaction[], prev: Transaction[]): Plat
     const m = new Map<string, { amount: number; count: number }>()
     for (const t of txs) {
       if (t.type !== 'expense') continue
-      const k = platformOf(t.title) ?? OTHER_PLATFORM
+      const k = platformOfTx(t) ?? OTHER_PLATFORM
       const v = m.get(k) ?? { amount: 0, count: 0 }
       v.amount += t.amount; v.count++
       m.set(k, v)

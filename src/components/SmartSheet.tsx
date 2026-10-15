@@ -6,6 +6,8 @@ import { SCOPE_LABEL, SCOPES, type Lookup } from '../lib/lookup'
 import { analyze, itemsSum, modelLabel, saveDraft, SmartError, toDrafts, type AnalyzeBody, type Draft } from '../lib/smart'
 import type { Category, Transaction, TxType } from '../lib/types'
 import { defaultScope } from './EntrySheet'
+import { ItemInfo } from './ItemInfo'
+import { PlatformInput } from './PlatformInput'
 import { Sheet } from './Sheet'
 
 export type SmartMode = 'text' | 'photo' | 'shop'
@@ -252,6 +254,10 @@ function DraftCard({ d, categories, onChange }: {
         <label>내용</label>
         <input className="input" value={d.title} maxLength={60} onChange={(e) => onChange({ title: e.target.value })} />
       </div>
+      <div className="field">
+        <label>플랫폼</label>
+        <PlatformInput value={d.platform ?? ''} onChange={(v) => onChange({ platform: v })} />
+      </div>
       <div className="row2">
         <div className="field">
           <label>금액</label>
@@ -290,7 +296,7 @@ function DraftCard({ d, categories, onChange }: {
                       <img className="item-thumb" src={it.photo.url} alt="" /><span className="thumb-x">×</span>
                     </button>
                   : <span className="item-thumb empty" aria-hidden="true" />}
-                <span className="item-name">{it.name}{it.quantity !== 1 && <span className="muted num"> ×{it.quantity}</span>}</span>
+                <ItemInfo it={it} />
                 <span className="num">{won(it.amount)}</span>
               </li>
             ))}

@@ -6,17 +6,25 @@ import type {
 } from './types'
 
 const TX_COLUMNS =
-  'id, household_id, type, occurred_on, amount, title, memo, category_id, payment_method_id, scope, source, created_by, created_at, recurring_id'
-const TX_WITH_ITEMS = `${TX_COLUMNS}, transaction_items(id, name, quantity, amount, image_path, sort)`
+  'id, household_id, type, occurred_on, amount, title, memo, category_id, payment_method_id, scope, source, created_by, created_at, recurring_id, platform'
+const TX_WITH_ITEMS =
+  `${TX_COLUMNS}, transaction_items(id, name, quantity, unit_price, amount, pack_size, pack_unit, image_path, sort)`
 
+type Num = number | string
 type TxRowWithItems = Omit<Transaction, 'items'> & {
-  transaction_items?: { id: string; name: string; quantity: number | string; amount: number | string; image_path: string | null; sort: number }[]
+  transaction_items?: {
+    id: string; name: string; quantity: Num; unit_price: Num | null; amount: Num
+    pack_size: Num | null; pack_unit: string | null; image_path: string | null; sort: number
+  }[]
 }
+
+const numOrNull = (v: Num | null) => (v === null ? null : Number(v))
 
 function withItems(r: TxRowWithItems): Transaction {
   const { transaction_items: raw, ...t } = r
-  const items = (raw ?? []).map((i) => ({ ...i, quantity: Number(i.quantity), amount: Number(i.amount) }))
-    .sort((a, b) => a.sort - b.sort)
+  const items = (raw ?? []).map((i) => ({
+    ...i, quantity: Number(i.quantity), unit_price: numOrNull(i.unit_price), amount: Number(i.amount), pack_size: numOrNull(i.pack_size),
+  })).sort((a, b) => a.sort - b.sort)
   return { ...t, amount: Number(t.amount), items }
 }
 

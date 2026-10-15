@@ -17,6 +17,7 @@ export function TxRow({ t, lookup, onClick }: { t: Transaction; lookup: Lookup; 
         <span className="tx-title" style={{ display: 'block' }}>{t.title || cat}</span>
         <span className="tx-meta">
           <span className={`who ${lookup.colorOf(t.scope)}`}>{SCOPE_LABEL[t.scope]}</span>
+          {t.platform && <span className="tag">{t.platform}</span>}
           <span>{cat}</span>
           {items > 0 && <span>품목 {items}개</span>}
           {t.created_by !== lookup.me && <span className="tag">{lookup.personLabel(t.created_by)} 입력</span>}

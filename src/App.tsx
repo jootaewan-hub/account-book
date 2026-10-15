@@ -5,6 +5,7 @@ import { EntrySheet } from './components/EntrySheet'
 import { ExportCard } from './components/ExportCard'
 import { CalendarIcon, ChartIcon, ChevronLeft, ChevronRight, GearIcon, ListIcon, Plus, RepeatIcon } from './components/Icons'
 import { ListView } from './components/ListView'
+import { PlatformDatalist } from './components/PlatformInput'
 import { Login, NewPassword } from './components/Login'
 import { Onboarding } from './components/Onboarding'
 import { RecurringView } from './components/RecurringView'
@@ -21,7 +22,7 @@ import type { Household, Spouse, Transaction, TxInput } from './lib/types'
 
 export default function App() {
   if (!isConfigured) return <SetupNeeded />
-  return <><AuthGate /><UpdateBar /></>
+  return <><AuthGate /><UpdateBar /><PlatformDatalist /></>
 }
 
 function UpdateBar() {
