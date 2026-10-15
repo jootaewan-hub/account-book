@@ -4,6 +4,8 @@ import { sb } from '../lib/supabase'
 
 type Mode = 'login' | 'signup' | 'reset'
 
+const appUrl = () => window.location.origin + import.meta.env.BASE_URL
+
 export function Login() {
   const [mode, setMode] = useState<Mode>('login')
   const [email, setEmail] = useState('')
@@ -27,7 +29,7 @@ export function Login() {
         if (error) throw error
       } else if (mode === 'signup') {
         const { data, error } = await sb().auth.signUp({
-          email: mail, password, options: { emailRedirectTo: window.location.origin },
+          email: mail, password, options: { emailRedirectTo: appUrl() },
         })
         if (error) throw error
         if (!data.session) {
@@ -35,7 +37,7 @@ export function Login() {
           setMode('login')
         }
       } else {
-        const { error } = await sb().auth.resetPasswordForEmail(mail, { redirectTo: window.location.origin })
+        const { error } = await sb().auth.resetPasswordForEmail(mail, { redirectTo: appUrl() })
         if (error) throw error
         setInfo('비밀번호 재설정 메일을 보냈어요. 메일의 링크를 누르면 새 비밀번호를 정할 수 있어요.')
       }
