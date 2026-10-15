@@ -7,12 +7,13 @@ import { ListView } from './components/ListView'
 import { Login, NewPassword } from './components/Login'
 import { Onboarding } from './components/Onboarding'
 import { SettingsView } from './components/SettingsView'
+import { SmartSheet, type SmartMode } from './components/SmartSheet'
 import { useLedgerMeta, useLiveUpdates, useMonthTransactions } from './hooks/useLedger'
-import { deleteTransaction, insertTransaction, updateTransaction } from './lib/api'
+import { deleteTransaction, friendlyError, insertTransaction, updateSpouseRole, updateTransaction } from './lib/api'
 import { addMonths, parseYM, todayLocal } from './lib/dates'
-import { makeLookup } from './lib/lookup'
+import { makeLookup, SCOPE_LABEL } from './lib/lookup'
 import { isConfigured, sb } from './lib/supabase'
-import type { Household, Transaction, TxInput } from './lib/types'
+import type { Household, Spouse, Transaction, TxInput } from './lib/types'
 
 export default function App() {
   if (!isConfigured) return <SetupNeeded />
@@ -67,6 +68,7 @@ function Ledger({ household, meta, userId, email }: {
   const [sel, setSel] = useState(today)
   const [tab, setTab] = useState<Tab>('cal')
   const [sheet, setSheet] = useState<{ open: boolean; editing: Transaction | null }>({ open: false, editing: null })
+  const [smart, setSmart] = useState<{ open: boolean; mode: SmartMode }>({ open: false, mode: 'text' })
   const [toastMsg, setToastMsg] = useState('')
 
   const { txs, error, reload } = useMonthTransactions(household.id, ym)
@@ -112,6 +114,14 @@ function Ledger({ household, meta, userId, email }: {
     toast(id ? '수정했어요' : '저장했어요')
   }
 
+  async function smartSaved(count: number, lastDate: string) {
+    setSmart((s) => ({ ...s, open: false }))
+    setYm(lastDate.slice(0, 7))
+    setSel(lastDate)
+    await reload()
+    toast(`${count}건 저장했어요`)
+  }
+
   async function remove(id: string) {
     await deleteTransaction(id)
     setSheet({ open: false, editing: null })
@@ -141,6 +151,19 @@ function Ledger({ household, meta, userId, email }: {
 
       <main className="wrap">
         {error && <p className="banner" role="alert">내역을 불러오지 못했어요: {error}</p>}
+        {!lookup.myRole && tab !== 'settings' && (
+          <div className="card role-card" style={{ marginBottom: 14 }}>
+            <b>나는 남편인가요, 아내인가요?</b>
+            <span className="lead" style={{ fontSize: 13 }}>내역의 "공동 · 남편 · 아내"와 정산을 맞추는 데 씁니다. 설정에서 바꿀 수 있어요.</span>
+            <div className="seg" role="group">
+              {(['husband', 'wife'] as Spouse[]).map((r) => (
+                <button key={r} onClick={async () => {
+                  try { await updateSpouseRole(household.id, userId, r); await meta.reload(); toast(`${SCOPE_LABEL[r]}(으)로 정했어요`) } catch (e) { toast(friendlyError(e)) }
+                }}>{SCOPE_LABEL[r]}</button>
+              ))}
+            </div>
+          </div>
+        )}
         {tab === 'cal' && (
           <CalendarView ym={ym} today={today} sel={sel} cur={cur} prev={prev} lookup={lookup}
             onSelect={setSel} onEdit={(t) => setSheet({ open: true, editing: t })} />
@@ -166,7 +189,13 @@ function Ledger({ household, meta, userId, email }: {
 
       <EntrySheet open={sheet.open} editing={sheet.editing} defaultDate={sel.startsWith(ym) ? sel : today}
         lookup={lookup} methods={activeMethods} categories={activeCats} usage={usage}
-        onSave={save} onDelete={remove} onClose={() => setSheet({ open: false, editing: null })} />
+        onSave={save} onDelete={remove} onClose={() => setSheet({ open: false, editing: null })}
+        onSmart={(mode) => { setSheet({ open: false, editing: null }); setSmart({ open: true, mode }) }} />
+
+      <SmartSheet open={smart.open} mode={smart.mode} today={today} householdId={household.id}
+        lookup={lookup} methods={activeMethods} categories={activeCats} existing={txs}
+        onSaved={smartSaved} onClose={() => setSmart((s) => ({ ...s, open: false }))}
+        onManual={() => { setSmart((s) => ({ ...s, open: false })); setSheet({ open: true, editing: null }) }} />
 
       {toastMsg && <div className="toast" role="status">{toastMsg}</div>}
     </div>

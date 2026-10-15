@@ -2,27 +2,24 @@ import { describe, expect, it } from 'vitest'
 import { addMonths, dowOf, formatDateLong, monthGrid, monthRange, todayLocal } from '../src/lib/dates'
 import { compact, formatInviteCode, parseAmount, won } from '../src/lib/format'
 import { dailyTotals, payerOf, samePeriodDiff, settle, sumType } from '../src/lib/ledger'
-import type { Member, PaymentMethod, Transaction } from '../src/lib/types'
+import type { PaymentMethod, Transaction } from '../src/lib/types'
 
-const A = 'user-a'
-const B = 'user-b'
-const members: Member[] = [
-  { household_id: 'h', user_id: A, display_name: '나', role: 'owner' },
-  { household_id: 'h', user_id: B, display_name: '와이프', role: 'partner' },
-]
-const method = (id: string, owner_type: PaymentMethod['owner_type'], owner_user_id: string | null = null): PaymentMethod => ({
-  id, household_id: 'h', name: id, kind: 'card', last4: null, owner_type, owner_user_id, sort: 0, archived: false,
+const A = 'user-a' // 남편
+const B = 'user-b' // 아내
+const roleOf = (id: string) => (id === A ? 'husband' : id === B ? 'wife' : null) as 'husband' | 'wife' | null
+const method = (id: string, owner: PaymentMethod['owner']): PaymentMethod => ({
+  id, household_id: 'h', name: id, kind: 'card', last4: null, owner, sort: 0, archived: false,
 })
 const methods = new Map([
-  ['card-a', method('card-a', 'member', A)],
-  ['card-b', method('card-b', 'member', B)],
+  ['card-h', method('card-h', 'husband')],
+  ['card-w', method('card-w', 'wife')],
   ['acct', method('acct', 'shared')],
   ['cash', method('cash', 'entered_by')],
 ])
 let seq = 0
 const tx = (p: Partial<Transaction>): Transaction => ({
   id: String(++seq), household_id: 'h', type: 'expense', occurred_on: '2026-10-15', amount: 1000, title: '',
-  memo: null, category_id: null, payment_method_id: null, scope: 'shared', scope_user_id: null, source: 'manual',
+  memo: null, category_id: null, payment_method_id: null, scope: 'shared', source: 'manual',
   created_by: A, created_at: '', ...p,
 })
 
@@ -69,27 +66,28 @@ describe('합계와 정산', () => {
   })
 
   it('누가 냈는지는 결제수단 주인으로 정해진다', () => {
-    expect(payerOf(tx({ payment_method_id: 'card-b', created_by: A }), methods)).toBe(B)
-    expect(payerOf(tx({ payment_method_id: 'acct' }), methods)).toBe('shared')
-    expect(payerOf(tx({ payment_method_id: 'cash', created_by: B }), methods)).toBe(B)
-    expect(payerOf(tx({ payment_method_id: null, created_by: B }), methods)).toBe(B)
+    expect(payerOf(tx({ payment_method_id: 'card-w', created_by: A }), methods, roleOf)).toBe('wife')
+    expect(payerOf(tx({ payment_method_id: 'acct' }), methods, roleOf)).toBe('shared')
+    expect(payerOf(tx({ payment_method_id: 'cash', created_by: B }), methods, roleOf)).toBe('wife')
+    expect(payerOf(tx({ payment_method_id: null, created_by: A }), methods, roleOf)).toBe('husband')
   })
 
   it('공동 지출 중 개인 수단으로 낸 돈만 비율대로 정산한다', () => {
     const list = [
-      tx({ amount: 180100, payment_method_id: 'card-a' }),
-      tx({ amount: 140400, payment_method_id: 'card-b' }),
+      tx({ amount: 180100, payment_method_id: 'card-h' }),
+      tx({ amount: 140400, payment_method_id: 'card-w' }),
       tx({ amount: 500000, payment_method_id: 'acct' }), // 공동 계좌: 제외
-      tx({ amount: 30000, payment_method_id: 'card-a', scope: 'member', scope_user_id: A }), // 개인 지출: 제외
-      tx({ amount: 9999, payment_method_id: 'card-b', type: 'income' }), // 수입: 제외
+      tx({ amount: 30000, payment_method_id: 'card-h', scope: 'husband' }), // 개인 지출: 제외
+      tx({ amount: 9999, payment_method_id: 'card-w', type: 'income' }), // 수입: 제외
     ]
-    const s = settle(list, methods, members, 0.5)
-    expect(s.paid).toEqual({ [A]: 180100, [B]: 140400 })
-    expect(s).toMatchObject({ from: B, to: A, amount: 19850 })
-    expect(settle(list, methods, members, 0.7)).toMatchObject({ from: A, to: B, amount: 44250 })
+    const s = settle(list, methods, roleOf, 0.5)
+    expect(s.paid).toEqual({ husband: 180100, wife: 140400 })
+    expect(s).toMatchObject({ from: 'wife', to: 'husband', amount: 19850 })
+    expect(settle(list, methods, roleOf, 0.7)).toMatchObject({ from: 'husband', to: 'wife', amount: 44250 })
   })
 
-  it('멤버가 한 명이면 정산하지 않는다', () => {
-    expect(settle([tx({ payment_method_id: 'card-a' })], methods, members.slice(0, 1), 0.5).amount).toBe(0)
+  it('역할을 모르는 사람의 현금 지출은 정산에서 빠진다', () => {
+    const s = settle([tx({ payment_method_id: 'cash', created_by: 'stranger' })], methods, roleOf, 0.5)
+    expect(s.amount).toBe(0)
   })
 })

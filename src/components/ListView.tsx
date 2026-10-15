@@ -2,14 +2,14 @@ import { useState } from 'react'
 import { formatDateLong } from '../lib/dates'
 import { won } from '../lib/format'
 import { sumType } from '../lib/ledger'
-import { txScopeKey, type Lookup } from '../lib/lookup'
+import { SCOPE_LABEL, SCOPES, type Lookup } from '../lib/lookup'
 import type { Transaction } from '../lib/types'
 import { TxRow } from './TxRow'
 
 export function ListView({ cur, lookup, onEdit }: { cur: Transaction[]; lookup: Lookup; onEdit: (t: Transaction) => void }) {
   const [filter, setFilter] = useState('all')
-  const options = [['all', '전체'], ['shared', '공동'], ...lookup.members.map((m) => [m.user_id, m.display_name])]
-  const list = cur.filter((t) => filter === 'all' || txScopeKey(t) === filter)
+  const options = [['all', '전체'], ...SCOPES.map((s) => [s, SCOPE_LABEL[s]])]
+  const list = cur.filter((t) => filter === 'all' || t.scope === filter)
   const groups = new Map<string, Transaction[]>()
   for (const t of list) groups.set(t.occurred_on, [...(groups.get(t.occurred_on) ?? []), t])
   const dates = [...groups.keys()].sort().reverse()

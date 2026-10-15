@@ -1,11 +1,12 @@
 import { useState } from 'react'
 import {
-  friendlyError, insertCategory, insertMethod, setCategoryArchived, setMethodArchived, updateDisplayName, updateShareRatio,
+  friendlyError, insertCategory, insertMethod, setCategoryArchived, setMethodArchived, updateDisplayName,
+  updateShareRatio, updateSpouseRole,
 } from '../lib/api'
 import { formatInviteCode } from '../lib/format'
-import type { Lookup } from '../lib/lookup'
+import { SCOPE_LABEL, type Lookup } from '../lib/lookup'
 import { sb } from '../lib/supabase'
-import type { Category, Household, MethodKind, OwnerType, PaymentMethod } from '../lib/types'
+import type { Category, Household, MethodKind, MethodOwner, PaymentMethod, Spouse } from '../lib/types'
 
 interface Props {
   household: Household
@@ -18,12 +19,12 @@ interface Props {
 }
 
 const KIND_LABEL: Record<MethodKind, string> = { card: '카드', account: '계좌', cash: '현금', easypay: '간편결제' }
+const OWNER_LABEL: Record<MethodOwner, string> = { husband: '남편', wife: '아내', shared: '공동', entered_by: '입력한 사람' }
 const RATIOS = [0.5, 0.6, 0.4, 0.7, 0.3]
 
 export function SettingsView({ household, methods, categories, lookup, email, onChanged, toast }: Props) {
-  const owner = lookup.members.find((m) => m.role === 'owner')
-  const partner = lookup.members.find((m) => m.role === 'partner')
   const meMember = lookup.members.find((m) => m.user_id === lookup.me)
+  const partner = lookup.members.find((m) => m.user_id !== lookup.me)
 
   async function run(fn: () => Promise<void>, ok: string) {
     try { await fn(); await onChanged(); toast(ok) } catch (e) { toast(friendlyError(e)) }
@@ -33,53 +34,49 @@ export function SettingsView({ household, methods, categories, lookup, email, on
     try { await navigator.clipboard.writeText(household.invite_code); toast('초대 코드를 복사했어요') } catch { toast('길게 눌러 직접 복사해 주세요') }
   }
 
-  // 내 이름
   const [name, setName] = useState(meMember?.display_name ?? '')
 
   // 결제수단 추가
   const [mName, setMName] = useState('')
   const [mKind, setMKind] = useState<MethodKind>('card')
   const [mLast4, setMLast4] = useState('')
-  const [mOwner, setMOwner] = useState<string>(lookup.me)
+  const [mOwner, setMOwner] = useState<MethodOwner>(lookup.myRole ?? 'shared')
   const [mErr, setMErr] = useState('')
 
   async function addMethod() {
     if (!mName.trim()) return setMErr('이름을 입력하세요.')
     if (mLast4 && !/^\d{4}$/.test(mLast4)) return setMErr('끝자리는 숫자 4개로 입력하세요.')
     setMErr('')
-    const owner_type: OwnerType = mOwner === 'shared' ? 'shared' : mOwner === 'entered_by' ? 'entered_by' : 'member'
     await run(() => insertMethod(household.id, {
-      name: mName.trim(), kind: mKind, last4: mLast4 || null, owner_type,
-      owner_user_id: owner_type === 'member' ? mOwner : null, sort: methods.length + 1,
+      name: mName.trim(), kind: mKind, last4: mLast4 || null, owner: mOwner, sort: methods.length + 1,
     }), '결제수단을 추가했어요')
     setMName(''); setMLast4('')
   }
 
-  // 분류 추가
   const [cName, setCName] = useState('')
   const [cType, setCType] = useState<'expense' | 'income'>('expense')
-
-  function ownerLabel(m: PaymentMethod) {
-    if (m.owner_type === 'shared') return '공동'
-    if (m.owner_type === 'entered_by') return '입력한 사람'
-    return lookup.nameOf(m.owner_user_id)
-  }
 
   return (
     <section className="view">
       <div className="card">
         <h3 className="section-title">우리 가계부</h3>
-        {lookup.members.map((m) => (
-          <div className="set-row" key={m.user_id}>
-            <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <span className={`who ${m.role === 'owner' ? 'a' : 'b'}`}>{m.display_name}</span>
-              {m.user_id === lookup.me && <span className="tag">내 계정</span>}
-            </span>
-            <span className="r">{m.role === 'owner' ? '만든 사람' : '참여'}</span>
+        <div className="set-row">
+          <span>나는</span>
+          <div className="seg" role="group" style={{ width: 160 }}>
+            {(['husband', 'wife'] as Spouse[]).map((r) => (
+              <button key={r} aria-pressed={meMember?.spouse_role === r}
+                onClick={() => run(() => updateSpouseRole(household.id, lookup.me, r), `${SCOPE_LABEL[r]}(으)로 정했어요`)}>
+                {SCOPE_LABEL[r]}
+              </button>
+            ))}
           </div>
-        ))}
+        </div>
+        <div className="set-row">
+          <span>배우자</span>
+          <span className="r">{partner ? `${lookup.personLabel(partner.user_id)} · 참여함` : '아직 참여 전'}</span>
+        </div>
         {!partner && (
-          <p className="note">배우자에게 아래 초대 코드를 보내 주세요. 배우자가 앱에 로그인한 뒤 "초대 코드로 참여"에서 입력하면 함께 쓰게 됩니다.</p>
+          <p className="note">배우자에게 아래 초대 코드를 보내 주세요. 배우자가 앱에 가입한 뒤 "초대 코드로 참여"에서 입력하면 함께 쓰게 됩니다.</p>
         )}
         <div className="set-row">
           <span>초대 코드</span>
@@ -101,7 +98,7 @@ export function SettingsView({ household, methods, categories, lookup, email, on
           <div className="set-row" key={m.id} style={{ opacity: m.archived ? 0.5 : 1 }}>
             <span style={{ minWidth: 0 }}>
               {m.name}{m.last4 && <span className="num" style={{ color: 'var(--ink-3)' }}> ··{m.last4}</span>}
-              <span className="r"> {KIND_LABEL[m.kind]} · {ownerLabel(m)}</span>
+              <span className="r"> {KIND_LABEL[m.kind]} · {OWNER_LABEL[m.owner]}</span>
             </span>
             <button className="link-btn" onClick={() => run(() => setMethodArchived(m.id, !m.archived), m.archived ? '다시 보이게 했어요' : '숨겼어요')}>
               {m.archived ? '보이기' : '숨기기'}
@@ -114,15 +111,16 @@ export function SettingsView({ household, methods, categories, lookup, email, on
             {(Object.keys(KIND_LABEL) as MethodKind[]).map((k) => <option key={k} value={k}>{KIND_LABEL[k]}</option>)}
           </select>
           <input className="input num" aria-label="카드 끝 4자리" placeholder="끝 4자리 (선택)" inputMode="numeric" maxLength={4} value={mLast4} onChange={(e) => setMLast4(e.target.value.replace(/\D/g, ''))} />
-          <select className="input full" aria-label="누구 돈인지" value={mOwner} onChange={(e) => setMOwner(e.target.value)}>
-            {owner && <option value={owner.user_id}>{owner.display_name}의 돈</option>}
-            {partner && <option value={partner.user_id}>{partner.display_name}의 돈</option>}
+          <select className="input full" aria-label="누구 돈인지" value={mOwner} onChange={(e) => setMOwner(e.target.value as MethodOwner)}>
+            <option value="husband">남편의 돈</option>
+            <option value="wife">아내의 돈</option>
             <option value="shared">공동 돈 (생활비 통장 등)</option>
             <option value="entered_by">입력한 사람의 돈 (현금 등)</option>
           </select>
           <button className="ghost full" onClick={addMethod}>결제수단 추가</button>
           <p className="err full">{mErr}</p>
         </div>
+        <p className="note">카드 끝 4자리를 넣어 두면, 카드 문자를 붙여넣을 때 결제수단이 자동으로 골라집니다.</p>
       </div>
 
       <div className="card">
@@ -156,7 +154,7 @@ export function SettingsView({ household, methods, categories, lookup, email, on
       <div className="card">
         <h3 className="section-title">정산</h3>
         <div className="set-row">
-          <label htmlFor="ratio">공동 지출 분담 비율 ({owner?.display_name ?? '만든 사람'} : {partner?.display_name ?? '참여자'})</label>
+          <label htmlFor="ratio">공동 지출 분담 비율 (남편 : 아내)</label>
           <select id="ratio" className="input" style={{ width: 'auto' }} value={String(household.share_ratio)}
             onChange={(e) => run(() => updateShareRatio(household.id, Number(e.target.value)), '분담 비율을 바꿨어요')}>
             {RATIOS.map((r) => <option key={r} value={String(r)}>{Math.round(r * 100)} : {Math.round((1 - r) * 100)}</option>)}

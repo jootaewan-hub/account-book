@@ -1,9 +1,9 @@
 import { addMonths, monthRange } from './dates'
 import { sb } from './supabase'
-import type { Category, Household, Member, PaymentMethod, Transaction, TxInput } from './types'
+import type { Category, Household, Member, PaymentMethod, Spouse, Transaction, TxInput } from './types'
 
 const TX_COLUMNS =
-  'id, household_id, type, occurred_on, amount, title, memo, category_id, payment_method_id, scope, scope_user_id, source, created_by, created_at'
+  'id, household_id, type, occurred_on, amount, title, memo, category_id, payment_method_id, scope, source, created_by, created_at'
 
 function check<T>(res: { data: T | null; error: { message: string } | null }): T {
   if (res.error) throw new Error(res.error.message)
@@ -20,7 +20,7 @@ export async function fetchHouseholdBundle(): Promise<{
   const household = households[0] ? { ...households[0], share_ratio: Number(households[0].share_ratio) } : null
   if (!household) return { household: null, members: [], methods: [], categories: [] }
   const [members, methods, categories] = await Promise.all([
-    sb().from('members').select('household_id, user_id, display_name, role').order('role'), // owner, partner 순
+    sb().from('members').select('household_id, user_id, display_name, role, spouse_role').order('role'), // owner, partner 순
     sb().from('payment_methods').select('*').order('sort').order('name'),
     sb().from('categories').select('*').order('type').order('sort'),
   ])
@@ -56,8 +56,14 @@ export async function deleteTransaction(id: string): Promise<void> {
   check(await sb().from('transactions').delete().eq('id', id))
 }
 
-export async function createHousehold(displayName: string): Promise<void> {
-  check(await sb().rpc('create_household', { p_display_name: displayName }))
+export async function createHousehold(displayName: string, role: Spouse): Promise<void> {
+  check(await sb().rpc('create_household', { p_display_name: displayName, p_spouse_role: role }))
+}
+
+export async function updateSpouseRole(householdId: string, userId: string, role: Spouse): Promise<void> {
+  check(
+    await sb().from('members').update({ spouse_role: role }).eq('household_id', householdId).eq('user_id', userId),
+  )
 }
 
 export async function joinHousehold(code: string, displayName: string): Promise<void> {
@@ -76,7 +82,7 @@ export async function updateDisplayName(householdId: string, userId: string, nam
 
 export async function insertMethod(
   householdId: string,
-  m: Pick<PaymentMethod, 'name' | 'kind' | 'last4' | 'owner_type' | 'owner_user_id' | 'sort'>,
+  m: Pick<PaymentMethod, 'name' | 'kind' | 'last4' | 'owner' | 'sort'>,
 ): Promise<void> {
   check(await sb().from('payment_methods').insert({ ...m, household_id: householdId }))
 }
@@ -100,6 +106,7 @@ export function friendlyError(e: unknown): string {
   if (msg.includes('household_full')) return '이 가계부에는 이미 두 사람이 있어요.'
   if (msg.includes('already_in_household')) return '이미 가계부에 참여하고 있어요.'
   if (msg.includes('duplicate key') && msg.includes('categories')) return '같은 이름의 분류가 이미 있어요.'
+  if (msg.includes('members_household_spouse_role_key')) return '배우자가 이미 그 역할로 등록돼 있어요.'
   if (msg.includes('Failed to fetch') || msg.includes('NetworkError')) return '인터넷 연결을 확인해 주세요.'
   const lower = msg.toLowerCase()
   if (lower.includes('invalid login credentials')) return '이메일 또는 비밀번호가 맞지 않아요.'

@@ -158,3 +158,28 @@ select.input { padding: 9px 10px; }
 .lead { color: var(--ink-2); margin: 0; }
 
 .toast { position: fixed; z-index: 60; left: 50%; transform: translateX(-50%); bottom: calc(146px + env(safe-area-inset-bottom, 0px)); background: var(--ink); color: var(--bg); border-radius: 999px; padding: 9px 16px; font-size: 14px; white-space: nowrap; max-width: calc(100% - 32px); overflow: hidden; text-overflow: ellipsis; }
+
+/* iOS Safari의 날짜 입력은 고유 최소 너비가 있어 옆 칸을 침범한다. 너비를 칸에 맞춘다. */
+.date-input { -webkit-appearance: none; appearance: none; display: block; min-width: 0; max-width: 100%; min-height: 44px; text-align: left; }
+.date-input::-webkit-date-and-time-value { text-align: left; }
+.smart-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.smart-btn { border: 1px solid var(--line); background: var(--surface-2); border-radius: var(--r-md); padding: 10px 12px; text-align: left; display: flex; flex-direction: column; gap: 2px; }
+.smart-btn b { font-size: 14px; font-weight: 600; color: var(--ink); }
+.smart-btn span { font-size: 11.5px; color: var(--ink-3); }
+.role-card { display: flex; flex-direction: column; gap: 10px; border: 1px solid var(--accent); }
+
+/* 문자·사진 입력 */
+.smart-text { min-height: 150px; resize: vertical; line-height: 1.5; font-size: 15px; }
+.smart-preview { display: block; max-width: 100%; max-height: 220px; margin: 0 auto; border-radius: var(--r-sm); border: 1px solid var(--line); object-fit: contain; }
+.smart-loading { display: flex; flex-direction: column; gap: 12px; align-items: center; padding: 12px 0 24px; text-align: center; }
+.draft { display: flex; flex-direction: column; gap: 10px; border: 1px solid var(--line); }
+.draft.off { opacity: .55; }
+.draft-head { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--ink-2); }
+.draft-head input { width: 20px; height: 20px; accent-color: var(--accent); }
+.draft-head b { margin-left: auto; font-size: 17px; }
+.draft-head b.exp { color: var(--expense); }
+.draft-head b.inc { color: var(--income); }
+.draft .banner { margin: 0; }
+.items summary { font-size: 13.5px; color: var(--ink-2); cursor: pointer; }
+.items ul { list-style: none; margin: 8px 0 0; padding: 0; font-size: 13.5px; }
+.items li { display: flex; justify-content: space-between; gap: 12px; padding: 5px 0; border-top: 1px solid var(--line); }
