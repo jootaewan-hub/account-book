@@ -4,7 +4,7 @@ import { fileToJpeg } from '../lib/image'
 import { SCOPE_LABEL, SCOPES, type Lookup } from '../lib/lookup'
 import { analyze, itemsSum, saveDraft, SmartError, toDrafts, type Draft } from '../lib/smart'
 import type { Category, PaymentMethod, Transaction, TxType } from '../lib/types'
-import { defaultMethodId, defaultScope } from './EntrySheet'
+import { defaultMethodId, defaultScope, lsGet, lsSet } from './EntrySheet'
 import { Sheet } from './Sheet'
 
 export type SmartMode = 'text' | 'photo'
@@ -24,6 +24,9 @@ interface Props {
 }
 
 type Stage = 'input' | 'loading' | 'review'
+
+/** 가맹점별로 마지막에 고른 결제수단을 기억한다 (카드를 여러 장 쓸 때 다음부터 자동 선택) */
+const merchantKey = (merchant: string) => `ab:merchant:${merchant.replace(/\(주\)|㈜|\s+/g, '').toLowerCase()}`
 
 const SAMPLE = '[Web발신]\n신한카드(1234)승인\n홍*동\n12,400원 일시불\n10/13 18:42 이마트24\n누적1,234,560원'
 
@@ -50,6 +53,10 @@ export function SmartSheet({ open, mode, today, householdId, lookup, methods, ca
       const ds = toDrafts(res.entries, {
         today, methods, categories, existing,
         fallbackMethodId: defaultMethodId(methods, lookup), fallbackScope: defaultScope(lookup),
+        rememberedMethod: (merchant) => {
+          const id = lsGet(merchantKey(merchant))
+          return id && methods.some((m) => m.id === id) ? id : null
+        },
       })
       setDrafts(ds); setNote(res.note)
       if (!ds.length) { setErr(res.note ?? '거래 내역을 찾지 못했어요.'); setStage('input'); return }
@@ -95,6 +102,7 @@ export function SmartSheet({ open, mode, today, householdId, lookup, methods, ca
     try {
       for (const d of chosen) {
         await saveDraft(householdId, d, mode === 'photo' ? 'photo' : 'text')
+        if (d.payment_method_id && d.title.trim()) lsSet(merchantKey(d.title), d.payment_method_id)
         saved++
         patch(d.key, { include: false })
       }

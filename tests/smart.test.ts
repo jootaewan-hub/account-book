@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { buildUserText, checkEntries, hasItemMismatch, ResultSchema, type Entry } from '../supabase/functions/extract-entries/extract'
 import { fitImage, imageTokens, MAX_IMAGE_TOKENS } from '../src/lib/image'
-import { matchMethod, toDrafts } from '../src/lib/smart'
+import { issuerOf, last4Matches, matchMethod, matchMethodDetailed, toDrafts } from '../src/lib/smart'
 import type { Category, PaymentMethod, Transaction } from '../src/lib/types'
 
 const entry = (p: Partial<Entry>): Entry => ({
@@ -25,7 +25,7 @@ describe('모델 출력 정리 (checkEntries)', () => {
 
   it('형식이 틀린 날짜·시간·끝자리는 비우고, 0원은 버린다', () => {
     const out = checkEntries({ note: null, entries: [
-      entry({ date: '10/13', time: '6시', card_last4: '12*4', amount: 9900.4, is_income: true }),
+      entry({ date: '10/13', time: '6시', card_last4: '***4', amount: 9900.4, is_income: true }),
       entry({ amount: 0 }),
     ] })
     expect(out).toHaveLength(1)
@@ -60,6 +60,36 @@ describe('결제수단·중복 판단', () => {
     expect(matchMethod({ card_last4: '5678', payment_hint: null }, methods)?.id).toBe('hyundai')
     expect(matchMethod({ card_last4: null, payment_hint: '카카오 페이' }, methods)?.id).toBe('kakao')
     expect(matchMethod({ card_last4: '9999', payment_hint: null }, methods)).toBeNull()
+  })
+
+  it('카드가 여러 장이어도: 가려진 끝자리, 카드사, 체크/신용으로 좁히고 애매하면 고르지 않는다', () => {
+    const cards = [
+      method({ id: 'sh-check', name: '신한 체크', last4: '1234' }),
+      method({ id: 'sh-credit', name: '신한 신용', last4: '5678', owner: 'wife' }),
+      method({ id: 'kb', name: 'KB국민카드', last4: '1294' }),
+      method({ id: 'kbank', name: '케이뱅크 체크', last4: null }),
+    ]
+    expect(issuerOf('KB국민카드')).toBe('국민')
+    expect(issuerOf('케이뱅크')).toBe('케이뱅크')
+    expect(last4Matches('1*3*', '1234')).toBe(true)
+    expect(last4Matches('1*3*', '1294')).toBe(false)
+    // 1*?4는 신한 1234와 국민 1294 둘 다 맞지만 카드사가 신한이면 하나로 좁혀진다
+    expect(matchMethod({ card_last4: '12*4', payment_hint: '신한카드' }, cards)?.id).toBe('sh-check')
+    expect(matchMethodDetailed({ card_last4: '12*4', payment_hint: null }, cards)).toMatchObject({ method: null, reason: 'ambiguous' })
+    // 끝자리 없이 카드사만: 신한이 두 장이면 체크/신용 글자로 고른다
+    expect(matchMethod({ card_last4: null, payment_hint: '신한체크' }, cards)?.id).toBe('sh-check')
+    expect(matchMethodDetailed({ card_last4: null, payment_hint: '신한카드' }, cards)).toMatchObject({ method: null, reason: 'ambiguous', issuer: '신한' })
+    // 끝자리가 등록 안 된 다른 카드면 같은 카드사 한 장이라도 고르지 않는다
+    expect(matchMethodDetailed({ card_last4: '9999', payment_hint: 'KB국민' }, cards)).toMatchObject({ method: null, reason: 'unknown_last4' })
+    expect(matchMethod({ card_last4: null, payment_hint: 'kbank' }, cards)?.id).toBe('kbank')
+  })
+
+  it('초안: 이 가맹점에서 지난번에 고른 카드를 먼저 쓴다', () => {
+    const [d] = toDrafts(checkEntries({ note: null, entries: [entry({ merchant: '쿠팡' })] }), {
+      today: '2026-10-15', methods, categories: [], existing: [], fallbackMethodId: 'kakao', fallbackScope: 'shared',
+      rememberedMethod: (m) => (m === '쿠팡' ? 'hyundai' : null),
+    })
+    expect(d.payment_method_id).toBe('hyundai')
   })
 
   it('초안: 분류·결제수단을 맞추고, 중복·취소·못 읽은 날짜를 알려 준다', () => {

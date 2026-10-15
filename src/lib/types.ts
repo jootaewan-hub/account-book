@@ -56,9 +56,48 @@ export interface Transaction {
   source: TxSource
   created_by: string
   created_at: string
+  recurring_id: string | null
 }
 
 export type TxInput = Pick<
   Transaction,
   'type' | 'occurred_on' | 'amount' | 'title' | 'category_id' | 'payment_method_id' | 'scope'
 >
+
+export type RecurringKind = 'fixed' | 'subscription' | 'utility'
+
+export interface Recurring {
+  id: string
+  household_id: string
+  kind: RecurringKind
+  type: TxType
+  title: string
+  /** null: 매달 금액이 달라 직접 입력(관리비 등) */
+  amount: number | null
+  day_of_month: number
+  every_months: 1 | 12
+  category_id: string | null
+  payment_method_id: string | null
+  scope: Scope
+  start_month: string // YYYY-MM-01
+  end_month: string | null
+  active: boolean
+  memo: string | null
+}
+
+export type RecurringInput = Omit<Recurring, 'id' | 'household_id'>
+
+export interface MonthTotal {
+  month: string // YYYY-MM-01
+  type: TxType
+  total: number
+  n: number
+}
+
+export interface SettlementRecord {
+  month: string
+  from_role: Spouse | null
+  to_role: Spouse | null
+  amount: number
+  settled_at: string
+}

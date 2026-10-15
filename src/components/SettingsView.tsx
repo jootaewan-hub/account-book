@@ -106,7 +106,7 @@ export function SettingsView({ household, methods, categories, lookup, email, on
           </div>
         ))}
         <div className="form-grid">
-          <input className="input full" aria-label="결제수단 이름" placeholder="예: 신한 체크카드" value={mName} maxLength={30} onChange={(e) => setMName(e.target.value)} />
+          <input className="input full" aria-label="결제수단 이름" placeholder="예: 신한 체크, 현대 신용(아내)" value={mName} maxLength={30} onChange={(e) => setMName(e.target.value)} />
           <select className="input" aria-label="종류" value={mKind} onChange={(e) => setMKind(e.target.value as MethodKind)}>
             {(Object.keys(KIND_LABEL) as MethodKind[]).map((k) => <option key={k} value={k}>{KIND_LABEL[k]}</option>)}
           </select>
@@ -120,7 +120,12 @@ export function SettingsView({ household, methods, categories, lookup, email, on
           <button className="ghost full" onClick={addMethod}>결제수단 추가</button>
           <p className="err full">{mErr}</p>
         </div>
-        <p className="note">카드 끝 4자리를 넣어 두면, 카드 문자를 붙여넣을 때 결제수단이 자동으로 골라집니다.</p>
+        <p className="note">
+          카드를 여러 장 쓰면 한 장씩 따로 추가하세요. 문자·사진을 넣을 때 ① 끝 4자리(가려진 "1*3*"도 됨) ② 카드사 이름
+          ③ 이름에 넣은 "체크"/"신용" 순서로 카드를 고릅니다. 그래도 하나로 정해지지 않으면 직접 고르게 하고,
+          한 번 고른 카드는 가맹점별로 기억해 다음부터 자동으로 씁니다.
+          이름은 "신한 체크", "현대 신용"처럼 카드사가 들어가게 지어 주세요.
+        </p>
       </div>
 
       <div className="card">

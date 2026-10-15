@@ -5,6 +5,7 @@
   --expense: #c4372f; --income: #2360c2; --sun: #c4372f; --sat: #2360c2;
   --warn-bg: #fff2cc; --warn-ink: #674700;
   --m-shared: #6250d6; --m-a: #eb6834; --m-b: #1baf7a;
+  --chart-exp: #c4372f; --chart-inc: #2360c2;
   --scrim: rgba(10, 14, 12, .42);
   --font-ui: "IBM Plex Sans KR", "Apple SD Gothic Neo", "Noto Sans KR", system-ui, sans-serif;
   --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
@@ -18,6 +19,7 @@
     --expense: #ff7b72; --income: #7aa8ff; --sun: #ff7b72; --sat: #7aa8ff;
     --warn-bg: #3a2f12; --warn-ink: #f3d58a;
     --m-shared: #9085e9; --m-a: #d95926; --m-b: #199e70;
+    --chart-exp: #e8645b; --chart-inc: #6593ea;
     --scrim: rgba(0, 0, 0, .6);
     color-scheme: dark;
   }
@@ -183,3 +185,58 @@ select.input { padding: 9px 10px; }
 .items summary { font-size: 13.5px; color: var(--ink-2); cursor: pointer; }
 .items ul { list-style: none; margin: 8px 0 0; padding: 0; font-size: 13.5px; }
 .items li { display: flex; justify-content: space-between; gap: 12px; padding: 5px 0; border-top: 1px solid var(--line); }
+
+/* 공통 작은 요소 */
+.check { display: flex; align-items: flex-start; gap: 8px; font-size: 13px; color: var(--ink-2); }
+.check input { width: 18px; height: 18px; margin: 1px 0 0; accent-color: var(--accent); flex: none; }
+.hint { font-size: 12.5px; color: var(--warn-ink); background: var(--warn-bg); border-radius: var(--r-sm); padding: 8px 10px; }
+.muted { color: var(--ink-3); }
+.full-btn { width: 100%; margin-top: 10px; }
+.tabbar .wrap { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+
+/* 고정지출·구독·관리비 */
+.rc-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; width: 100%; padding: 11px 0; border: 0; border-top: 1px solid var(--line); background: none; text-align: left; }
+.rc-row:first-of-type { border-top: 0; }
+.rc-row.off { opacity: .5; }
+.rc-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.rc-main b { font-weight: 600; font-size: 15px; color: var(--ink); }
+.rc-side { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; flex: none; font-size: 14.5px; color: var(--ink); }
+.rc-side .inc { color: var(--income); }
+.pending { display: flex; flex-direction: column; gap: 8px; border: 1px solid var(--accent); }
+
+/* 통계 */
+.stat-row { display: grid; grid-template-columns: 2.6em 1fr; gap: 2px 10px; align-items: baseline; padding: 8px 0; border-top: 1px solid var(--line); }
+.stat-row:first-of-type { border-top: 0; }
+.stat-row .k { font-size: 13px; color: var(--ink-3); }
+.stat-row b { font-size: 20px; font-weight: 700; }
+.stat-row b.exp { color: var(--expense); } .stat-row b.inc { color: var(--income); }
+.stat-row .delta { grid-column: 2; }
+.delta { font-size: 12.5px; color: var(--ink-2); }
+.legend { display: flex; gap: 14px; font-size: 12.5px; color: var(--ink-2); margin-bottom: 4px; }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.sw { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+.sw.exp { background: var(--chart-exp); } .sw.inc { background: var(--chart-inc); }
+.month-chart { width: 100%; height: auto; display: block; touch-action: manipulation; }
+.month-chart .grid { stroke: var(--line); stroke-width: 1; }
+.month-chart .axis { fill: var(--ink-3); font-size: 10px; font-family: var(--font-ui); }
+.month-chart .axis.strong { fill: var(--ink); font-weight: 600; }
+.month-chart .b.exp { fill: var(--chart-exp); } .month-chart .b.inc { fill: var(--chart-inc); }
+.month-chart .off .b { opacity: .45; }
+.month-chart .hit { fill: transparent; cursor: pointer; }
+.readout { font-size: 13px; color: var(--ink); margin: 6px 0 0; }
+.table-view { margin-top: 8px; font-size: 13px; }
+.table-view summary { color: var(--ink-2); cursor: pointer; }
+.table-view table { width: 100%; border-collapse: collapse; margin-top: 6px; }
+.table-view th, .table-view td { padding: 4px 2px; border-top: 1px solid var(--line); text-align: right; font-weight: 400; }
+.table-view th:first-child, .table-view td:first-child { text-align: left; }
+.cat-row { display: flex; flex-direction: column; gap: 4px; padding: 8px 0; border-top: 1px solid var(--line); }
+.cat-row:first-of-type { border-top: 0; }
+.cat-top { display: flex; justify-content: space-between; gap: 10px; font-size: 14px; }
+.cat-bar { height: 6px; background: var(--surface-2); border-radius: 3px; overflow: hidden; }
+.cat-bar i { display: block; height: 100%; background: var(--accent); border-radius: 3px; }
+.settle-result { font-size: 16px; margin: 10px 0 8px; }
+.settle-result b { font-size: 20px; }
+
+/* 내보내기 */
+.formula { font-family: var(--font-mono); font-size: 12px; word-break: break-all; background: var(--surface-2); border-radius: var(--r-sm); padding: 10px; user-select: all; }
+.steps { margin: 6px 0 0; padding-left: 18px; font-size: 13px; color: var(--ink-2); }

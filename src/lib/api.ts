@@ -1,9 +1,11 @@
 import { addMonths, monthRange } from './dates'
 import { sb } from './supabase'
-import type { Category, Household, Member, PaymentMethod, Spouse, Transaction, TxInput } from './types'
+import type {
+  Category, Household, Member, MonthTotal, PaymentMethod, Recurring, RecurringInput, SettlementRecord, Spouse, Transaction, TxInput,
+} from './types'
 
 const TX_COLUMNS =
-  'id, household_id, type, occurred_on, amount, title, memo, category_id, payment_method_id, scope, source, created_by, created_at'
+  'id, household_id, type, occurred_on, amount, title, memo, category_id, payment_method_id, scope, source, created_by, created_at, recurring_id'
 
 function check<T>(res: { data: T | null; error: { message: string } | null }): T {
   if (res.error) throw new Error(res.error.message)
@@ -99,6 +101,76 @@ export async function setCategoryArchived(id: string, archived: boolean): Promis
   check(await sb().from('categories').update({ archived }).eq('id', id))
 }
 
+/** 기간 내역 (통계·내보내기·구독 찾기) */
+export async function fetchRange(householdId: string, from: string, to: string): Promise<Transaction[]> {
+  const rows = check(
+    await sb().from('transactions').select(TX_COLUMNS).eq('household_id', householdId)
+      .gte('occurred_on', from).lte('occurred_on', to)
+      .order('occurred_on', { ascending: true }).order('created_at', { ascending: true }),
+  )
+  return rows.map((r) => ({ ...r, amount: Number(r.amount) }))
+}
+
+export async function fetchMonthlyTotals(householdId: string, from: string, to: string): Promise<MonthTotal[]> {
+  const rows = check(await sb().rpc('monthly_totals', { p_household_id: householdId, p_from: from, p_to: to })) as
+    { month: string; type: MonthTotal['type']; total: number | string; n: number }[]
+  return rows.map((r) => ({ ...r, total: Number(r.total) }))
+}
+
+const RECURRING_COLUMNS =
+  'id, household_id, kind, type, title, amount, day_of_month, every_months, category_id, payment_method_id, scope, start_month, end_month, active, memo'
+
+export async function fetchRecurring(householdId: string): Promise<Recurring[]> {
+  const rows = check(await sb().from('recurring').select(RECURRING_COLUMNS).eq('household_id', householdId)
+    .order('kind').order('day_of_month').order('title'))
+  return rows.map((r) => ({ ...r, amount: r.amount === null ? null : Number(r.amount) })) as Recurring[]
+}
+
+export async function insertRecurring(householdId: string, r: RecurringInput): Promise<void> {
+  check(await sb().from('recurring').insert({ ...r, household_id: householdId }))
+}
+
+export async function updateRecurring(id: string, r: RecurringInput): Promise<void> {
+  check(await sb().from('recurring').update(r).eq('id', id))
+}
+
+export async function deleteRecurring(id: string): Promise<void> {
+  check(await sb().from('recurring').delete().eq('id', id))
+}
+
+/** 날짜가 지난 반복 내역을 넣고, 새로 넣은 건수를 돌려준다 */
+export async function generateRecurring(householdId: string, today: string): Promise<number> {
+  return Number(check(await sb().rpc('generate_recurring', { p_household_id: householdId, p_today: today })))
+}
+
+/** 금액을 매달 직접 넣는 반복 내역(관리비 등)의 이번 달 분 */
+export async function recordRecurring(householdId: string, r: Recurring, month: string, occurredOn: string, amount: number): Promise<void> {
+  check(await sb().from('transactions').insert({
+    household_id: householdId, type: r.type, occurred_on: occurredOn, amount, title: r.title,
+    category_id: r.category_id, payment_method_id: r.payment_method_id, scope: r.scope, source: 'recurring',
+    recurring_id: r.id, recurring_month: month,
+  }))
+}
+
+export async function fetchSettlement(householdId: string, month: string): Promise<SettlementRecord | null> {
+  const rows = check(await sb().from('settlements').select('month, from_role, to_role, amount, settled_at')
+    .eq('household_id', householdId).eq('month', month).limit(1))
+  return rows[0] ? { ...rows[0], amount: Number(rows[0].amount) } as SettlementRecord : null
+}
+
+export async function markSettled(householdId: string, s: Omit<SettlementRecord, 'settled_at'>): Promise<void> {
+  check(await sb().from('settlements').insert({ ...s, household_id: householdId }))
+}
+
+export async function unmarkSettled(householdId: string, month: string): Promise<void> {
+  check(await sb().from('settlements').delete().eq('household_id', householdId).eq('month', month))
+}
+
+/** 구글 시트 연동 주소의 토큰. rotate면 새로 만들고 이전 주소는 끊긴다 */
+export async function exportToken(householdId: string, rotate = false): Promise<string> {
+  return String(check(await sb().rpc('export_token', { p_household_id: householdId, p_rotate: rotate })))
+}
+
 /** 서버 오류 메시지를 사용자 문장으로 */
 export function friendlyError(e: unknown): string {
   const msg = e instanceof Error ? e.message : String(e)
@@ -107,6 +179,8 @@ export function friendlyError(e: unknown): string {
   if (msg.includes('already_in_household')) return '이미 가계부에 참여하고 있어요.'
   if (msg.includes('duplicate key') && msg.includes('categories')) return '같은 이름의 분류가 이미 있어요.'
   if (msg.includes('members_household_spouse_role_key')) return '배우자가 이미 그 역할로 등록돼 있어요.'
+  if (msg.includes('transactions_recurring_month_key')) return '이번 달 분은 이미 들어가 있어요.'
+  if (msg.includes('settlements_pkey')) return '이미 정산 완료로 표시돼 있어요.'
   if (msg.includes('Failed to fetch') || msg.includes('NetworkError')) return '인터넷 연결을 확인해 주세요.'
   const lower = msg.toLowerCase()
   if (lower.includes('invalid login credentials')) return '이메일 또는 비밀번호가 맞지 않아요.'

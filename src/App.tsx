@@ -1,15 +1,18 @@
 import type { Session } from '@supabase/supabase-js'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { CalendarView } from './components/CalendarView'
 import { EntrySheet } from './components/EntrySheet'
-import { CalendarIcon, ChevronLeft, ChevronRight, GearIcon, ListIcon, Plus } from './components/Icons'
+import { ExportCard } from './components/ExportCard'
+import { CalendarIcon, ChartIcon, ChevronLeft, ChevronRight, GearIcon, ListIcon, Plus, RepeatIcon } from './components/Icons'
 import { ListView } from './components/ListView'
 import { Login, NewPassword } from './components/Login'
 import { Onboarding } from './components/Onboarding'
+import { RecurringView } from './components/RecurringView'
 import { SettingsView } from './components/SettingsView'
 import { SmartSheet, type SmartMode } from './components/SmartSheet'
+import { StatsView } from './components/StatsView'
 import { useLedgerMeta, useLiveUpdates, useMonthTransactions } from './hooks/useLedger'
-import { deleteTransaction, friendlyError, insertTransaction, updateSpouseRole, updateTransaction } from './lib/api'
+import { deleteTransaction, friendlyError, generateRecurring, insertTransaction, updateSpouseRole, updateTransaction } from './lib/api'
 import { addMonths, parseYM, todayLocal } from './lib/dates'
 import { makeLookup, SCOPE_LABEL } from './lib/lookup'
 import { isConfigured, sb } from './lib/supabase'
@@ -55,7 +58,7 @@ function Home({ userId, email }: { userId: string; email: string }) {
   return <Ledger household={meta.household} meta={meta} userId={userId} email={email} />
 }
 
-type Tab = 'cal' | 'list' | 'settings'
+type Tab = 'cal' | 'list' | 'stats' | 'fixed' | 'settings'
 
 function Ledger({ household, meta, userId, email }: {
   household: Household
@@ -83,8 +86,19 @@ function Ledger({ household, meta, userId, email }: {
 
   const toast = useCallback((msg: string) => {
     setToastMsg(msg)
-    window.setTimeout(() => setToastMsg((m) => (m === msg ? '' : m)), 2000)
+    window.setTimeout(() => setToastMsg((m) => (m === msg ? '' : m)), 2400)
   }, [])
+
+  // 날짜가 지난 고정지출·구독을 자동으로 넣는다 (앱을 열 때, 날짜가 바뀌었을 때)
+  const reloadRef = useRef(reload)
+  reloadRef.current = reload
+  useEffect(() => {
+    let alive = true
+    generateRecurring(household.id, today)
+      .then(async (n) => { if (alive && n > 0) { await reloadRef.current(); toast(`고정지출·구독 ${n}건을 넣었어요`) } })
+      .catch(() => { /* 실패해도 다음에 다시 시도한다 */ })
+    return () => { alive = false }
+  }, [household.id, today, toast])
 
   const lookup = useMemo(() => makeLookup(userId, meta.members, meta.methods, meta.categories), [userId, meta.members, meta.methods, meta.categories])
   const cur = useMemo(() => txs.filter((t) => t.occurred_on.startsWith(ym)), [txs, ym])
@@ -130,7 +144,7 @@ function Ledger({ household, meta, userId, email }: {
   }
 
   const { y, m } = parseYM(ym)
-  const showMonth = tab !== 'settings'
+  const showMonth = tab === 'cal' || tab === 'list' || tab === 'stats'
 
   return (
     <div className="app">
@@ -142,7 +156,7 @@ function Ledger({ household, meta, userId, email }: {
               <h1 className="num">{y}년 {m}월</h1>
               <button className="icon-btn" onClick={() => goMonth(1)} aria-label="다음 달"><ChevronRight /></button>
             </div>
-          ) : <h1>설정</h1>}
+          ) : <h1>{tab === 'fixed' ? '고정지출 · 구독 · 관리비' : '설정'}</h1>}
           {showMonth && ym !== today.slice(0, 7) && (
             <button className="today-btn" onClick={() => { setYm(today.slice(0, 7)); setSel(today) }}>오늘</button>
           )}
@@ -169,13 +183,25 @@ function Ledger({ household, meta, userId, email }: {
             onSelect={setSel} onEdit={(t) => setSheet({ open: true, editing: t })} />
         )}
         {tab === 'list' && <ListView cur={cur} lookup={lookup} onEdit={(t) => setSheet({ open: true, editing: t })} />}
+        {tab === 'stats' && (
+          <StatsView household={household} ym={ym} today={today} cur={cur} prev={prev} lookup={lookup}
+            categories={meta.categories} toast={toast} />
+        )}
+        {tab === 'fixed' && (
+          <RecurringView householdId={household.id} today={today} lookup={lookup} methods={activeMethods}
+            categories={activeCats} onTxChanged={reload} toast={toast} />
+        )}
         {tab === 'settings' && (
-          <SettingsView household={household} methods={meta.methods} categories={meta.categories}
-            lookup={lookup} email={email} onChanged={meta.reload} toast={toast} />
+          <>
+            <SettingsView household={household} methods={meta.methods} categories={meta.categories}
+              lookup={lookup} email={email} onChanged={meta.reload} toast={toast} />
+            <div style={{ height: 14 }} />
+            <ExportCard householdId={household.id} today={today} lookup={lookup} toast={toast} />
+          </>
         )}
       </main>
 
-      {tab !== 'settings' && (
+      {(tab === 'cal' || tab === 'list') && (
         <button className="fab" aria-label="내역 추가" onClick={() => setSheet({ open: true, editing: null })}><Plus /></button>
       )}
 
@@ -183,6 +209,8 @@ function Ledger({ household, meta, userId, email }: {
         <div className="wrap">
           <button className="tab" aria-current={tab === 'cal' ? 'page' : undefined} onClick={() => setTab('cal')}><CalendarIcon />달력</button>
           <button className="tab" aria-current={tab === 'list' ? 'page' : undefined} onClick={() => setTab('list')}><ListIcon />내역</button>
+          <button className="tab" aria-current={tab === 'stats' ? 'page' : undefined} onClick={() => setTab('stats')}><ChartIcon />통계</button>
+          <button className="tab" aria-current={tab === 'fixed' ? 'page' : undefined} onClick={() => setTab('fixed')}><RepeatIcon />고정</button>
           <button className="tab" aria-current={tab === 'settings' ? 'page' : undefined} onClick={() => setTab('settings')}><GearIcon />설정</button>
         </div>
       </nav>

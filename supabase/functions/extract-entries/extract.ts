@@ -20,7 +20,7 @@ export const EntrySchema = z.object({
   amount: z.number().describe('실제 결제(또는 입금)된 총액, 원 단위 정수'),
   is_income: z.boolean().describe('입금·급여·환급처럼 들어온 돈이면 true, 쓴 돈이면 false'),
   is_cancellation: z.boolean().describe('승인 취소·환불 문자이면 true'),
-  card_last4: z.string().nullable().describe('카드·계좌 끝 4자리 숫자. 없으면 null'),
+  card_last4: z.string().nullable().describe('카드·계좌 끝 4자리. 가려진 자리는 *로 (예: 1*3*). 없으면 null'),
   payment_hint: z.string().nullable().describe('카드사·간편결제 이름 등. 없으면 null'),
   category: z.string().nullable().describe('주어진 분류 목록 중 하나. 애매하면 null'),
   items: z.array(ItemSchema).describe('영수증·주문내역의 품목. 품목이 없으면 빈 배열'),
@@ -42,7 +42,8 @@ export const SYSTEM_PROMPT = `당신은 한국 가정의 가계부 입력을 돕
 - 날짜에 연도가 없으면 기준일(오늘)을 보고 가장 가까운 과거 날짜로 연도를 정합니다. 날짜가 전혀 없으면 null입니다.
 - "취소", "승인취소", "환불" 문자는 is_cancellation을 true로 합니다.
 - 입금·급여·환급처럼 돈이 들어온 경우 is_income은 true, 나머지는 false입니다.
-- card_last4는 "(1234)", "1234 승인", "1*2*" 같은 표기에서 확실히 읽히는 숫자 4개일 때만 넣습니다.
+- card_last4는 카드·계좌 번호의 마지막 4자리입니다. "(1234)"는 1234, "(1*2*)"처럼 가려진 자리는 *로 그대로 둡니다. 4자리가 아니거나 확실하지 않으면 null입니다.
+- payment_hint에는 문자·화면에 보이는 카드사·은행·간편결제 이름과 체크/신용 구분을 그대로 적습니다(예: "신한체크", "KB국민카드", "카카오페이").
 - category는 사용자가 준 분류 목록에 있는 이름만 씁니다. 애매하면 null입니다.
 - items는 품목이 적힌 영수증·주문내역일 때만 채웁니다. 각 품목의 amount는 그 줄의 금액(수량×단가)입니다. 할인 줄은 음수 amount 품목으로 넣습니다.
 - 보이지 않거나 확실하지 않은 값은 지어내지 말고 null(문자열은 빈 문자열)로 둡니다.
@@ -92,7 +93,7 @@ export function checkEntries(result: ExtractResult): CheckedEntry[] {
         time: e.time && TIME_RE.test(e.time) ? e.time : null,
         merchant: e.merchant.trim().slice(0, 60),
         amount,
-        card_last4: e.card_last4 && /^\d{4}$/.test(e.card_last4) ? e.card_last4 : null,
+        card_last4: e.card_last4 && /^[\d*]{4}$/.test(e.card_last4) && /\d.*\d/.test(e.card_last4) ? e.card_last4 : null,
         items,
         items_match: items.length ? sum === amount : null,
       }

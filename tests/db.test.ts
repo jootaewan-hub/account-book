@@ -9,6 +9,8 @@ const INIT = read('20261015000000_init.sql')
 const ROLES = read('20261015010000_spouse_roles.sql')
 const SMART = read('20261015020000_smart_input.sql')
 const HOOK = read('20261015030000_wif_audience_hook.sql')
+const RECUR = read('20261015040000_recurring_stats_export.sql')
+const EXPORT_SVC = read('20261015050000_export_rows_service_only.sql')
 
 const SUPABASE_STUB = `
 create schema auth;
@@ -23,6 +25,7 @@ grant execute on function auth.uid() to anon, authenticated;
 alter default privileges in schema public grant all on tables to anon, authenticated;
 alter default privileges in schema public grant all on sequences to anon, authenticated;
 create role service_role nologin;
+grant usage on schema public to service_role;
 create role supabase_auth_admin nologin;
 create publication supabase_realtime;
 `
@@ -70,7 +73,7 @@ async function freshDb(migrations: string[]) {
 }
 
 beforeAll(async () => {
-  db = await freshDb([INIT, ROLES, SMART, HOOK])
+  db = await freshDb([INIT, ROLES, SMART, HOOK, RECUR, EXPORT_SVC])
 })
 
 describe('가구 만들기와 참여', () => {
@@ -243,6 +246,85 @@ describe('WIF용 aud 훅 (20261015030000_wif_audience_hook)', () => {
 
   it('로그인 사용자는 훅 함수를 직접 부를 수 없다', async () => {
     expect(await errorOf(as(A, `select public.custom_access_token_hook('{}'::jsonb)`))).toContain('permission denied')
+  })
+})
+
+describe('고정지출·통계·정산·내보내기 (20261015040000_recurring_stats_export)', () => {
+  const addRecurring = async (fields: Record<string, unknown>) => {
+    const cols = Object.keys(fields)
+    const [{ id }] = await as<{ id: string }>(A,
+      `insert into public.recurring (household_id, ${cols.join(', ')}) values ($1, ${cols.map((_, i) => `$${i + 2}`).join(', ')}) returning id`,
+      [hhA, ...Object.values(fields)])
+    return id
+  }
+  const gen = (uid: string, today: string) =>
+    as<{ n: number }>(uid, `select public.generate_recurring($1, $2) as n`, [hhA, today]).then((r) => r[0].n)
+  const recurringTx = (id: string) =>
+    as<{ occurred_on: string; source: string }>(A,
+      `select to_char(occurred_on, 'YYYY-MM-DD') as occurred_on, source from public.transactions where recurring_id = $1 order by occurred_on`, [id])
+
+  it('월별 합계는 가구 구성원에게만 나온다', async () => {
+    const rows = await as<{ type: string; total: string; n: number }>(A,
+      `select type, total, n from public.monthly_totals($1, '2026-10-01', '2026-10-31')`, [hhA])
+    expect(rows.map((r) => [r.type, Number(r.total), r.n])).toEqual([['expense', 45000, 3]])
+    expect(await as(C, `select * from public.monthly_totals($1, '2026-10-01', '2026-10-31')`, [hhA])).toHaveLength(0)
+  })
+
+  it('날짜가 지난 달만 자동으로 넣고, 다시 불러도 중복되지 않으며, 지운 달은 되살리지 않는다', async () => {
+    const id = await addRecurring({ kind: 'fixed', title: '월세', amount: 500000, day_of_month: 25, start_month: '2026-08-01' })
+    expect(await gen(A, '2026-10-15')).toBe(2)
+    expect(await gen(B, '2026-10-15')).toBe(0)
+    expect((await recurringTx(id)).map((t) => t.occurred_on)).toEqual(['2026-08-25', '2026-09-25'])
+    await as(A, `delete from public.transactions where recurring_id = $1 and occurred_on = '2026-09-25'`, [id])
+    expect(await gen(A, '2026-10-26')).toBe(1)
+    expect(await recurringTx(id)).toEqual([{ occurred_on: '2026-08-25', source: 'recurring' }, { occurred_on: '2026-10-25', source: 'recurring' }])
+  })
+
+  it('31일은 짧은 달의 마지막 날로, 연간 구독은 12개월마다, 금액 미정(관리비)은 넣지 않는다', async () => {
+    const monthEnd = await addRecurring({ kind: 'fixed', title: '적금', amount: 100000, day_of_month: 31, start_month: '2026-09-01' })
+    const yearly = await addRecurring({ kind: 'subscription', title: '연간 구독', amount: 39000, day_of_month: 3, every_months: 12, start_month: '2026-01-01' })
+    const utility = await addRecurring({ kind: 'utility', title: '관리비', day_of_month: 25, start_month: '2026-01-01' })
+    await gen(A, '2026-10-26')
+    expect((await recurringTx(monthEnd)).map((t) => t.occurred_on)).toEqual(['2026-09-30'])
+    expect((await recurringTx(yearly)).map((t) => t.occurred_on)).toEqual(['2026-01-03'])
+    expect(await recurringTx(utility)).toHaveLength(0)
+  })
+
+  it('다른 가구는 반복 내역을 보거나 대신 실행할 수 없다', async () => {
+    expect(await as(C, `select * from public.recurring`)).toHaveLength(0)
+    expect(await gen(C, '2026-12-31')).toBe(0)
+  })
+
+  it('정산 기록은 같은 가구만 보고 쓴다', async () => {
+    await as(A, `insert into public.settlements (household_id, month, from_role, to_role, amount) values ($1, '2026-10-01', 'wife', 'husband', 19850)`, [hhA])
+    expect((await as<{ amount: string }>(B, `select amount from public.settlements`)).map((r) => Number(r.amount))).toEqual([19850])
+    expect(await as(C, `select * from public.settlements`)).toHaveLength(0)
+    expect(await errorOf(as(C, `insert into public.settlements (household_id, month, amount) values ($1, '2026-11-01', 1)`, [hhA])))
+      .toContain('row-level security')
+  })
+
+  it('내보내기 주소: 구성원만 만들고, 바꾸면 이전 주소는 끊기며, 내역은 서버 함수(service role)만 읽는다', async () => {
+    const [{ tok }] = await as<{ tok: string }>(A, `select public.export_token($1) as tok`, [hhA])
+    expect(tok).toMatch(/^[0-9a-f]{64}$/)
+    expect((await as<{ tok: string }>(B, `select public.export_token($1) as tok`, [hhA]))[0].tok).toBe(tok)
+    expect(await errorOf(as(C, `select public.export_token($1)`, [hhA]))).toContain('not_member')
+
+    const asService = async <T,>(sql: string, params: unknown[]) => {
+      await db.exec('set role service_role')
+      try { return (await db.query<T>(sql, params)).rows } finally { await db.exec('reset role') }
+    }
+    expect(await errorOf(as(null, `select * from public.export_rows($1)`, [tok]))).toContain('permission denied')
+    expect(await errorOf(as(A, `select * from public.export_rows($1)`, [tok]))).toContain('permission denied')
+    const rows = await asService<{ title: string; entered_by: string; items: string | null; method_owner: string | null }>(
+      `select title, entered_by, items, method_owner from public.export_rows($1)`, [tok])
+    expect(rows.find((r) => r.title === '이마트24')).toMatchObject({ entered_by: '남편', items: '우유 x2 5600, 빵 6800' })
+    expect(rows.length).toBeGreaterThanOrEqual(5)
+
+    const [{ tok: tok2 }] = await as<{ tok: string }>(A, `select public.export_token($1, true) as tok`, [hhA])
+    expect(tok2).not.toBe(tok)
+    expect(await asService(`select * from public.export_rows($1)`, [tok])).toHaveLength(0)
+    expect(await asService(`select * from public.export_rows($1)`, ['short'])).toHaveLength(0)
+    expect(await errorOf(as(null, `select * from private.export_tokens`))).toContain('permission denied')
   })
 })
 

@@ -1,0 +1,88 @@
+// 고정지출·구독·관리비 계산. DB의 generate_recurring과 같은 규칙(31일 → 그 달 마지막 날, 매년은 시작 달 기준)을 쓴다.
+import { addMonths, daysInMonth, ymd, parseYM } from './dates'
+import type { Recurring, RecurringKind, Transaction } from './types'
+
+export const KIND_LABEL: Record<RecurringKind, string> = { fixed: '고정지출', subscription: '구독', utility: '관리비·공과금' }
+
+const monthIndex = (ym: string) => { const { y, m } = parseYM(ym); return y * 12 + m - 1 }
+
+/** 그 달에 내야 하는 날(YYYY-MM-DD). 그 달이 대상이 아니면 null */
+export function dueDate(r: Pick<Recurring, 'day_of_month' | 'every_months' | 'start_month' | 'end_month'>, ym: string): string | null {
+  const start = r.start_month.slice(0, 7)
+  if (ym < start) return null
+  if (r.end_month && ym > r.end_month.slice(0, 7)) return null
+  if ((monthIndex(ym) - monthIndex(start)) % r.every_months !== 0) return null
+  const { y, m } = parseYM(ym)
+  return ymd(y, m, Math.min(r.day_of_month, daysInMonth(ym)))
+}
+
+/** 오늘 이후 처음 내는 날 (최대 24개월 앞까지) */
+export function nextDue(r: Recurring, today: string): string | null {
+  for (let i = 0; i < 24; i++) {
+    const d = dueDate(r, addMonths(today.slice(0, 7), i))
+    if (d && d >= today) return d
+  }
+  return null
+}
+
+/** 한 달 기준 금액 (연간 구독은 12로 나눔) */
+export function monthlyAmount(r: Recurring): number {
+  return r.amount === null ? 0 : Math.round(r.amount / r.every_months)
+}
+
+/** 금액을 매달 넣어야 하는 항목 중, 이번 달 날짜가 지났는데 아직 안 넣은 것 */
+export function pendingInputs(list: Recurring[], monthTxs: Transaction[], today: string): { r: Recurring; due: string }[] {
+  const ym = today.slice(0, 7)
+  const done = new Set(monthTxs.filter((t) => t.recurring_id && t.occurred_on.startsWith(ym)).map((t) => t.recurring_id))
+  const out: { r: Recurring; due: string }[] = []
+  for (const r of list) {
+    if (!r.active || r.amount !== null || done.has(r.id)) continue
+    const due = dueDate(r, ym)
+    if (due && due <= today) out.push({ r, due })
+  }
+  return out
+}
+
+/** 같은 반복 항목의 지난 금액들 (최근 것부터) */
+export function pastAmounts(r: Recurring, txs: Transaction[]): { date: string; amount: number }[] {
+  return txs.filter((t) => t.recurring_id === r.id)
+    .sort((a, b) => b.occurred_on.localeCompare(a.occurred_on))
+    .map((t) => ({ date: t.occurred_on, amount: t.amount }))
+}
+
+const normTitle = (s: string) => s.replace(/\(주\)|㈜|주식회사|\s+/g, '').toLowerCase()
+
+export interface SubscriptionCandidate {
+  title: string
+  amount: number
+  day: number
+  months: string[]
+  category_id: string | null
+  payment_method_id: string | null
+}
+
+/**
+ * 구독처럼 보이는 지출: 같은 이름·같은 금액이 서로 다른 2개월 이상 나온 것.
+ * 이미 반복 항목으로 등록됐거나 반복 항목에서 만들어진 내역은 뺀다.
+ */
+export function subscriptionCandidates(txs: Transaction[], list: Recurring[]): SubscriptionCandidate[] {
+  const known = new Set(list.map((r) => normTitle(r.title)))
+  const groups = new Map<string, Transaction[]>()
+  for (const t of txs) {
+    if (t.type !== 'expense' || t.recurring_id || !t.title.trim()) continue
+    const key = `${normTitle(t.title)}|${t.amount}`
+    if (known.has(normTitle(t.title))) continue
+    groups.set(key, [...(groups.get(key) ?? []), t])
+  }
+  const out: SubscriptionCandidate[] = []
+  for (const g of groups.values()) {
+    const months = [...new Set(g.map((t) => t.occurred_on.slice(0, 7)))].sort()
+    if (months.length < 2) continue
+    const last = g[g.length - 1]
+    out.push({
+      title: last.title, amount: last.amount, day: Number(last.occurred_on.slice(8, 10)), months,
+      category_id: last.category_id, payment_method_id: last.payment_method_id,
+    })
+  }
+  return out.sort((a, b) => b.amount - a.amount)
+}

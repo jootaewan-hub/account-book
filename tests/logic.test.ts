@@ -20,7 +20,7 @@ let seq = 0
 const tx = (p: Partial<Transaction>): Transaction => ({
   id: String(++seq), household_id: 'h', type: 'expense', occurred_on: '2026-10-15', amount: 1000, title: '',
   memo: null, category_id: null, payment_method_id: null, scope: 'shared', source: 'manual',
-  created_by: A, created_at: '', ...p,
+  created_by: A, created_at: '', recurring_id: null, ...p,
 })
 
 describe('날짜', () => {
