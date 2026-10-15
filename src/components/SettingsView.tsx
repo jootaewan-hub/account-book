@@ -100,6 +100,7 @@ export function SettingsView({ household, categories, lookup, email, onChanged, 
         <div className="set-row"><span>로그인</span><span className="r">{email}</span></div>
         <button className="ghost" style={{ width: '100%', marginTop: 8 }} onClick={() => void sb().auth.signOut()}>로그아웃</button>
       </div>
+      <p className="app-version">앱 버전 {__APP_VERSION__}</p>
     </section>
   )
 }

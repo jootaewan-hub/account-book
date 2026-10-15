@@ -15,12 +15,20 @@ import { useLedgerMeta, useLiveUpdates, useMonthTransactions } from './hooks/use
 import { deleteTransaction, friendlyError, generateRecurring, insertTransaction, updateSpouseRole, updateTransaction } from './lib/api'
 import { addMonths, parseYM, todayLocal } from './lib/dates'
 import { makeLookup, SCOPE_LABEL } from './lib/lookup'
+import { onUpdateReady, updateReady } from './lib/pwa'
 import { isConfigured, sb } from './lib/supabase'
 import type { Household, Spouse, Transaction, TxInput } from './lib/types'
 
 export default function App() {
   if (!isConfigured) return <SetupNeeded />
-  return <AuthGate />
+  return <><AuthGate /><UpdateBar /></>
+}
+
+function UpdateBar() {
+  const [show, setShow] = useState(updateReady)
+  useEffect(() => onUpdateReady(() => setShow(true)), [])
+  if (!show) return null
+  return <button className="update-bar" onClick={() => window.location.reload()}>새 버전이 있어요 · 눌러서 새로 고침</button>
 }
 
 function SetupNeeded() {

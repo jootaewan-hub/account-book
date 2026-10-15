@@ -26,6 +26,7 @@ interface Props {
 type Stage = 'input' | 'loading' | 'review'
 
 const MAX_PHOTOS = 5
+const MAX_TOTAL_CHARS = 14_000_000 // 서버(extract.ts MAX_TOTAL_IMAGE_CHARS)와 같은 값
 const SAMPLE = '[Web발신]\n신한카드(1234)승인\n홍*동\n12,400원 일시불\n10/13 18:42 이마트24\n누적1,234,560원'
 const TITLE: Record<SmartMode, string> = { text: '문자로 입력', photo: '영수증으로 입력', shop: '쇼핑 주문으로 입력' }
 
@@ -38,11 +39,12 @@ export function SmartSheet({ open, mode, today, householdId, lookup, categories,
   const [model, setModel] = useState<string | null>(null)
   const [err, setErr] = useState('')
   const [busy, setBusy] = useState(false)
+  const [preparing, setPreparing] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     if (!open) return
-    setStage('input'); setText(''); setDrafts([]); setNote(null); setModel(null); setErr(''); setBusy(false)
+    setStage('input'); setText(''); setDrafts([]); setNote(null); setModel(null); setErr(''); setBusy(false); setPreparing(false)
     setImages((prev) => { prev.forEach((i) => URL.revokeObjectURL(i.preview)); return [] })
   }, [open, mode])
 
@@ -83,21 +85,40 @@ export function SmartSheet({ open, mode, today, householdId, lookup, categories,
     }
   }
 
-  async function onFiles(list: FileList | null) {
-    const files = [...(list ?? [])].slice(0, MAX_PHOTOS)
+  // 사진은 바로 분석하지 않고 모은다: 카메라로 한 장씩 찍거나, 앨범에서 여러 장을 여러 번에 나눠 골라도 된다
+  async function addFiles(list: FileList | null) {
+    const files = [...(list ?? [])]
     if (!files.length) return
-    setErr('')
-    try {
-      const prepared = await Promise.all(files.map(fileToJpeg))
-      setImages(prepared)
-      await run({
-        kind: 'image', mode: mode === 'shop' ? 'shop' : 'receipt', today,
-        images: prepared.map(({ media_type, data, width, height }) => ({ media_type, data, width, height })),
-      }, prepared)
-      if ((list?.length ?? 0) > MAX_PHOTOS) setErr(`사진은 한 번에 ${MAX_PHOTOS}장까지라 앞의 ${MAX_PHOTOS}장만 읽었어요.`)
-    } catch (e) {
-      setErr(e instanceof SmartError ? e.message : '사진을 읽지 못했어요. 다른 사진으로 해 보세요.'); setStage('input')
+    const room = MAX_PHOTOS - images.length
+    if (room <= 0) return setErr(`사진은 최대 ${MAX_PHOTOS}장까지예요.`)
+    setErr(''); setPreparing(true)
+    const added: PreparedImage[] = []
+    let failed = 0
+    // 큰 사진 여러 장을 한꺼번에 풀면 아이폰 메모리가 모자랄 수 있어 한 장씩 처리한다
+    for (const f of files.slice(0, room)) {
+      try { added.push(await fileToJpeg(f)) } catch { failed++ }
     }
+    setImages((prev) => [...prev, ...added])
+    setPreparing(false)
+    if (files.length > room) setErr(`사진은 최대 ${MAX_PHOTOS}장까지라 ${room}장만 넣었어요.`)
+    else if (failed) setErr(`${failed}장은 읽지 못했어요. 다른 사진으로 해 보세요.`)
+  }
+
+  function removeImage(i: number) {
+    setImages((prev) => {
+      URL.revokeObjectURL(prev[i].preview)
+      return prev.filter((_, j) => j !== i)
+    })
+    setErr('')
+  }
+
+  async function analyzePhotos() {
+    if (!images.length) return
+    if (images.reduce((s, im) => s + im.data.length, 0) > MAX_TOTAL_CHARS) return setErr('사진이 너무 커요. 장수를 줄여 주세요.')
+    await run({
+      kind: 'image', mode: mode === 'shop' ? 'shop' : 'receipt', today,
+      images: images.map(({ media_type, data, width, height }) => ({ media_type, data, width, height })),
+    }, images)
   }
 
   function patch(key: string, p: Partial<Draft>) {
@@ -144,13 +165,37 @@ export function SmartSheet({ open, mode, today, householdId, lookup, categories,
         <>
           <p className="note">
             {mode === 'shop'
-              ? '쿠팡·오늘의집·컬리·네이버페이·스마트스토어의 주문·결제 내역 화면을 캡처해서 고르세요. 상품 이름·수량·금액과 상품 사진까지 함께 저장합니다. 한 주문이 길면 이어서 찍은 캡처 여러 장(최대 5장)을 한 번에 고르세요.'
-              : '종이 영수증, 카드앱 결제 화면, 배달 주문내역을 찍거나 캡처해서 고르세요. 여러 장(최대 5장)을 한 번에 골라도 됩니다.'}
+              ? '쿠팡·오늘의집·컬리·네이버페이·스마트스토어의 주문·결제 내역 화면을 캡처해서 고르세요. 상품 이름·수량·금액과 상품 사진까지 함께 저장합니다. 한 주문이 길면 이어서 찍은 캡처를 모두 넣으세요. 최대 5장, 여러 번에 나눠 넣어도 됩니다.'
+              : '종이 영수증, 카드앱 결제 화면, 배달 주문내역을 찍거나 캡처해서 고르세요. 사진은 최대 5장까지 모아서 한 번에 분석합니다. 여러 번에 나눠 넣어도 됩니다.'}
           </p>
-          <input ref={fileRef} type="file" accept="image/*" multiple hidden onChange={(e) => { void onFiles(e.target.files); e.target.value = '' }} />
-          <button className="primary" onClick={() => fileRef.current?.click()}>{mode === 'shop' ? '주문내역 캡처 고르기' : '사진 고르기 · 찍기'}</button>
-          {previews}
+          <input ref={fileRef} type="file" accept="image/*" multiple hidden onChange={(e) => { void addFiles(e.target.files); e.target.value = '' }} />
+          {images.length > 0 && (
+            <div className="smart-previews" aria-label={`고른 사진 ${images.length}장`}>
+              {images.map((im, i) => (
+                <div key={im.preview} className="pv">
+                  <img src={im.preview} alt={`고른 사진 ${i + 1}`} />
+                  <button className="pv-x" onClick={() => removeImage(i)} aria-label={`사진 ${i + 1} 빼기`}>×</button>
+                </div>
+              ))}
+            </div>
+          )}
           <p className="err" role="alert">{err}</p>
+          {images.length === 0 ? (
+            <button className="primary" disabled={preparing} onClick={() => fileRef.current?.click()}>
+              {preparing ? '사진 준비 중…' : mode === 'shop' ? '주문내역 캡처 고르기' : '사진 고르기 · 찍기'}
+            </button>
+          ) : (
+            <>
+              <button className="primary" disabled={preparing} onClick={() => void analyzePhotos()}>
+                {preparing ? '사진 준비 중…' : `사진 ${images.length}장 분석하기`}
+              </button>
+              {images.length < MAX_PHOTOS && (
+                <button className="ghost" disabled={preparing} onClick={() => fileRef.current?.click()}>
+                  사진 더 넣기 ({images.length}/{MAX_PHOTOS})
+                </button>
+              )}
+            </>
+          )}
         </>
       )}
 

@@ -5,8 +5,13 @@ import { VitePWA } from 'vite-plugin-pwa'
 // GitHub Pages처럼 하위 경로에 배포할 때는 BASE_PATH=/account-book/ 으로 빌드한다
 const base = process.env.BASE_PATH ?? '/'
 
+// 설정 화면에 보이는 앱 버전: 커밋 앞 7자리 · 빌드 시각(한국 시간)
+const builtAt = new Date(Date.now() + 9 * 3600_000).toISOString().slice(5, 16).replace('T', ' ')
+const appVersion = `${(process.env.GITHUB_SHA ?? 'local').slice(0, 7)} · ${builtAt}`
+
 export default defineConfig({
   base,
+  define: { __APP_VERSION__: JSON.stringify(appVersion) },
   plugins: [
     react(),
     VitePWA({
