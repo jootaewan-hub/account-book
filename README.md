@@ -4,7 +4,7 @@
 
 ## 지금 들어 있는 기능 (1단계)
 
-- 이메일 코드 로그인 (비밀번호 없음)
+- 이메일 + 비밀번호 로그인 (가입 시 확인 메일 1회, 비밀번호 재설정)
 - 가계부 만들기 / 초대 코드로 배우자 참여 (최대 2명)
 - 달력 홈: 이번 달 수입·지출·남은 돈, 지난달 같은 기간 대비, 날짜별 합계, 2026년 공휴일 표시
 - 내역 추가·수정·삭제: 금액 키패드, 분류(자주 쓰는 순), 결제수단(누가 냈는지), 용도(공동/개인)
@@ -28,11 +28,19 @@
 
 ### 1. Supabase 프로젝트
 
-1. Supabase에서 새 프로젝트를 만듭니다. 지역은 Northeast Asia (Seoul)을 권장합니다.
-2. `supabase/migrations/20261015000000_init.sql`을 SQL Editor에서 실행하거나 Supabase CLI/MCP로 적용합니다.
-3. Authentication > Email Templates > Magic Link 템플릿 본문에 `{{ .Token }}`을 넣어 숫자 코드가 메일로 가게 합니다.
-   (앱은 링크가 아니라 코드로 로그인합니다. iPhone 홈 화면 앱은 Safari와 저장공간이 분리돼 있어 링크 로그인이 앱에 적용되지 않기 때문입니다.)
-4. Project Settings > API에서 Project URL과 Publishable key를 확인합니다.
+현재 연결된 프로젝트: `account-book` (ref `kifdfpbwiebfgvdumqjf`, 서울 ap-northeast-2, 무료 플랜)
+
+1. `supabase/migrations/20261015000000_init.sql`을 적용합니다. (이 프로젝트에는 적용 완료)
+2. Authentication > URL Configuration의 **Site URL**을 배포한 앱 주소로 바꿉니다.
+   가입 확인 메일과 비밀번호 재설정 메일의 링크가 이 주소로 돌아옵니다.
+3. 두 사람이 가입을 마치면 Authentication > Sign In / Providers에서 **Allow new users to sign up**을 꺼서 다른 사람이 가입하지 못하게 합니다.
+
+로그인을 이메일 코드가 아닌 비밀번호로 한 이유: 2026-06-03 이후 만든 무료 프로젝트는 기본 메일 서버를 쓰는 동안
+메일 양식을 바꿀 수 없고, 기본 로그인 메일에는 숫자 코드가 없습니다
+([Supabase 공지](https://supabase.com/changelog/46599-changes-to-email-template-customisation-on-free-tier)).
+
+보안 점검(Advisors) 결과 `create_household`, `join_household`가 "로그인 사용자가 실행 가능한 SECURITY DEFINER 함수"로
+경고됩니다. 가구 생성·참여를 위해 의도한 것이며, 두 함수는 안에서 로그인 여부·기존 가구 여부·인원(2명)을 직접 확인합니다.
 
 ### 2. 환경 변수
 
@@ -54,8 +62,9 @@ npm run build    # 배포용 빌드 (dist/)
 
 ### 4. 배포와 설치
 
-- `dist/`를 정적 호스팅(Vercel 등)에 올리고, 같은 환경 변수를 호스팅 설정에 넣습니다.
+- `dist/`를 정적 호스팅(Vercel, Cloudflare Pages 등)에 올리고, 같은 환경 변수를 호스팅 설정에 넣습니다.
 - iPhone Safari로 주소를 열고 공유 버튼 > "홈 화면에 추가"를 누릅니다.
+- 각자 "처음 가입" → 메일의 확인 링크 → 앱에서 로그인.
 - 한 사람이 "새 가계부 만들기", 다른 사람은 설정 화면의 초대 코드로 "초대 코드로 참여"를 합니다.
 
 ## 알려진 제한

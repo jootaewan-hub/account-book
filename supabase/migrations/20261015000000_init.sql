@@ -1,12 +1,17 @@
 -- 우리집 가계부: 초기 스키마
 -- 가구(household) 하나에 최대 2명. 모든 데이터는 가구 단위로 RLS로 보호한다.
 -- 가구 생성과 참여는 security definer 함수(create_household, join_household)로만 한다.
+-- 내부 함수는 Data API에 노출되지 않는 private 스키마에 둔다.
+
+create schema if not exists private;
+revoke all on schema private from public;
+grant usage on schema private to authenticated;
 
 -- ---------------------------------------------------------------------------
--- 초대 코드: 헷갈리는 글자(0/O, 1/I)를 뺀 32자 알파벳, 8자리
--- gen_random_uuid()의 완전 무작위 바이트(0~5, 9~10, 11)만 사용한다.
+-- 초대 코드: 헷갈리는 글자(0/O, 1/I)를 뺀 32자 알파벳, 8자리.
+-- gen_random_uuid()에서 버전·변형 비트가 없는 바이트(0~5, 9~10)만 쓴다.
 -- ---------------------------------------------------------------------------
-create or replace function public.gen_invite_code()
+create or replace function private.gen_invite_code()
 returns text
 language plpgsql
 volatile
@@ -26,13 +31,24 @@ begin
 end;
 $$;
 
+create or replace function private.touch_updated_at()
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
+begin
+  new.updated_at := now();
+  return new;
+end;
+$$;
+
 -- ---------------------------------------------------------------------------
 -- 테이블
 -- ---------------------------------------------------------------------------
 create table public.households (
   id uuid primary key default gen_random_uuid(),
   name text not null default '우리집' check (char_length(name) between 1 and 40),
-  invite_code text not null unique default public.gen_invite_code(),
+  invite_code text not null unique default private.gen_invite_code(),
   share_ratio numeric(3, 2) not null default 0.50 check (share_ratio between 0 and 1),
   created_at timestamptz not null default now()
 );
@@ -65,6 +81,7 @@ create table public.payment_methods (
   check ((owner_type = 'member') = (owner_user_id is not null)),
   foreign key (household_id, owner_user_id) references public.members (household_id, user_id)
 );
+create index payment_methods_household_owner_idx on public.payment_methods (household_id, owner_user_id);
 
 create table public.categories (
   id uuid primary key default gen_random_uuid(),
@@ -105,6 +122,14 @@ create table public.transactions (
   foreign key (household_id, scope_user_id) references public.members (household_id, user_id)
 );
 create index transactions_household_date_idx on public.transactions (household_id, occurred_on);
+create index transactions_category_idx on public.transactions (category_id, household_id);
+create index transactions_method_idx on public.transactions (payment_method_id, household_id);
+create index transactions_scope_user_idx on public.transactions (household_id, scope_user_id);
+create index transactions_created_by_idx on public.transactions (created_by);
+
+create trigger transactions_touch_updated_at
+before update on public.transactions
+for each row execute function private.touch_updated_at();
 
 create table public.transaction_items (
   id uuid primary key default gen_random_uuid(),
@@ -118,27 +143,12 @@ create table public.transaction_items (
   foreign key (transaction_id, household_id)
     references public.transactions (id, household_id) on delete cascade
 );
-create index transaction_items_tx_idx on public.transaction_items (transaction_id);
-
-create or replace function public.touch_updated_at()
-returns trigger
-language plpgsql
-set search_path = ''
-as $$
-begin
-  new.updated_at := now();
-  return new;
-end;
-$$;
-
-create trigger transactions_touch_updated_at
-before update on public.transactions
-for each row execute function public.touch_updated_at();
+create index transaction_items_tx_idx on public.transaction_items (transaction_id, household_id);
 
 -- ---------------------------------------------------------------------------
 -- RLS
 -- ---------------------------------------------------------------------------
-create or replace function public.is_household_member(hh uuid)
+create or replace function private.is_household_member(hh uuid)
 returns boolean
 language sql
 stable
@@ -150,6 +160,8 @@ as $$
     where m.household_id = hh and m.user_id = (select auth.uid())
   );
 $$;
+revoke execute on function private.is_household_member(uuid) from public, anon;
+grant execute on function private.is_household_member(uuid) to authenticated;
 
 alter table public.households enable row level security;
 alter table public.members enable row level security;
@@ -160,61 +172,73 @@ alter table public.transaction_items enable row level security;
 
 -- households: 조회와 이름·분담비율 변경만. 생성은 create_household로.
 create policy households_select on public.households
-  for select to authenticated using (public.is_household_member(id));
+  for select to authenticated
+  using ((select private.is_household_member(id)));
 create policy households_update on public.households
   for update to authenticated
-  using (public.is_household_member(id)) with check (public.is_household_member(id));
+  using ((select private.is_household_member(id)))
+  with check ((select private.is_household_member(id)));
 
 -- members: 같은 가구 조회, 본인 표시 이름만 변경. 추가는 함수로.
 create policy members_select on public.members
-  for select to authenticated using (public.is_household_member(household_id));
+  for select to authenticated
+  using ((select private.is_household_member(household_id)));
 create policy members_update_self on public.members
   for update to authenticated
-  using (user_id = (select auth.uid())) with check (user_id = (select auth.uid()));
+  using (user_id = (select auth.uid()))
+  with check (user_id = (select auth.uid()));
 
 -- 나머지: 같은 가구 멤버는 모두 읽고 쓴다.
 create policy payment_methods_all on public.payment_methods
   for all to authenticated
-  using (public.is_household_member(household_id))
-  with check (public.is_household_member(household_id));
+  using ((select private.is_household_member(household_id)))
+  with check ((select private.is_household_member(household_id)));
 
 create policy categories_all on public.categories
   for all to authenticated
-  using (public.is_household_member(household_id))
-  with check (public.is_household_member(household_id));
+  using ((select private.is_household_member(household_id)))
+  with check ((select private.is_household_member(household_id)));
 
 create policy transactions_select on public.transactions
-  for select to authenticated using (public.is_household_member(household_id));
+  for select to authenticated
+  using ((select private.is_household_member(household_id)));
 create policy transactions_insert on public.transactions
   for insert to authenticated
-  with check (public.is_household_member(household_id) and created_by = (select auth.uid()));
+  with check ((select private.is_household_member(household_id)) and created_by = (select auth.uid()));
 create policy transactions_update on public.transactions
   for update to authenticated
-  using (public.is_household_member(household_id))
-  with check (public.is_household_member(household_id));
+  using ((select private.is_household_member(household_id)))
+  with check ((select private.is_household_member(household_id)));
 create policy transactions_delete on public.transactions
-  for delete to authenticated using (public.is_household_member(household_id));
+  for delete to authenticated
+  using ((select private.is_household_member(household_id)));
 
 create policy transaction_items_all on public.transaction_items
   for all to authenticated
-  using (public.is_household_member(household_id))
-  with check (public.is_household_member(household_id));
-
--- 권한: 로그인하지 않은 사용자(anon)는 아무것도 못 한다.
-revoke all on public.households, public.members, public.payment_methods, public.categories,
-  public.transactions, public.transaction_items from anon;
--- 가구는 이름·분담비율만, 멤버는 표시 이름만 수정 가능
-revoke insert, update, delete on public.households from authenticated;
-grant update (name, share_ratio) on public.households to authenticated;
-revoke insert, update, delete on public.members from authenticated;
-grant update (display_name) on public.members to authenticated;
--- 작성자는 바꿀 수 없다
-revoke update on public.transactions from authenticated;
-grant update (type, occurred_on, occurred_at, amount, title, memo, category_id, payment_method_id,
-  scope, scope_user_id, source, receipt_path) on public.transactions to authenticated;
+  using ((select private.is_household_member(household_id)))
+  with check ((select private.is_household_member(household_id)));
 
 -- ---------------------------------------------------------------------------
--- 가구 생성 / 참여
+-- 테이블 권한 (Data API 노출). 2026-04 이후 새 프로젝트는 명시적 grant가 필요하다.
+-- 로그인하지 않은 사용자(anon)는 아무것도 못 한다.
+-- ---------------------------------------------------------------------------
+revoke all on public.households, public.members, public.payment_methods, public.categories,
+  public.transactions, public.transaction_items from anon, authenticated;
+
+grant select on public.households, public.members to authenticated;
+grant update (name, share_ratio) on public.households to authenticated;   -- 초대 코드는 변경 불가
+grant update (display_name) on public.members to authenticated;
+grant select, insert, update, delete on public.payment_methods, public.categories, public.transaction_items
+  to authenticated;
+grant select, insert, delete on public.transactions to authenticated;
+grant update (type, occurred_on, occurred_at, amount, title, memo, category_id, payment_method_id,
+  scope, scope_user_id, source, receipt_path) on public.transactions to authenticated;  -- 작성자는 변경 불가
+
+grant select, insert, update, delete on public.households, public.members, public.payment_methods,
+  public.categories, public.transactions, public.transaction_items to service_role;
+
+-- ---------------------------------------------------------------------------
+-- 가구 생성 / 참여 (RPC). 함수 안에서 auth.uid()를 직접 확인한다.
 -- ---------------------------------------------------------------------------
 create or replace function public.create_household(p_display_name text)
 returns uuid
@@ -223,7 +247,7 @@ security definer
 set search_path = ''
 as $$
 declare
-  uid uuid := auth.uid();
+  uid uuid := (select auth.uid());
   hh uuid;
 begin
   if uid is null then
@@ -260,7 +284,7 @@ security definer
 set search_path = ''
 as $$
 declare
-  uid uuid := auth.uid();
+  uid uuid := (select auth.uid());
   hh uuid;
 begin
   if uid is null then
@@ -290,7 +314,8 @@ revoke execute on function public.create_household(text) from public, anon;
 revoke execute on function public.join_household(text, text) from public, anon;
 grant execute on function public.create_household(text) to authenticated;
 grant execute on function public.join_household(text, text) to authenticated;
-revoke execute on function public.gen_invite_code() from public, anon, authenticated;
+revoke execute on function private.gen_invite_code() from public, anon, authenticated;
+revoke execute on function private.touch_updated_at() from public, anon, authenticated;
 
 -- ---------------------------------------------------------------------------
 -- 실시간 동기화 (Supabase Realtime)

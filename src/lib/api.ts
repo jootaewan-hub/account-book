@@ -101,6 +101,12 @@ export function friendlyError(e: unknown): string {
   if (msg.includes('already_in_household')) return '이미 가계부에 참여하고 있어요.'
   if (msg.includes('duplicate key') && msg.includes('categories')) return '같은 이름의 분류가 이미 있어요.'
   if (msg.includes('Failed to fetch') || msg.includes('NetworkError')) return '인터넷 연결을 확인해 주세요.'
-  if (msg.toLowerCase().includes('token has expired') || msg.toLowerCase().includes('invalid')) return '코드가 맞지 않거나 만료됐어요. 새 코드를 받아 주세요.'
+  const lower = msg.toLowerCase()
+  if (lower.includes('invalid login credentials')) return '이메일 또는 비밀번호가 맞지 않아요.'
+  if (lower.includes('email not confirmed')) return '메일함에서 가입 확인 링크를 먼저 눌러 주세요.'
+  if (lower.includes('already registered')) return '이미 가입된 이메일이에요. 로그인해 주세요.'
+  if (lower.includes('password should')) return '비밀번호가 너무 짧거나 쉬워요. 더 길게 정해 주세요.'
+  if (lower.includes('rate limit')) return '메일을 너무 자주 보냈어요. 잠시 후 다시 시도해 주세요.'
+  if (lower.includes('expired')) return '링크가 만료됐어요. 다시 요청해 주세요.'
   return `문제가 생겼어요: ${msg}`
 }

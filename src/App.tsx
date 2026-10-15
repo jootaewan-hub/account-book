@@ -4,7 +4,7 @@ import { CalendarView } from './components/CalendarView'
 import { EntrySheet } from './components/EntrySheet'
 import { CalendarIcon, ChevronLeft, ChevronRight, GearIcon, ListIcon, Plus } from './components/Icons'
 import { ListView } from './components/ListView'
-import { Login } from './components/Login'
+import { Login, NewPassword } from './components/Login'
 import { Onboarding } from './components/Onboarding'
 import { SettingsView } from './components/SettingsView'
 import { useLedgerMeta, useLiveUpdates, useMonthTransactions } from './hooks/useLedger'
@@ -30,12 +30,17 @@ function SetupNeeded() {
 
 function AuthGate() {
   const [session, setSession] = useState<Session | null | undefined>(undefined)
+  const [recovery, setRecovery] = useState(false)
   useEffect(() => {
     void sb().auth.getSession().then(({ data }) => setSession(data.session))
-    const { data } = sb().auth.onAuthStateChange((_e, s) => setSession(s))
+    const { data } = sb().auth.onAuthStateChange((event, s) => {
+      if (event === 'PASSWORD_RECOVERY') setRecovery(true)
+      setSession(s)
+    })
     return () => data.subscription.unsubscribe()
   }, [])
   if (session === undefined) return <div className="app wrap center"><p className="lead">불러오는 중…</p></div>
+  if (recovery && session) return <NewPassword onDone={() => setRecovery(false)} />
   if (!session) return <Login />
   return <Home userId={session.user.id} email={session.user.email ?? ''} />
 }
