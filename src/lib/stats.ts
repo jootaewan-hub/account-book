@@ -1,4 +1,5 @@
 // 통계 화면 계산: 12개월 추이, 전월·전년 대비, 분류별·용도별 지출
+import { NON_PURCHASE_CATEGORIES, normMerchant } from './categorize'
 import { addMonths } from './dates'
 import { OTHER_PLATFORM, platformOfTx } from './platform'
 import type { Category, MonthTotal, Scope, Transaction } from './types'
@@ -70,29 +71,51 @@ export function scopeSplit(cur: Transaction[]): Record<Scope, number> {
 
 export interface PlatformRow {
   name: string
+  /** platform: 쿠팡 같은 온라인 플랫폼, merchant: 플랫폼이 없는 매장 결제의 가게 이름, other: 한 번씩만 간 가게들 */
+  kind: 'platform' | 'merchant' | 'other'
   amount: number
   count: number
   prev: number
 }
 
-/** 플랫폼별 지출, 큰 것부터. 알아보지 못한 지출은 마지막에 '그 외'로 묶는다 */
-export function platformBreakdown(cur: Transaction[], prev: Transaction[]): PlatformRow[] {
+/**
+ * 어디서 샀나: 플랫폼별, 플랫폼이 없는 매장 결제는 가게 이름별. 두 번 넘게 갔거나 전체의 5%가 넘는 가게만 따로 두고
+ * 나머지는 마지막에 '그 밖'으로 묶는다. 반복 항목으로 들어온 것과 대출이자·관리비·보험·통신·주거·세금처럼 '산 것'이 아닌 분류는 뺀다
+ */
+export function platformBreakdown(cur: Transaction[], prev: Transaction[], categories: Category[] = []): PlatformRow[] {
+  const skip = new Set(categories.filter((c) => NON_PURCHASE_CATEGORIES.has(c.name)).map((c) => c.id))
+  const keyOf = (t: Transaction): Pick<PlatformRow, 'name' | 'kind'> | null => {
+    if (t.type !== 'expense' || t.recurring_id || (t.category_id && skip.has(t.category_id))) return null
+    const p = platformOfTx(t)
+    if (p) return { name: p, kind: 'platform' }
+    const m = normMerchant(t.title)
+    return m ? { name: m, kind: 'merchant' } : { name: OTHER_PLATFORM, kind: 'other' }
+  }
   const sum = (txs: Transaction[]) => {
-    const m = new Map<string, { amount: number; count: number }>()
+    const m = new Map<string, Pick<PlatformRow, 'name' | 'kind' | 'amount' | 'count'>>()
     for (const t of txs) {
-      if (t.type !== 'expense') continue
-      const k = platformOfTx(t) ?? OTHER_PLATFORM
-      const v = m.get(k) ?? { amount: 0, count: 0 }
+      const k = keyOf(t)
+      if (!k) continue
+      const v = m.get(`${k.kind}\n${k.name}`) ?? { ...k, amount: 0, count: 0 }
       v.amount += t.amount; v.count++
-      m.set(k, v)
+      m.set(`${k.kind}\n${k.name}`, v)
     }
     return m
   }
   const a = sum(cur)
   const b = sum(prev)
-  const rows = [...a.entries()].map(([name, v]) => ({ name, ...v, prev: b.get(name)?.amount ?? 0 }))
-  return [
-    ...rows.filter((r) => r.name !== OTHER_PLATFORM).sort((x, y) => y.amount - x.amount),
-    ...rows.filter((r) => r.name === OTHER_PLATFORM),
-  ]
+  const total = [...a.values()].reduce((s, v) => s + v.amount, 0)
+  const rows: PlatformRow[] = []
+  const other: PlatformRow = { name: OTHER_PLATFORM, kind: 'other', amount: 0, count: 0, prev: 0 }
+  for (const [k, v] of a) {
+    const prevAmount = b.get(k)?.amount ?? 0
+    if (v.kind === 'other' || (v.kind === 'merchant' && v.count < 2 && v.amount < total * 0.05)) {
+      other.amount += v.amount; other.count += v.count; other.prev += prevAmount
+    } else {
+      rows.push({ ...v, prev: prevAmount })
+    }
+  }
+  rows.sort((x, y) => y.amount - x.amount)
+  if (other.count) rows.push(other)
+  return rows
 }

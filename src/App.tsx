@@ -224,7 +224,7 @@ function Ledger({ household, meta, userId, email }: {
           <StatsView household={household} ym={ym} today={today} cur={cur} prev={prev} lookup={lookup}
             categories={meta.categories} billsVersion={billsVersion} onBill={() => setSmart({ open: true, mode: 'bill' })}
             onCategory={(id, name) => { setListFocus({ kind: 'category', id, name }); setTab('list') }}
-            onPlatform={(name) => { setListFocus({ kind: 'platform', name }); setTab('list') }} />
+            onPlatform={(name, kind) => { setListFocus(kind === 'merchant' ? { kind: 'merchant', name } : { kind: 'platform', name }); setTab('list') }} />
         )}
         {tab === 'fixed' && (
           <RecurringView householdId={household.id} today={today} lookup={lookup}

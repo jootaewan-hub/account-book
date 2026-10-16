@@ -1,6 +1,7 @@
 // 문자·사진 분석 결과를 저장할 수 있는 초안으로 바꾸고, Edge Function을 부른다.
 import type { CheckedBill, CheckedEntry } from '../../supabase/functions/extract-entries/extract'
 import { canSplitInstallment, createInstallment } from './api'
+import { suggestCategory, VAGUE_CATEGORIES } from './categorize'
 import { uploadItemImage } from './itemImages'
 import { DELIVERY_PLATFORMS, normalizePlatform, platformOf } from './platform'
 import { sb } from './supabase'
@@ -153,6 +154,18 @@ export function matchCategory(name: string | null, type: TxType, categories: Cat
   return categories.find((c) => c.type === type && c.name === name.trim())?.id ?? null
 }
 
+/**
+ * 초안의 분류: 모델이 고른 것(상품별 → 내역 전체 순)을 쓰되, 못 골랐거나 '기타·쇼핑·생활용품'처럼 두루뭉술하면
+ * 이름·상품명·가게로 더 구체적인 분류를 제안받아 그쪽을 쓴다
+ */
+export function pickCategory(names: (string | null | undefined)[], text: string, type: TxType, categories: Category[]): string | null {
+  const modelId = names.map((n) => matchCategory(n ?? null, type, categories)).find(Boolean) ?? null
+  const model = categories.find((c) => c.id === modelId)
+  const better = suggestCategory(text, categories, type)
+  if (better && (!model || VAGUE_CATEGORIES.has(model.name))) return better.id
+  return modelId
+}
+
 export function sameTransaction(d: Pick<Draft, 'date' | 'amount' | 'type'>, txs: Transaction[]): Transaction | undefined {
   return txs.find((t) => t.occurred_on === d.date && t.amount === d.amount && t.type === d.type)
 }
@@ -245,7 +258,7 @@ export function entryDrafts(e: CheckedEntry, i: number, ctx: DraftContext, split
     const dup = sameTransaction({ date, amount, type: e.type }, ctx.existing)
     return {
       key, include: !e.is_cancellation && !dup, type: e.type, date, time: e.time, title, platform, amount,
-      category_id: matchCategory(category, e.type, ctx.categories) ?? matchCategory(e.category, e.type, ctx.categories),
+      category_id: pickCategory([category, e.category], [title, ...its.map((it) => it.name), e.merchant ?? '', platform ?? ''].join(' '), e.type, ctx.categories),
       payment_method_id: method?.id ?? remembered ?? (match.method === null && match.reason !== 'none' ? null : ctx.fallbackMethodId),
       scope: ctx.fallbackScope, memo, items: its,
       installment: e.type === 'expense' ? e.installment_months ?? null : null, splitInstallment: true,

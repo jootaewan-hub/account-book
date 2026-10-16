@@ -3,14 +3,19 @@ import { formatDateLong } from '../lib/dates'
 import { won } from '../lib/format'
 import { sumType } from '../lib/ledger'
 import { SCOPE_LABEL, SCOPES, type Lookup } from '../lib/lookup'
+import { normMerchant } from '../lib/categorize'
 import { OTHER_PLATFORM, platformOfTx } from '../lib/platform'
 import type { Scope, Transaction } from '../lib/types'
 import { TxRow } from './TxRow'
 
 const DOT: Record<Scope, string> = { shared: 'var(--who-shared)', husband: 'var(--who-husband)', wife: 'var(--who-wife)', child: 'var(--who-child)' }
 
-/** 통계에서 넘어온 조건: 한 분류 또는 한 플랫폼의 내역만 */
-export type ListFocus = { kind: 'category'; id: string | null; name: string } | { kind: 'platform'; name: string }
+/** 통계에서 넘어온 조건: 한 분류, 한 플랫폼, 또는 한 가게(플랫폼 없는 매장 결제)의 내역만 */
+export type ListFocus =
+  | { kind: 'category'; id: string | null; name: string }
+  | { kind: 'platform'; name: string }
+  | { kind: 'merchant'; name: string }
+const FOCUS_LABEL: Record<ListFocus['kind'], string> = { category: '분류', platform: '플랫폼', merchant: '가게' }
 
 interface Props {
   cur: Transaction[]
@@ -27,8 +32,13 @@ export function ListView({ cur, lookup, focus, onClearFocus, onEdit }: Props) {
   const matches = (t: Transaction) =>
     [t.title, t.memo, t.platform, lookup.categoryName(t.category_id), ...(t.items ?? []).map((i) => i.name)]
       .some((s) => (s ?? '').toLowerCase().includes(needle))
-  const inFocus = (t: Transaction) =>
-    !focus || (focus.kind === 'category' ? t.category_id === focus.id : (platformOfTx(t) ?? OTHER_PLATFORM) === focus.name)
+  const inFocus = (t: Transaction) => {
+    if (!focus) return true
+    if (focus.kind === 'category') return t.category_id === focus.id
+    const p = platformOfTx(t)
+    if (focus.kind === 'merchant') return !p && normMerchant(t.title) === focus.name
+    return focus.name === OTHER_PLATFORM ? !p : p === focus.name
+  }
   const list = cur.filter((t) => (filter === 'all' || t.scope === filter) && inFocus(t) && (!needle || matches(t)))
   const groups = new Map<string, Transaction[]>()
   for (const t of list) groups.set(t.occurred_on, [...(groups.get(t.occurred_on) ?? []), t])
@@ -46,7 +56,7 @@ export function ListView({ cur, lookup, focus, onClearFocus, onEdit }: Props) {
         autoComplete="off" onChange={(e) => setQ(e.target.value)} />
       {focus && (
         <div className="focus-row">
-          <span className="chip" aria-pressed="true">{focus.kind === 'category' ? '분류' : '플랫폼'}: {focus.name}</span>
+          <span className="chip" aria-pressed="true">{FOCUS_LABEL[focus.kind]}: {focus.name}</span>
           <button className="link-btn" onClick={onClearFocus}>전체 보기</button>
         </div>
       )}
