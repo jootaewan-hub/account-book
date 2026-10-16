@@ -25,6 +25,7 @@ const EVENTS = read('20261015150000_events.sql')
 const AI_ALLOW = read('20261015160000_ai_allowlist.sql')
 const CLOSE = read('20261015170000_close_signups.sql')
 const TX_UPDATE = read('20261015180000_tx_update_grants.sql')
+const DROP_UNUSED = read('20261015190000_drop_unused.sql')
 
 const SUPABASE_STUB = `
 create schema auth;
@@ -96,7 +97,7 @@ async function freshDb(migrations: string[]) {
 }
 
 beforeAll(async () => {
-  db = await freshDb([INIT, ROLES, SMART, HOOK, RECUR, EXPORT_SVC, ITEMS_IMG, CHILD, PLATFORM, EXPORT_PLATFORM, DROP_OLD_EXPORT, BILLS, REVOKE_ANON, ANNIV, INSTALL, EVENTS, AI_ALLOW, CLOSE, TX_UPDATE])
+  db = await freshDb([INIT, ROLES, SMART, HOOK, RECUR, EXPORT_SVC, ITEMS_IMG, CHILD, PLATFORM, EXPORT_PLATFORM, DROP_OLD_EXPORT, BILLS, REVOKE_ANON, ANNIV, INSTALL, EVENTS, AI_ALLOW, CLOSE, TX_UPDATE, DROP_UNUSED])
 })
 
 describe('가구 만들기와 참여', () => {
@@ -329,12 +330,9 @@ describe('고정지출·통계·정산·내보내기 (20261015040000_recurring_s
     expect(await gen(C, '2026-12-31')).toBe(0)
   })
 
-  it('정산 기록은 같은 가구만 보고 쓴다', async () => {
-    await as(A, `insert into public.settlements (household_id, month, from_role, to_role, amount) values ($1, '2026-10-01', 'wife', 'husband', 19850)`, [hhA])
-    expect((await as<{ amount: string }>(B, `select amount from public.settlements`)).map((r) => Number(r.amount))).toEqual([19850])
-    expect(await as(C, `select * from public.settlements`)).toHaveLength(0)
-    expect(await errorOf(as(C, `insert into public.settlements (household_id, month, amount) values ($1, '2026-11-01', 1)`, [hhA])))
-      .toContain('row-level security')
+  it('정산 표와 분담 비율 칸은 정리돼 없다 (20261015190000_drop_unused)', async () => {
+    expect(await errorOf(as(A, `select * from public.settlements`))).toContain('does not exist')
+    expect(await errorOf(as(A, `select share_ratio from public.households`))).toContain('does not exist')
   })
 
   it('내보내기 주소: 구성원만 만들고, 바꾸면 이전 주소는 끊기며, 내역은 서버 함수(service role)만 읽는다', async () => {
@@ -404,7 +402,7 @@ describe('자녀 (20261015070000_child)', () => {
     await old.exec('set role authenticated')
     await old.query(`select public.create_household('나', 'husband')`)
     await old.exec('reset role')
-    for (const m of [SMART, HOOK, RECUR, EXPORT_SVC, ITEMS_IMG, CHILD, PLATFORM, EXPORT_PLATFORM, DROP_OLD_EXPORT, BILLS, REVOKE_ANON, ANNIV, INSTALL, EVENTS, AI_ALLOW, CLOSE, TX_UPDATE]) await old.exec(m)
+    for (const m of [SMART, HOOK, RECUR, EXPORT_SVC, ITEMS_IMG, CHILD, PLATFORM, EXPORT_PLATFORM, DROP_OLD_EXPORT, BILLS, REVOKE_ANON, ANNIV, INSTALL, EVENTS, AI_ALLOW, CLOSE, TX_UPDATE, DROP_UNUSED]) await old.exec(m)
     const rows = (await old.query<{ n: number }>(`select count(*)::int as n from public.categories where name = '자녀'`)).rows
     expect(rows).toEqual([{ n: 1 }])
   })
