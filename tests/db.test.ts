@@ -22,6 +22,7 @@ const REVOKE_ANON = read('20261015120000_revoke_anon.sql')
 const ANNIV = read('20261015130000_anniversaries.sql')
 const INSTALL = read('20261015140000_installments.sql')
 const EVENTS = read('20261015150000_events.sql')
+const AI_ALLOW = read('20261015160000_ai_allowlist.sql')
 
 const SUPABASE_STUB = `
 create schema auth;
@@ -92,7 +93,7 @@ async function freshDb(migrations: string[]) {
 }
 
 beforeAll(async () => {
-  db = await freshDb([INIT, ROLES, SMART, HOOK, RECUR, EXPORT_SVC, ITEMS_IMG, CHILD, PLATFORM, EXPORT_PLATFORM, DROP_OLD_EXPORT, BILLS, REVOKE_ANON, ANNIV, INSTALL, EVENTS])
+  db = await freshDb([INIT, ROLES, SMART, HOOK, RECUR, EXPORT_SVC, ITEMS_IMG, CHILD, PLATFORM, EXPORT_PLATFORM, DROP_OLD_EXPORT, BILLS, REVOKE_ANON, ANNIV, INSTALL, EVENTS, AI_ALLOW])
 })
 
 describe('가구 만들기와 참여', () => {
@@ -248,15 +249,26 @@ describe('스마트 입력 저장과 JWT household_id (20261015020000_smart_inpu
 })
 
 describe('WIF용 aud 훅 (20261015030000_wif_audience_hook)', () => {
-  const hook = async (aud: unknown) => {
+  const hook = async (aud: unknown, user = A) => {
     await db.exec('set role supabase_auth_admin')
     try {
       const { rows } = await db.query<{ aud: unknown; sub: string }>(
         `select r->'claims'->'aud' as aud, r->'claims'->>'sub' as sub from public.custom_access_token_hook($1::jsonb) r`,
-        [JSON.stringify({ user_id: A, claims: { sub: A, aud, role: 'authenticated' }, authentication_method: 'password' })])
+        [JSON.stringify({ user_id: user, claims: { sub: user, aud, role: 'authenticated' }, authentication_method: 'password' })])
       return rows[0]
     } finally { await db.exec('reset role') }
   }
+
+  it('AI 허용 가구가 아니면 Anthropic 주소를 붙이지 않고, 있던 것도 뺀다 (20261015160000_ai_allowlist)', async () => {
+    // 테스트 DB는 마이그레이션 때 가구가 없어서 허용 목록이 비어 있다
+    expect(await hook('authenticated')).toEqual({ aud: ['authenticated'], sub: A })
+    expect((await hook(['authenticated', 'https://api.anthropic.com'])).aud).toEqual(['authenticated'])
+    await db.query('insert into private.ai_households (household_id) values ($1)', [hhA])
+    expect((await hook('authenticated', C)).aud).toEqual(['authenticated']) // 다른 가구(C)는 여전히 안 붙는다
+    // 로그인 사용자는 허용 목록을 보거나 바꿀 수 없다
+    expect(await errorOf(as(C, `select * from private.ai_households`))).toContain('permission denied')
+    expect(await errorOf(as(C, `insert into private.ai_households (household_id) values ($1)`, [hhC]))).toContain('permission denied')
+  })
 
   it('기존 aud를 유지하고 Anthropic 주소를 한 번만 덧붙인다', async () => {
     expect(await hook('authenticated')).toEqual({ aud: ['authenticated', 'https://api.anthropic.com'], sub: A })
@@ -390,7 +402,7 @@ describe('자녀 (20261015070000_child)', () => {
     await old.exec('set role authenticated')
     await old.query(`select public.create_household('나', 'husband')`)
     await old.exec('reset role')
-    for (const m of [SMART, HOOK, RECUR, EXPORT_SVC, ITEMS_IMG, CHILD, PLATFORM, EXPORT_PLATFORM, DROP_OLD_EXPORT, BILLS, REVOKE_ANON, ANNIV, INSTALL, EVENTS]) await old.exec(m)
+    for (const m of [SMART, HOOK, RECUR, EXPORT_SVC, ITEMS_IMG, CHILD, PLATFORM, EXPORT_PLATFORM, DROP_OLD_EXPORT, BILLS, REVOKE_ANON, ANNIV, INSTALL, EVENTS, AI_ALLOW]) await old.exec(m)
     const rows = (await old.query<{ n: number }>(`select count(*)::int as n from public.categories where name = '자녀'`)).rows
     expect(rows).toEqual([{ n: 1 }])
   })
