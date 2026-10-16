@@ -162,6 +162,7 @@ main.wrap { padding-block: 4px calc(150px + env(safe-area-inset-bottom, 0px)); }
 
 /* 내역 */
 .day-group { display: flex; flex-direction: column; }
+.cal-main { display: contents; } /* 넓은 화면에서만 달력 쪽 한 단으로 묶는다 */
 .day-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; padding: 4px 4px 2px; }
 .day-head h2 { font-size: 17px; font-weight: 700; margin: 0; }
 .day-head .tot { font-size: 13px; font-weight: 600; color: var(--ink-2); text-align: right; }
@@ -215,6 +216,7 @@ main.wrap { padding-block: 4px calc(150px + env(safe-area-inset-bottom, 0px)); }
 .tab svg { width: 24px; height: 24px; stroke-width: 1.75; }
 .tab[aria-current="page"] { color: var(--ink); font-weight: 700; }
 .tab[aria-current="page"] svg { stroke-width: 2.1; }
+.side-record { display: none; } /* 넓은 화면의 세로 메뉴에서만 보인다 */
 
 /* 바닥 시트: 열 때 400ms, 닫을 때 250ms, 손잡이를 끌어 닫는다 */
 .scrim { position: fixed; inset: 0; background: var(--scrim); z-index: 40; opacity: 0; transition: opacity var(--dur-sheet) var(--ease-drawer); }
@@ -235,6 +237,9 @@ main.wrap { padding-block: 4px calc(150px + env(safe-area-inset-bottom, 0px)); }
 .amount small { font-size: 20px; font-weight: 700; letter-spacing: 0; margin-left: 2px; }
 .keypad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
 .keypad button { border: 0; background: var(--oat); border-radius: var(--r-btn); height: 52px; font-size: 22px; font-weight: 600; font-variant-numeric: tabular-nums; }
+/* 내역 입력의 두 묶음: 휴대폰에서는 풀어서 한 줄로 잇고, 넓은 화면에서만 두 단으로 편다 */
+.entry-grid, .entry-col { display: contents; }
+.kbd-hint { display: none; }
 .field { display: flex; flex-direction: column; gap: 6px; }
 .field > label, .field > .lbl { font-size: 14px; color: var(--ink-2); font-weight: 600; }
 .input { border: 1px solid var(--line); background: var(--canvas); border-radius: var(--r-sm); padding: 11px 12px; width: 100%; font-size: 16px; min-height: 46px; }
@@ -426,9 +431,50 @@ select.input { padding: 9px 10px; }
 .soft.swapping > .soft-old { opacity: 0; filter: blur(2px); }
 .soft.swapping > .soft-new { opacity: 1; filter: blur(0); }
 
+/* 넓은 화면(일반 컴퓨터, 가로로 둔 태블릿). Sheet.tsx의 WIDE_SCREEN과 같은 기준.
+   아래 탭은 왼쪽 세로 메뉴, 달력 탭은 달력과 고른 날의 내역을 나란히, 시트는 가운데 창. */
+@media (min-width: 960px) {
+  .app.ledger { max-width: 1200px; display: grid; grid-template-columns: 216px minmax(0, 1fr); grid-template-rows: auto 1fr; column-gap: 40px; padding: 0 24px; }
+  .ledger > .topbar { grid-column: 2; grid-row: 1; }
+  .ledger > main.wrap { grid-column: 2; grid-row: 2; min-width: 0; padding-block: 4px 48px; }
+  .ledger:not([data-tab="cal"]) > main.wrap, .ledger:not([data-tab="cal"]) > .topbar { max-width: 760px; }
+  .month-chart { max-height: 240px; } /* 폭을 따라 커지면 글자까지 커진다. 휴대폰과 비슷한 크기로 묶는다 */
+  .ledger > .fab { display: none; }
+
+  .ledger > .tabbar { grid-column: 1; grid-row: 1 / -1; position: sticky; top: 0; left: auto; bottom: auto; transform: none; width: auto; max-width: none;
+    height: 100dvh; align-self: start; border-top: 0; border-right: 1px solid var(--line); padding: 20px 16px 20px 0; }
+  .ledger > .tabbar .wrap { display: flex; flex-direction: column; gap: 4px; padding: 0; }
+  .ledger .tab { flex-direction: row; justify-content: flex-start; gap: 12px; min-height: 48px; padding: 0 14px; border-radius: var(--r-btn); font-size: 15px; }
+  .ledger .tab[aria-current="page"] { background: var(--oat); }
+  .side-record { display: flex; align-items: center; justify-content: center; gap: 6px; margin-bottom: 16px; }
+  .side-record svg { width: 20px; height: 20px; }
+
+  .cal-view { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 16px 40px; align-items: start; }
+  .cal-main { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+
+  /* 가운데 창: 그림자 없이 뒤 막으로만 띄우고, 짧게 흐려지며 나타난다. 끌어서 닫지 않는다 */
+  .sheet { top: 0; margin: auto; height: -webkit-fit-content; height: fit-content; max-width: 560px; max-height: calc(100dvh - 64px);
+    border-radius: var(--r-lg); padding-bottom: 24px; opacity: 0; transform: translateY(8px);
+    transition: opacity var(--dur-quick) var(--ease-out), transform var(--dur-quick) var(--ease-out); }
+  .sheet.on { opacity: 1; transform: none; }
+  .sheet.wide { max-width: 880px; }
+  .sheet .wrap { padding-left: 24px; padding-right: 24px; }
+  .scrim { transition-duration: var(--dur-quick); }
+  .sheet-grab { cursor: default; touch-action: auto; padding-top: 14px; }
+  .grab { display: none; }
+
+  /* 내역 입력: 왼쪽 금액·키패드, 오른쪽 분류부터 저장까지 */
+  .sheet.wide .entry-grid { display: grid; grid-template-columns: minmax(0, 340px) minmax(0, 1fr); gap: 32px; align-items: start; }
+  .sheet.wide .entry-col { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+  .sheet.wide .kbd-hint { display: block; margin: 0; font-size: 13px; color: var(--ink-2); }
+
+  .toast { bottom: 40px; }
+}
+
 /* 마우스가 있는 기기에서만 올려놓기 효과 */
 @media (hover: hover) and (pointer: fine) {
   .tx:hover, .rc-row:hover, .day:hover { background: var(--oat); }
+  .tab:hover { color: var(--ink); }
   .cal-card .day:hover { background: var(--canvas); }
   .primary:hover:not(:disabled), .fab:hover { filter: brightness(1.12); }
 }

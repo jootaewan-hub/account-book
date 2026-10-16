@@ -167,7 +167,8 @@ function Ledger({ household, meta, userId, email }: {
   const TITLE: Record<Tab, string> = { cal: '우리집', list: '내역', stats: '통계', fixed: '고정 지출', settings: '설정' }
 
   return (
-    <div className="app">
+    // 넓은 화면에서는 아래 탭이 왼쪽 세로 메뉴가 된다 (styles.css 넓은 화면)
+    <div className="app ledger" data-tab={tab}>
       <header className="topbar">
         <div className="wrap">
           <h1 className={tab === 'cal' ? 'brand-mark' : undefined}>{TITLE[tab]}</h1>
@@ -230,6 +231,8 @@ function Ledger({ household, meta, userId, email }: {
 
       <nav className="tabbar" aria-label="화면 전환">
         <div className="wrap">
+          {/* 넓은 화면에서만 보인다. 휴대폰은 오른쪽 아래 기록하기 버튼을 쓴다 */}
+          <button className="primary side-record" onClick={() => setSheet({ open: true, editing: null })}><Plus />기록하기</button>
           <button className="tab" aria-current={tab === 'cal' ? 'page' : undefined} onClick={() => setTab('cal')}><CalendarIcon />달력</button>
           <button className="tab" aria-current={tab === 'list' ? 'page' : undefined} onClick={() => setTab('list')}><ListIcon />내역</button>
           <button className="tab" aria-current={tab === 'stats' ? 'page' : undefined} onClick={() => setTab('stats')}><ChartIcon />통계</button>

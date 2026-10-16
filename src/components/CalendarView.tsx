@@ -68,56 +68,59 @@ export function CalendarView({ ym, today, sel, cur, prev, lookup, annivs, events
   const ratio = hasIncome ? Math.min(1, exp / inc) : 0
 
   return (
-    <section className="view">
-      <div className="hero" aria-live="polite">
-        <p className="hero-label"><Soft value={hasIncome ? `${m}월에 남은 돈` : `${m}월에 쓴 돈`} /></p>
-        <p className={`hero-num num${hasIncome && left < 0 ? ' neg' : ''}`}>
-          <Soft value={hasIncome ? `${left < 0 ? '-' : ''}${won(Math.abs(left))}` : won(exp)} /><small>원</small>
-        </p>
-        {hasIncome && (
-          <div className="spend-bar" role="img" aria-label={`들어온 돈의 ${Math.round((exp / inc) * 100)}%를 썼어요`}>
-            <i style={{ transform: `scaleX(${ratio})` }} />
+    <section className="view cal-view">
+      {/* 넓은 화면에서는 왼쪽 달력, 오른쪽 고른 날의 내역. 휴대폰에서는 이 묶음이 풀려 한 줄로 이어진다 */}
+      <div className="cal-main">
+        <div className="hero" aria-live="polite">
+          <p className="hero-label"><Soft value={hasIncome ? `${m}월에 남은 돈` : `${m}월에 쓴 돈`} /></p>
+          <p className={`hero-num num${hasIncome && left < 0 ? ' neg' : ''}`}>
+            <Soft value={hasIncome ? `${left < 0 ? '-' : ''}${won(Math.abs(left))}` : won(exp)} /><small>원</small>
+          </p>
+          {hasIncome && (
+            <div className="spend-bar" role="img" aria-label={`들어온 돈의 ${Math.round((exp / inc) * 100)}%를 썼어요`}>
+              <i style={{ transform: `scaleX(${ratio})` }} />
+            </div>
+          )}
+          <div className="hero-legend num">
+            <span>쓴 돈 <b><Soft value={won(exp)} /></b></span>
+            <span className="in">들어온 돈 <b><Soft value={won(inc)} /></b></span>
+          </div>
+          {compare && <p className="compare">{compare}</p>}
+        </div>
+
+        <div className="card cal-card">
+          <div className="cal" ref={gridRef}>
+            {DOW.map((d, i) => <div key={d} className={`dow${i === 0 ? ' sun' : i === 6 ? ' sat' : ''}`}>{d}</div>)}
+            {monthGrid(ym).map((date, i) => {
+              if (!date) return <div key={`b${i}`} className="day blank" aria-hidden="true" />
+              const dw = i % 7
+              const t = totals.get(date)
+              const hol = HOLIDAYS[date]
+              const an = annivByDate.get(date)
+              const ev = evByDate.get(date)
+              const cls = ['day', dw === 0 && 'sun', dw === 6 && 'sat', hol && 'hol', an && 'anniv', date === today && 'today', date === sel && 'sel'].filter(Boolean).join(' ')
+              const label = `${m}월 ${dayOf(date)}일${hol ? ` ${hol}` : ''}${an ? ` ${an.map((a) => a.name).join(', ')}` : ''}${ev ? ` 일정 ${ev.map((e) => e.title).join(', ')}` : ''}${t?.expense ? ` 지출 ${won(t.expense)}원` : ''}${t?.income ? ` 수입 ${won(t.income)}원` : ''}`
+              return (
+                <button key={date} className={cls} aria-label={label} aria-pressed={date === sel} onClick={() => onSelect(date)}>
+                  <span className="n num">{dayOf(date)}{an && <span className={`anniv-mark k-${an[0].kind}`}><AnnivIcon kind={an[0].kind} /></span>}{ev && <span className="ev-dot" />}</span>
+                  {t?.income ? <span className="amt inc num">+{compact(t.income)}</span> : null}
+                  {t?.expense ? <span className="amt exp num">{compact(t.expense)}</span> : null}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+
+        {soon.length > 0 && (
+          <div className="anniv-soon" role="group" aria-label="다가오는 기념일">
+            {soon.map((u) => (
+              <button key={u.key} className={`anniv-chip k-${u.kind}`} onClick={() => onJump(u.date)}>
+                {u.kind === 'event' ? <CalendarIcon /> : <AnnivIcon kind={u.kind as Anniversary['kind']} />}<span>{u.name}</span><b className="num">{dLabel(u.days)}</b>
+              </button>
+            ))}
           </div>
         )}
-        <div className="hero-legend num">
-          <span>쓴 돈 <b><Soft value={won(exp)} /></b></span>
-          <span className="in">들어온 돈 <b><Soft value={won(inc)} /></b></span>
-        </div>
-        {compare && <p className="compare">{compare}</p>}
       </div>
-
-      <div className="card cal-card">
-        <div className="cal" ref={gridRef}>
-          {DOW.map((d, i) => <div key={d} className={`dow${i === 0 ? ' sun' : i === 6 ? ' sat' : ''}`}>{d}</div>)}
-          {monthGrid(ym).map((date, i) => {
-            if (!date) return <div key={`b${i}`} className="day blank" aria-hidden="true" />
-            const dw = i % 7
-            const t = totals.get(date)
-            const hol = HOLIDAYS[date]
-            const an = annivByDate.get(date)
-            const ev = evByDate.get(date)
-            const cls = ['day', dw === 0 && 'sun', dw === 6 && 'sat', hol && 'hol', an && 'anniv', date === today && 'today', date === sel && 'sel'].filter(Boolean).join(' ')
-            const label = `${m}월 ${dayOf(date)}일${hol ? ` ${hol}` : ''}${an ? ` ${an.map((a) => a.name).join(', ')}` : ''}${ev ? ` 일정 ${ev.map((e) => e.title).join(', ')}` : ''}${t?.expense ? ` 지출 ${won(t.expense)}원` : ''}${t?.income ? ` 수입 ${won(t.income)}원` : ''}`
-            return (
-              <button key={date} className={cls} aria-label={label} aria-pressed={date === sel} onClick={() => onSelect(date)}>
-                <span className="n num">{dayOf(date)}{an && <span className={`anniv-mark k-${an[0].kind}`}><AnnivIcon kind={an[0].kind} /></span>}{ev && <span className="ev-dot" />}</span>
-                {t?.income ? <span className="amt inc num">+{compact(t.income)}</span> : null}
-                {t?.expense ? <span className="amt exp num">{compact(t.expense)}</span> : null}
-              </button>
-            )
-          })}
-        </div>
-      </div>
-
-      {soon.length > 0 && (
-        <div className="anniv-soon" role="group" aria-label="다가오는 기념일">
-          {soon.map((u) => (
-            <button key={u.key} className={`anniv-chip k-${u.kind}`} onClick={() => onJump(u.date)}>
-              {u.kind === 'event' ? <CalendarIcon /> : <AnnivIcon kind={u.kind as Anniversary['kind']} />}<span>{u.name}</span><b className="num">{dLabel(u.days)}</b>
-            </button>
-          ))}
-        </div>
-      )}
 
       {sel.startsWith(ym) && (
         <div className="day-group">
@@ -147,7 +150,7 @@ export function CalendarView({ ym, today, sel, cur, prev, lookup, annivs, events
           <div className="tx-list">
             {dayTx.length
               ? dayTx.map((t) => <TxRow key={t.id} t={t} lookup={lookup} onClick={() => onEdit(t)} />)
-              : <div className="empty">이 날 기록이 없어요. 오른쪽 아래 기록하기로 추가해 보세요.</div>}
+              : <div className="empty">이 날 기록이 없어요. 기록하기로 추가해 보세요.</div>}
           </div>
         </div>
       )}
