@@ -3,7 +3,6 @@ import { friendlyError, generateRecurring } from '../lib/api'
 import { won } from '../lib/format'
 import { cropImage, fileToJpeg, type PreparedImage } from '../lib/image'
 import { SCOPE_LABEL, SCOPES, type Lookup } from '../lib/lookup'
-import { installmentPlan } from '../lib/recurring'
 import {
   analyze, analyzeBill, analyzeImages, BATCH_SIZE, canSplit, entryDrafts, isProductLine, itemsSum, markRepeats, modelLabel, saveDraft, SmartError,
   type AnalyzeResult, type CheckedBill, type CheckedEntry, type Draft, type DraftContext,
@@ -11,6 +10,7 @@ import {
 import { BillReview } from './BillReview'
 import type { Category, Transaction, TxType } from '../lib/types'
 import { defaultScope } from './EntrySheet'
+import { InstallmentPicker } from './InstallmentPicker'
 import { ItemInfo } from './ItemInfo'
 import { PlatformInput } from './PlatformInput'
 import { Sheet } from './Sheet'
@@ -356,7 +356,13 @@ function DraftCard({ d, categories, onChange }: {
           <input type="date" className="input date-input" value={d.date} onChange={(e) => onChange({ date: e.target.value })} />
         </div>
       </div>
-      {d.type === 'expense' && <InstallmentField d={d} onChange={onChange} />}
+      {d.type === 'expense' && (
+        <InstallmentPicker id={`inst-${d.key}`} amount={d.amount} months={d.installment} split={d.splitInstallment}
+          onChange={(p) => onChange({
+            ...(p.months !== undefined ? { installment: p.months } : {}),
+            ...(p.split !== undefined ? { splitInstallment: p.split } : {}),
+          })} />
+      )}
       {d.memo && <p className="tx-meta">{d.memo}</p>}
       <div className="field">
         <span className="lbl">분류</span>
@@ -393,35 +399,6 @@ function DraftCard({ d, categories, onChange }: {
           {d.items.some((it) => it.photo) && <span className="tx-meta">사진이 잘못 잘렸으면 사진을 눌러 빼세요.</span>}
         </div>
       )}
-    </div>
-  )
-}
-
-const INSTALLMENT_CHOICES = Array.from({ length: 35 }, (_, i) => i + 2) // 2~36개월
-
-/** 일시불·할부 고르기. 할부면 달마다 나눠 넣을지 고른다 */
-function InstallmentField({ d, onChange }: { d: Draft; onChange: (p: Partial<Draft>) => void }) {
-  const n = d.installment
-  const plan = n && d.amount >= n ? installmentPlan(d.amount, n) : null
-  const choices = n && !INSTALLMENT_CHOICES.includes(n) ? [...INSTALLMENT_CHOICES, n] : INSTALLMENT_CHOICES
-  return (
-    <div className="field">
-      <label htmlFor={`inst-${d.key}`}>결제</label>
-      <select id={`inst-${d.key}`} className="input" value={n ?? 1}
-        onChange={(e) => { const v = Number(e.target.value); onChange({ installment: v >= 2 ? v : null }) }}>
-        <option value={1}>일시불</option>
-        {choices.map((m) => <option key={m} value={m}>{m}개월 할부</option>)}
-      </select>
-      {n && plan && (
-        <label className="check">
-          <input type="checkbox" checked={d.splitInstallment} onChange={(e) => onChange({ splitInstallment: e.target.checked })} />
-          <span>
-            달마다 나눠 넣기: 이 날짜에 <b className="num">{won(plan.first)}원</b>, 다음 달부터 {n - 1}번 <b className="num">{won(plan.rest)}원</b>씩
-            (고정 탭의 할부로 날짜가 되면 자동으로 들어가요)
-          </span>
-        </label>
-      )}
-      {n && plan && !d.splitInstallment && <span className="tx-meta">끄면 결제 금액 전체를 이 날짜에 넣어요.</span>}
     </div>
   )
 }

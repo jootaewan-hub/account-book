@@ -1,9 +1,8 @@
 // 문자·사진 분석 결과를 저장할 수 있는 초안으로 바꾸고, Edge Function을 부른다.
 import type { CheckedBill, CheckedEntry } from '../../supabase/functions/extract-entries/extract'
-import { addMonths } from './dates'
+import { canSplitInstallment, createInstallment } from './api'
 import { uploadItemImage } from './itemImages'
 import { DELIVERY_PLATFORMS, normalizePlatform, platformOf } from './platform'
-import { installmentPlan } from './recurring'
 import { sb } from './supabase'
 import type { Category, PaymentMethod, Scope, Transaction, TxType } from './types'
 
@@ -390,23 +389,14 @@ export async function analyzeImages(
  */
 export async function saveDraft(householdId: string, d: Draft, source: 'text' | 'photo'): Promise<boolean> {
   const months = d.type === 'expense' ? d.installment : null
-  const plan = months && d.splitInstallment && d.amount >= months ? installmentPlan(d.amount, months) : null
-  const total = d.amount.toLocaleString('ko-KR')
-  const memo = [months ? (plan ? `할부 1/${months}회, 총 ${total}원` : `${months}개월 할부`) : null, d.memo].filter(Boolean).join(', ') || null
   const title = d.title.trim().slice(0, 60)
-
-  let recurringId: string | null = null
-  if (plan && months) {
-    const ym = d.date.slice(0, 7)
-    const { data, error } = await sb().from('recurring').insert({
-      household_id: householdId, kind: 'installment', type: 'expense', title, amount: plan.rest,
-      day_of_month: Number(d.date.slice(8, 10)), every_months: 1, category_id: d.category_id, payment_method_id: d.payment_method_id,
-      scope: d.scope, start_month: `${addMonths(ym, 1)}-01`, end_month: `${addMonths(ym, months - 1)}-01`, installment_months: months,
-      active: true, memo: `총 ${total}원, ${months}개월 할부`,
-    }).select('id').single()
-    if (error) throw new Error(error.message)
-    recurringId = (data as { id: string }).id
-  }
+  const plan = months && d.splitInstallment && canSplitInstallment(d.amount, months)
+    ? await createInstallment(householdId, {
+      title, total: d.amount, months, date: d.date, category_id: d.category_id, payment_method_id: d.payment_method_id, scope: d.scope,
+    })
+    : null
+  const memo = [plan ? plan.memo : months ? `${months}개월 할부` : null, d.memo].filter(Boolean).join(', ') || null
+  const recurringId = plan?.recurringId ?? null
 
   // 상품 사진을 먼저 올리고 경로를 품목에 붙인다. 사진 올리기가 실패해도 내역은 저장한다
   const paths = await Promise.all(d.items.map((it) =>

@@ -5,6 +5,7 @@ import { SCOPE_LABEL, SCOPES, type Lookup } from '../lib/lookup'
 import { normalizePlatform } from '../lib/platform'
 import type { Category, Scope, Transaction, TxInput, TxType } from '../lib/types'
 import { CameraIcon } from './Icons'
+import { InstallmentPicker } from './InstallmentPicker'
 import { ItemList } from './ItemList'
 import { PlatformInput } from './PlatformInput'
 import { Sheet } from './Sheet'
@@ -16,7 +17,8 @@ interface Props {
   lookup: Lookup
   categories: Category[]
   usage: Map<string, number>
-  onSave: (input: TxInput, id?: string) => Promise<void>
+  /** installment: 새 지출을 할부로 넣을 때 개월 수와 달마다 나눠 넣을지 */
+  onSave: (input: TxInput, id?: string, installment?: { months: number; split: boolean } | null) => Promise<void>
   onDelete: (id: string) => Promise<void>
   onClose: () => void
   /** 문자 붙여넣기·사진·쇼핑 캡처 입력으로 전환 */
@@ -49,6 +51,8 @@ export function EntrySheet({ open, editing, defaultDate, lookup, categories, usa
   const [date, setDate] = useState(defaultDate)
   const [title, setTitle] = useState('')
   const [platform, setPlatform] = useState('')
+  const [months, setMonths] = useState<number | null>(null)
+  const [split, setSplit] = useState(true)
   const [err, setErr] = useState('')
   const [busy, setBusy] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
@@ -56,6 +60,7 @@ export function EntrySheet({ open, editing, defaultDate, lookup, categories, usa
   useEffect(() => {
     if (!open) return
     setErr(''); setBusy(false); setConfirmDelete(false)
+    setMonths(null); setSplit(true)
     if (editing) {
       setType(editing.type)
       setAmount(String(editing.amount))
@@ -107,7 +112,8 @@ export function EntrySheet({ open, editing, defaultDate, lookup, categories, usa
       platform: normalizePlatform(platform),
     }
     try {
-      await onSave(input, editing?.id)
+      const installment = !editing && type === 'expense' && months ? { months, split } : null
+      await onSave(input, editing?.id, installment)
       if (!editing) lsSet(`ab:lastScope:${lookup.me}`, scope)
     } catch (e) {
       setErr(friendlyError(e)); setBusy(false)
@@ -174,6 +180,10 @@ export function EntrySheet({ open, editing, defaultDate, lookup, categories, usa
         <label htmlFor="entry-date">날짜</label>
         <input id="entry-date" type="date" className="input date-input" value={date} onChange={(e) => setDate(e.target.value)} />
       </div>
+      {!editing && type === 'expense' && (
+        <InstallmentPicker id="entry-installment" amount={n} months={months} split={split}
+          onChange={(p) => { if (p.months !== undefined) setMonths(p.months); if (p.split !== undefined) setSplit(p.split) }} />
+      )}
       <div className="field">
         <label htmlFor="entry-title">내용</label>
         <input id="entry-title" className="input" value={title} maxLength={60} placeholder="예: 동네 마트, 물티슈 100매" onChange={(e) => setTitle(e.target.value)} />

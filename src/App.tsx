@@ -15,7 +15,7 @@ import { SettingsView } from './components/SettingsView'
 import { SmartSheet, type SmartMode } from './components/SmartSheet'
 import { StatsView } from './components/StatsView'
 import { useLedgerMeta, useLiveUpdates, useMonthEvents, useMonthTransactions } from './hooks/useLedger'
-import { deleteTransaction, friendlyError, generateRecurring, insertTransaction, updateSpouseRole, updateTransaction } from './lib/api'
+import { deleteTransaction, friendlyError, generateRecurring, insertInstallmentPurchase, insertTransaction, updateSpouseRole, updateTransaction } from './lib/api'
 import { addMonths, parseYM, todayLocal } from './lib/dates'
 import { makeLookup, SCOPE_LABEL } from './lib/lookup'
 import { onUpdateReady, updateReady } from './lib/pwa'
@@ -132,14 +132,18 @@ function Ledger({ household, meta, userId, email }: {
     setSel(next === today.slice(0, 7) ? today : `${next}-01`)
   }
 
-  async function save(input: TxInput, id?: string) {
+  async function save(input: TxInput, id?: string, installment?: { months: number; split: boolean } | null) {
+    let split = false
     if (id) await updateTransaction(id, input)
+    else if (installment) split = await insertInstallmentPurchase(household.id, input, installment.months, installment.split)
     else await insertTransaction(household.id, input)
+    // 지난 날짜에 산 할부면 이미 지난 회차를 바로 넣는다
+    if (split) await generateRecurring(household.id, today).catch(() => 0)
     setSheet({ open: false, editing: null })
     setYm(input.occurred_on.slice(0, 7))
     setSel(input.occurred_on)
     await reload()
-    toast(id ? '수정했어요' : '저장했어요')
+    toast(id ? '수정했어요' : split ? '저장했어요. 할부 남은 회차는 고정 탭의 할부에 넣었어요' : '저장했어요')
   }
 
   async function smartSaved(count: number, lastDate: string, msg?: string) {

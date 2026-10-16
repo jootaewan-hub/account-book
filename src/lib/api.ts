@@ -1,9 +1,10 @@
 import { addMonths, monthRange } from './dates'
 import { removeItemImages } from './itemImages'
+import { installmentPlan } from './recurring'
 import { sb } from './supabase'
 import type {
   Anniversary, AnniversaryInput, CalEvent, EventInput, BillCharge, BillUsage, Category, Household, Member, MonthTotal, PaymentMethod, Recurring, RecurringInput,
-  Spouse, Transaction, TxInput, UtilityBill,
+  Scope, Spouse, Transaction, TxInput, UtilityBill,
 } from './types'
 
 const TX_COLUMNS =
@@ -103,8 +104,51 @@ export async function fetchTwoMonths(householdId: string, ym: string): Promise<T
   return rows.map(withItems)
 }
 
-export async function insertTransaction(householdId: string, input: TxInput): Promise<void> {
-  check(await sb().from('transactions').insert({ ...input, household_id: householdId, source: 'manual' }))
+export async function insertTransaction(householdId: string, input: TxInput, memo: string | null = null): Promise<void> {
+  check(await sb().from('transactions').insert({ ...input, memo, household_id: householdId, source: 'manual' }))
+}
+
+/** 할부를 달마다 나눠 넣을 수 있는지 (한 회차가 1원 이상) */
+export const canSplitInstallment = (total: number, months: number) => months >= 2 && total >= months
+
+/**
+ * 할부를 달마다 나눌 때: 남은 회차(다음 달 ~ 마지막 달)를 반복 항목(할부)으로 등록하고
+ * 첫 회차 금액·메모와 등록한 항목 id를 돌려준다. 첫 회차 내역은 부르는 쪽이 넣는다.
+ */
+export async function createInstallment(householdId: string, p: {
+  title: string; total: number; months: number; date: string
+  category_id: string | null; payment_method_id: string | null; scope: Scope
+}): Promise<{ recurringId: string; first: number; memo: string }> {
+  const { first, rest } = installmentPlan(p.total, p.months)
+  const total = p.total.toLocaleString('ko-KR')
+  const ym = p.date.slice(0, 7)
+  const row = check(await sb().from('recurring').insert({
+    household_id: householdId, kind: 'installment', type: 'expense', title: p.title, amount: rest,
+    day_of_month: Number(p.date.slice(8, 10)), every_months: 1, category_id: p.category_id, payment_method_id: p.payment_method_id,
+    scope: p.scope, start_month: `${addMonths(ym, 1)}-01`, end_month: `${addMonths(ym, p.months - 1)}-01`, installment_months: p.months,
+    active: true, memo: `총 ${total}원, ${p.months}개월 할부`,
+  }).select('id').single()) as { id: string }
+  return { recurringId: row.id, first, memo: `할부 1/${p.months}회, 총 ${total}원` }
+}
+
+/**
+ * 직접 입력한 할부 지출. split이면 첫 회차만 이 날짜의 내역으로 넣고 남은 회차는 고정 탭의 할부로,
+ * 아니면 결제 금액 전체를 넣고 메모에 할부 개월을 적는다. 나눠 넣었으면 true.
+ */
+export async function insertInstallmentPurchase(householdId: string, input: TxInput, months: number, split: boolean): Promise<boolean> {
+  if (!split || !canSplitInstallment(input.amount, months)) {
+    await insertTransaction(householdId, input, `${months}개월 할부`)
+    return false
+  }
+  const plan = await createInstallment(householdId, { ...input, total: input.amount, months, date: input.occurred_on })
+  try {
+    await insertTransaction(householdId, { ...input, amount: plan.first }, plan.memo)
+  } catch (e) {
+    // 첫 회차를 못 넣었으면 할부 항목도 지워 둘이 어긋나지 않게 한다
+    await sb().from('recurring').delete().eq('id', plan.recurringId)
+    throw e
+  }
+  return true
 }
 
 export async function updateTransaction(id: string, input: TxInput): Promise<void> {
