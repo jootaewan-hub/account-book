@@ -44,3 +44,26 @@ export function lunarToSolar(y: number, m: number, d: number): string | null {
   const len = bits[m - 1 + (leap && m > leap ? 1 : 0)] === '1' ? 30 : 29
   return shift(start, offset + Math.min(d, len) - 1)
 }
+
+/** 양력 날짜의 음력 월·일 (윤달이면 leap). 표 밖이면 null */
+export function solarToLunar(date: string): { year: number; month: number; day: number; leap: boolean } | null {
+  const y = Number(date.slice(0, 4))
+  for (const ly of [y, y - 1]) {
+    const row = YEARS[ly]
+    if (!row) continue
+    const [start, leap, bits] = row
+    let offset = Math.round((Date.parse(date) - Date.parse(start)) / 86_400_000)
+    if (offset < 0) continue
+    for (let i = 0; i < bits.length; i++) {
+      const len = bits[i] === '1' ? 30 : 29
+      if (offset < len) {
+        // i번째 달: 윤달이 있으면 윤달 뒤로 한 칸씩 밀린다
+        const isLeap = leap > 0 && i === leap
+        const month = leap > 0 && i >= leap ? i : i + 1
+        return { year: ly, month, day: offset + 1, leap: isLeap }
+      }
+      offset -= len
+    }
+  }
+  return null
+}

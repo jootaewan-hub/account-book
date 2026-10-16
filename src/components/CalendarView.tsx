@@ -1,12 +1,13 @@
 import { useMemo } from 'react'
-import { anniversariesInMonth, dLabel, upcomingAnniversaries } from '../lib/anniversaries'
+import { anniversariesInMonth, daysBetween, dLabel, upcomingAnniversaries } from '../lib/anniversaries'
 import { DOW, dayOf, formatDateLong, monthGrid, parseYM } from '../lib/dates'
 import { compact, won } from '../lib/format'
 import { HOLIDAYS } from '../lib/holidays'
 import { dailyTotals, samePeriodDiff, sumType } from '../lib/ledger'
 import type { Lookup } from '../lib/lookup'
-import type { Anniversary, Transaction } from '../lib/types'
-import { AnnivIcon } from './Icons'
+import type { Anniversary, CalEvent, Transaction } from '../lib/types'
+import { AnnivIcon, CalendarIcon, Plus } from './Icons'
+import type { PlanTarget } from './PlanSheet'
 import { Soft, useSlideIn } from './Motion'
 import { TxRow } from './TxRow'
 
@@ -18,15 +19,23 @@ interface Props {
   prev: Transaction[]
   lookup: Lookup
   annivs: Anniversary[]
+  events: CalEvent[]
   onSelect: (date: string) => void
+  /** 일정·기념일 넣기·고치기 시트를 연다 */
+  onPlan: (t: PlanTarget) => void
   /** 다른 달의 날짜로 옮겨 가서 고른다 (다가오는 기념일) */
   onJump: (date: string) => void
   onEdit: (t: Transaction) => void
 }
 
-export function CalendarView({ ym, today, sel, cur, prev, lookup, annivs, onSelect, onJump, onEdit }: Props) {
+export function CalendarView({ ym, today, sel, cur, prev, lookup, annivs, events, onSelect, onPlan, onJump, onEdit }: Props) {
   const totals = useMemo(() => dailyTotals(cur), [cur])
   const annivByDate = useMemo(() => anniversariesInMonth(annivs, ym), [annivs, ym])
+  const evByDate = useMemo(() => {
+    const m = new Map<string, CalEvent[]>()
+    for (const e of events) m.set(e.date, [...(m.get(e.date) ?? []), e])
+    return m
+  }, [events])
   const inc = sumType(cur, 'income')
   const exp = sumType(cur, 'expense')
   const thisMonth = today.slice(0, 7)
@@ -45,8 +54,12 @@ export function CalendarView({ ym, today, sel, cur, prev, lookup, annivs, onSele
   const { m } = parseYM(ym)
   const dayTx = cur.filter((t) => t.occurred_on === sel)
   const dayAnniv = annivByDate.get(sel) ?? []
-  // 이번 달을 볼 때만, 30일 안에 오는 기념일 세 개까지
-  const soon = ym === thisMonth ? upcomingAnniversaries(annivs, today).filter((u) => u.days <= 30).slice(0, 3) : []
+  const dayEvents = evByDate.get(sel) ?? []
+  // 이번 달을 볼 때만, 30일 안에 오는 기념일·일정 네 개까지 (가까운 순서)
+  const soon = ym !== thisMonth ? [] : [
+    ...upcomingAnniversaries(annivs, today).map((u) => ({ key: u.a.id, kind: u.a.kind as string, name: u.a.name, date: u.date, days: u.days })),
+    ...events.filter((e) => e.date >= today).map((e) => ({ key: e.id, kind: 'event', name: e.title, date: e.date, days: daysBetween(today, e.date) })),
+  ].filter((x) => x.days <= 30).sort((a, b) => a.days - b.days || a.name.localeCompare(b.name)).slice(0, 4)
   const de = sumType(dayTx, 'expense')
   const di = sumType(dayTx, 'income')
   // 들어온 돈이 없는 달은 남은 돈 대신 쓴 돈을 크게 보여 준다
@@ -82,11 +95,12 @@ export function CalendarView({ ym, today, sel, cur, prev, lookup, annivs, onSele
             const t = totals.get(date)
             const hol = HOLIDAYS[date]
             const an = annivByDate.get(date)
+            const ev = evByDate.get(date)
             const cls = ['day', dw === 0 && 'sun', dw === 6 && 'sat', hol && 'hol', an && 'anniv', date === today && 'today', date === sel && 'sel'].filter(Boolean).join(' ')
-            const label = `${m}월 ${dayOf(date)}일${hol ? ` ${hol}` : ''}${an ? ` ${an.map((a) => a.name).join(', ')}` : ''}${t?.expense ? ` 지출 ${won(t.expense)}원` : ''}${t?.income ? ` 수입 ${won(t.income)}원` : ''}`
+            const label = `${m}월 ${dayOf(date)}일${hol ? ` ${hol}` : ''}${an ? ` ${an.map((a) => a.name).join(', ')}` : ''}${ev ? ` 일정 ${ev.map((e) => e.title).join(', ')}` : ''}${t?.expense ? ` 지출 ${won(t.expense)}원` : ''}${t?.income ? ` 수입 ${won(t.income)}원` : ''}`
             return (
               <button key={date} className={cls} aria-label={label} aria-pressed={date === sel} onClick={() => onSelect(date)}>
-                <span className="n num">{dayOf(date)}{an && <span className={`anniv-mark k-${an[0].kind}`}><AnnivIcon kind={an[0].kind} /></span>}</span>
+                <span className="n num">{dayOf(date)}{an && <span className={`anniv-mark k-${an[0].kind}`}><AnnivIcon kind={an[0].kind} /></span>}{ev && <span className="ev-dot" />}</span>
                 {t?.income ? <span className="amt inc num">+{compact(t.income)}</span> : null}
                 {t?.expense ? <span className="amt exp num">{compact(t.expense)}</span> : null}
               </button>
@@ -98,8 +112,8 @@ export function CalendarView({ ym, today, sel, cur, prev, lookup, annivs, onSele
       {soon.length > 0 && (
         <div className="anniv-soon" role="group" aria-label="다가오는 기념일">
           {soon.map((u) => (
-            <button key={u.a.id} className={`anniv-chip k-${u.a.kind}`} onClick={() => onJump(u.date)}>
-              <AnnivIcon kind={u.a.kind} /><span>{u.a.name}</span><b className="num">{dLabel(u.days)}</b>
+            <button key={u.key} className={`anniv-chip k-${u.kind}`} onClick={() => onJump(u.date)}>
+              {u.kind === 'event' ? <CalendarIcon /> : <AnnivIcon kind={u.kind as Anniversary['kind']} />}<span>{u.name}</span><b className="num">{dLabel(u.days)}</b>
             </button>
           ))}
         </div>
@@ -115,15 +129,21 @@ export function CalendarView({ ym, today, sel, cur, prev, lookup, annivs, onSele
               {di > 0 && <>{won(di)}원 들어왔어요</>}
             </div>
           </div>
-          {dayAnniv.length > 0 && (
+          {(dayAnniv.length > 0 || dayEvents.length > 0) && (
             <div className="anniv-list">
               {dayAnniv.map((a) => (
-                <div key={a.id} className={`anniv-row k-${a.kind}`}>
+                <button key={a.id} className={`anniv-row k-${a.kind}`} onClick={() => onPlan({ kind: 'anniv', anniv: a })}>
                   <AnnivIcon kind={a.kind} /><b>{a.name}</b>{a.lunar && <span>음력 {a.month}월 {a.day}일</span>}
-                </div>
+                </button>
+              ))}
+              {dayEvents.map((e) => (
+                <button key={e.id} className="anniv-row k-event" onClick={() => onPlan({ kind: 'event', event: e })}>
+                  <CalendarIcon /><b>{e.title}</b><span className="num">{e.time ?? '하루 종일'}</span>
+                </button>
               ))}
             </div>
           )}
+          <button className="day-add" onClick={() => onPlan({ kind: 'new', date: sel })}><Plus />일정·기념일 넣기</button>
           <div className="tx-list">
             {dayTx.length
               ? dayTx.map((t) => <TxRow key={t.id} t={t} lookup={lookup} onClick={() => onEdit(t)} />)

@@ -2,7 +2,7 @@ import { addMonths, monthRange } from './dates'
 import { removeItemImages } from './itemImages'
 import { sb } from './supabase'
 import type {
-  Anniversary, AnniversaryInput, BillCharge, BillUsage, Category, Household, Member, MonthTotal, PaymentMethod, Recurring, RecurringInput,
+  Anniversary, AnniversaryInput, CalEvent, EventInput, BillCharge, BillUsage, Category, Household, Member, MonthTotal, PaymentMethod, Recurring, RecurringInput,
   Spouse, Transaction, TxInput, UtilityBill,
 } from './types'
 
@@ -65,6 +65,25 @@ export async function updateAnniversary(id: string, a: AnniversaryInput): Promis
 
 export async function deleteAnniversary(id: string): Promise<void> {
   check(await sb().from('anniversaries').delete().eq('id', id))
+}
+
+/** from~to(포함) 사이의 일정. 시간은 HH:MM으로 줄인다 */
+export async function fetchEvents(householdId: string, from: string, to: string): Promise<CalEvent[]> {
+  const rows = check(await sb().from('events').select('id, household_id, date, time, title, memo')
+    .eq('household_id', householdId).gte('date', from).lte('date', to).order('date').order('time', { nullsFirst: true })) as CalEvent[]
+  return rows.map((e) => ({ ...e, time: e.time ? e.time.slice(0, 5) : null }))
+}
+
+export async function insertEvent(householdId: string, e: EventInput): Promise<void> {
+  check(await sb().from('events').insert({ ...e, household_id: householdId }))
+}
+
+export async function updateEvent(id: string, e: EventInput): Promise<void> {
+  check(await sb().from('events').update(e).eq('id', id))
+}
+
+export async function deleteEvent(id: string): Promise<void> {
+  check(await sb().from('events').delete().eq('id', id))
 }
 
 /** 보고 있는 달과 그 전달의 내역 (전월 비교용) */

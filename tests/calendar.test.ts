@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { anniversariesInMonth, nextOccurrence, occurrencesIn, upcomingAnniversaries } from '../src/lib/anniversaries'
 import { electionDay, HOLIDAYS } from '../src/lib/holidays'
-import { lunarToSolar } from '../src/lib/lunar'
+import { lunarToSolar, solarToLunar } from '../src/lib/lunar'
 
 const year = (y: number) => Object.fromEntries(Object.entries(HOLIDAYS).filter(([d]) => d.startsWith(`${y}-`)))
 
@@ -56,6 +56,15 @@ describe('음력 변환', () => {
     expect(lunarToSolar(2028, 8, 15)).toBe('2028-10-03')
     expect(lunarToSolar(2028, 6, 1)).toBe('2028-07-22') // 2028년은 윤5월 뒤
     expect(lunarToSolar(2024, 1, 1)).toBeNull() // 표 밖
+  })
+
+  it('양력 → 음력 (윤달 표시 포함, 표 밖은 null)', () => {
+    expect(solarToLunar('2027-02-07')).toEqual({ year: 2027, month: 1, day: 1, leap: false })
+    expect(solarToLunar('2027-02-06')).toMatchObject({ year: 2026, month: 12, day: 30 })
+    expect(solarToLunar('2028-07-22')).toEqual({ year: 2028, month: 6, day: 1, leap: false })
+    expect(solarToLunar(lunarToSolar(2028, 5, 29)!)).toMatchObject({ month: 5, day: 29, leap: false })
+    expect(solarToLunar('2028-06-23')).toMatchObject({ month: 5, leap: true }) // 2028년 윤5월
+    expect(solarToLunar('2024-12-01')).toBeNull()
   })
 
   it('29일까지인 달의 30일은 그 달 마지막 날로 본다', () => {

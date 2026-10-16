@@ -158,3 +158,16 @@ export interface Anniversary {
 }
 
 export type AnniversaryInput = Pick<Anniversary, 'name' | 'kind' | 'lunar' | 'month' | 'day'>
+
+/** 일정: 한 번 있는 일 (병원 예약, 모임 등) */
+export interface CalEvent {
+  id: string
+  household_id: string
+  date: string // YYYY-MM-DD
+  /** HH:MM, 하루 종일이면 null */
+  time: string | null
+  title: string
+  memo: string | null
+}
+
+export type EventInput = Pick<CalEvent, 'date' | 'time' | 'title' | 'memo'>

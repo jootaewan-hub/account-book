@@ -6,6 +6,7 @@ import { ExportCard } from './components/ExportCard'
 import { CalendarIcon, ChartIcon, ChevronLeft, ChevronRight, GearIcon, ListIcon, Plus, RepeatIcon } from './components/Icons'
 import { ListView } from './components/ListView'
 import { Soft, Toast } from './components/Motion'
+import { PlanSheet, type PlanTarget } from './components/PlanSheet'
 import { PlatformDatalist } from './components/PlatformInput'
 import { Login, NewPassword } from './components/Login'
 import { Onboarding } from './components/Onboarding'
@@ -13,7 +14,7 @@ import { RecurringView } from './components/RecurringView'
 import { SettingsView } from './components/SettingsView'
 import { SmartSheet, type SmartMode } from './components/SmartSheet'
 import { StatsView } from './components/StatsView'
-import { useLedgerMeta, useLiveUpdates, useMonthTransactions } from './hooks/useLedger'
+import { useLedgerMeta, useLiveUpdates, useMonthEvents, useMonthTransactions } from './hooks/useLedger'
 import { deleteTransaction, friendlyError, generateRecurring, insertTransaction, updateSpouseRole, updateTransaction } from './lib/api'
 import { addMonths, parseYM, todayLocal } from './lib/dates'
 import { makeLookup, SCOPE_LABEL } from './lib/lookup'
@@ -87,7 +88,9 @@ function Ledger({ household, meta, userId, email }: {
   const [toastMsg, setToastMsg] = useState('')
 
   const { txs, error, reload } = useMonthTransactions(household.id, ym)
-  useLiveUpdates(household.id, reload, meta.reload)
+  const { events, reload: reloadEvents } = useMonthEvents(household.id, ym)
+  const [plan, setPlan] = useState<PlanTarget | null>(null)
+  useLiveUpdates(household.id, reload, meta.reload, reloadEvents)
 
   // 자정이 지나 앱을 다시 열면 '오늘'을 갱신
   useEffect(() => {
@@ -195,8 +198,8 @@ function Ledger({ household, meta, userId, email }: {
           </div>
         )}
         {tab === 'cal' && (
-          <CalendarView ym={ym} today={today} sel={sel} cur={cur} prev={prev} lookup={lookup} annivs={meta.anniversaries}
-            onSelect={setSel} onJump={(d) => { setYm(d.slice(0, 7)); setSel(d) }} onEdit={(t) => setSheet({ open: true, editing: t })} />
+          <CalendarView ym={ym} today={today} sel={sel} cur={cur} prev={prev} lookup={lookup} annivs={meta.anniversaries} events={events}
+            onSelect={setSel} onPlan={setPlan} onJump={(d) => { setYm(d.slice(0, 7)); setSel(d) }} onEdit={(t) => setSheet({ open: true, editing: t })} />
         )}
         {tab === 'list' && <ListView cur={cur} lookup={lookup} onEdit={(t) => setSheet({ open: true, editing: t })} />}
         {tab === 'stats' && (
@@ -240,6 +243,9 @@ function Ledger({ household, meta, userId, email }: {
         lookup={lookup} categories={activeCats} existing={txs}
         onSaved={smartSaved} onClose={() => setSmart((s) => ({ ...s, open: false }))}
         onManual={() => { setSmart((s) => ({ ...s, open: false })); setSheet({ open: true, editing: null }) }} />
+
+      <PlanSheet target={plan} householdId={household.id} today={today} onEventsChanged={reloadEvents}
+        onAnnivsChanged={meta.reload} onClose={() => setPlan(null)} toast={toast} />
 
       <Toast msg={toastMsg} />
     </div>

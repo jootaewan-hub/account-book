@@ -21,6 +21,7 @@ const BILLS = read('20261015110000_utility_bills.sql')
 const REVOKE_ANON = read('20261015120000_revoke_anon.sql')
 const ANNIV = read('20261015130000_anniversaries.sql')
 const INSTALL = read('20261015140000_installments.sql')
+const EVENTS = read('20261015150000_events.sql')
 
 const SUPABASE_STUB = `
 create schema auth;
@@ -91,7 +92,7 @@ async function freshDb(migrations: string[]) {
 }
 
 beforeAll(async () => {
-  db = await freshDb([INIT, ROLES, SMART, HOOK, RECUR, EXPORT_SVC, ITEMS_IMG, CHILD, PLATFORM, EXPORT_PLATFORM, DROP_OLD_EXPORT, BILLS, REVOKE_ANON, ANNIV, INSTALL])
+  db = await freshDb([INIT, ROLES, SMART, HOOK, RECUR, EXPORT_SVC, ITEMS_IMG, CHILD, PLATFORM, EXPORT_PLATFORM, DROP_OLD_EXPORT, BILLS, REVOKE_ANON, ANNIV, INSTALL, EVENTS])
 })
 
 describe('가구 만들기와 참여', () => {
@@ -389,7 +390,7 @@ describe('자녀 (20261015070000_child)', () => {
     await old.exec('set role authenticated')
     await old.query(`select public.create_household('나', 'husband')`)
     await old.exec('reset role')
-    for (const m of [SMART, HOOK, RECUR, EXPORT_SVC, ITEMS_IMG, CHILD, PLATFORM, EXPORT_PLATFORM, DROP_OLD_EXPORT, BILLS, REVOKE_ANON, ANNIV, INSTALL]) await old.exec(m)
+    for (const m of [SMART, HOOK, RECUR, EXPORT_SVC, ITEMS_IMG, CHILD, PLATFORM, EXPORT_PLATFORM, DROP_OLD_EXPORT, BILLS, REVOKE_ANON, ANNIV, INSTALL, EVENTS]) await old.exec(m)
     const rows = (await old.query<{ n: number }>(`select count(*)::int as n from public.categories where name = '자녀'`)).rows
     expect(rows).toEqual([{ n: 1 }])
   })
@@ -529,5 +530,22 @@ describe('할부 (20261015140000_installments)', () => {
       .toContain('recurring_installment_check')
     expect(await errorOf(as(C, `insert into public.recurring (household_id, kind, title, amount, day_of_month, start_month, end_month, installment_months) values ($1, 'fixed', 'x', 1, 1, '2027-01-01', '2027-03-01', 3)`, [hhC])))
       .toContain('recurring_installment_check')
+  })
+})
+
+describe('일정 (20261015150000_events)', () => {
+  it('같은 가구만 보고 쓰며, 시간은 없어도 되고, 제목은 1~40자', async () => {
+    await as(A, `insert into public.events (household_id, date, time, title) values ($1, '2026-10-20', '14:30', '치과 예약')`, [hhA])
+    await as(B, `insert into public.events (household_id, date, title, memo) values ($1, '2026-10-24', '친구 결혼식', '축의금')`, [hhA])
+    const rows = await as<{ d: string; t: string | null; title: string }>(B,
+      `select to_char(date, 'YYYY-MM-DD') as d, to_char(time, 'HH24:MI') as t, title from public.events order by date`)
+    expect(rows).toEqual([{ d: '2026-10-20', t: '14:30', title: '치과 예약' }, { d: '2026-10-24', t: null, title: '친구 결혼식' }])
+    expect(await as(C, `select * from public.events`)).toHaveLength(0)
+    expect(await errorOf(as(null, `select * from public.events`))).toContain('permission denied')
+    expect(await errorOf(as(C, `insert into public.events (household_id, date, title) values ($1, '2026-10-20', 'x')`, [hhA]))).toContain('row-level security')
+    expect(await errorOf(as(A, `insert into public.events (household_id, date, title) values ($1, '2026-10-20', ' ')`, [hhA]))).toContain('check')
+    await as(B, `update public.events set time = null where title = '치과 예약'`)
+    await as(A, `delete from public.events where title = '친구 결혼식'`)
+    expect((await as<{ title: string; time: string | null }>(A, `select title, time from public.events`))).toEqual([{ title: '치과 예약', time: null }])
   })
 })
