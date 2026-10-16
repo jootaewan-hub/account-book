@@ -24,6 +24,7 @@ const INSTALL = read('20261015140000_installments.sql')
 const EVENTS = read('20261015150000_events.sql')
 const AI_ALLOW = read('20261015160000_ai_allowlist.sql')
 const CLOSE = read('20261015170000_close_signups.sql')
+const TX_UPDATE = read('20261015180000_tx_update_grants.sql')
 
 const SUPABASE_STUB = `
 create schema auth;
@@ -95,7 +96,7 @@ async function freshDb(migrations: string[]) {
 }
 
 beforeAll(async () => {
-  db = await freshDb([INIT, ROLES, SMART, HOOK, RECUR, EXPORT_SVC, ITEMS_IMG, CHILD, PLATFORM, EXPORT_PLATFORM, DROP_OLD_EXPORT, BILLS, REVOKE_ANON, ANNIV, INSTALL, EVENTS, AI_ALLOW, CLOSE])
+  db = await freshDb([INIT, ROLES, SMART, HOOK, RECUR, EXPORT_SVC, ITEMS_IMG, CHILD, PLATFORM, EXPORT_PLATFORM, DROP_OLD_EXPORT, BILLS, REVOKE_ANON, ANNIV, INSTALL, EVENTS, AI_ALLOW, CLOSE, TX_UPDATE])
 })
 
 describe('가구 만들기와 참여', () => {
@@ -404,7 +405,7 @@ describe('자녀 (20261015070000_child)', () => {
     await old.exec('set role authenticated')
     await old.query(`select public.create_household('나', 'husband')`)
     await old.exec('reset role')
-    for (const m of [SMART, HOOK, RECUR, EXPORT_SVC, ITEMS_IMG, CHILD, PLATFORM, EXPORT_PLATFORM, DROP_OLD_EXPORT, BILLS, REVOKE_ANON, ANNIV, INSTALL, EVENTS, AI_ALLOW, CLOSE]) await old.exec(m)
+    for (const m of [SMART, HOOK, RECUR, EXPORT_SVC, ITEMS_IMG, CHILD, PLATFORM, EXPORT_PLATFORM, DROP_OLD_EXPORT, BILLS, REVOKE_ANON, ANNIV, INSTALL, EVENTS, AI_ALLOW, CLOSE, TX_UPDATE]) await old.exec(m)
     const rows = (await old.query<{ n: number }>(`select count(*)::int as n from public.categories where name = '자녀'`)).rows
     expect(rows).toEqual([{ n: 1 }])
   })
@@ -586,5 +587,44 @@ describe('새 가입 막기 (20261015170000_close_signups)', () => {
     await db.exec(`update private.signup_gate set open = false`)
     expect(await errorOf(db.query(`insert into auth.users (id, email) values ($1, 'e@x')`, [E]))).toContain('signups_closed')
     await db.query(`delete from auth.users where id = $1`, [D])
+  })
+})
+
+describe('내역 고치기 (20261015180000_tx_update_grants)', () => {
+  const addTx = (uid: string, hh: string, title: string) =>
+    as<{ id: string }>(uid,
+      `insert into public.transactions (household_id, type, occurred_on, amount, title, scope) values ($1, 'expense', '2026-10-15', 1000, $2, 'shared') returning id`,
+      [hh, title]).then((r) => r[0].id)
+  const addRecurring = (uid: string, hh: string) =>
+    as<{ id: string }>(uid,
+      `insert into public.recurring (household_id, kind, title, amount, day_of_month, start_month) values ($1, 'fixed', '관리비', 200000, 25, '2026-10-01') returning id`,
+      [hh]).then((r) => r[0].id)
+
+  it('앱이 보내는 칸(플랫폼 포함)을 한 번에 고친다 — 배우자도', async () => {
+    const id = await addTx(A, hhA, '고칠 내역')
+    await as(B,
+      `update public.transactions set type = 'expense', occurred_on = '2026-10-16', amount = 2000, title = '고친 내역',
+         category_id = null, payment_method_id = null, scope = 'wife', platform = '쿠팡' where id = $1`, [id])
+    expect(await as(A,
+      `select to_char(occurred_on, 'YYYY-MM-DD') as d, amount::int as amount, title, scope, platform from public.transactions where id = $1`, [id]))
+      .toEqual([{ d: '2026-10-16', amount: 2000, title: '고친 내역', scope: 'wife', platform: '쿠팡' }])
+  })
+
+  it('관리비 고지서를 다시 저장하면 기존 내역을 같은 가구의 고정지출에 잇는다', async () => {
+    const rec = await addRecurring(A, hhA)
+    const tx = await addTx(A, hhA, '관리비')
+    await as(A, `update public.transactions set recurring_id = $1, recurring_month = '2026-10-01', memo = '관리비 고지서 10월분' where id = $2`, [rec, tx])
+    expect(await as(B, `select recurring_id, to_char(recurring_month, 'YYYY-MM-DD') as m from public.transactions where id = $1`, [tx]))
+      .toEqual([{ recurring_id: rec, m: '2026-10-01' }])
+  })
+
+  it('그래도 다른 가구의 고정지출에 잇거나, 다른 가구 내역을 고치거나, 작성자를 바꿀 수는 없다', async () => {
+    const cRec = await addRecurring(C, hhC)
+    const tx = await addTx(A, hhA, '남의 고정지출')
+    expect(await errorOf(as(A, `update public.transactions set recurring_id = $1, recurring_month = '2026-11-01' where id = $2`, [cRec, tx])))
+      .toContain('foreign key')
+    await as(C, `update public.transactions set platform = '다른 가구' where id = $1`, [tx])  // RLS로 0행
+    expect(await as(A, `select platform from public.transactions where id = $1`, [tx])).toEqual([{ platform: null }])
+    expect(await errorOf(as(A, `update public.transactions set created_by = $1 where id = $2`, [B, tx]))).toContain('permission denied')
   })
 })
