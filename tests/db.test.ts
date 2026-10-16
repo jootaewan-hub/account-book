@@ -26,6 +26,7 @@ const AI_ALLOW = read('20261015160000_ai_allowlist.sql')
 const CLOSE = read('20261015170000_close_signups.sql')
 const TX_UPDATE = read('20261015180000_tx_update_grants.sql')
 const DROP_UNUSED = read('20261015190000_drop_unused.sql')
+const DETAILED_CATS = read('20261015200000_detailed_categories.sql')
 
 const SUPABASE_STUB = `
 create schema auth;
@@ -97,7 +98,7 @@ async function freshDb(migrations: string[]) {
 }
 
 beforeAll(async () => {
-  db = await freshDb([INIT, ROLES, SMART, HOOK, RECUR, EXPORT_SVC, ITEMS_IMG, CHILD, PLATFORM, EXPORT_PLATFORM, DROP_OLD_EXPORT, BILLS, REVOKE_ANON, ANNIV, INSTALL, EVENTS, AI_ALLOW, CLOSE, TX_UPDATE, DROP_UNUSED])
+  db = await freshDb([INIT, ROLES, SMART, HOOK, RECUR, EXPORT_SVC, ITEMS_IMG, CHILD, PLATFORM, EXPORT_PLATFORM, DROP_OLD_EXPORT, BILLS, REVOKE_ANON, ANNIV, INSTALL, EVENTS, AI_ALLOW, CLOSE, TX_UPDATE, DROP_UNUSED, DETAILED_CATS])
 })
 
 describe('가구 만들기와 참여', () => {
@@ -107,9 +108,10 @@ describe('가구 만들기와 참여', () => {
     const [hh] = await as<{ invite_code: string }>(A, `select invite_code from public.households`)
     expect(hh.invite_code).toMatch(/^[A-HJ-NP-Z2-9]{8}$/)
     const cats = await as(A, `select type, name from public.categories order by type, sort`)
-    expect(cats.filter((c) => c.type === 'expense')).toHaveLength(16)
+    expect(cats.filter((c) => c.type === 'expense')).toHaveLength(33)
     expect(cats.some((c) => c.name === '자녀')).toBe(true)
-    expect(cats.filter((c) => c.type === 'income')).toHaveLength(4)
+    expect(cats.some((c) => c.name === '욕실·청소')).toBe(true)
+    expect(cats.filter((c) => c.type === 'income')).toHaveLength(6)
     const methods = await as<{ name: string; owner: string }>(A, `select name, owner from public.payment_methods order by sort`)
     expect(methods).toEqual([
       { name: '생활비 통장', owner: 'shared' },
@@ -402,7 +404,7 @@ describe('자녀 (20261015070000_child)', () => {
     await old.exec('set role authenticated')
     await old.query(`select public.create_household('나', 'husband')`)
     await old.exec('reset role')
-    for (const m of [SMART, HOOK, RECUR, EXPORT_SVC, ITEMS_IMG, CHILD, PLATFORM, EXPORT_PLATFORM, DROP_OLD_EXPORT, BILLS, REVOKE_ANON, ANNIV, INSTALL, EVENTS, AI_ALLOW, CLOSE, TX_UPDATE, DROP_UNUSED]) await old.exec(m)
+    for (const m of [SMART, HOOK, RECUR, EXPORT_SVC, ITEMS_IMG, CHILD, PLATFORM, EXPORT_PLATFORM, DROP_OLD_EXPORT, BILLS, REVOKE_ANON, ANNIV, INSTALL, EVENTS, AI_ALLOW, CLOSE, TX_UPDATE, DROP_UNUSED, DETAILED_CATS]) await old.exec(m)
     const rows = (await old.query<{ n: number }>(`select count(*)::int as n from public.categories where name = '자녀'`)).rows
     expect(rows).toEqual([{ n: 1 }])
   })

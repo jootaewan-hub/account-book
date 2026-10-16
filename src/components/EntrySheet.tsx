@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { friendlyError } from '../lib/api'
+import { suggestCategory } from '../lib/categorize'
 import { won } from '../lib/format'
 import { isSaveShortcut, isTextField, keypadKey, pressKey, saveKeyLabel } from '../lib/keypad'
 import { SCOPE_LABEL, SCOPES, type Lookup } from '../lib/lookup'
@@ -53,6 +54,8 @@ export function EntrySheet({ open, editing, defaultDate, lookup, categories, usa
   const [title, setTitle] = useState('')
   const [platform, setPlatform] = useState('')
   const [memo, setMemo] = useState('')
+  // 분류를 이름으로 골라 준 상태 (사용자가 직접 고르면 끝)
+  const [catAuto, setCatAuto] = useState(false)
   const [months, setMonths] = useState<number | null>(null)
   const [split, setSplit] = useState(true)
   const [err, setErr] = useState('')
@@ -61,7 +64,7 @@ export function EntrySheet({ open, editing, defaultDate, lookup, categories, usa
 
   useEffect(() => {
     if (!open) return
-    setErr(''); setBusy(false); setConfirmDelete(false)
+    setErr(''); setBusy(false); setConfirmDelete(false); setCatAuto(false)
     setMonths(null); setSplit(true)
     if (editing) {
       setType(editing.type)
@@ -98,6 +101,16 @@ export function EntrySheet({ open, editing, defaultDate, lookup, categories, usa
   function switchType(t: TxType) {
     setType(t)
     setCategoryId(null)
+    setCatAuto(false)
+  }
+
+  // 새 내역의 이름을 적으면 분류를 제안한다. 사용자가 분류를 직접 고른 뒤에는 바꾸지 않는다
+  function changeTitle(v: string) {
+    setTitle(v)
+    if (editing || type !== 'expense' || (categoryId !== null && !catAuto)) return
+    const s = suggestCategory(v, categories)
+    if (s) { setCategoryId(s.id); setCatAuto(true) }
+    else if (catAuto) { setCategoryId(null); setCatAuto(false) }
   }
 
   function press(k: string) {
@@ -190,9 +203,10 @@ export function EntrySheet({ open, editing, defaultDate, lookup, categories, usa
             <span className="lbl">분류</span>
             <div className="chips">
               {cats.map((c) => (
-                <button key={c.id} className="chip" aria-pressed={categoryId === c.id} onClick={() => setCategoryId(c.id)}>{c.name}</button>
+                <button key={c.id} className="chip" aria-pressed={categoryId === c.id} onClick={() => { setCategoryId(c.id); setCatAuto(false) }}>{c.name}</button>
               ))}
             </div>
+            {catAuto && <span className="tx-meta">이름을 보고 골랐어요. 다르면 바꿔 주세요.</span>}
           </div>
           <div className="field">
             <span className="lbl">{type === 'income' ? '누구의 수입인가요' : '누구를 위한 지출인가요'}</span>
@@ -212,7 +226,7 @@ export function EntrySheet({ open, editing, defaultDate, lookup, categories, usa
           )}
           <div className="field">
             <label htmlFor="entry-title">내용</label>
-            <input id="entry-title" className="input" value={title} maxLength={60} placeholder="예: 동네 마트, 물티슈 100매" onChange={(e) => setTitle(e.target.value)} />
+            <input id="entry-title" className="input" value={title} maxLength={60} placeholder="예: 동네 마트, 물티슈 100매" onChange={(e) => changeTitle(e.target.value)} />
           </div>
           <div className="field">
             <label htmlFor="entry-platform">플랫폼</label>

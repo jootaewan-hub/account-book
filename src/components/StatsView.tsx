@@ -23,7 +23,7 @@ interface Props {
   onBill: () => void
   /** 분류·플랫폼의 내역을 내역 탭에서 보기 */
   onCategory: (id: string | null, name: string) => void
-  onPlatform: (name: string) => void
+  onPlatform: (name: string, kind: 'platform' | 'merchant' | 'other') => void
 }
 
 const man = (n: number) => (n >= 10_000 ? `${Math.round(n / 10_000).toLocaleString('ko-KR')}만` : won(n))
@@ -65,7 +65,7 @@ export function StatsView({ household, ym, today, cur, prev, lookup, categories,
   const cats = useMemo(() => categoryBreakdown(cur, prev, categories), [cur, prev, categories])
   const split = useMemo(() => scopeSplit(cur), [cur])
   const prevSplit = useMemo(() => scopeSplit(prev), [prev])
-  const platforms = useMemo(() => platformBreakdown(cur, prev), [cur, prev])
+  const platforms = useMemo(() => platformBreakdown(cur, prev, categories), [cur, prev, categories])
   const insight = useMemo(() => ({ cur, prev, ym, today, categories }), [cur, prev, ym, today, categories])
   const facts = useMemo(() => monthFacts(insight), [insight])
   const tips = useMemo(() => monthTips(insight), [insight])
@@ -204,16 +204,16 @@ export function StatsView({ household, ym, today, cur, prev, lookup, categories,
         <h2 className="section-title">어디서 샀나</h2>
         {platforms.length === 0 && <p className="empty">이번 달 지출이 없어요</p>}
         {platforms.map((p) => (
-          <button className="cat-row cat-btn" key={p.name} onClick={() => onPlatform(p.name)}>
+          <button className="cat-row cat-btn" key={`${p.kind}:${p.name}`} onClick={() => onPlatform(p.name, p.kind)}>
             <div className="cat-top">
-              <span>{p.name} <span className="muted num">{p.count}건</span></span>
+              <span>{p.name} {p.kind === 'merchant' && <span className="tag">매장</span>} <span className="muted num">{p.kind === 'other' ? `한 번씩 간 곳 ${p.count}건` : `${p.count}건`}</span></span>
               <b className="num">{won(p.amount)}</b>
             </div>
             <div className="cat-bar"><i className={p.name === OTHER_PLATFORM ? 'other' : ''} style={{ width: `${maxPlat ? (p.amount / maxPlat) * 100 : 0}%` }} /></div>
             {!noPrev && <span className="delta">{p.prev ? <Delta diff={p.amount - p.prev} pct={pctChange(p.amount, p.prev)} /> : <span className="muted">지난달 없음</span>}</span>}
           </button>
         ))}
-        <p className="note">내역의 플랫폼 칸으로 묶어요. 플랫폼이 비어 있는 예전 내역은 이름(가맹점)으로 쿠팡·네이버 등을 짐작해요. 눌러서 그 플랫폼 내역을 봐요.</p>
+        <p className="note">온라인은 플랫폼 칸으로, 매장 결제는 가게 이름으로 묶어요. 두 번 넘게 갔거나 큰 가게만 따로 보이고 나머지는 '그 밖'이에요. 대출이자·관리비·보험처럼 산 게 아닌 돈과 자동으로 들어온 고정지출은 빼요. 눌러서 그 내역을 봐요.</p>
       </div>
 
       <BillCard householdId={household.id} reloadKey={billsVersion} onAdd={onBill} />
