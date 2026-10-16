@@ -34,6 +34,9 @@ describe('반복 내역 날짜', () => {
     expect(pendingInputs([util], [], '2026-10-10')).toEqual([{ r: util, due: '2026-10-10' }])
     expect(pendingInputs([util], [tx({ recurring_id: 'u1', occurred_on: '2026-10-11' })], '2026-10-15')).toHaveLength(0)
     expect(pendingInputs([{ ...util, active: false }], [], '2026-10-15')).toHaveLength(0)
+    // 10월분을 넣고 날짜만 11월로 고쳐도 10월분은 넣은 것이다 (recurring_month 기준)
+    expect(pendingInputs([util], [tx({ recurring_id: 'u1', occurred_on: '2026-11-02', recurring_month: '2026-10-01' })], '2026-10-15')).toHaveLength(0)
+    expect(pendingInputs([util], [tx({ recurring_id: 'u1', occurred_on: '2026-10-02', recurring_month: '2026-09-01' })], '2026-10-15')).toHaveLength(1)
   })
 
   it('구독 후보: 같은 이름·금액이 서로 다른 두 달 이상, 이미 등록한 것과 반복으로 만든 내역은 뺀다', () => {
@@ -91,6 +94,11 @@ describe('통계', () => {
     expect(platformOf('네이버페이 스마트스토어')).toBe('네이버')
     expect(platformOf('마켓컬리')).toBe('컬리')
     expect(platformOf('이마트에브리데이')).toBeNull()
+    // 짧은 별칭은 장보기 품목과 섞인다
+    expect(platformOf('당근, 양파, 두부')).toBeNull()
+    expect(platformOf('알리미 수수료')).toBeNull()
+    expect(platformOf('당근마켓 정육점')).toBe('당근')
+    expect(platformOf('카카오톡 선물하기')).toBe('카카오 선물하기')
     const cur = [tx({ title: '쿠팡', amount: 30000 }), tx({ title: '쿠팡', amount: 12000 }), tx({ title: '오늘의집', amount: 89000 }),
       tx({ title: '광동반점', amount: 38000 }), tx({ title: '쿠팡', type: 'income', amount: 5000 })]
     const prev = [tx({ title: '쿠팡', amount: 50000 })]

@@ -190,12 +190,11 @@ describe('내역 권한', () => {
       [hhA]))).toContain('transactions_scope_check')
   })
 
-  it('작성자와 초대 코드는 바꿀 수 없고, 분담 비율은 바꿀 수 있다', async () => {
+  it('작성자와 초대 코드는 바꿀 수 없고, 가계부 이름은 바꿀 수 있다', async () => {
     expect(await errorOf(as(B, `update public.transactions set created_by = $1`, [B]))).toContain('permission denied')
     expect(await errorOf(as(B, `update public.households set invite_code = 'AAAAAAAA'`))).toContain('permission denied')
-    await as(B, `update public.households set share_ratio = 0.6 where id = $1`, [hhA])
-    const [hh] = await as<{ share_ratio: string }>(A, `select share_ratio from public.households`)
-    expect(Number(hh.share_ratio)).toBe(0.6)
+    await as(B, `update public.households set name = '우리집' where id = $1`, [hhA])
+    expect(await as<{ name: string }>(A, `select name from public.households`)).toEqual([{ name: '우리집' }])
   })
 
   it('상대의 표시 이름은 바꿀 수 없다', async () => {

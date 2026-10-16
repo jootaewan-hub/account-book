@@ -23,7 +23,8 @@ export function useLedgerMeta(): LedgerMeta {
       const b = await fetchHouseholdBundle()
       setState({ ...b, error: null })
     } catch (e) {
-      setState((s) => ({ ...s, household: s.household ?? null, error: (e as Error).message }))
+      // 못 불러온 것과 가구가 없는 것(null)은 다르다. 처음이면 undefined로 두어 오류 화면이 나온다
+      setState((s) => ({ ...s, error: (e as Error).message }))
     }
   }, [])
   useEffect(() => { void reload() }, [reload])

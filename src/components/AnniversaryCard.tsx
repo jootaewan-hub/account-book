@@ -46,7 +46,7 @@ export function AnniversaryCard({ householdId, annivs, today, onChanged, toast }
 
   return (
     <div className="card">
-      <h3 className="section-title">기념일</h3>
+      <h2 className="section-title">기념일</h2>
       <p className="tx-meta" style={{ marginTop: -6, marginBottom: 6 }}>달력에 표시돼요. 음력은 해마다 양력 날짜로 바꿔 보여 줘요. 달력에서 날짜를 골라 넣을 수도 있어요.</p>
       {annivs.length === 0 && edit !== 'new' && <p className="empty">아직 넣은 기념일이 없어요.</p>}
       {up.map((u) => row(u.a, u.date, u.days))}

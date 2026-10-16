@@ -42,7 +42,11 @@ export function CalendarView({ ym, today, sel, cur, prev, lookup, annivs, events
   const gridRef = useSlideIn<HTMLDivElement>(ym)
 
   let compare: React.ReactNode = null
-  if (ym === thisMonth) {
+  // 지난달 지출 기록이 없으면 전액이 '더 썼어요'로 보이므로 비교하지 않는다
+  const prevHasExpense = prev.some((t) => t.type === 'expense')
+  if (!prevHasExpense) {
+    if (exp > 0 && ym <= thisMonth) compare = <span className="muted">지난달 기록이 없어 비교하지 않아요</span>
+  } else if (ym === thisMonth) {
     const d = dayOf(today)
     const diff = samePeriodDiff(cur, prev, d)
     if (diff !== 0) compare = <>지난달 같은 기간(1~{d}일)보다 <b className="num">{won(Math.abs(diff))}원 {diff > 0 ? '더' : '덜'}</b> 썼어요</>

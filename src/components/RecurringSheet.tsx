@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { deleteRecurring, friendlyError, insertRecurring, updateRecurring } from '../lib/api'
-import { formatDateLong } from '../lib/dates'
+import { addMonths, formatDateLong } from '../lib/dates'
 import { won } from '../lib/format'
 import { SCOPE_LABEL, SCOPES, type Lookup } from '../lib/lookup'
 import { dueDate, KIND_LABEL } from '../lib/recurring'
@@ -84,6 +84,15 @@ export function RecurringSheet({ open, draft, householdId, today, lookup, catego
   const isInstallment = kind === 'installment'
   const firstDue = dueDate(input, today.slice(0, 7)) ?? dueDate(input, startMonth)
   const willAddNow = !draft?.id && !variable && n > 0 && firstDue !== null && firstDue <= today && startMonth <= today.slice(0, 7)
+  // 금액을 매달 넣던 항목에 금액을 정하면, 아직 넣지 않은 지난 달(최대 12개월) 분이 한꺼번에 들어간다 (DB generate_recurring)
+  let backfill = 0
+  if (draft?.id && draft.amount === null && !variable && n > 0) {
+    for (let i = 12; i >= 0; i--) {
+      const ym = addMonths(today.slice(0, 7), -i)
+      const d = ym >= startMonth ? dueDate(input, ym) : null
+      if (d && d <= today) backfill++
+    }
+  }
 
   async function save() {
     if (!input.title) return setErr('이름을 입력하세요.')
@@ -178,6 +187,11 @@ export function RecurringSheet({ open, draft, householdId, today, lookup, catego
         <input id="rc-start" type="month" className="input date-input" value={startMonth} onChange={(e) => setStartMonth(e.target.value)} />
         {willAddNow && firstDue && (
           <span className="hint">저장하면 {formatDateLong(firstDue)} 분 {won(n)}원이 바로 내역에 들어가요. 이미 직접 적었다면 시작 달을 다음 달로 바꾸세요.</span>
+        )}
+        {backfill > 0 && (
+          <span className="hint">
+            저장하면 아직 넣지 않은 {backfill}개월 분이 {won(n)}원씩 한꺼번에 내역에 들어가요. 지난 달 분을 이미 직접 적었다면 시작 달을 이번 달로 바꾸세요.
+          </span>
         )}
       </div>}
       <div className="field">

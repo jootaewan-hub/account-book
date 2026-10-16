@@ -21,8 +21,9 @@ export function SettingsView({ household, categories, annivs, today, lookup, ema
   const meMember = lookup.members.find((m) => m.user_id === lookup.me)
   const partner = lookup.members.find((m) => m.user_id !== lookup.me)
 
-  async function run(fn: () => Promise<void>, ok: string) {
-    try { await fn(); await onChanged(); toast(ok) } catch (e) { toast(friendlyError(e)) }
+  /** 성공하면 true. 실패하면 토스트로 알리고 false */
+  async function run(fn: () => Promise<void>, ok: string): Promise<boolean> {
+    try { await fn(); await onChanged(); toast(ok); return true } catch (e) { toast(friendlyError(e)); return false }
   }
 
   async function copyCode() {
@@ -37,7 +38,7 @@ export function SettingsView({ household, categories, annivs, today, lookup, ema
   return (
     <section className="view">
       <div className="card">
-        <h3 className="section-title">우리 가계부</h3>
+        <h2 className="section-title">우리 가계부</h2>
         <div className="set-row">
           <span>나는</span>
           <div className="seg" role="group" style={{ width: 160 }}>
@@ -73,7 +74,7 @@ export function SettingsView({ household, categories, annivs, today, lookup, ema
       <AnniversaryCard householdId={household.id} annivs={annivs} today={today} onChanged={onChanged} toast={toast} />
 
       <div className="card">
-        <h3 className="section-title">분류</h3>
+        <h2 className="section-title">분류</h2>
         <p className="tx-meta" style={{ marginTop: -6, marginBottom: 10 }}>눌러서 숨기거나 다시 보이게 할 수 있어요.</p>
         {(['expense', 'income'] as const).map((t) => (
           <div key={t} className="field" style={{ marginBottom: 10 }}>
@@ -95,14 +96,14 @@ export function SettingsView({ household, categories, annivs, today, lookup, ema
           </select>
           <input className="input" aria-label="새 분류 이름" placeholder="새 분류" value={cName} maxLength={20} onChange={(e) => setCName(e.target.value)} />
           <button className="ghost full" disabled={!cName.trim()}
-            onClick={async () => { await run(() => insertCategory(household.id, { type: cType, name: cName.trim(), sort: 100 }), '분류를 추가했어요'); setCName('') }}>
+            onClick={async () => { if (await run(() => insertCategory(household.id, { type: cType, name: cName.trim(), sort: 100 }), '분류를 추가했어요')) setCName('') }}>
             분류 추가
           </button>
         </div>
       </div>
 
       <div className="card">
-        <h3 className="section-title">계정</h3>
+        <h2 className="section-title">계정</h2>
         <div className="set-row"><span>로그인</span><span className="r">{email}</span></div>
         <button className="ghost" style={{ width: '100%', marginTop: 8 }} onClick={() => void sb().auth.signOut()}>로그아웃</button>
       </div>

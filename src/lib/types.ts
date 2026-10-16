@@ -11,7 +11,6 @@ export interface Household {
   id: string
   name: string
   invite_code: string
-  share_ratio: number
 }
 
 export interface Member {
@@ -57,6 +56,8 @@ export interface Transaction {
   created_by: string
   created_at: string
   recurring_id: string | null
+  /** 반복 항목의 몇 월분인지 (YYYY-MM-01). 내역 날짜와 다를 수 있다 */
+  recurring_month?: string | null
   /** 산 곳: 쿠팡·네이버 같은 온라인 플랫폼. 매장 결제는 null */
   platform: string | null
   /** 품목 (영수증·쇼핑 주문). 목록 화면에서 불러온 경우에만 있음 */
@@ -79,7 +80,7 @@ export interface TxItem {
 
 export type TxInput = Pick<
   Transaction,
-  'type' | 'occurred_on' | 'amount' | 'title' | 'category_id' | 'payment_method_id' | 'scope' | 'platform'
+  'type' | 'occurred_on' | 'amount' | 'title' | 'category_id' | 'payment_method_id' | 'scope' | 'platform' | 'memo'
 >
 
 export type RecurringKind = 'fixed' | 'subscription' | 'utility' | 'installment'

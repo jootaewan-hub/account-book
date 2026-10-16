@@ -47,12 +47,13 @@ export function Sheet({ open, title, onClose, wide = false, children }: Props) {
     return lockScroll()
   }, [mounted])
 
+  // Esc는 열려 있는 시트만 받는다. 닫히는 중인 시트까지 받으면 겹쳐 열린 새 시트가 함께 닫힌다
   useEffect(() => {
-    if (!mounted) return
+    if (!open) return
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
-  }, [mounted, onClose])
+  }, [open, onClose])
 
   useEffect(() => {
     if (open && on) sheetRef.current?.focus({ preventScroll: true })

@@ -52,6 +52,7 @@ export function EntrySheet({ open, editing, defaultDate, lookup, categories, usa
   const [date, setDate] = useState(defaultDate)
   const [title, setTitle] = useState('')
   const [platform, setPlatform] = useState('')
+  const [memo, setMemo] = useState('')
   const [months, setMonths] = useState<number | null>(null)
   const [split, setSplit] = useState(true)
   const [err, setErr] = useState('')
@@ -70,6 +71,7 @@ export function EntrySheet({ open, editing, defaultDate, lookup, categories, usa
       setDate(editing.occurred_on)
       setTitle(editing.title)
       setPlatform(editing.platform ?? '')
+      setMemo(editing.memo ?? '')
       return
     }
     setType('expense')
@@ -79,6 +81,7 @@ export function EntrySheet({ open, editing, defaultDate, lookup, categories, usa
     setDate(defaultDate)
     setTitle('')
     setPlatform('')
+    setMemo('')
     // 시트가 열릴 때만 초기화한다
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, editing])
@@ -110,6 +113,7 @@ export function EntrySheet({ open, editing, defaultDate, lookup, categories, usa
       type, occurred_on: date, amount: n, title: title.trim(),
       category_id: categoryId, payment_method_id: editing?.payment_method_id ?? null, scope,
       platform: normalizePlatform(platform),
+      memo: memo.trim() || null,
     }
     try {
       const installment = !editing && type === 'expense' && months ? { months, split } : null
@@ -213,6 +217,11 @@ export function EntrySheet({ open, editing, defaultDate, lookup, categories, usa
           <div className="field">
             <label htmlFor="entry-platform">플랫폼</label>
             <PlatformInput id="entry-platform" value={platform} onChange={setPlatform} />
+          </div>
+          <div className="field">
+            <label htmlFor="entry-memo">메모</label>
+            <input id="entry-memo" className="input" value={memo} maxLength={200} placeholder="예: 쿠폰 2,000원 적용, 회사 회식"
+              onChange={(e) => setMemo(e.target.value)} />
           </div>
           {editing?.items && editing.items.length > 0 && (
             <div className="field">
