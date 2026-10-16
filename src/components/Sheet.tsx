@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type PointerEvent, type ReactNode } from 'react'
+import { lockScroll } from '../lib/scrollLock'
 import { Close } from './Icons'
 
 interface Props {
@@ -40,16 +41,17 @@ export function Sheet({ open, title, onClose, wide = false, children }: Props) {
     return () => window.clearTimeout(t)
   }, [open])
 
+  // 화면에 있는 동안(닫히는 중 포함) 뒤 화면 스크롤을 잠근다. 겹쳐 열린 시트와 잠금 수를 함께 센다
+  useEffect(() => {
+    if (!mounted) return
+    return lockScroll()
+  }, [mounted])
+
   useEffect(() => {
     if (!mounted) return
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
     document.addEventListener('keydown', onKey)
-    const prev = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
-    return () => {
-      document.removeEventListener('keydown', onKey)
-      document.body.style.overflow = prev
-    }
+    return () => document.removeEventListener('keydown', onKey)
   }, [mounted, onClose])
 
   useEffect(() => {
