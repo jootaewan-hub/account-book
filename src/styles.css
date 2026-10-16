@@ -449,8 +449,6 @@ select.input { padding: 9px 10px; }
   .side-record { display: flex; align-items: center; justify-content: center; gap: 6px; margin-bottom: 16px; }
   .side-record svg { width: 20px; height: 20px; }
 
-  .cal-view { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 16px 40px; align-items: start; }
-  .cal-main { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
 
   /* 가운데 창: 그림자 없이 뒤 막으로만 띄우고, 짧게 흐려지며 나타난다. 끌어서 닫지 않는다 */
   .sheet { top: 0; margin: auto; height: -webkit-fit-content; height: fit-content; max-width: 560px; max-height: calc(100dvh - 64px);
@@ -466,9 +464,17 @@ select.input { padding: 9px 10px; }
   /* 내역 입력: 왼쪽 금액·키패드, 오른쪽 분류부터 저장까지 */
   .sheet.wide .entry-grid { display: grid; grid-template-columns: minmax(0, 340px) minmax(0, 1fr); gap: 32px; align-items: start; }
   .sheet.wide .entry-col { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
-  .sheet.wide .kbd-hint { display: block; margin: 0; font-size: 13px; color: var(--ink-2); }
 
   .toast { bottom: 40px; }
+}
+/* 키보드 안내는 마우스가 있는 넓은 화면에서만 (가로로 둔 태블릿은 손가락이 먼저다) */
+@media (min-width: 960px) and (pointer: fine) {
+  .sheet.wide .kbd-hint { display: block; margin: 0; font-size: 13px; color: var(--ink-2); }
+}
+/* 달력과 고른 날의 내역을 나란히 두는 것은 더 넓을 때만. 그보다 좁으면 달력 칸이 휴대폰보다 좁아져 금액이 맞붙는다 */
+@media (min-width: 1180px) {
+  .cal-view { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 16px 40px; align-items: start; }
+  .cal-main { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
 }
 
 /* 마우스가 있는 기기에서만 올려놓기 효과 */
