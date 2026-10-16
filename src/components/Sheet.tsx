@@ -5,6 +5,8 @@ interface Props {
   open: boolean
   title: string
   onClose: () => void
+  /** 넓은 화면에서 두 단으로 펼치는 창 (내역 입력) */
+  wide?: boolean
   children: ReactNode
 }
 
@@ -12,9 +14,14 @@ interface Props {
 const CLOSE_MS = 280
 // 끌어 내린 속도가 이보다 빠르면(px/ms) 거리와 상관없이 닫는다 (Emil Kowalski, Sonner/Vaul)
 const FLICK = 0.11
+// styles.css의 넓은 화면 기준과 같다. 이때 시트는 가운데 창이 되고 끌어서 닫지 않는다
+const WIDE_SCREEN = '(min-width: 960px)'
 
-/** 바닥 시트. 열 때 400ms로 올라오고 닫을 때 250ms로 내려간다. 손잡이 줄을 끌어 내려 닫을 수 있다(닫기 버튼도 항상 있다). */
-export function Sheet({ open, title, onClose, children }: Props) {
+/**
+ * 바닥 시트. 열 때 400ms로 올라오고 닫을 때 250ms로 내려간다. 손잡이 줄을 끌어 내려 닫을 수 있다(닫기 버튼도 항상 있다).
+ * 넓은 화면에서는 가운데 창으로 열리고, 닫기 버튼·Esc·바깥 누르기로 닫는다.
+ */
+export function Sheet({ open, title, onClose, wide = false, children }: Props) {
   const [mounted, setMounted] = useState(open)
   const [on, setOn] = useState(false)
   const sheetRef = useRef<HTMLDivElement>(null)
@@ -50,7 +57,7 @@ export function Sheet({ open, title, onClose, children }: Props) {
   }, [open, on])
 
   function onDown(e: PointerEvent<HTMLDivElement>) {
-    if (drag.current || !open || (e.target as HTMLElement).closest('button')) return
+    if (drag.current || !open || (e.target as HTMLElement).closest('button') || window.matchMedia(WIDE_SCREEN).matches) return
     drag.current = { y0: e.clientY, t0: performance.now(), dy: 0, id: e.pointerId }
     e.currentTarget.setPointerCapture(e.pointerId)
     sheetRef.current?.classList.add('dragging')
@@ -84,7 +91,7 @@ export function Sheet({ open, title, onClose, children }: Props) {
   return (
     <>
       <div ref={scrimRef} className={`scrim${on ? ' on' : ''}${closing ? ' closing' : ''}`} onClick={onClose} />
-      <div ref={sheetRef} tabIndex={-1} className={`sheet${on ? ' on' : ''}${closing ? ' closing' : ''}`} role="dialog" aria-modal="true" aria-label={title}>
+      <div ref={sheetRef} tabIndex={-1} className={`sheet${wide ? ' wide' : ''}${on ? ' on' : ''}${closing ? ' closing' : ''}`} role="dialog" aria-modal="true" aria-label={title}>
         <div className="sheet-grab" onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp}>
           <div className="grab" />
           <div className="wrap">

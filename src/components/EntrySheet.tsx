@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { friendlyError } from '../lib/api'
 import { won } from '../lib/format'
+import { isSaveShortcut, isTextField, keypadKey, pressKey, saveKeyLabel } from '../lib/keypad'
 import { SCOPE_LABEL, SCOPES, type Lookup } from '../lib/lookup'
 import { normalizePlatform } from '../lib/platform'
 import type { Category, Scope, Transaction, TxInput, TxType } from '../lib/types'
@@ -97,8 +98,7 @@ export function EntrySheet({ open, editing, defaultDate, lookup, categories, usa
   }
 
   function press(k: string) {
-    if (k === '⌫') setAmount((a) => a.slice(0, -1))
-    else setAmount((a) => ((a + k).length <= 10 ? (a + k).replace(/^0+/, '') : a))
+    setAmount((a) => pressKey(a, k))
   }
 
   async function save() {
@@ -127,8 +127,24 @@ export function EntrySheet({ open, editing, defaultDate, lookup, categories, usa
     try { await onDelete(editing.id) } catch (e) { setErr(friendlyError(e)); setBusy(false) }
   }
 
+  // 키보드: 글자 칸 밖에서 숫자·Backspace는 금액으로, ⌘/Ctrl+Enter는 어디서든 저장
+  const onKeyRef = useRef<(e: KeyboardEvent) => void>(() => {})
+  onKeyRef.current = (e) => {
+    if (busy) return
+    if (isSaveShortcut(e)) { e.preventDefault(); void save(); return }
+    if (isTextField(e.target as HTMLElement | null)) return
+    const k = keypadKey(e)
+    if (k) { e.preventDefault(); press(k) }
+  }
+  useEffect(() => {
+    if (!open) return
+    const onKey = (e: KeyboardEvent) => onKeyRef.current(e)
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [open])
+
   return (
-    <Sheet open={open} title={editing ? '내역 수정' : '기록하기'} onClose={onClose}>
+    <Sheet open={open} title={editing ? '내역 수정' : '기록하기'} onClose={onClose} wide>
       {!editing && onSmart && (
         <>
           <div className="quick">
@@ -147,62 +163,70 @@ export function EntrySheet({ open, editing, defaultDate, lookup, categories, usa
           </div>
         </>
       )}
-      <div className="manual-head">
-        <h3>{editing ? '금액' : '직접 입력'}</h3>
-        <div className="seg" role="group" aria-label="구분">
-          <button aria-pressed={type === 'expense'} onClick={() => switchType('expense')}>지출</button>
-          <button aria-pressed={type === 'income'} onClick={() => switchType('income')}>수입</button>
+      {/* 휴대폰에서는 두 묶음이 풀려 한 줄로 이어지고, 넓은 화면에서는 왼쪽 금액·오른쪽 나머지 두 단이 된다 */}
+      <div className="entry-grid">
+        <div className="entry-col">
+          <div className="manual-head">
+            <h3>{editing ? '금액' : '직접 입력'}</h3>
+            <div className="seg" role="group" aria-label="구분">
+              <button aria-pressed={type === 'expense'} onClick={() => switchType('expense')}>지출</button>
+              <button aria-pressed={type === 'income'} onClick={() => switchType('income')}>수입</button>
+            </div>
+          </div>
+          <div className={`amount num${n ? '' : ' empty-amt'}`} aria-live="polite">{won(n)}<small>원</small></div>
+          <div className="keypad">
+            {KEYS.map((k) => (
+              <button key={k} onClick={() => press(k)} aria-label={k === '⌫' ? '지우기' : k}>{k}</button>
+            ))}
+          </div>
+          <p className="kbd-hint">키보드 숫자로도 금액을 넣을 수 있어요. {saveKeyLabel()}로 저장해요.</p>
+        </div>
+        <div className="entry-col">
+          <div className="field">
+            <span className="lbl">분류</span>
+            <div className="chips">
+              {cats.map((c) => (
+                <button key={c.id} className="chip" aria-pressed={categoryId === c.id} onClick={() => setCategoryId(c.id)}>{c.name}</button>
+              ))}
+            </div>
+          </div>
+          <div className="field">
+            <span className="lbl">{type === 'income' ? '누구의 수입인가요' : '누구를 위한 지출인가요'}</span>
+            <div className="seg" role="group">
+              {SCOPES.map((s) => (
+                <button key={s} aria-pressed={scope === s} onClick={() => setScope(s)}>{SCOPE_LABEL[s]}</button>
+              ))}
+            </div>
+          </div>
+          <div className="field">
+            <label htmlFor="entry-date">날짜</label>
+            <input id="entry-date" type="date" className="input date-input" value={date} onChange={(e) => setDate(e.target.value)} />
+          </div>
+          {!editing && type === 'expense' && (
+            <InstallmentPicker id="entry-installment" amount={n} months={months} split={split}
+              onChange={(p) => { if (p.months !== undefined) setMonths(p.months); if (p.split !== undefined) setSplit(p.split) }} />
+          )}
+          <div className="field">
+            <label htmlFor="entry-title">내용</label>
+            <input id="entry-title" className="input" value={title} maxLength={60} placeholder="예: 동네 마트, 물티슈 100매" onChange={(e) => setTitle(e.target.value)} />
+          </div>
+          <div className="field">
+            <label htmlFor="entry-platform">플랫폼</label>
+            <PlatformInput id="entry-platform" value={platform} onChange={setPlatform} />
+          </div>
+          {editing?.items && editing.items.length > 0 && (
+            <div className="field">
+              <span className="lbl">품목 {editing.items.length}개</span>
+              <ItemList items={editing.items} />
+            </div>
+          )}
+          <p className="err" role="alert">{err}</p>
+          <button className="primary" onClick={save} disabled={busy}>{busy ? '저장 중…' : n ? `${won(n)}원 저장하기` : '저장하기'}</button>
+          {editing && (
+            <button className="danger" onClick={remove} disabled={busy}>{confirmDelete ? '한 번 더 누르면 지워요' : '삭제하기'}</button>
+          )}
         </div>
       </div>
-      <div className={`amount num${n ? '' : ' empty-amt'}`} aria-live="polite">{won(n)}<small>원</small></div>
-      <div className="keypad">
-        {KEYS.map((k) => (
-          <button key={k} onClick={() => press(k)} aria-label={k === '⌫' ? '지우기' : k}>{k}</button>
-        ))}
-      </div>
-      <div className="field">
-        <span className="lbl">분류</span>
-        <div className="chips">
-          {cats.map((c) => (
-            <button key={c.id} className="chip" aria-pressed={categoryId === c.id} onClick={() => setCategoryId(c.id)}>{c.name}</button>
-          ))}
-        </div>
-      </div>
-      <div className="field">
-        <span className="lbl">{type === 'income' ? '누구의 수입인가요' : '누구를 위한 지출인가요'}</span>
-        <div className="seg" role="group">
-          {SCOPES.map((s) => (
-            <button key={s} aria-pressed={scope === s} onClick={() => setScope(s)}>{SCOPE_LABEL[s]}</button>
-          ))}
-        </div>
-      </div>
-      <div className="field">
-        <label htmlFor="entry-date">날짜</label>
-        <input id="entry-date" type="date" className="input date-input" value={date} onChange={(e) => setDate(e.target.value)} />
-      </div>
-      {!editing && type === 'expense' && (
-        <InstallmentPicker id="entry-installment" amount={n} months={months} split={split}
-          onChange={(p) => { if (p.months !== undefined) setMonths(p.months); if (p.split !== undefined) setSplit(p.split) }} />
-      )}
-      <div className="field">
-        <label htmlFor="entry-title">내용</label>
-        <input id="entry-title" className="input" value={title} maxLength={60} placeholder="예: 동네 마트, 물티슈 100매" onChange={(e) => setTitle(e.target.value)} />
-      </div>
-      <div className="field">
-        <label htmlFor="entry-platform">플랫폼</label>
-        <PlatformInput id="entry-platform" value={platform} onChange={setPlatform} />
-      </div>
-      {editing?.items && editing.items.length > 0 && (
-        <div className="field">
-          <span className="lbl">품목 {editing.items.length}개</span>
-          <ItemList items={editing.items} />
-        </div>
-      )}
-      <p className="err" role="alert">{err}</p>
-      <button className="primary" onClick={save} disabled={busy}>{busy ? '저장 중…' : n ? `${won(n)}원 저장하기` : '저장하기'}</button>
-      {editing && (
-        <button className="danger" onClick={remove} disabled={busy}>{confirmDelete ? '한 번 더 누르면 지워요' : '삭제하기'}</button>
-      )}
     </Sheet>
   )
 }
