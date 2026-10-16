@@ -23,6 +23,7 @@ const ANNIV = read('20261015130000_anniversaries.sql')
 const INSTALL = read('20261015140000_installments.sql')
 const EVENTS = read('20261015150000_events.sql')
 const AI_ALLOW = read('20261015160000_ai_allowlist.sql')
+const CLOSE = read('20261015170000_close_signups.sql')
 
 const SUPABASE_STUB = `
 create schema auth;
@@ -87,13 +88,14 @@ let hhC: string
 async function freshDb(migrations: string[]) {
   const d = new PGlite()
   await d.exec(SUPABASE_STUB)
-  for (const m of migrations) await d.exec(m)
+  // 실제처럼 사용자가 먼저 있고 마이그레이션이 뒤에 온다 (20261015170000부터는 새 사용자 행이 막힌다)
   await d.query(`insert into auth.users (id, email) values ($1,'a@x'),($2,'b@x'),($3,'c@x')`, [A, B, C])
+  for (const m of migrations) await d.exec(m)
   return d
 }
 
 beforeAll(async () => {
-  db = await freshDb([INIT, ROLES, SMART, HOOK, RECUR, EXPORT_SVC, ITEMS_IMG, CHILD, PLATFORM, EXPORT_PLATFORM, DROP_OLD_EXPORT, BILLS, REVOKE_ANON, ANNIV, INSTALL, EVENTS, AI_ALLOW])
+  db = await freshDb([INIT, ROLES, SMART, HOOK, RECUR, EXPORT_SVC, ITEMS_IMG, CHILD, PLATFORM, EXPORT_PLATFORM, DROP_OLD_EXPORT, BILLS, REVOKE_ANON, ANNIV, INSTALL, EVENTS, AI_ALLOW, CLOSE])
 })
 
 describe('가구 만들기와 참여', () => {
@@ -402,7 +404,7 @@ describe('자녀 (20261015070000_child)', () => {
     await old.exec('set role authenticated')
     await old.query(`select public.create_household('나', 'husband')`)
     await old.exec('reset role')
-    for (const m of [SMART, HOOK, RECUR, EXPORT_SVC, ITEMS_IMG, CHILD, PLATFORM, EXPORT_PLATFORM, DROP_OLD_EXPORT, BILLS, REVOKE_ANON, ANNIV, INSTALL, EVENTS, AI_ALLOW]) await old.exec(m)
+    for (const m of [SMART, HOOK, RECUR, EXPORT_SVC, ITEMS_IMG, CHILD, PLATFORM, EXPORT_PLATFORM, DROP_OLD_EXPORT, BILLS, REVOKE_ANON, ANNIV, INSTALL, EVENTS, AI_ALLOW, CLOSE]) await old.exec(m)
     const rows = (await old.query<{ n: number }>(`select count(*)::int as n from public.categories where name = '자녀'`)).rows
     expect(rows).toEqual([{ n: 1 }])
   })
@@ -559,5 +561,30 @@ describe('일정 (20261015150000_events)', () => {
     await as(B, `update public.events set time = null where title = '치과 예약'`)
     await as(A, `delete from public.events where title = '친구 결혼식'`)
     expect((await as<{ title: string; time: string | null }>(A, `select title, time from public.events`))).toEqual([{ title: '치과 예약', time: null }])
+  })
+})
+
+describe('새 가입 막기 (20261015170000_close_signups)', () => {
+  const D = '00000000-0000-4000-8000-00000000000d'
+  const E = '00000000-0000-4000-8000-00000000000e'
+
+  it('새 사용자 행은 거절하고, 기존 사용자 행을 고치는 것(로그인 기록 등)은 된다', async () => {
+    expect(await errorOf(db.query(`insert into auth.users (id, email) values ($1, 'd@x')`, [D]))).toContain('signups_closed')
+    await db.query(`update auth.users set raw_app_meta_data = raw_app_meta_data where id = $1`, [A])
+    expect((await db.query(`select 1 from auth.users where id = $1`, [D])).rows).toHaveLength(0)
+  })
+
+  it('가입 문은 로그인한 사용자도 익명도 보거나 열 수 없다', async () => {
+    expect(await errorOf(as(A, `update private.signup_gate set open = true`))).toContain('permission denied')
+    expect(await errorOf(as(A, `select * from private.signup_gate`))).toContain('permission denied')
+    expect(await errorOf(as(null, `select * from private.signup_gate`))).toContain('permission denied')
+  })
+
+  it('관리자가 문을 열면 가입되고, 닫으면 다시 막힌다', async () => {
+    await db.exec(`update private.signup_gate set open = true`)
+    await db.query(`insert into auth.users (id, email) values ($1, 'd@x')`, [D])
+    await db.exec(`update private.signup_gate set open = false`)
+    expect(await errorOf(db.query(`insert into auth.users (id, email) values ($1, 'e@x')`, [E]))).toContain('signups_closed')
+    await db.query(`delete from auth.users where id = $1`, [D])
   })
 })

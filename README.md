@@ -136,12 +136,16 @@ npm run build    # 배포용 빌드 (dist/)
 - AI(Claude)는 허용 목록(`private.ai_households`)에 있는 가구 구성원만 씁니다. 로그인 토큰 훅이 그 사람들의 토큰에만
   Anthropic 대상(aud)을 붙이므로, 누가 가입하더라도 공개된 WIF 식별자로 Anthropic 토큰을 받을 수 없습니다.
   가구를 새로 허용하려면 SQL Editor에서 `insert into private.ai_households (household_id) values ('<가구 id>');`
+- 새 회원가입은 DB에서 막습니다. `auth.users`에 새 행이 들어오기 직전에 트리거가 거절하므로(`signups_closed`)
+  로그인·비밀번호 재설정은 그대로 되고 새 계정만 만들어지지 않습니다. 다시 가입을 받으려면 SQL Editor에서
+  `update private.signup_gate set open = true;` 후 가입하고, 끝나면 `false`로 되돌리세요.
 - 배포한 페이지에는 콘텐츠 보안 정책(CSP)을 넣어 이 사이트의 스크립트만 실행하고 Supabase로만 통신합니다.
 - 구글 시트 내보내기 주소에는 64자리 무작위 토큰이 들어 있어 주소를 아는 사람은 내역을 읽을 수 있습니다.
   주소가 퍼졌으면 설정 > 내보내기에서 새 주소를 만들면 예전 주소는 끊깁니다.
 
-대시보드에서 직접 켜야 하는 것: 새 회원가입 막기(Supabase Authentication), 유출된 비밀번호 막기(Supabase Auth),
-Claude Console 워크스페이스 사용 한도.
+대시보드에서 직접 켜야 하는 것: Claude Console 워크스페이스 사용 한도, GitHub·Supabase 계정 2단계 인증.
+Supabase Authentication의 "Allow new users to sign up"을 끄면 가입 요청이 DB에 닿기 전에 한 번 더 막힙니다(선택).
+유출된 비밀번호 막기(HaveIBeenPwned)는 Supabase Pro 요금제부터 켤 수 있습니다.
 
 ## 알려진 제한
 
