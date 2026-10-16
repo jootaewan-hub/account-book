@@ -338,8 +338,10 @@ export function friendlyError(e: unknown): string {
   if (lower.includes('invalid login credentials')) return '이메일 또는 비밀번호가 맞지 않아요.'
   if (lower.includes('email not confirmed')) return '메일함에서 가입 확인 링크를 먼저 눌러 주세요.'
   if (lower.includes('already registered')) return '이미 가입된 이메일이에요. 로그인해 주세요.'
-  // 새 가입은 DB 트리거(signups_closed)가 막고, Auth 서버는 이를 아래 문장으로 돌려준다
-  if (lower.includes('database error saving new user') || msg.includes('signups_closed')) return '지금은 새 가입을 받지 않아요. 가입한 계정으로 로그인해 주세요.'
+  // 새 가입은 Auth 설정(signup_disabled)과 DB 트리거(signups_closed) 두 곳에서 막는다
+  if (lower.includes('signups not allowed') || lower.includes('database error saving new user') || msg.includes('signups_closed')) {
+    return '지금은 새 가입을 받지 않아요. 가입한 계정으로 로그인해 주세요.'
+  }
   if (lower.includes('password should')) return '비밀번호가 너무 짧거나 쉬워요. 더 길게 정해 주세요.'
   if (lower.includes('rate limit')) return '메일을 너무 자주 보냈어요. 잠시 후 다시 시도해 주세요.'
   if (lower.includes('expired')) return '링크가 만료됐어요. 다시 요청해 주세요.'
