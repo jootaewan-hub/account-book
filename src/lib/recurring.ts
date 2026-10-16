@@ -30,10 +30,13 @@ export function monthlyAmount(r: Recurring): number {
   return r.amount === null ? 0 : Math.round(r.amount / r.every_months)
 }
 
-/** 금액을 매달 넣어야 하는 항목 중, 이번 달 날짜가 지났는데 아직 안 넣은 것 */
-export function pendingInputs(list: Recurring[], monthTxs: Transaction[], today: string): { r: Recurring; due: string }[] {
+/**
+ * 금액을 매달 넣어야 하는 항목 중, 이번 달 날짜가 지났는데 아직 안 넣은 것.
+ * 어느 달 분인지는 recurring_month가 기준이다 (DB의 유일 제약과 같아서, 내역 날짜를 고쳐도 달이 바뀌지 않는다). 없으면 날짜로 본다
+ */
+export function pendingInputs(list: Recurring[], txs: Transaction[], today: string): { r: Recurring; due: string }[] {
   const ym = today.slice(0, 7)
-  const done = new Set(monthTxs.filter((t) => t.recurring_id && t.occurred_on.startsWith(ym)).map((t) => t.recurring_id))
+  const done = new Set(txs.filter((t) => t.recurring_id && (t.recurring_month ?? t.occurred_on).startsWith(ym)).map((t) => t.recurring_id))
   const out: { r: Recurring; due: string }[] = []
   for (const r of list) {
     if (!r.active || r.amount !== null || done.has(r.id)) continue

@@ -8,7 +8,7 @@ import type {
 } from './types'
 
 const TX_COLUMNS =
-  'id, household_id, type, occurred_on, amount, title, memo, category_id, payment_method_id, scope, source, created_by, created_at, recurring_id, platform'
+  'id, household_id, type, occurred_on, amount, title, memo, category_id, payment_method_id, scope, source, created_by, created_at, recurring_id, recurring_month, platform'
 const TX_WITH_ITEMS =
   `${TX_COLUMNS}, transaction_items(id, name, quantity, unit_price, amount, pack_size, pack_unit, image_path, sort)`
 
@@ -42,8 +42,8 @@ export async function fetchHouseholdBundle(): Promise<{
   categories: Category[]
   anniversaries: Anniversary[]
 }> {
-  const households = check(await sb().from('households').select('id, name, invite_code, share_ratio').limit(1))
-  const household = households[0] ? { ...households[0], share_ratio: Number(households[0].share_ratio) } : null
+  const households = check(await sb().from('households').select('id, name, invite_code').limit(1))
+  const household = households[0] ?? null
   if (!household) return { household: null, members: [], methods: [], categories: [], anniversaries: [] }
   const [members, methods, categories, anniversaries] = await Promise.all([
     sb().from('members').select('household_id, user_id, display_name, role, spouse_role').order('role'), // owner, partner 순
@@ -104,7 +104,9 @@ export async function fetchTwoMonths(householdId: string, ym: string): Promise<T
   return rows.map(withItems)
 }
 
-export async function insertTransaction(householdId: string, input: TxInput, memo: string | null = null): Promise<void> {
+/** prefix: 할부 회차처럼 앱이 앞에 붙이는 메모. 사용자가 적은 메모(input.memo)는 그 뒤에 잇는다 */
+export async function insertTransaction(householdId: string, input: TxInput, prefix: string | null = null): Promise<void> {
+  const memo = [prefix, input.memo].filter(Boolean).join(', ') || null
   check(await sb().from('transactions').insert({ ...input, memo, household_id: householdId, source: 'manual' }))
 }
 
@@ -177,25 +179,10 @@ export async function joinHousehold(code: string, displayName: string): Promise<
   check(await sb().rpc('join_household', { p_code: code, p_display_name: displayName }))
 }
 
-export async function updateShareRatio(householdId: string, ratio: number): Promise<void> {
-  check(await sb().from('households').update({ share_ratio: ratio }).eq('id', householdId))
-}
-
 export async function updateDisplayName(householdId: string, userId: string, name: string): Promise<void> {
   check(
     await sb().from('members').update({ display_name: name }).eq('household_id', householdId).eq('user_id', userId),
   )
-}
-
-export async function insertMethod(
-  householdId: string,
-  m: Pick<PaymentMethod, 'name' | 'kind' | 'last4' | 'owner' | 'sort'>,
-): Promise<void> {
-  check(await sb().from('payment_methods').insert({ ...m, household_id: householdId }))
-}
-
-export async function setMethodArchived(id: string, archived: boolean): Promise<void> {
-  check(await sb().from('payment_methods').update({ archived }).eq('id', id))
 }
 
 export async function insertCategory(householdId: string, c: Pick<Category, 'type' | 'name' | 'sort'>): Promise<void> {

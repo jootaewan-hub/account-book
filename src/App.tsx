@@ -4,7 +4,7 @@ import { CalendarView } from './components/CalendarView'
 import { EntrySheet } from './components/EntrySheet'
 import { ExportCard } from './components/ExportCard'
 import { CalendarIcon, ChartIcon, ChevronLeft, ChevronRight, GearIcon, ListIcon, Plus, RepeatIcon } from './components/Icons'
-import { ListView } from './components/ListView'
+import { ListView, type ListFocus } from './components/ListView'
 import { Soft, Toast } from './components/Motion'
 import { PlanSheet, type PlanTarget } from './components/PlanSheet'
 import { PlatformDatalist } from './components/PlatformInput'
@@ -63,7 +63,13 @@ function AuthGate() {
 function Home({ userId, email }: { userId: string; email: string }) {
   const meta = useLedgerMeta()
   if (meta.household === undefined) {
-    return <div className="app wrap center"><p className="lead">불러오는 중…</p>{meta.error && <p className="err">{meta.error}</p>}</div>
+    // 처음 불러오기가 실패하면 가입 화면 대신 오류와 다시 시도를 보여 준다 (가구가 있는 사람을 '새 가계부 만들기'로 보내지 않는다)
+    return (
+      <div className="app wrap center">
+        <p className="lead">{meta.error ? '가계부를 불러오지 못했어요' : '불러오는 중…'}</p>
+        {meta.error && <><p className="err">{meta.error}</p><button className="ghost" onClick={() => void meta.reload()}>다시 시도</button></>}
+      </div>
+    )
   }
   if (meta.household === null) return <Onboarding onDone={meta.reload} />
   return <Ledger household={meta.household} meta={meta} userId={userId} email={email} />
@@ -86,6 +92,8 @@ function Ledger({ household, meta, userId, email }: {
   // 관리비 고지서를 저장하면 통계 탭의 관리비 분석을 다시 불러온다
   const [billsVersion, setBillsVersion] = useState(0)
   const [toastMsg, setToastMsg] = useState('')
+  // 통계에서 분류·플랫폼을 눌러 내역 탭으로 넘어올 때의 조건
+  const [listFocus, setListFocus] = useState<ListFocus | null>(null)
 
   const { txs, error, reload } = useMonthTransactions(household.id, ym)
   const { events, reload: reloadEvents } = useMonthEvents(household.id, ym)
@@ -99,9 +107,12 @@ function Ledger({ household, meta, userId, email }: {
     return () => document.removeEventListener('visibilitychange', onVisible)
   }, [])
 
+  // 같은 문장이 연달아 와도 앞 토스트의 타이머가 뒤 토스트를 지우지 않도록 번호를 매긴다
+  const toastSeq = useRef(0)
   const toast = useCallback((msg: string) => {
+    const id = ++toastSeq.current
     setToastMsg(msg)
-    window.setTimeout(() => setToastMsg((m) => (m === msg ? '' : m)), 2400)
+    window.setTimeout(() => { if (toastSeq.current === id) setToastMsg('') }, 2400)
   }, [])
 
   // 날짜가 지난 고정지출·구독을 자동으로 넣는다 (앱을 열 때, 날짜가 바뀌었을 때)
@@ -206,10 +217,14 @@ function Ledger({ household, meta, userId, email }: {
           <CalendarView ym={ym} today={today} sel={sel} cur={cur} prev={prev} lookup={lookup} annivs={meta.anniversaries} events={events}
             onSelect={setSel} onPlan={setPlan} onJump={(d) => { setYm(d.slice(0, 7)); setSel(d) }} onEdit={(t) => setSheet({ open: true, editing: t })} />
         )}
-        {tab === 'list' && <ListView cur={cur} lookup={lookup} onEdit={(t) => setSheet({ open: true, editing: t })} />}
+        {tab === 'list' && (
+          <ListView cur={cur} lookup={lookup} focus={listFocus} onClearFocus={() => setListFocus(null)} onEdit={(t) => setSheet({ open: true, editing: t })} />
+        )}
         {tab === 'stats' && (
           <StatsView household={household} ym={ym} today={today} cur={cur} prev={prev} lookup={lookup}
-            categories={meta.categories} billsVersion={billsVersion} onBill={() => setSmart({ open: true, mode: 'bill' })} />
+            categories={meta.categories} billsVersion={billsVersion} onBill={() => setSmart({ open: true, mode: 'bill' })}
+            onCategory={(id, name) => { setListFocus({ kind: 'category', id, name }); setTab('list') }}
+            onPlatform={(name) => { setListFocus({ kind: 'platform', name }); setTab('list') }} />
         )}
         {tab === 'fixed' && (
           <RecurringView householdId={household.id} today={today} lookup={lookup}
@@ -234,7 +249,7 @@ function Ledger({ household, meta, userId, email }: {
           {/* 넓은 화면에서만 보인다. 휴대폰은 오른쪽 아래 기록하기 버튼을 쓴다 */}
           <button className="primary side-record" onClick={() => setSheet({ open: true, editing: null })}><Plus />기록하기</button>
           <button className="tab" aria-current={tab === 'cal' ? 'page' : undefined} onClick={() => setTab('cal')}><CalendarIcon />달력</button>
-          <button className="tab" aria-current={tab === 'list' ? 'page' : undefined} onClick={() => setTab('list')}><ListIcon />내역</button>
+          <button className="tab" aria-current={tab === 'list' ? 'page' : undefined} onClick={() => { setListFocus(null); setTab('list') }}><ListIcon />내역</button>
           <button className="tab" aria-current={tab === 'stats' ? 'page' : undefined} onClick={() => setTab('stats')}><ChartIcon />통계</button>
           <button className="tab" aria-current={tab === 'fixed' ? 'page' : undefined} onClick={() => setTab('fixed')}><RepeatIcon />고정</button>
           <button className="tab" aria-current={tab === 'settings' ? 'page' : undefined} onClick={() => setTab('settings')}><GearIcon />설정</button>

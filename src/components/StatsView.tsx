@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { fetchMonthlyTotals, fetchRange, friendlyError } from '../lib/api'
 import { addMonths, dayOf, monthRange, parseYM } from '../lib/dates'
 import { won } from '../lib/format'
+import { categoryTrend, monthFacts, monthTips, weeklySpend } from '../lib/insights'
 import { sumType } from '../lib/ledger'
 import { SCOPE_LABEL, SCOPES, type Lookup } from '../lib/lookup'
 import { categoryBreakdown, monthSeries, OTHER_PLATFORM, pctChange, platformBreakdown, scopeSplit, type MonthPoint } from '../lib/stats'
@@ -20,24 +21,42 @@ interface Props {
   billsVersion: number
   /** 관리비 고지서 넣기 */
   onBill: () => void
+  /** 분류·플랫폼의 내역을 내역 탭에서 보기 */
+  onCategory: (id: string | null, name: string) => void
+  onPlatform: (name: string) => void
 }
 
 const man = (n: number) => (n >= 10_000 ? `${Math.round(n / 10_000).toLocaleString('ko-KR')}만` : won(n))
 
-export function StatsView({ household, ym, today, cur, prev, lookup, categories, billsVersion, onBill }: Props) {
+export function StatsView({ household, ym, today, cur, prev, lookup, categories, billsVersion, onBill, onCategory, onPlatform }: Props) {
   const [totals, setTotals] = useState<MonthTotal[] | null>(null)
   const [lastYear, setLastYear] = useState<Transaction[]>([])
+  // 분류 추이용 지난 넉 달 (지난달·이번 달은 이미 받은 것을 쓴다)
+  const [older, setOlder] = useState<Transaction[]>([])
   const [sel, setSel] = useState(ym)
+  // 펼친 분류 (undefined: 없음, null: '분류 없음')
+  const [openCat, setOpenCat] = useState<string | null | undefined>(undefined)
   const [err, setErr] = useState('')
 
-  useEffect(() => { setSel(ym) }, [ym])
+  useEffect(() => { setSel(ym); setOpenCat(undefined) }, [ym])
+
+  // 달이 바뀔 때만: 작년 같은 달과 지난 넉 달
   useEffect(() => {
     let alive = true
     const ly = addMonths(ym, -12)
     Promise.all([
-      fetchMonthlyTotals(household.id, `${addMonths(ym, -12)}-01`, monthRange(ym).end),
       fetchRange(household.id, monthRange(ly).start, monthRange(ly).end),
-    ]).then(([t, l]) => { if (alive) { setTotals(t); setLastYear(l); setErr('') } })
+      fetchRange(household.id, monthRange(addMonths(ym, -5)).start, monthRange(addMonths(ym, -2)).end),
+    ]).then(([l, o]) => { if (alive) { setLastYear(l); setOlder(o); setErr('') } })
+      .catch((e) => { if (alive) setErr(friendlyError(e)) })
+    return () => { alive = false }
+  }, [household.id, ym])
+
+  // 내역이 바뀔 때마다: 12개월 합계 (서버에서 더하는 가벼운 호출)
+  useEffect(() => {
+    let alive = true
+    fetchMonthlyTotals(household.id, `${addMonths(ym, -12)}-01`, monthRange(ym).end)
+      .then((t) => { if (alive) setTotals(t) })
       .catch((e) => { if (alive) setErr(friendlyError(e)) })
     return () => { alive = false }
   }, [household.id, ym, cur])
@@ -45,48 +64,89 @@ export function StatsView({ household, ym, today, cur, prev, lookup, categories,
   const series = useMemo(() => (totals ? monthSeries(totals, ym) : []), [totals, ym])
   const cats = useMemo(() => categoryBreakdown(cur, prev, categories), [cur, prev, categories])
   const split = useMemo(() => scopeSplit(cur), [cur])
+  const prevSplit = useMemo(() => scopeSplit(prev), [prev])
   const platforms = useMemo(() => platformBreakdown(cur, prev), [cur, prev])
+  const insight = useMemo(() => ({ cur, prev, ym, today, categories }), [cur, prev, ym, today, categories])
+  const facts = useMemo(() => monthFacts(insight), [insight])
+  const tips = useMemo(() => monthTips(insight), [insight])
+  const weeks = useMemo(() => weeklySpend(cur, ym, today), [cur, ym, today])
+  const trendTxs = useMemo(() => [...older, ...prev, ...cur], [older, prev, cur])
 
   const isCurrent = ym === today.slice(0, 7)
   const upto = isCurrent ? dayOf(today) : undefined
   const { m } = parseYM(ym)
+  // 지난달 기록이 아예 없으면 전액이 '늘었다'로 보이므로 비교하지 않는다
+  const prevHas = (type: 'expense' | 'income') => prev.some((t) => t.type === type)
   const rows = (['expense', 'income'] as const).map((type) => {
     const now = sumType(cur, type, upto)
-    return { type, now, mom: now - sumType(prev, type, upto), momPct: pctChange(now, sumType(prev, type, upto)),
-      yoy: now - sumType(lastYear, type, upto), yoyPct: pctChange(now, sumType(lastYear, type, upto)), hasLY: lastYear.length > 0 }
+    return { type, now, hasPrev: prevHas(type), mom: now - sumType(prev, type, upto), momPct: pctChange(now, sumType(prev, type, upto)),
+      yoy: now - sumType(lastYear, type, upto), yoyPct: pctChange(now, sumType(lastYear, type, upto)), hasLY: lastYear.some((t) => t.type === type) }
   })
+  const noPrev = !prevHas('expense')
   const selPoint = series.find((p) => p.ym === sel)
   const maxCat = cats[0]?.amount ?? 0
   const maxPlat = Math.max(0, ...platforms.map((p) => p.amount))
+  const maxWeek = Math.max(0, ...weeks.map((w) => w.amount))
 
   return (
     <section className="view">
       {err && <p className="banner" role="alert">{err}</p>}
 
       <div className="card">
-        <h3 className="section-title">{m}월 {isCurrent ? `(1~${upto}일, 비교도 같은 기간)` : ''}</h3>
+        <h2 className="section-title">{m}월 {isCurrent ? `(1~${upto}일, 비교도 같은 기간)` : ''}</h2>
         {rows.map((r) => (
           <div className="stat-row" key={r.type}>
             <span className="k">{r.type === 'expense' ? '지출' : '수입'}</span>
             <b className={`num ${r.type === 'expense' ? 'exp' : 'inc'}`}>{won(r.now)}</b>
-            <span className="delta">전월 <Delta diff={r.mom} pct={r.momPct} /></span>
+            <span className="delta">전월 {r.hasPrev ? <Delta diff={r.mom} pct={r.momPct} /> : <span className="muted">기록 없음</span>}</span>
             <span className="delta">전년 {r.hasLY ? <Delta diff={r.yoy} pct={r.yoyPct} /> : <span className="muted">기록 없음</span>}</span>
           </div>
         ))}
       </div>
 
+      {facts.length > 0 && (
+        <div className="card">
+          <h2 className="section-title">{m}월 살펴보기</h2>
+          <ul className="facts">{facts.map((f) => <li key={f.key}>{f.text}</li>)}</ul>
+        </div>
+      )}
+
+      {tips.length > 0 && (
+        <div className="card">
+          <h2 className="section-title">이렇게 해 보면</h2>
+          <ul className="tips">
+            {tips.map((t) => (
+              <li key={t.key} className="tip">
+                <span>{t.text}</span>
+                {t.saving !== null && t.saving > 0 && <span className="save num">한 달 약 {won(t.saving)}원</span>}
+              </li>
+            ))}
+          </ul>
+          <p className="tx-meta" style={{ marginTop: 10 }}>이번 달과 지난달 내역만 보고 찾은 제안이에요. 사정에 맞지 않으면 흘려 보내세요.</p>
+        </div>
+      )}
+
+      {sumType(cur, 'expense') > 0 && (
+        <div className="card">
+          <h2 className="section-title">주별로 보면</h2>
+          {weeks.map((w) => (
+            <div key={w.label} className={`week-row${w.future ? ' future' : ''}`}>
+              <span className="k num">{w.label}</span>
+              <div className="cat-bar"><i style={{ width: `${maxWeek ? (w.amount / maxWeek) * 100 : 0}%` }} /></div>
+              <b className="num">{w.future && w.amount === 0 ? '아직' : won(w.amount)}</b>
+            </div>
+          ))}
+        </div>
+      )}
+
       <div className="card">
-        <h3 className="section-title">최근 12개월</h3>
+        <h2 className="section-title">최근 12개월</h2>
         <div className="legend">
           <span><i className="sw exp" />지출</span>
           <span><i className="sw inc" />수입</span>
         </div>
         {totals ? <MonthChart points={series} sel={sel} onSelect={setSel} /> : <p className="lead">불러오는 중…</p>}
-        {selPoint && (
-          <p className="readout num">
-            {parseYM(selPoint.ym).y}년 {parseYM(selPoint.ym).m}월에 {won(selPoint.expense)}원 쓰고 {won(selPoint.income)}원 들어와 {won(selPoint.income - selPoint.expense)}원 남았어요
-          </p>
-        )}
+        {selPoint && <p className="readout num">{readout(selPoint)}</p>}
         <details className="table-view">
           <summary>표로 보기</summary>
           <table>
@@ -101,48 +161,74 @@ export function StatsView({ household, ym, today, cur, prev, lookup, categories,
       </div>
 
       <div className="card">
-        <h3 className="section-title">어디에 썼나</h3>
+        <h2 className="section-title">어디에 썼나</h2>
         {cats.length === 0 && <p className="empty">이번 달 지출이 없어요</p>}
-        {cats.map((c) => (
-          <div className="cat-row" key={c.id ?? 'none'}>
-            <div className="cat-top">
-              <span>{c.name} <span className="muted num">{Math.round(c.share * 100)}%</span></span>
-              <b className="num">{won(c.amount)}</b>
+        {cats.length > 0 && <p className="tx-meta" style={{ marginTop: -6, marginBottom: 6 }}>{noPrev ? '지난달 기록이 없어 비교하지 않아요. ' : ''}눌러서 여섯 달 추이와 내역을 봐요.</p>}
+        {cats.map((c) => {
+          const open = openCat === c.id
+          return (
+            <div className="cat-row" key={c.id ?? 'none'}>
+              <button className="cat-btn" aria-expanded={open} onClick={() => setOpenCat(open ? undefined : c.id)}>
+                <div className="cat-top">
+                  <span>{c.name} <span className="muted num">{Math.round(c.share * 100)}%</span></span>
+                  <b className="num">{won(c.amount)}</b>
+                </div>
+                <div className="cat-bar"><i style={{ width: `${maxCat ? (c.amount / maxCat) * 100 : 0}%` }} /></div>
+                {!noPrev && <span className="delta">{c.prev ? <Delta diff={c.amount - c.prev} pct={pctChange(c.amount, c.prev)} /> : <span className="muted">지난달 없음</span>}</span>}
+              </button>
+              {open && (
+                <div className="cat-detail">
+                  <Trend points={categoryTrend(trendTxs, c.id, ym)} />
+                  <button className="ghost" onClick={() => onCategory(c.id, c.name)}>{c.name} 내역 보기</button>
+                </div>
+              )}
             </div>
-            <div className="cat-bar"><i style={{ width: `${maxCat ? (c.amount / maxCat) * 100 : 0}%` }} /></div>
-            <span className="delta">{c.prev ? <Delta diff={c.amount - c.prev} pct={pctChange(c.amount, c.prev)} /> : <span className="muted">지난달 없음</span>}</span>
-          </div>
-        ))}
+          )
+        })}
       </div>
 
       <div className="card">
-        <h3 className="section-title">누구를 위한 지출</h3>
-        <div className="summary">
+        <h2 className="section-title">누구를 위한 지출</h2>
+        <div className="summary four">
           {SCOPES.map((s) => (
-            <div key={s}><div className="k"><span className={`who ${lookup.colorOf(s)}`}>{SCOPE_LABEL[s]}</span></div><div className="v num">{won(split[s])}</div></div>
+            <div key={s}>
+              <div className="k"><span className={`who ${lookup.colorOf(s)}`}>{SCOPE_LABEL[s]}</span></div>
+              <div className="v num">{won(split[s])}</div>
+              {!noPrev && <span className="delta">{prevSplit[s] || split[s] ? <Delta diff={split[s] - prevSplit[s]} pct={pctChange(split[s], prevSplit[s])} /> : null}</span>}
+            </div>
           ))}
         </div>
       </div>
 
       <div className="card">
-        <h3 className="section-title">어디서 샀나</h3>
+        <h2 className="section-title">어디서 샀나</h2>
         {platforms.length === 0 && <p className="empty">이번 달 지출이 없어요</p>}
         {platforms.map((p) => (
-          <div className="cat-row" key={p.name}>
+          <button className="cat-row cat-btn" key={p.name} onClick={() => onPlatform(p.name)}>
             <div className="cat-top">
               <span>{p.name} <span className="muted num">{p.count}건</span></span>
               <b className="num">{won(p.amount)}</b>
             </div>
             <div className="cat-bar"><i className={p.name === OTHER_PLATFORM ? 'other' : ''} style={{ width: `${maxPlat ? (p.amount / maxPlat) * 100 : 0}%` }} /></div>
-            <span className="delta">{p.prev ? <Delta diff={p.amount - p.prev} pct={pctChange(p.amount, p.prev)} /> : <span className="muted">지난달 없음</span>}</span>
-          </div>
+            {!noPrev && <span className="delta">{p.prev ? <Delta diff={p.amount - p.prev} pct={pctChange(p.amount, p.prev)} /> : <span className="muted">지난달 없음</span>}</span>}
+          </button>
         ))}
-        <p className="note">내역의 플랫폼 칸으로 묶어요. 플랫폼이 비어 있는 예전 내역은 이름(가맹점)으로 쿠팡·네이버 등을 짐작해요.</p>
+        <p className="note">내역의 플랫폼 칸으로 묶어요. 플랫폼이 비어 있는 예전 내역은 이름(가맹점)으로 쿠팡·네이버 등을 짐작해요. 눌러서 그 플랫폼 내역을 봐요.</p>
       </div>
 
       <BillCard householdId={household.id} reloadKey={billsVersion} onAdd={onBill} />
     </section>
   )
+}
+
+/** 12개월 그래프 아래 문장. 수입이 없으면 쓴 돈만, 수입보다 많이 썼으면 '더 썼어요' */
+function readout(p: MonthPoint): string {
+  const { y, m } = parseYM(p.ym)
+  const when = `${y}년 ${m}월에`
+  if (p.income === 0) return `${when} ${won(p.expense)}원 썼어요`
+  const left = p.income - p.expense
+  if (left < 0) return `${when} ${won(p.expense)}원 쓰고 ${won(p.income)}원 들어와 ${won(-left)}원 더 썼어요`
+  return `${when} ${won(p.expense)}원 쓰고 ${won(p.income)}원 들어와 ${won(left)}원 남았어요`
 }
 
 function Delta({ diff, pct }: { diff: number; pct: number | null }) {
@@ -151,6 +237,22 @@ function Delta({ diff, pct }: { diff: number; pct: number | null }) {
     <span className="num">
       {diff > 0 ? '▲' : '▼'} {won(Math.abs(diff))}{pct !== null && ` (${diff > 0 ? '+' : ''}${pct}%)`}
     </span>
+  )
+}
+
+/** 한 분류의 여섯 달 막대. 마지막(보고 있는 달)만 진하게 */
+function Trend({ points }: { points: { ym: string; amount: number }[] }) {
+  const max = Math.max(1, ...points.map((p) => p.amount))
+  return (
+    <div className="trend" role="img" aria-label={`여섯 달 추이: ${points.map((p) => `${parseYM(p.ym).m}월 ${won(p.amount)}원`).join(', ')}`}>
+      {points.map((p, i) => (
+        <div key={p.ym} className={`trend-bar${i === points.length - 1 ? ' on' : ''}`}>
+          <span className="num">{p.amount ? man(p.amount) : ''}</span>
+          <i style={{ height: `${(p.amount / max) * 100}%` }} />
+          <span>{parseYM(p.ym).m}월</span>
+        </div>
+      ))}
+    </div>
   )
 }
 

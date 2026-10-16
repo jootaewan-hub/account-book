@@ -65,19 +65,30 @@ export function SmartSheet({ open, mode, today, householdId, lookup, categories,
   // 관리비 고지서는 한 장의 여러 부분이라 한 번에 보낸다
   const maxPhotos = mode === 'bill' ? BATCH_SIZE : MAX_PHOTOS
   const fileRef = useRef<HTMLInputElement>(null)
+  // 분석 요청 번호. 시트를 닫았다 다시 열면 번호가 바뀌어, 늦게 끝난 이전 분석 결과는 버린다
+  const reqRef = useRef(0)
+
+  function dropPhotos() {
+    for (const p of photos.current.values()) URL.revokeObjectURL(p.url)
+    photos.current = new Map()
+  }
 
   useEffect(() => {
     if (!open) return
+    reqRef.current++
+    dropPhotos()
     setStage('input'); setText(''); setDrafts([]); setGroups([]); setNote(null); setModel(null); setErr(''); setBusy(false); setPreparing(false); setProgress(''); setBill(null)
     setImages((prev) => { prev.forEach((i) => URL.revokeObjectURL(i.preview)); return [] })
   }, [open, mode])
 
   async function run(request: () => Promise<AnalyzeResult & { failed?: { from: number; to: number; message: string }[] }>, imgs: PreparedImage[] = []) {
+    const id = ++reqRef.current
     setStage('loading'); setErr(''); setProgress('')
     try {
       const res = await request()
+      if (id !== reqRef.current) return
       // 상품 사진: 모델이 알려 준 영역을 원본에서 잘라 둔다 (실패하면 사진 없이)
-      photos.current = new Map()
+      dropPhotos()
       for (const [i, e] of res.entries.entries()) {
         for (const [j, it] of e.items.entries()) {
           const box = it.image_box
@@ -98,6 +109,7 @@ export function SmartSheet({ open, mode, today, householdId, lookup, categories,
       setErr(failed)
       setStage('review')
     } catch (e) {
+      if (id !== reqRef.current) return
       setErr(e instanceof SmartError ? e.message : friendlyError(e)); setStage('input')
     }
   }
@@ -164,11 +176,14 @@ export function SmartSheet({ open, mode, today, householdId, lookup, categories,
     if (!images.length) return
     const payload = images.map(({ media_type, data, width, height }) => ({ media_type, data, width, height }))
     if (mode === 'bill') {
+      const id = ++reqRef.current
       setStage('loading'); setErr('')
       try {
         const res = await analyzeBill(payload, today)
+        if (id !== reqRef.current) return
         setBill(res.bill); setModel(modelLabel(res.model)); setStage('review')
       } catch (e) {
+        if (id !== reqRef.current) return
         setErr(e instanceof SmartError ? e.message : friendlyError(e)); setStage('input')
       }
       return

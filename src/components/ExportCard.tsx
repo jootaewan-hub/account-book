@@ -61,7 +61,13 @@ export function ExportCard({ householdId, today, lookup, toast }: Props) {
       const file = new File(['﻿' + toCsv(rows)], name, { type: 'text/csv' })
       // iPhone에서는 공유 시트로 '파일에 저장'·카톡 전송 등을 고를 수 있다
       if (navigator.canShare?.({ files: [file] })) {
-        await navigator.share({ files: [file], title: name }).catch(() => undefined)
+        try {
+          await navigator.share({ files: [file], title: name })
+        } catch (e) {
+          // 공유 시트를 그냥 닫은 것은 내보낸 게 아니다
+          if ((e as Error).name === 'AbortError') return
+          throw e
+        }
       } else {
         const url = URL.createObjectURL(file)
         const a = document.createElement('a')
@@ -93,7 +99,7 @@ export function ExportCard({ householdId, today, lookup, toast }: Props) {
 
   return (
     <div className="card">
-      <h3 className="section-title">내보내기</h3>
+      <h2 className="section-title">내보내기</h2>
       <div className="form-grid">
         <select className="input" aria-label="내보낼 기간" value={period} onChange={(e) => setPeriod(e.target.value as Period)}>
           {(Object.keys(PERIOD_LABEL) as Period[]).map((p) => <option key={p} value={p}>{PERIOD_LABEL[p]}</option>)}
@@ -102,7 +108,7 @@ export function ExportCard({ householdId, today, lookup, toast }: Props) {
       </div>
       <p className="note">엑셀·구글 시트·Numbers에서 열 수 있어요. 구글 시트는 파일 → 가져오기 → 업로드로 넣습니다.</p>
 
-      <h3 className="section-title" style={{ marginTop: 16 }}>구글 시트에 자동으로 채우기</h3>
+      <h2 className="section-title" style={{ marginTop: 16 }}>구글 시트에 자동으로 채우기</h2>
       {!token ? (
         <button className="ghost full-btn" disabled={busy} onClick={() => showLink(false)}>연결 수식 보기</button>
       ) : (

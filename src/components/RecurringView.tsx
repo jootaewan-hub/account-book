@@ -54,8 +54,7 @@ export function RecurringView({ householdId, today, lookup, categories, onTxChan
     toast(n ? `${msg}. 내역 ${n}건을 넣었어요` : msg)
   }
 
-  const monthTxs = useMemo(() => history.filter((t) => t.occurred_on.startsWith(today.slice(0, 7))), [history, today])
-  const pending = useMemo(() => (list ? pendingInputs(list, monthTxs, today) : []), [list, monthTxs, today])
+  const pending = useMemo(() => (list ? pendingInputs(list, history, today) : []), [list, history, today])
   const candidates = useMemo(() => (list ? subscriptionCandidates(history, list) : []), [history, list])
 
   if (!list) return <section className="view"><p className="lead">{err || '불러오는 중…'}</p></section>
@@ -98,7 +97,7 @@ export function RecurringView({ householdId, today, lookup, categories, onTxChan
         const items = list.filter((r) => r.kind === k)
         return (
           <div className="card" key={k}>
-            <h3 className="section-title">{KIND_LABEL[k]}</h3>
+            <h2 className="section-title">{KIND_LABEL[k]}</h2>
             {items.length === 0 && <p className="empty">아직 없어요</p>}
             {items.map((r) => {
               const next = nextDue(r, today)
@@ -135,7 +134,7 @@ export function RecurringView({ householdId, today, lookup, categories, onTxChan
 
       {candidates.length > 0 && (
         <div className="card">
-          <h3 className="section-title">구독 같아요</h3>
+          <h2 className="section-title">구독 같아요</h2>
           <p className="tx-meta" style={{ marginTop: -6, marginBottom: 6 }}>최근 6개월에 같은 금액이 여러 달 나왔어요.</p>
           {candidates.slice(0, 5).map((c) => (
             <div className="set-row" key={`${c.title}|${c.amount}`}>

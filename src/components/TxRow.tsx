@@ -21,8 +21,9 @@ export function TxRow({ t, lookup, onClick }: { t: Transaction; lookup: Lookup; 
   const meta = [cat, items > 1 ? `품목 ${items}개` : null, one, t.created_by !== lookup.me ? `${lookup.personLabel(t.created_by)} 입력` : null]
     .filter(Boolean).join(', ')
   const lead = thumb || logo
-  // 할부 회차 (저장할 때·자동 입력할 때 메모 앞에 "할부 2/3회"로 적는다)
+  // 할부 회차 (저장할 때·자동 입력할 때 메모 앞에 "할부 2/3회"로 적는다). 태그로 보여 주므로 메모 글에서는 뺀다
   const inst = /^할부 (\d+)\/(\d+)회/.exec(t.memo ?? '')
+  const memo = (t.memo ?? '').replace(/^할부 \d+\/\d+회,?\s*/, '')
   return (
     <button className={`tx${lead ? ' has-lead' : ''}`} onClick={onClick}>
       {thumb ? <img className="tx-thumb" src={thumb} alt="" loading="lazy" /> : logo ? <ServiceLogo name={t.title} size={40} /> : null}
@@ -33,6 +34,7 @@ export function TxRow({ t, lookup, onClick }: { t: Transaction; lookup: Lookup; 
           {inst && <span className="tag">할부 {inst[1]}/{inst[2]}</span>}
           {t.scope !== 'shared' && <span className={`tag ${WHO_TAG[t.scope]}`}>{SCOPE_LABEL[t.scope]}</span>}
           <span className="num">{meta}</span>
+          {memo && <span className="tx-memo">{memo}</span>}
         </span>
       </span>
       <span className={`tx-amt num${t.type === 'income' ? ' inc' : ''}`}>{t.type === 'income' ? '+' : ''}{won(t.amount)}원</span>
