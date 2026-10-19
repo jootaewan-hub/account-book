@@ -423,3 +423,24 @@
 .grocery .tag-oat { background: var(--canvas); }
 .grocery .market-now .tag { vertical-align: 1px; }
 .grocery .nowrap { white-space: nowrap; }
+
+/* P3 가격 출처 넓히기: 주소를 넣은 곳·매장 가격(참가격)·고르기 시트 */
+.grocery .shop-row .price-where, .grocery .store-good { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; }
+.grocery .src-line { margin-top: 2px; font-size: 13px; color: var(--ink-2); }
+.grocery .shop-state { color: var(--ink); }
+.grocery .shop-actions { display: flex; align-items: center; gap: 16px; margin: 0; }
+.grocery .shop-actions .btn-text { display: inline-flex; align-items: center; min-height: 44px; padding: 0; margin: 0; font-size: 14px; text-decoration: none; }
+.grocery .shop-note { margin: 8px 0 0; font-size: 13px; color: var(--ink-2); }
+.grocery .store-good { margin: 0 0 8px; font-size: 15px; font-weight: 600; }
+.grocery .sheet-nested { z-index: 31; }
+.grocery .pick-list { list-style: none; margin: 8px 0 0; padding: 0; }
+.grocery .pick-row {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 2px; width: 100%; min-height: 48px; padding: 10px 0;
+  border: 0; border-top: 1px solid var(--oat-deep); background: none; color: inherit; font: inherit; text-align: left; cursor: pointer;
+}
+.grocery .pick-row:focus-visible { outline: 2px solid var(--ink); outline-offset: -2px; }
+.grocery .pick-row[aria-pressed="true"] .pick-name::after { content: ' · 지금 고른 상품'; font-weight: 400; color: var(--ink-2); }
+.grocery .pick-name { font-size: 15px; font-weight: 600; }
+.grocery .pick-meta { font-size: 13px; color: var(--ink-2); }
+.grocery .pick-check { display: flex; align-items: center; gap: 12px; min-height: 48px; padding: 4px 0; border-top: 1px solid var(--oat-deep); cursor: pointer; }
+.grocery .pick-check input { width: 22px; height: 22px; margin: 0; accent-color: var(--ink); }

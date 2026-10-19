@@ -5,6 +5,8 @@ import type { DemoPrices } from './lib/store'
 import type { Item } from './lib/types'
 import { keyOf, type MarketBoard, type MarketSeries, type NearbyPrice, type SeriesKey, type TrendPoint } from './lib/market'
 import type { Recalls } from './lib/marketStore'
+import type { ShopPrice, StorePrice } from './lib/sources'
+import { recentFridays } from '../../supabase/functions/_shared/tprice'
 
 const H = 'demo'
 const HUSBAND = 'demo-husband'
@@ -79,6 +81,17 @@ export function demoSeed(): { me: Membership; items: Item[]; alerts: AlertsResul
   }
   // 데모용 가상 가격(실제 다나와 값이 아님). 판매처 이름에 '예시'를 붙인다. 확인 시각은 늘 1시간 전.
   const at = new Date(Date.now() - 3600_000).toISOString()
+  const dayAgo = new Date(Date.now() - 25 * 3600_000).toISOString()
+  const dayAgoDate = new Date(Date.now() + 9 * 3600_000 - 24 * 3600_000).toISOString().slice(0, 10)
+  // 조사일: 최근 금요일 중 둘째(값이 며칠 뒤 들어오는 실제 모양)
+  const lastFriday = recentFridays(new Date(), 2)[1]
+  const shop = (source: ShopPrice['source'], sourceId: string, url: string, v: Partial<ShopPrice>): ShopPrice => ({
+    source, sourceId, url, addedAt: dayAgo, checkedAt: at, ok: true, error: null, pricedAt: null, name: null, price: null, imageUrl: null,
+    rating: null, reviewCount: null, size: null, priceFrom: null, obsLow: null, obsHigh: null, obsAvg: null, changedOn: null, ...v,
+  })
+  const storeRow = (entpId: string, entpName: string, typeCode: string, inspectedOn: string | null, price: number | null, dc = false): StorePrice => ({
+    goodId: '1001', goodName: '비비고 왕교자(1.12kg)', entpId, entpName, typeCode, inspectedOn, price, dc, plusOne: false,
+  })
   const line = (qty: number, seller: string | null, price: number, delivery: number | null, unitPrice: number | null = null, mallCount: number | null = null) => ({
     price, seller, source: 'danawa' as const, qty, delivery, checkedAt: at, unitPrice, unitLabel: unitPrice ? '100g' : null, mallCount,
   })
@@ -110,6 +123,39 @@ export function demoSeed(): { me: Membership; items: Item[]; alerts: AlertsResul
         line(3, null, 27650, null, 878, 279),
       ],
     },
+    // 데모용 가상 몰 주소 값(실제 컬리·로우차트 값이 아님). 로우차트는 마지막 확인이 실패하고 하루 전 값이 남은 모양.
+    shops: {
+      'demo-p-1': [
+        shop('kurly', '5082274', 'https://www.kurly.com/goods/5082274', { name: '[예시] 왕교자 만두 대용량 1.05kg', price: 10980, size: '1050g', pricedAt: at }),
+        shop('lowchart', '9519439579-18170724212', 'https://www.lowchart.com/9519439579-18170724212', {
+          name: '예시 왕교자 1.05kg, 2개', price: 21500, pricedAt: dayAgo, ok: false, error: 'http_503',
+          priceFrom: dayAgoDate, obsLow: 21500, obsHigh: 27900, obsAvg: 25100, changedOn: dayAgoDate,
+        }),
+      ],
+    },
+    // 참가격 조사 상품 이름은 실제 목록의 이름 모양을 따랐다(docs/grocery/data-sources.md 2절). 가격은 가상 값.
+    storeGoods: [
+      { goodId: '1001', name: '비비고 왕교자(1.12kg)', detail: '냉동만두' },
+      { goodId: '1002', name: '서울우유 흰우유(1L)', detail: null },
+      { goodId: '1003', name: '대파(흙대파, 500~800g)', detail: null },
+      { goodId: '1004', name: 'CJ 햇반(210g)', detail: '즉석밥' },
+      { goodId: '1005', name: '농심 신라면(120g*5개입)', detail: '봉지라면' },
+    ],
+    storeLinks: { 'demo-item-3': '1001' },
+    storePrices: {
+      '1001': [
+        storeRow('7', '이마트분당점', 'LM', lastFriday, 9980),
+        storeRow('201', '롯데슈퍼 분당서현점', 'SM', lastFriday, 10480, true),
+        storeRow('82', '농협하나로유통 성남점', 'SM', null, null),
+      ],
+    },
+    stores: [
+      { entpId: '7', name: '이마트분당점', typeCode: 'LM' },
+      { entpId: '912', name: '이마트성남점', typeCode: 'LM' },
+      { entpId: '82', name: '농협하나로유통 성남점', typeCode: 'SM' },
+      { entpId: '201', name: '롯데슈퍼 분당서현점', typeCode: 'SM' },
+      { entpId: '1948', name: '현대백화점판교점', typeCode: 'DP' },
+    ],
   }
   return { me, items, alerts, prices }
 }

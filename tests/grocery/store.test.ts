@@ -209,3 +209,61 @@ describe('Supabase 저장소: 가격 확인', () => {
     expect(invokes).toEqual([{ name: 'product-search', body: { itemId: 'i1' } }])
   })
 })
+
+describe('가격 출처(메모리, P3)', () => {
+  const seed = () => {
+    const { me: d, items, alerts, prices } = demoSeed()
+    return createMemoryStore(items, d, () => '2026-10-19T12:00:00Z', alerts, prices)
+  }
+
+  it('데모 저장소: 고른 상품에 넣은 주소의 값과, 품목의 참가격 연결·매장 줄을 돌려준다', async () => {
+    const s = seed()
+    const src = await s.sources('demo-item-3')
+    expect(src.shops.map((x) => [x.source, x.ok, x.price !== null])).toEqual([['kurly', true, true], ['lowchart', false, true]])
+    expect(src.store.good).toEqual({ goodId: '1001', name: '비비고 왕교자(1.12kg)' })
+    expect(src.store.prices.length).toBeGreaterThanOrEqual(2)
+    expect(src.store.prices.some((p) => p.price === null)).toBe(true)
+    // 상품을 안 고른 품목: 주소 없음, 참가격 연결 없음
+    expect(await s.sources('demo-item-6')).toEqual({ shops: [], store: { good: null, prices: [] } })
+  })
+
+  it('주소 넣기: 같은 출처는 바꾸고, 아직 확인 전(ok null)으로 둔다. 빼면 사라진다. 상품을 안 고른 품목은 거절', async () => {
+    const s = seed()
+    await s.addShopLink('demo-item-3', { source: 'homeplus', sourceId: '120074651:HYPER', url: 'https://mfront.homeplus.co.kr/item?itemNo=120074651&storeType=HYPER' })
+    let src = await s.sources('demo-item-3')
+    expect(src.shops.map((x) => x.source)).toEqual(['homeplus', 'kurly', 'lowchart']) // DB처럼 출처 이름순
+    expect(src.shops[0]).toMatchObject({ sourceId: '120074651:HYPER', ok: null, checkedAt: null, price: null, addedAt: '2026-10-19T12:00:00Z' })
+    await s.addShopLink('demo-item-3', { source: 'kurly', sourceId: '1000466118', url: 'https://www.kurly.com/goods/1000466118' })
+    src = await s.sources('demo-item-3')
+    expect(src.shops.filter((x) => x.source === 'kurly')).toHaveLength(1)
+    expect(src.shops.find((x) => x.source === 'kurly')).toMatchObject({ sourceId: '1000466118', ok: null })
+    await s.removeShopLink('demo-item-3', 'lowchart')
+    expect((await s.sources('demo-item-3')).shops.map((x) => x.source)).toEqual(['homeplus', 'kurly'])
+    await expect(s.addShopLink('demo-item-6', { source: 'kurly', sourceId: '1', url: 'https://www.kurly.com/goods/1' })).rejects.toThrow('no_product')
+  })
+
+  it('참가격 상품 고르기는 같은 이름·규격의 품목이 함께 보고, null이면 푼다', async () => {
+    const s = seed()
+    const goods = await s.storeGoods()
+    expect(goods.length).toBeGreaterThanOrEqual(3)
+    const [added] = await s.add([{ name: '○○ 냉동볶음밥', spec: null, count: 1, category: '냉동', specIsDefault: false }])
+    await s.chooseStoreGood('demo-item-6', goods[1].goodId)
+    expect((await s.sources('demo-item-6')).store.good).toEqual({ goodId: goods[1].goodId, name: goods[1].name })
+    expect((await s.sources(added.id)).store.good).toEqual({ goodId: goods[1].goodId, name: goods[1].name })
+    await s.chooseStoreGood(added.id, null)
+    expect((await s.sources('demo-item-6')).store.good).toBeNull()
+  })
+
+  it('자주 가는 매장을 고르면 그 매장 줄만 보인다', async () => {
+    const s = seed()
+    const before = await s.storeOptions()
+    expect(before.chosen).toEqual([])
+    expect(before.stores.length).toBeGreaterThanOrEqual(3)
+    const first = (await s.sources('demo-item-3')).store.prices[0].entpId
+    await s.setStores([first])
+    expect((await s.storeOptions()).chosen).toEqual([first])
+    expect((await s.sources('demo-item-3')).store.prices.map((p) => p.entpId)).toEqual([first])
+    await s.setStores([])
+    expect((await s.sources('demo-item-3')).store.prices.length).toBeGreaterThanOrEqual(2)
+  })
+})

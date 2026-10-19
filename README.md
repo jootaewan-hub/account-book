@@ -77,7 +77,8 @@
 | `src/grocery/` | 장보기 탭: 화면(`components/`), 글 나누기·식약처 대조·가격 규칙·저장소(`lib/`), 화면 CSS(`grocery.css`, `.grocery` 안에서만) |
 | `supabase/migrations/*_grocery_*.sql` | 장보기 표(`grocery` 스키마만), RLS, 식약처 대조·가격 함수 |
 | `supabase/functions/food-alerts-sync/` | 식약처 목록을 받아 저장(매일 07:00 `.github/workflows/food-alerts-sync.yml`이 부름, 로그인 없이 부르되 20시간 1회·30분 잠금) |
-| `supabase/functions/product-search/`, `product-check/`, `_shared/` | 다나와 후보 찾기와 가격 확인(로그인 필수, 다나와 검색은 전역 10초에 한 번) |
+| `supabase/functions/product-search/`, `product-check/`, `_shared/` | 다나와 후보 찾기와 가격 확인(로그인 필수, 다나와 검색은 전역 10초에 한 번). `product-check`는 가구가 넣은 몰 주소(컬리·홈플러스·쿠팡→로우차트)도 출처마다 하루 한 번 읽는다 |
+| `supabase/functions/tprice-sync/` | 참가격(한국소비자원 생필품 가격, 공공데이터포털 15158701) 성남 판매점 가격을 받아 저장(매일 07:20 `.github/workflows/tprice-sync.yml`이 부름, 로그인 없이 부르되 20시간 1회·30분 잠금) |
 | `supabase/config.toml` | Edge Function별 로그인 확인(`verify_jwt`) 설정 |
 | `tests/grocery/` | 장보기 계산·파서·함수·권한 검증. 권한 검증은 마이그레이션 전부를 PGlite에 적용한 위에서, `boundary.test.ts`는 장보기 마이그레이션이 `public`을 바꾸지 않는지 |
 | `scripts/screenshots.mjs` | 화면 캡처(390·1280px, 라이트·다크). 장보기 데모와 가짜 응답으로 띄운 가계부 셸 |

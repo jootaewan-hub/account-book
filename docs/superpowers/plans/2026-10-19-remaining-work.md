@@ -284,13 +284,13 @@
 
 확인 결과는 `docs/grocery/data-sources.md` 1-2·2절, 결정은 D-013. 바뀐 점: 에누리·CJ더마켓 뺌, 몰 검색 대신 주소 붙여넣기, 하루 한 번 다시 확인은 P3 끝에.
 
-- [ ] **P3-1 몰 상품 페이지 읽기** `supabase/functions/_shared/shops.ts`: 붙여 넣은 주소를 정리(컬리 `goods/{id}`, 홈플러스 `item?itemNo=&storeType=`, 쿠팡 `vp/products/{pid}?itemId=` → 로우차트 `{pid}-{itemId}`, 로우차트 주소 그대로). 짧은 주소(link.coupang.com 등)와 다른 사이트는 거절. JSON-LD에서 이름·가격(양의 정수만, 0은 버림)·평점·후기 수, 로우차트 관측 최저·최고·평균가와 최근 변동일. 사본 fixture(후기 본문은 지움)로 시험.
-- [ ] **P3-2 참가격 읽기** `supabase/functions/_shared/tprice.ts`: XML 항목(`iros.openapi.service.vo.*`)을 판매점·상품·가격 행으로. 성남 지역 상세코드(020918000·020919000·020925000)만. 조사일 후보는 최근 5주의 금요일. fixture는 실제 응답 값으로 만든 XML.
-- [ ] **P3-3 DB** `20261023000000_grocery_sources.sql`(grocery만): `shop_links`(가구·상품·출처·주소, 가구 RLS, 주소 모양 check), `shop_checks`(출처·출처 id·확인 시각·성공·이름·가격·평점·관측값, 읽기만), `tprice_stores`·`tprice_goods`·`tprice_prices`(공개 자료 읽기), `store_links`(가구·이름 열쇠 → 참가격 상품, 가구 RLS), `household_prefs`(가구·자주 가는 매장), `sync_lock` id 3. PGlite 시험.
-- [ ] **P3-4 함수**: `product-check`가 다나와 다음에 가구가 넣은 주소들을 읽는다(출처·주소마다 하루 한 번, 하나가 실패해도 나머지 저장). `tprice-sync`(verify_jwt false, 20시간 1회·잠금 id 3): 판매점·상품 목록, 성남 판매점 × 최근 금요일 가격. 워크플로 매일 07:20.
-- [ ] **P3-5 화면**: 품목 상세 가격 탭에 "주소를 넣은 곳"(출처 태그·확인 시각·상품 이름, 가장 싼 값에는 넣지 않음)과 주소 넣기·빼기, "매장 가격(참가격)"(조사일, 고른 매장, 참가격 상품 고르기·바꾸기, 매장 고르기). 데모·캡처.
+- [x] **P3-1 몰 상품 페이지 읽기** `supabase/functions/_shared/shops.ts`: 붙여 넣은 주소를 정리(컬리 `goods/{id}`, 홈플러스 `item?itemNo=&storeType=`, 쿠팡 `vp/products/{pid}?itemId=` → 로우차트 `{pid}-{itemId}`, 로우차트 주소 그대로). 짧은 주소(link.coupang.com 등)와 다른 사이트는 거절. JSON-LD에서 이름·가격(양의 정수만, 0은 버림)·평점·후기 수, 로우차트 관측 최저·최고·평균가와 최근 변동일. 사본 fixture(후기 본문은 지움)로 시험.
+- [x] **P3-2 참가격 읽기** `supabase/functions/_shared/tprice.ts`: XML 항목(`iros.openapi.service.vo.*`)을 판매점·상품·가격 행으로. 성남 지역 상세코드(020918000·020919000·020925000)만. 조사일 후보는 최근 5주의 금요일. fixture는 실제 응답 값으로 만든 XML.
+- [x] **P3-3 DB** `20261023000000_grocery_sources.sql`(grocery만): `shop_links`(가구·상품·출처·주소, 가구 RLS, 주소 모양 check), `shop_checks`(출처·출처 id·확인 시각·성공·이름·가격·평점·관측값, 읽기만), `tprice_stores`·`tprice_goods`·`tprice_prices`(공개 자료 읽기), `store_links`(가구·이름 열쇠 → 참가격 상품, 가구 RLS), `household_prefs`(가구·자주 가는 매장), `sync_lock` id 3. PGlite 시험.
+- [x] **P3-4 함수**: `product-check`가 다나와 다음에 가구가 넣은 주소들을 읽는다(출처·주소마다 하루 한 번, 하나가 실패해도 나머지 저장). `tprice-sync`(verify_jwt false, 20시간 1회·잠금 id 3): 판매점·상품 목록, 성남 판매점 × 최근 금요일 가격. 워크플로 매일 07:20.
+- [x] **P3-5 화면**: 품목 상세 가격 탭에 "주소를 넣은 곳"(출처 태그·확인 시각·상품 이름, 가장 싼 값에는 넣지 않음)과 주소 넣기·빼기, "매장 가격(참가격)"(조사일, 고른 매장, 참가격 상품 고르기·바꾸기, 매장 고르기). 데모·캡처.
 - [ ] **P3-6 적용·확인**(사용자 확인 뒤): 마이그레이션, 함수 배포, 첫 수집, 실제 상품 3개 이상 대조, 보안 점검, status.
-- [ ] **P3-7 하루 한 번 다시 확인** `price-recheck`(안 산 품목의 고른 상품, 07:30). P3-6 뒤.
+- [x] **P3-7 하루 한 번 다시 확인** `price-recheck`(안 산 품목의 고른 상품, 07:30). P3-6 뒤.
 
 ---
 

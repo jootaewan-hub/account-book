@@ -22,6 +22,9 @@ import type { Item } from '../lib/types'
 import { change, changeText, dayText, gradeText, pickSeries, sameKey, seriesName, unitOf, whereOf, type MarketBoard, type MarketSeries, type SeriesKey } from '../lib/market'
 import type { MarketStore } from '../lib/marketStore'
 import MarketPanel from './MarketPanel'
+import { ShopLinks, StorePrices } from './SourceBlocks'
+import { GoodPickerSheet, StorePickerSheet } from './StoreSheets'
+import type { ItemSources, ShopLink, ShopSource } from '../lib/sources'
 import { matchMarket } from '../../../supabase/functions/_shared/market'
 
 const CLOSE_MS = 250
@@ -67,6 +70,11 @@ export default function ItemDetail({ item, store, onChangeProduct, onClose, mark
   const [data, setData] = useState<ItemDetailData | null>(null)
   const [failed, setFailed] = useState(false)
   const [checking, setChecking] = useState(false)
+  // P3: 넣은 주소의 값·참가격 매장 가격, 고르기 시트
+  const [sources, setSources] = useState<ItemSources | null>(null)
+  const [srcFailed, setSrcFailed] = useState(false)
+  const [srcBusy, setSrcBusy] = useState(false)
+  const [picker, setPicker] = useState<'good' | 'stores' | null>(null)
   const sheet = useRef<HTMLDivElement>(null)
   const closeBtn = useRef<HTMLButtonElement>(null)
   const closeTimer = useRef<number | undefined>(undefined)
@@ -93,6 +101,28 @@ export default function ItemDetail({ item, store, onChangeProduct, onClose, mark
       },
     )
   }, [store, item.id])
+
+  const loadSources = useCallback(() => {
+    setSrcFailed(false)
+    return store.sources(item.id).then(setSources, () => setSrcFailed(true))
+  }, [store, item.id])
+  useEffect(() => {
+    void loadSources()
+  }, [loadSources])
+  const withBusy = (p: Promise<unknown>) => {
+    setSrcBusy(true)
+    return p.finally(() => setSrcBusy(false))
+  }
+  const addLink = (link: ShopLink) =>
+    withBusy(
+      store.addShopLink(item.id, link).then(() => {
+        // 넣은 주소는 바로 한 번 읽는다(서버가 출처마다 하루 한 번만 받는다)
+        setChecking(true)
+        return store.checkPrice(item.id).catch(() => {}).then(() => Promise.all([load(), loadSources()])).finally(() => setChecking(false))
+      }),
+    ).then(() => {})
+  const removeLink = (source: ShopSource) => withBusy(store.removeShopLink(item.id, source).then(loadSources)).then(() => {})
+  const unlinkGood = () => withBusy(store.chooseStoreGood(item.id, null).then(loadSources)).then(() => {})
 
   // 열 때: 고른 상품이 있고 오늘 성공한 확인이 없으면 그때 확인한다(화면 설계 8-1)
   useEffect(() => {
@@ -121,9 +151,10 @@ export default function ItemDetail({ item, store, onChangeProduct, onClose, mark
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      if (picker) return // 겹쳐 연 고르기 시트가 처리한다
       if (e.key === 'Escape' && !e.isComposing) close()
       if (e.key === 'Tab' && sheet.current) {
-        const f = [...sheet.current.querySelectorAll<HTMLElement>('button:not([disabled]), a[href]')]
+        const f = [...sheet.current.querySelectorAll<HTMLElement>('button:not([disabled]), a[href], input')]
         if (f.length === 0) return
         const i = f.indexOf(document.activeElement as HTMLElement)
         const next = e.shiftKey ? (i <= 0 ? f.length - 1 : i - 1) : i === f.length - 1 ? 0 : i + 1
@@ -246,6 +277,12 @@ export default function ItemDetail({ item, store, onChangeProduct, onClose, mark
                   )}
                   {split.same.length > 0 && <PriceList title={`${qty}개`} lines={split.same} />}
                   {split.other.length > 0 && <PriceList title="다른 용량" lines={split.other} showUnit />}
+                  {srcFailed && <p className="cand-state" role="status">넣은 주소의 값과 매장 가격을 불러오지 못했어요. 잠시 뒤 다시 열어 주세요.</p>}
+                  {!srcFailed && !sources && <p className="cand-state" role="status">넣은 주소·매장 가격 불러오는 중</p>}
+                  {sources && data.product && <ShopLinks shops={sources.shops} busy={srcBusy || checking} onAdd={addLink} onRemove={removeLink} />}
+                  {sources && (
+                    <StorePrices store={sources.store} busy={srcBusy} onPickGood={() => setPicker('good')} onUnlink={unlinkGood} onPickStores={() => setPicker('stores')} />
+                  )}
                   <p className="detail-sub">다른 곳에서 보기</p>
                   <div className="detail-links">
                     {SHORTCUTS.map((s) => (
@@ -301,6 +338,16 @@ export default function ItemDetail({ item, store, onChangeProduct, onClose, mark
           )}
         </div>
       </div>
+      {picker === 'good' && (
+        <GoodPickerSheet
+          store={store}
+          itemName={item.name}
+          current={sources?.store.good?.goodId ?? null}
+          onPick={(goodId) => store.chooseStoreGood(item.id, goodId).then(loadSources)}
+          onClose={() => setPicker(null)}
+        />
+      )}
+      {picker === 'stores' && <StorePickerSheet store={store} onSaved={loadSources} onClose={() => setPicker(null)} />}
     </div>
   )
 }

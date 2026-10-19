@@ -2,6 +2,8 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { groupAlerts, SOURCES, type AlertsResult, type ItemAlertRow } from './alerts'
 import type { Category } from './categories'
 import type { Candidate, ItemDetailData, ItemPrice, ItemSearch, PriceLine, SafetyRecord, SearchResult } from './products'
+import { SEONGNAM_AREAS } from '../../../supabase/functions/_shared/tprice'
+import type { ItemSources, ShopPrice, StoreGood, StoreOption, StorePrice } from './sources'
 import type { ListStore } from './store'
 import type { Membership } from './membership'
 import type { Item } from './types'
@@ -47,6 +49,7 @@ export function rowToItem(r: Row): Item {
 export function createSupabaseStore(client: SupabaseClient, me: Membership): ListStore {
   const g = () => client.schema('grocery')
   const table = () => g().from('items')
+  let goodsCache: StoreGood[] | null = null // 참가격 상품 목록(약 600개)은 한 번만 읽는다
 
   return {
     async list() {
@@ -177,6 +180,87 @@ export function createSupabaseStore(client: SupabaseClient, me: Membership): Lis
       const res = await client.functions.invoke('product-check', { body: { productId: data.product_id } })
       if (res.error) throw res.error
     },
+    async sources(itemId): Promise<ItemSources> {
+      const it = await table().select('product_id').eq('id', itemId).maybeSingle()
+      if (it.error) throw it.error
+      const productId = (it.data?.product_id ?? null) as string | null
+      const [shops, link, prices] = await Promise.all([
+        productId ? g().rpc('shop_prices', { p_product: productId }) : Promise.resolve({ data: [], error: null }),
+        g().rpc('item_store_link', { p_item: itemId }),
+        g().rpc('item_store_prices', { p_item: itemId }),
+      ])
+      if (shops.error) throw shops.error
+      if (link.error) throw link.error
+      if (prices.error) throw prices.error
+      const good = ((link.data ?? []) as { good_id: string; good_name: string }[])[0]
+      return {
+        shops: ((shops.data ?? []) as ShopRow[]).map(
+          (r): ShopPrice => ({
+            source: r.source as ShopPrice['source'], sourceId: r.source_id, url: r.url, addedAt: r.added_at,
+            checkedAt: r.checked_at, ok: r.ok, error: r.error, pricedAt: r.priced_at, name: r.name, price: r.price, imageUrl: r.image_url,
+            rating: r.rating == null ? null : Number(r.rating), reviewCount: r.review_count, size: r.size, priceFrom: r.price_from,
+            obsLow: r.obs_low, obsHigh: r.obs_high, obsAvg: r.obs_avg, changedOn: r.changed_on,
+          }),
+        ),
+        store: {
+          good: good ? { goodId: good.good_id, name: good.good_name } : null,
+          prices: ((prices.data ?? []) as StoreRow[]).map(
+            (r): StorePrice => ({
+              goodId: r.good_id, goodName: r.good_name, entpId: r.entp_id, entpName: r.entp_name, typeCode: r.type_code,
+              inspectedOn: r.inspected_on, price: r.price, dc: r.dc ?? false, plusOne: r.plus_one ?? false,
+            }),
+          ),
+        },
+      }
+    },
+    async addShopLink(itemId, link) {
+      const it = await table().select('product_id').eq('id', itemId).maybeSingle()
+      if (it.error) throw it.error
+      if (!it.data?.product_id) throw new Error('no_product')
+      const { error } = await g().from('shop_links').upsert(
+        { household_id: me.householdId, product_id: it.data.product_id, source: link.source, source_id: link.sourceId, url: link.url, added_by: me.userId, added_at: new Date().toISOString() },
+        { onConflict: 'household_id,product_id,source' },
+      )
+      if (error) throw error
+    },
+    async removeShopLink(itemId, source) {
+      const it = await table().select('product_id').eq('id', itemId).maybeSingle()
+      if (it.error) throw it.error
+      if (!it.data?.product_id) return
+      const { error } = await g().from('shop_links').delete().eq('household_id', me.householdId).eq('product_id', it.data.product_id).eq('source', source)
+      if (error) throw error
+    },
+    async storeGoods() {
+      if (!goodsCache) {
+        const { data, error } = await g().from('tprice_goods').select('good_id, name, detail').order('name').limit(2000)
+        if (error) throw error
+        goodsCache = ((data ?? []) as { good_id: string; name: string; detail: string | null }[]).map((r): StoreGood => ({ goodId: r.good_id, name: r.name, detail: r.detail }))
+      }
+      return goodsCache
+    },
+    async chooseStoreGood(itemId, goodId) {
+      const { error } = await g().rpc('choose_store_good', { p_item: itemId, p_good: goodId })
+      if (error) throw error
+    },
+    async storeOptions() {
+      const [stores, prefs] = await Promise.all([
+        g().from('tprice_stores').select('entp_id, name, type_code').in('area_detail_code', [...SEONGNAM_AREAS]).order('name'),
+        g().from('household_prefs').select('store_ids').eq('household_id', me.householdId).maybeSingle(),
+      ])
+      if (stores.error) throw stores.error
+      if (prefs.error) throw prefs.error
+      return {
+        stores: ((stores.data ?? []) as { entp_id: string; name: string; type_code: string }[]).map((r): StoreOption => ({ entpId: r.entp_id, name: r.name, typeCode: r.type_code })),
+        chosen: ((prefs.data?.store_ids ?? []) as string[]),
+      }
+    },
+    async setStores(entpIds) {
+      const { error } = await g().from('household_prefs').upsert(
+        { household_id: me.householdId, store_ids: entpIds, updated_by: me.userId, updated_at: new Date().toISOString() },
+        { onConflict: 'household_id' },
+      )
+      if (error) throw error
+    },
     async detail(itemId): Promise<ItemDetailData> {
       const [it, safety, syncedAt] = await Promise.all([
         table().select('product_id').eq('id', itemId).maybeSingle(),
@@ -252,6 +336,15 @@ export function createSupabaseStore(client: SupabaseClient, me: Membership): Lis
 }
 
 type SearchRow = { item_id: string; status: ItemSearch['status']; candidate_count: number | null; updated_at: string }
+type ShopRow = {
+  source: string; source_id: string; url: string; added_at: string; checked_at: string | null; ok: boolean | null; error: string | null
+  priced_at: string | null; name: string | null; price: number | null; image_url: string | null; rating: number | string | null; review_count: number | null
+  size: string | null; price_from: string | null; obs_low: number | null; obs_high: number | null; obs_avg: number | null; changed_on: string | null
+}
+type StoreRow = {
+  good_id: string; good_name: string; entp_id: string; entp_name: string; type_code: string
+  inspected_on: string | null; price: number | null; dc: boolean | null; plus_one: boolean | null
+}
 type PriceRow = { item_id: string; price: number; seller: string | null; qty: number; delivery: number | null; checked_at: string }
 type CandidateRow = {
   qty: number

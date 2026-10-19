@@ -13,6 +13,7 @@ import {
   type PriceLine,
   type SearchResult,
 } from './products'
+import type { ItemSources, ShopLink, ShopPrice, ShopSource, StoreGood, StoreOption, StorePrice } from './sources'
 
 export interface ListStore {
   list(): Promise<Item[]>
@@ -34,6 +35,18 @@ export interface ListStore {
   detail(itemId: string): Promise<ItemDetailData>
   /** 산 품목을 가계부 내역으로 넣고 연결한다(grocery.record_purchase, D-011). 만든 내역 id를 돌려준다 */
   recordPurchase(entries: PurchaseEntry[]): Promise<string[]>
+  /** 품목 상세: 고른 상품에 넣은 몰 주소의 값(grocery.shop_prices)과 참가격 연결·매장 가격(item_store_link·item_store_prices). P3 */
+  sources(itemId: string): Promise<ItemSources>
+  /** 고른 상품에 몰 주소를 넣는다(출처마다 하나, 같은 출처는 바꿈). 상품을 안 고른 품목이면 no_product */
+  addShopLink(itemId: string, link: ShopLink): Promise<void>
+  removeShopLink(itemId: string, source: ShopSource): Promise<void>
+  /** 참가격 조사 상품 전부(약 600개) */
+  storeGoods(): Promise<StoreGood[]>
+  /** 품목(이름·규격)에 참가격 상품을 고른다. null이면 푼다 */
+  chooseStoreGood(itemId: string, goodId: string | null): Promise<void>
+  /** 성남 참가격 판매점과 가구가 고른 매장 */
+  storeOptions(): Promise<{ stores: StoreOption[]; chosen: string[] }>
+  setStores(entpIds: string[]): Promise<void>
 }
 
 /** 개발용 데모 화면에서 쓰는 가격 확인 자료(실제 가격 아님) */
@@ -43,6 +56,14 @@ export type DemoPrices = {
   products: Record<string, NonNullable<ItemDetailData['product']>>
   /** 상품 id → 가격 줄 */
   lines: Record<string, PriceLine[]>
+  /** 상품 id → 넣은 몰 주소의 값(P3) */
+  shops?: Record<string, ShopPrice[]>
+  storeGoods?: StoreGood[]
+  /** 품목 id → 참가격 상품 id */
+  storeLinks?: Record<string, string>
+  /** 참가격 상품 id → 매장 줄 */
+  storePrices?: Record<string, StorePrice[]>
+  stores?: StoreOption[]
 }
 
 const NO_PRICES: DemoPrices = { searches: {}, candidates: {}, products: {}, lines: {} }
@@ -58,6 +79,15 @@ export function createMemoryStore(
   let items: Item[] = seed.map((i) => ({ ...i }))
   const listeners = new Set<() => void>()
   const notify = () => listeners.forEach((fn) => fn())
+  // P3: 넣은 주소(상품 id마다), 참가격 연결(품목 이름·규격 열쇠마다, DB의 name_key처럼), 고른 매장
+  const shops = new Map<string, ShopPrice[]>(Object.entries(demoPrices.shops ?? {}).map(([k, v]) => [k, v.map((x) => ({ ...x }))]))
+  const nameKey = (i: Item) => `${i.name}|${i.spec ?? ''}`
+  const storeLinks = new Map<string, string>()
+  for (const [itemId, goodId] of Object.entries(demoPrices.storeLinks ?? {})) {
+    const it = items.find((i) => i.id === itemId)
+    if (it) storeLinks.set(nameKey(it), goodId)
+  }
+  let chosenStores: string[] = []
 
   return {
     async list() {
@@ -148,6 +178,48 @@ export function createMemoryStore(
       notify()
     },
     async checkPrice() {},
+    async sources(itemId) {
+      const it = items.find((i) => i.id === itemId)
+      const goodId = it ? storeLinks.get(nameKey(it)) : undefined
+      const good = goodId ? (demoPrices.storeGoods ?? []).find((g) => g.goodId === goodId) : undefined
+      const prices = good ? (demoPrices.storePrices?.[good.goodId] ?? []) : []
+      return {
+        // DB의 shop_prices()처럼 출처 이름순
+        shops: it?.productKey ? (shops.get(it.productKey) ?? []).map((x) => ({ ...x })).sort((a, b) => a.source.localeCompare(b.source)) : [],
+        store: {
+          good: good ? { goodId: good.goodId, name: good.name } : null,
+          prices: (chosenStores.length ? prices.filter((p) => chosenStores.includes(p.entpId)) : prices).map((p) => ({ ...p })),
+        },
+      }
+    },
+    async addShopLink(itemId, link) {
+      const it = items.find((i) => i.id === itemId)
+      if (!it?.productKey) throw new Error('no_product')
+      const row: ShopPrice = {
+        ...link, addedAt: now(), checkedAt: null, ok: null, error: null, pricedAt: null, name: null, price: null, imageUrl: null,
+        rating: null, reviewCount: null, size: null, priceFrom: null, obsLow: null, obsHigh: null, obsAvg: null, changedOn: null,
+      }
+      shops.set(it.productKey, [...(shops.get(it.productKey) ?? []).filter((x) => x.source !== link.source), row])
+    },
+    async removeShopLink(itemId, source) {
+      const it = items.find((i) => i.id === itemId)
+      if (it?.productKey) shops.set(it.productKey, (shops.get(it.productKey) ?? []).filter((x) => x.source !== source))
+    },
+    async storeGoods() {
+      return (demoPrices.storeGoods ?? []).map((g) => ({ ...g }))
+    },
+    async chooseStoreGood(itemId, goodId) {
+      const it = items.find((i) => i.id === itemId)
+      if (!it) throw new Error('item_not_found')
+      if (goodId === null) storeLinks.delete(nameKey(it))
+      else storeLinks.set(nameKey(it), goodId)
+    },
+    async storeOptions() {
+      return { stores: (demoPrices.stores ?? []).map((o) => ({ ...o })), chosen: [...chosenStores] }
+    },
+    async setStores(entpIds) {
+      chosenStores = [...entpIds]
+    },
     async detail(itemId) {
       const it = items.find((i) => i.id === itemId)
       const product = it?.productKey ? (demoPrices.products[it.productKey] ?? null) : null

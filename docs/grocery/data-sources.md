@@ -107,6 +107,7 @@
   - 상품 604개. 열: `goodId`, `goodName`(용량 포함, 예 "비비고 왕교자(1.12kg)", "서울우유 흰우유(1L)", "대파(흙대파, 500~800g)"), `goodTotalCnt`·`goodTotalDivCode`(용량), `goodBaseCnt`·`goodUnitDivCode`(단위가격 기준), `goodSmlclsCode`(분류), `detailMean`(예 "120g*5개입"), `productEntpCode`(제조사). 바코드는 없다.
   - 가격: 이마트분당점(7)은 조사일 2026-09-25에 314개, 10-09에 299개. 09-26·10-02·10-03·10-10·10-16·10-17은 0개. **조사일은 격주 금요일**(위 안내 문구의 "목요일"과 다름). 열은 `goodInspectDay`, `entpId`, `goodId`, `goodPrice`, `inputDttm`(10-09 값은 10-15 15:32 입력). 할인·1+1 열은 이 응답들에 없었다(명세에는 있음, 해당할 때만 오는 것으로 보임: 추측입니다).
 - 확인 필요: 두 API(3043385·15158701) 중 존속할 쪽, 할인 열이 오는 조건, 다음 조사일(10-23 추측) 값이 언제 들어오는지.
+- 확인 필요(2026-10-19 로컬, P3-2): 가격 조회 요청의 `goodInspectDay` 날짜 모양. 명세(swagger)에 보기가 없어 코드는 `YYYYMMDD`로 보낸다(`_shared/tprice.ts`). 응답의 날짜는 `YYYYMMDD`·`YYYY-MM-DD` 둘 다 읽는다. 첫 수집(P3-6)에서 resultCode로 확인한다. 상품 목록 항목 태그는 명세상 `item`이고 상세내용 열은 `datailMean`(명세 오타)으로 적혀 있어 둘 다 읽는다.
 
 ## 3. 농축수산물 시세 — KAMIS Open API
 

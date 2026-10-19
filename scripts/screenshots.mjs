@@ -44,6 +44,13 @@ const groceryShots = [
   ...['price', 'safety', 'rating'].flatMap((t) => both(390, (w, c) => ({ name: `grocery-item-detail-${t}-${w}-${c}`, path: G, w, c, detail: '비비고 왕교자', tab: t }))),
   { name: 'grocery-item-detail-price-1280-light', path: G, w: 1280, c: 'light', detail: '비비고 왕교자', tab: 'price' },
   { name: 'grocery-item-detail-safety-390-light-alert', path: G, w: 390, c: 'light', detail: '○○ 냉동볶음밥', tab: 'safety' },
+  // P3 가격 출처: 참가격 상품 고르기, 자주 가는 매장, 주소 거절 문구
+  ...both(390, (w, c) => ({ name: `grocery-store-good-sheet-${w}-${c}`, path: G, w, c, detail: '○○ 냉동볶음밥', tab: 'price', storeGood: true })),
+  { name: 'grocery-store-pick-sheet-390-light', path: G, w: 390, c: 'light', detail: '비비고 왕교자', tab: 'price', storePick: true },
+  { name: 'grocery-shop-url-error-390-light', path: G, w: 390, c: 'light', detail: '비비고 왕교자', tab: 'price', shopUrl: 'https://link.coupang.com/a/cXYZ12' },
+  ...both(390, (w, c) => ({ name: `grocery-item-detail-store-${w}-${c}`, path: G, w, c, detail: '비비고 왕교자', tab: 'price', detailScroll: '.detail-links' })),
+  { name: 'grocery-item-detail-store-1280-light', path: G, w: 1280, c: 'light', detail: '비비고 왕교자', tab: 'price', detailScroll: '.detail-links' },
+  { name: 'grocery-item-detail-store-none-390-light', path: G, w: 390, c: 'light', detail: '○○ 냉동볶음밥', tab: 'price', detailScroll: '.detail-links' },
   // 가계부에 넣기(D-011 길 ②): 목록 끝의 안내와 시트(총액, 품목마다, 금액 빈 오류)
   ...each((w, c) => ({ name: `grocery-record-sheet-${w}-${c}`, path: G, w, c, purchase: 'total' })),
   ...both(390, (w, c) => ({ name: `grocery-record-sheet-each-${w}-${c}`, path: G, w, c, purchase: 'each' })),
@@ -212,6 +219,24 @@ try {
         await page.getByRole('dialog').waitFor()
         const label = s.shell ? null : { price: '가격', safety: '안전', rating: '평가', market: '시세' }[s.tab]
         if (label) await page.getByRole('tab', { name: label }).click()
+        if (label === '가격') await page.getByText('매장 가격(참가격)').waitFor()
+        if (s.detailScroll) await page.locator(s.detailScroll).first().scrollIntoViewIfNeeded()
+      }
+      if (s.storeGood) {
+        await page.getByRole('button', { name: '참가격 상품 고르기' }).click()
+        // 검색어는 품목 이름으로 채워져 있다. 데모 목록에 맞는 상품이 없으므로 비워 전체 목록을 찍는다
+        await page.getByLabel('참가격 상품 이름으로 찾기').fill('')
+        await page.locator('.pick-row').first().waitFor()
+      }
+      if (s.storePick) {
+        await page.getByRole('button', { name: '매장 고르기' }).click()
+        await page.locator('.pick-check').first().waitFor()
+      }
+      if (s.shopUrl) {
+        await page.getByLabel('상품 페이지 주소').fill(s.shopUrl)
+        await page.getByRole('button', { name: '주소 넣기' }).click()
+        await page.getByRole('alert').waitFor()
+        await page.getByRole('alert').scrollIntoViewIfNeeded()
       }
       if (s.purchase) {
       await page.getByRole('button', { name: '가계부에 넣기', exact: true }).click()
