@@ -20,6 +20,8 @@
   --who-shared: #36733a; --who-child: #ca9d42; --who-husband: #1c588e; --who-wife: #c67261;
   --chart-exp: var(--sage); --chart-inc: var(--who-husband);
   --scrim: rgba(51, 49, 45, .42);
+  /* 휴대폰 아래 탭 높이: .tab 최소 60px + 윗선 1px (safe-area 제외). 장보기의 담기 바·알림이 이 위에 놓인다 */
+  --tabbar-h: 61px;
   --font-ui: 'SUIT', 'Apple SD Gothic Neo', 'Malgun Gothic', 'Noto Sans KR', system-ui, sans-serif;
   --font-mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
   --r-tag: 6px; --r-sm: 12px; --r-btn: 14px; --r-md: 20px; --r-lg: 24px; --col: 440px;
@@ -65,11 +67,11 @@ button { cursor: pointer; touch-action: manipulation; user-select: none; -webkit
 .app { max-width: var(--col); margin: 0 auto; min-height: 100%; }
 
 /* 누름 반응: 손이 닿는 순간 살짝 줄어든다 */
-.primary, .ghost, .danger, .chip, .anniv-chip, .fab, .smart-btn, .keypad button, .icon-btn, .today-btn, .seg button, .link-btn, .svc-pick, .pv-x, .update-bar {
+.primary, .ghost, .danger, .chip, .anniv-chip, .fab, .smart-btn, .keypad button, .icon-btn, .today-btn, .seg:where(:not(.grocery *)) button, .link-btn, .svc-pick, .pv-x, .update-bar {
   transition: transform var(--dur-press) var(--ease-out);
 }
 .primary:active:not(:disabled), .ghost:active:not(:disabled), .danger:active:not(:disabled), .chip:active, .anniv-chip:active, .fab:active, .smart-btn:active,
-.keypad button:active, .icon-btn:active:not(:disabled), .today-btn:active, .seg button:active, .svc-pick:active, .update-bar:active { transform: scale(0.97); }
+.keypad button:active, .icon-btn:active:not(:disabled), .today-btn:active, .seg:where(:not(.grocery *)) button:active, .svc-pick:active, .update-bar:active { transform: scale(0.97); }
 .tx:active, .rc-row:active, .day:active { background: var(--oat); }
 
 /* 위쪽: 화면 제목 + 달 이동 */
@@ -107,10 +109,10 @@ main.wrap { padding-block: 4px calc(150px + env(safe-area-inset-bottom, 0px)); }
 .compare b { color: var(--ink); font-weight: 700; }
 
 /* 요약(내역·통계에서 쓰는 두세 칸) */
-.summary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
-.summary.four { grid-template-columns: repeat(2, minmax(0, 1fr)); row-gap: 12px; }
-.summary .k { font-size: 13px; font-weight: 500; color: var(--ink-2); }
-.summary .v { font-size: 17px; font-weight: 700; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.summary:where(:not(.grocery *)) { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.summary:where(:not(.grocery *)).four { grid-template-columns: repeat(2, minmax(0, 1fr)); row-gap: 12px; }
+.summary:where(:not(.grocery *)) .k { font-size: 13px; font-weight: 500; color: var(--ink-2); }
+.summary:where(:not(.grocery *)) .v { font-size: 17px; font-weight: 700; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .v.exp { color: var(--ink); } .v.inc { color: var(--indigo); }
 .month-sum { display: flex; gap: 16px; font-size: 14px; font-weight: 500; color: var(--ink-2); padding: 0 4px; }
 .month-sum b { color: var(--ink); font-weight: 700; }
@@ -143,7 +145,7 @@ main.wrap { padding-block: 4px calc(150px + env(safe-area-inset-bottom, 0px)); }
 .ev-dot { position: absolute; top: -1px; left: -5px; width: 6px; height: 6px; border-radius: 50%; background: var(--sage); pointer-events: none; }
 .day-add { align-self: flex-start; border: 0; background: none; display: inline-flex; align-items: center; gap: 4px; padding: 8px 4px; margin-bottom: 2px; font-size: 14px; font-weight: 700; color: var(--sage-ink); }
 .day-add svg { width: 16px; height: 16px; }
-.sheet .anniv-form { border-top: 0; padding-top: 0; }
+.sheet:where(:not(.grocery *)) .anniv-form { border-top: 0; padding-top: 0; }
 .anniv-row svg { width: 20px; height: 20px; flex: none; }
 .anniv-row b { font-size: 15px; font-weight: 700; color: var(--ink); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .anniv-row span { margin-left: auto; color: var(--ink-2); flex: none; }
@@ -174,15 +176,15 @@ main.wrap { padding-block: 4px calc(150px + env(safe-area-inset-bottom, 0px)); }
 .tx-amt { font-size: 16px; font-weight: 700; text-align: right; white-space: nowrap; }
 .tx-memo { min-width: 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tx-amt.inc { color: var(--indigo); }
-.tag { font-size: 12px; font-weight: 600; line-height: 1.5; border-radius: var(--r-tag); padding: 0 6px; background: var(--oat); color: var(--ink); white-space: nowrap; }
-.card .tag { background: var(--canvas); }
-.tag.who-husband { background: var(--slate-soft); color: var(--slate-ink); }
-.tag.who-wife { background: var(--blush-soft); color: var(--rose-ink); }
-.tag.who-child { background: var(--ochre-soft); color: var(--ochre-ink); }
-.who { display: inline-flex; align-items: center; gap: 6px; color: var(--ink-2); font-weight: 500; }
-.who::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--dot); flex: none; }
-.who.shared { --dot: var(--who-shared); } .who.a { --dot: var(--who-husband); } .who.b { --dot: var(--who-wife); } .who.c { --dot: var(--who-child); }
-.empty { color: var(--ink-2); font-size: 14px; padding: 16px 4px 8px; text-align: center; }
+.tag:where(:not(.grocery *)) { font-size: 12px; font-weight: 600; line-height: 1.5; border-radius: var(--r-tag); padding: 0 6px; background: var(--oat); color: var(--ink); white-space: nowrap; }
+.card .tag:where(:not(.grocery *)) { background: var(--canvas); }
+.tag:where(:not(.grocery *)).who-husband:where(:not(.grocery *)) { background: var(--slate-soft); color: var(--slate-ink); }
+.tag:where(:not(.grocery *)).who-wife:where(:not(.grocery *)) { background: var(--blush-soft); color: var(--rose-ink); }
+.tag:where(:not(.grocery *)).who-child { background: var(--ochre-soft); color: var(--ochre-ink); }
+.who:where(:not(.grocery *)) { display: inline-flex; align-items: center; gap: 6px; color: var(--ink-2); font-weight: 500; }
+.who:where(:not(.grocery *))::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--dot); flex: none; }
+.who:where(:not(.grocery *)).shared { --dot: var(--who-shared); } .who:where(:not(.grocery *)).a { --dot: var(--who-husband); } .who:where(:not(.grocery *)).b { --dot: var(--who-wife); } .who:where(:not(.grocery *)).c { --dot: var(--who-child); }
+.empty:where(:not(.grocery *)) { color: var(--ink-2); font-size: 14px; padding: 16px 4px 8px; text-align: center; }
 
 /* 칩과 구분 버튼 */
 .chips { display: flex; flex-wrap: wrap; gap: 6px; }
@@ -193,19 +195,19 @@ main.wrap { padding-block: 4px calc(150px + env(safe-area-inset-bottom, 0px)); }
 .chip .sub { font-size: 12px; opacity: .75; margin-left: 2px; }
 .chip.muted { opacity: .5; text-decoration: line-through; }
 /* 선택 알약이 미끄러진다 (transitions.dev tabs-sliding을 CSS만으로) */
-.seg { position: relative; isolation: isolate; display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; background: var(--oat); border-radius: var(--r-sm); padding: 3px; gap: 3px; --n: 1; --i: 0; }
-.card .seg { background: var(--canvas); }
-.seg::before { content: ""; position: absolute; z-index: -1; top: 3px; bottom: 3px; left: 3px; border-radius: 9px; background: var(--canvas);
+.seg:where(:not(.grocery *)) { position: relative; isolation: isolate; display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; background: var(--oat); border-radius: var(--r-sm); padding: 3px; gap: 3px; --n: 1; --i: 0; }
+.card .seg:where(:not(.grocery *)) { background: var(--canvas); }
+.seg:where(:not(.grocery *))::before { content: ""; position: absolute; z-index: -1; top: 3px; bottom: 3px; left: 3px; border-radius: 9px; background: var(--canvas);
   width: calc((100% - 6px - (var(--n) - 1) * 3px) / var(--n)); transform: translateX(calc(var(--i) * (100% + 3px)));
   transition: transform var(--dur-quick) var(--ease-smooth); opacity: 0; }
-.card .seg::before { background: var(--oat); }
-.seg:has(> button[aria-pressed="true"])::before { opacity: 1; }
-.seg:has(> :nth-child(2):last-child) { --n: 2; } .seg:has(> :nth-child(3):last-child) { --n: 3; }
-.seg:has(> :nth-child(4):last-child) { --n: 4; } .seg:has(> :nth-child(5):last-child) { --n: 5; }
-.seg:has(> :nth-child(2)[aria-pressed="true"]) { --i: 1; } .seg:has(> :nth-child(3)[aria-pressed="true"]) { --i: 2; }
-.seg:has(> :nth-child(4)[aria-pressed="true"]) { --i: 3; } .seg:has(> :nth-child(5)[aria-pressed="true"]) { --i: 4; }
-.seg button { border: 0; background: none; border-radius: 9px; min-height: 36px; padding: 0 4px; font-size: 14px; color: var(--ink-2); font-weight: 500; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.seg button[aria-pressed="true"] { color: var(--ink); font-weight: 700; }
+.card .seg:where(:not(.grocery *))::before { background: var(--oat); }
+.seg:where(:not(.grocery *)):has(> button[aria-pressed="true"])::before { opacity: 1; }
+.seg:where(:not(.grocery *)):has(> :nth-child(2):last-child) { --n: 2; } .seg:where(:not(.grocery *)):has(> :nth-child(3):last-child) { --n: 3; }
+.seg:where(:not(.grocery *)):has(> :nth-child(4):last-child) { --n: 4; } .seg:where(:not(.grocery *)):has(> :nth-child(5):last-child) { --n: 5; }
+.seg:where(:not(.grocery *)):has(> :nth-child(2)[aria-pressed="true"]) { --i: 1; } .seg:where(:not(.grocery *)):has(> :nth-child(3)[aria-pressed="true"]) { --i: 2; }
+.seg:where(:not(.grocery *)):has(> :nth-child(4)[aria-pressed="true"]) { --i: 3; } .seg:where(:not(.grocery *)):has(> :nth-child(5)[aria-pressed="true"]) { --i: 4; }
+.seg:where(:not(.grocery *)) button { border: 0; background: none; border-radius: 9px; min-height: 36px; padding: 0 4px; font-size: 14px; color: var(--ink-2); font-weight: 500; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.seg:where(:not(.grocery *)) button[aria-pressed="true"] { color: var(--ink); font-weight: 700; }
 
 /* 기록하기 버튼, 아래 탭 */
 .fab { position: fixed; z-index: 25; height: 52px; padding: 0 20px 0 16px; border-radius: 26px; border: 0; background: var(--primary); color: var(--on-primary); display: flex; align-items: center; gap: 6px; font-size: 16px; font-weight: 700;
@@ -222,17 +224,17 @@ main.wrap { padding-block: 4px calc(150px + env(safe-area-inset-bottom, 0px)); }
 /* 바닥 시트: 열 때 400ms, 닫을 때 250ms, 손잡이를 끌어 닫는다 */
 .scrim { position: fixed; inset: 0; background: var(--scrim); z-index: 40; opacity: 0; transition: opacity var(--dur-sheet) var(--ease-drawer); }
 .scrim.on { opacity: 1; }
-.sheet { position: fixed; z-index: 41; left: 0; right: 0; margin: 0 auto; bottom: 0; width: 100%; max-width: var(--col); max-height: 92%; overflow: auto; background: var(--canvas);
+.sheet:where(:not(.grocery *)) { position: fixed; z-index: 41; left: 0; right: 0; margin: 0 auto; bottom: 0; width: 100%; max-width: var(--col); max-height: 92%; overflow: auto; background: var(--canvas);
   border-radius: var(--r-lg) var(--r-lg) 0 0; padding-bottom: calc(20px + env(safe-area-inset-bottom, 0px)); overscroll-behavior: contain;
   transform: translateY(100%); transition: transform var(--dur-sheet) var(--ease-drawer); will-change: transform; }
-.sheet.on { transform: translateY(0); }
-.sheet.closing, .scrim.closing { transition-duration: var(--dur-quick); }
-.sheet.dragging { transition: none; }
-.sheet .wrap { display: flex; flex-direction: column; gap: 14px; padding-block: 0; }
+.sheet:where(:not(.grocery *)).on { transform: translateY(0); }
+.sheet:where(:not(.grocery *)).closing, .scrim.closing { transition-duration: var(--dur-quick); }
+.sheet:where(:not(.grocery *)).dragging { transition: none; }
+.sheet:where(:not(.grocery *)) .wrap { display: flex; flex-direction: column; gap: 14px; padding-block: 0; }
 .sheet-grab { position: sticky; top: 0; z-index: 2; background: var(--canvas); touch-action: none; cursor: grab; padding-top: 8px; }
 .grab { width: 40px; height: 4px; border-radius: 2px; background: var(--oat-deep); margin: 0 auto; }
-.sheet-head { display: flex; align-items: center; justify-content: space-between; padding-block: 6px 4px; }
-.sheet-head h2 { font-size: 22px; font-weight: 800; letter-spacing: -.02em; margin: 0; }
+.sheet-head:where(:not(.grocery *)) { display: flex; align-items: center; justify-content: space-between; padding-block: 6px 4px; }
+.sheet-head:where(:not(.grocery *)) h2 { font-size: 22px; font-weight: 800; letter-spacing: -.02em; margin: 0; }
 .amount { font-size: 40px; font-weight: 800; letter-spacing: -.03em; line-height: 1.1; text-align: left; padding: 2px 2px 6px; border-bottom: 2px solid var(--line); white-space: nowrap; overflow: hidden; }
 .amount.empty-amt { color: var(--ink-3); }
 .amount small { font-size: 20px; font-weight: 700; letter-spacing: 0; margin-left: 2px; }
@@ -297,7 +299,7 @@ select.input { padding: 9px 10px; }
 .smart-row.sub .smart-btn { background: var(--oat); font-size: 14px; font-weight: 600; min-height: 44px; }
 .manual-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 6px; }
 .manual-head h3 { margin: 0; font-size: 17px; font-weight: 700; }
-.manual-head .seg { width: 132px; }
+.manual-head .seg:where(:not(.grocery *)) { width: 132px; }
 .role-card { display: flex; flex-direction: column; gap: 10px; }
 
 /* 문자·사진 입력 */
@@ -322,8 +324,8 @@ select.input { padding: 9px 10px; }
 .items li { display: flex; justify-content: space-between; gap: 12px; padding: 6px 0; border-top: 1px solid var(--oat-deep); }
 
 /* 공통 작은 요소 */
-.check { display: flex; align-items: flex-start; gap: 8px; font-size: 14px; color: var(--ink-2); }
-.check input { width: 20px; height: 20px; margin: 1px 0 0; accent-color: var(--primary); flex: none; }
+.check:where(:not(.grocery *)) { display: flex; align-items: flex-start; gap: 8px; font-size: 14px; color: var(--ink-2); }
+.check:where(:not(.grocery *)) input { width: 20px; height: 20px; margin: 1px 0 0; accent-color: var(--primary); flex: none; }
 .hint { font-size: 13px; font-weight: 500; color: var(--warn-ink); background: var(--warn-bg); border-radius: var(--r-sm); padding: 8px 10px; }
 .muted { color: var(--ink-3); }
 /* 귀리 면 위에서 ink-3는 대비 4.2:1로 기준(4.5)에 못 미친다. 면 위에서는 ink-2 */
@@ -407,7 +409,7 @@ input[type="search"].input { -webkit-appearance: none; appearance: none; }
 .item-list li:first-child { border-top: 0; }
 .item-list .item-sum { grid-template-columns: 1fr auto; color: var(--ink-2); font-size: 13px; }
 .item-thumb { width: 44px; height: 44px; border-radius: 10px; object-fit: cover; background: var(--oat); display: block; }
-.item-thumb.empty { border: 1px dashed var(--oat-deep); }
+.item-thumb.empty:where(:not(.grocery *)) { border: 1px dashed var(--oat-deep); }
 .item-info { min-width: 0; display: flex; flex-direction: column; gap: 1px; }
 .item-sub { font-size: 13px; color: var(--ink-2); }
 .item-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
@@ -478,25 +480,25 @@ input[type="search"].input { -webkit-appearance: none; appearance: none; }
 
 
   /* 가운데 창: 그림자 없이 뒤 막으로만 띄우고, 짧게 흐려지며 나타난다. 끌어서 닫지 않는다 */
-  .sheet { top: 0; margin: auto; height: -webkit-fit-content; height: fit-content; max-width: 560px; max-height: calc(100dvh - 64px);
+  .sheet:where(:not(.grocery *)) { top: 0; margin: auto; height: -webkit-fit-content; height: fit-content; max-width: 560px; max-height: calc(100dvh - 64px);
     border-radius: var(--r-lg); padding-bottom: 24px; opacity: 0; transform: translateY(8px);
     transition: opacity var(--dur-quick) var(--ease-out), transform var(--dur-quick) var(--ease-out); }
-  .sheet.on { opacity: 1; transform: none; }
-  .sheet.wide { max-width: 880px; }
-  .sheet .wrap { padding-left: 24px; padding-right: 24px; }
+  .sheet:where(:not(.grocery *)).on { opacity: 1; transform: none; }
+  .sheet:where(:not(.grocery *)).wide { max-width: 880px; }
+  .sheet:where(:not(.grocery *)) .wrap { padding-left: 24px; padding-right: 24px; }
   .scrim { transition-duration: var(--dur-quick); }
   .sheet-grab { cursor: default; touch-action: auto; padding-top: 14px; }
   .grab { display: none; }
 
   /* 내역 입력: 왼쪽 금액·키패드, 오른쪽 분류부터 저장까지 */
-  .sheet.wide .entry-grid { display: grid; grid-template-columns: minmax(0, 340px) minmax(0, 1fr); gap: 32px; align-items: start; }
-  .sheet.wide .entry-col { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+  .sheet:where(:not(.grocery *)).wide .entry-grid { display: grid; grid-template-columns: minmax(0, 340px) minmax(0, 1fr); gap: 32px; align-items: start; }
+  .sheet:where(:not(.grocery *)).wide .entry-col { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
 
   .toast { bottom: 40px; }
 }
 /* 키보드 안내는 마우스가 있는 넓은 화면에서만 (가로로 둔 태블릿은 손가락이 먼저다) */
 @media (min-width: 960px) and (pointer: fine) {
-  .sheet.wide .kbd-hint { display: block; margin: 0; font-size: 13px; color: var(--ink-2); }
+  .sheet:where(:not(.grocery *)).wide .kbd-hint { display: block; margin: 0; font-size: 13px; color: var(--ink-2); }
 }
 /* 달력과 고른 날의 내역을 나란히 두는 것은 더 넓을 때만. 그보다 좁으면 달력 칸이 휴대폰보다 좁아져 금액이 맞붙는다 */
 @media (min-width: 1180px) {
@@ -515,11 +517,11 @@ input[type="search"].input { -webkit-appearance: none; appearance: none; }
 
 /* 동작 줄이기: 이동·크기 변화는 빼고 투명도만 */
 @media (prefers-reduced-motion: reduce) {
-  .primary, .ghost, .danger, .chip, .anniv-chip, .fab, .smart-btn, .keypad button, .icon-btn, .today-btn, .seg button, .svc-pick, .update-bar { transition: none; }
-  .primary:active, .ghost:active, .danger:active, .chip:active, .anniv-chip:active, .fab:active, .smart-btn:active, .keypad button:active, .icon-btn:active, .today-btn:active, .seg button:active, .svc-pick:active { transform: none; }
-  .sheet { transform: none; opacity: 0; transition: opacity 200ms ease; }
-  .sheet.on { opacity: 1; }
-  .seg::before, .spend-bar > i { transition: none; }
+  .primary, .ghost, .danger, .chip, .anniv-chip, .fab, .smart-btn, .keypad button, .icon-btn, .today-btn, .seg:where(:not(.grocery *)) button, .svc-pick, .update-bar { transition: none; }
+  .primary:active, .ghost:active, .danger:active, .chip:active, .anniv-chip:active, .fab:active, .smart-btn:active, .keypad button:active, .icon-btn:active, .today-btn:active, .seg:where(:not(.grocery *)) button:active, .svc-pick:active { transform: none; }
+  .sheet:where(:not(.grocery *)) { transform: none; opacity: 0; transition: opacity 200ms ease; }
+  .sheet:where(:not(.grocery *)).on { opacity: 1; }
+  .seg:where(:not(.grocery *))::before, .spend-bar > i { transition: none; }
   .toast { transform: translate(-50%, 0); filter: none; transition: opacity 200ms ease; }
   .toast.on { transform: translate(-50%, 0); }
   .soft > span { transition: opacity 150ms ease; filter: none !important; }

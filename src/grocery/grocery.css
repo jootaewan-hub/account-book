@@ -1,0 +1,315 @@
+/* 우리집 장보기 화면 CSS. 장보기 grocery-app 2578f58의 src/styles/app.css와 tokens.css(장보기 전용 토큰)를 옮겼다.
+   모든 규칙은 장보기 탭의 바깥 상자 .grocery 안에서만 먹는다. 가계부 styles.css의 겹치는 클래스 10개(.seg .sheet .sheet-head
+   .summary .tag .check .empty .who .who-husband .who-wife)는 그쪽 선택자에 :where(:not(.grocery *))를 붙여 이 상자 안으로 들어오지 않게 했다.
+   색·글꼴·반경·움직임 토큰은 가계부 styles.css의 것을 쓰고(이름: --ink-2 --ink-3 --on-primary --r-sm --r-md --r-lg),
+   여기에는 장보기에만 있는 값과 다른 값(--ink-3 라이트 #726D65: 귀리 면 위 4.5:1)만 둔다. 다크는 시스템 설정만 따른다. */
+.grocery { font-size: 16px; line-height: 1.5; }
+.grocery { --ink-3: #726D65; --clay-soft: #FBF0EB; --gutter: 20px; }
+@media (prefers-color-scheme: dark) {
+  .grocery { --ink-3: #A09A90; --clay-soft: #3A2620; }
+}
+.grocery *, .grocery *::before, .grocery *::after { box-sizing: border-box; }
+.grocery h1 { font-size: 22px; font-weight: 700; margin: 0; }
+.grocery .btn-primary, .grocery .btn-quiet {
+  min-height: 44px; padding: 0 20px; font: inherit; font-weight: 600; border-radius: var(--r-btn); cursor: pointer;
+}
+.grocery .btn-primary { background: var(--ink); color: var(--on-primary); border: 0; }
+.grocery .btn-primary:disabled { opacity: 0.6; cursor: default; }
+.grocery .btn-quiet { background: transparent; color: var(--ink); border: 1px solid var(--field-border); }
+.grocery .btn-primary:focus-visible, .grocery .btn-quiet:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+/* ---------- 공통: 움직임(가계부 Motion 토큰), 숫자, 접근성 ---------- */
+.grocery { --backdrop: rgba(51, 49, 45, 0.42); --field-border: var(--line); --bottom-bar-h: 72px; }
+/* 다크: 뒤 막은 더 어둡게(밝아 보이지 않게), 입력칸·조용한 버튼 테두리는 바탕과 3:1 이상(#6E6960, canvas 위 약 3.1:1) */
+@media (prefers-color-scheme: dark) {
+  .grocery { --backdrop: rgba(0, 0, 0, 0.56); --field-border: #6E6960; }
+}
+.grocery p { margin: 0; }
+.grocery .num { font-variant-numeric: tabular-nums; }
+.grocery .sr-only {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden;
+  clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
+.grocery button { touch-action: manipulation; -webkit-user-select: none; user-select: none; }
+.grocery .btn-primary, .grocery .btn-quiet, .grocery .btn-secondary, .grocery .btn-text, .grocery .seg button, .grocery .row-remove, .grocery .notice-action {
+  transition: transform var(--dur-press) var(--ease-out);
+}
+.grocery .btn-primary:active:not(:disabled), .grocery .btn-quiet:active, .grocery .btn-secondary:active, .grocery .seg button:active, .grocery .notice-action:active { transform: scale(0.97); }
+.grocery .btn-secondary {
+  min-height: 44px; padding: 0 20px; font-weight: 600; border-radius: var(--r-btn); cursor: pointer;
+  background: var(--oat); color: var(--ink); border: 0;
+}
+.grocery .btn-text {
+  min-height: 44px; min-width: 44px; padding: 0 8px; font-size: 15px; font-weight: 600; color: var(--ink-2);
+  background: transparent; border: 0; border-radius: var(--r-btn); cursor: pointer;
+}
+.grocery .btn-big { min-height: 48px; width: 100%; font-size: 17px; font-weight: 700; border-radius: 16px; }
+.grocery .btn-secondary:focus-visible, .grocery .btn-text:focus-visible, .grocery .seg button:focus-visible, .grocery .check:focus-visible, .grocery .notice-action:focus-visible, .grocery .add-text:focus-visible {
+  outline: 2px solid var(--ink); outline-offset: 2px;
+}
+.grocery .tag {
+  display: inline-flex; align-items: center; flex: none; padding: 2px 8px; border-radius: var(--r-tag);
+  background: var(--canvas); color: var(--ink); font-size: 13px; font-weight: 600; line-height: 20px; white-space: nowrap;
+}
+.grocery .tag-default { margin-left: 6px; vertical-align: 1px; }
+/* 식약처 경고 배지(DESIGN.md): 비슷한 기록은 clay-soft 바탕에 clay 글자, 기록 있음은 clay 바탕. 글자를 함께 써서 색만으로 알리지 않는다.
+   눈에 보이는 크기는 작지만 누르는 영역은 ::before로 44px을 맞춘다. */
+.grocery .alert-badge {
+  position: relative; display: inline-flex; align-items: center; margin: 4px 0 2px; padding: 2px 8px;
+  border: 0; border-radius: var(--r-tag); font: inherit; font-size: 13px; font-weight: 600; line-height: 20px; cursor: pointer;
+  touch-action: manipulation;
+}
+.grocery .alert-badge::before { content: ''; position: absolute; inset: -12px -6px; }
+.grocery .alert-similar { background: var(--clay-soft); color: var(--clay); }
+.grocery .alert-record { background: var(--clay); color: var(--on-primary); }
+.grocery .alert-badge:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+.grocery .alert-hint { margin: 4px 0 12px; font-size: 15px; color: var(--ink); line-height: 1.5; }
+.grocery .alert-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.grocery .alert-card { padding: 12px 16px; background: var(--oat); border-radius: var(--r-md); }
+.grocery .alert-product { margin: 0 0 6px; font-size: 16px; font-weight: 700; }
+.grocery .alert-facts { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; margin: 0; font-size: 14px; }
+.grocery .alert-facts dt { color: var(--ink-2); }
+.grocery .alert-facts dd { margin: 0; overflow-wrap: anywhere; }
+.grocery .alert-range { margin: 16px 0 0; font-size: 13px; color: var(--ink-2); }
+/* 목록 위 식약처 확인 상태. 늦어지면 흙빛 글자로(색과 문장으로 함께 알린다). */
+.grocery .check-status { margin: 0 0 12px; font-size: 13px; color: var(--ink-2); }
+.grocery .check-status.is-warn { color: var(--clay); font-weight: 600; }
+.grocery .only-wide { display: none; }
+@media (min-width: 960px) {
+  .grocery .only-wide { display: revert; }
+  .grocery .only-narrow { display: none !important; }
+}
+/* ---------- 목록 화면 ---------- */
+.grocery .list-page {
+  min-height: 100dvh; max-width: 760px; margin: 0 auto;
+  padding: 24px var(--gutter) calc(var(--bottom-bar-h) + 72px + env(safe-area-inset-bottom));
+}
+.grocery .list-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 44px; }
+.grocery .list-head h1 { font-size: 24px; font-weight: 800; letter-spacing: -0.02em; }
+.grocery .list-head-actions { display: flex; align-items: center; gap: 8px; }
+.grocery .list-head-actions .btn-text { margin-right: -8px; }
+.grocery .summary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 16px; }
+.grocery .summary-cell { background: var(--oat); border-radius: var(--r-btn); padding: 12px; min-height: 76px; }
+.grocery .summary-k { font-size: 13px; font-weight: 500; color: var(--ink-2); line-height: 1.35; }
+.grocery .summary-v { margin-top: 4px; font-size: 17px; font-weight: 700; line-height: 1.3; }
+.grocery .seg { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; margin-top: 16px; padding: 4px; background: var(--oat); border-radius: var(--r-btn); }
+.grocery .seg button {
+  min-height: 44px; border: 0; border-radius: 10px; background: transparent; color: var(--ink-2);
+  font-size: 15px; font-weight: 600; cursor: pointer;
+}
+.grocery .seg button[aria-pressed="true"] { background: var(--ink); color: var(--on-primary); }
+.grocery .group { margin-top: 24px; }
+.grocery .group-title { display: flex; align-items: baseline; gap: 8px; margin: 0 0 8px; font-size: 17px; font-weight: 700; }
+.grocery .group-count { font-size: 13px; font-weight: 500; color: var(--ink-2); }
+.grocery .group-rows { list-style: none; margin: 0 -8px; padding: 0; background: var(--oat); border-radius: var(--r-md); overflow: hidden; }
+.grocery .row { position: relative; overflow: hidden; }
+.grocery .row + .row .row-body { border-top: 1px solid var(--oat-deep); }
+.grocery .row-body {
+  position: relative; z-index: 1; display: flex; align-items: center; gap: 4px; min-height: 64px;
+  padding: 8px 16px 8px 4px; background: var(--oat); touch-action: pan-y;
+  -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;
+  transition: transform var(--dur-quick) var(--ease-out);
+}
+.grocery .row-body.is-dragging { transition: none; }
+.grocery .check {
+  flex: none; width: 44px; height: 44px; display: grid; place-items: center;
+  background: transparent; border: 0; border-radius: 999px; padding: 0; cursor: pointer; color: var(--on-primary);
+}
+.grocery .check-mark {
+  width: 24px; height: 24px; border-radius: 999px; border: 2px solid var(--ink-3); background: var(--canvas);
+  display: grid; place-items: center;
+}
+.grocery .check[aria-pressed="true"] .check-mark { background: var(--ink); border-color: var(--ink); }
+.grocery .row-main { flex: 1; min-width: 0; padding: 4px 0; }
+.grocery .row-name { font-size: 16px; font-weight: 600; line-height: 1.4; }
+.grocery .row-spec, .grocery .row-count { font-weight: 500; color: var(--ink-2); }
+.grocery .row-meta { margin-top: 2px; font-size: 13px; font-weight: 500; color: var(--ink-2); line-height: 1.4; }
+.grocery .who { display: inline-flex; align-items: center; gap: 4px; }
+.grocery .who-dot { width: 8px; height: 8px; border-radius: 999px; flex: none; }
+.grocery .who-husband { background: var(--who-husband); }
+.grocery .who-wife { background: var(--who-wife); }
+.grocery .who-none { background: var(--ink-3); }
+.grocery .is-bought .row-name { color: var(--ink-2); text-decoration: line-through; text-decoration-thickness: 1.5px; }
+.grocery .row-remove {
+  position: absolute; inset: 0 0 0 auto; width: 88px; border: 0; cursor: pointer;
+  background: var(--clay); color: var(--on-primary); font-size: 15px; font-weight: 700;
+}
+.grocery .row-remove:focus-visible { outline: 2px solid var(--on-primary); outline-offset: -4px; }
+/* 묶음의 둥근 모서리에 닿는 줄은 버튼 모서리도 같이 둥글게: 안쪽 포커스 테두리가 모서리에서 잘려 보이지 않게 */
+.grocery .row:first-child .row-remove { border-top-right-radius: var(--r-md); }
+.grocery .row:last-child .row-remove { border-bottom-right-radius: var(--r-md); }
+/* 닫혀 있을 때는 숨겨 둔다(둥근 모서리 가장자리로 흙빛이 비치지 않게). 키보드 포커스가 오면 보인다. */
+.grocery .row:not(.is-open):not(.is-swiping) .row-remove { opacity: 0; }
+/* 편집: 밀지 않아도 줄마다 "빼기", 묶음 제목 옆에 "모두 빼기"(마우스로도 바로 뺄 수 있게) */
+.grocery .group-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 0 0 8px; }
+.grocery .group-head .group-title { margin: 0; }
+.grocery .group-remove {
+  min-height: 44px; padding: 0 8px; margin-right: -8px; border: 0; border-radius: var(--r-btn); cursor: pointer;
+  background: transparent; color: var(--clay); font-size: 14px; font-weight: 700;
+}
+.grocery .row-remove-inline {
+  flex: none; min-height: 44px; padding: 0 14px; border: 0; border-radius: var(--r-btn); cursor: pointer;
+  background: var(--clay); color: var(--on-primary); font-size: 14px; font-weight: 700;
+}
+.grocery .group-remove:focus-visible, .grocery .row-remove-inline:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+.grocery .state { margin-top: 32px; display: flex; flex-direction: column; align-items: flex-start; gap: 12px; color: var(--ink-2); }
+.grocery .state.empty { display: block; }
+.grocery .stale { margin-top: 12px; display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 14px; color: var(--ink-2); }
+/* 불러오는 중: 자리 표시 후 흐림 교차 */
+.grocery .sk { background: var(--oat); border-radius: var(--r-btn); }
+.grocery .sk-seg { height: 52px; margin-top: 16px; }
+.grocery .sk-group { height: 200px; margin-top: 48px; border-radius: var(--r-md); }
+.grocery .fade-in { animation: fade-in var(--dur-sheet) var(--ease-out); }
+@keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+.grocery .bottom-bar {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 10;
+  padding: 12px var(--gutter) calc(12px + env(safe-area-inset-bottom)); background: var(--canvas);
+}
+.grocery .bottom-bar .btn-big { display: block; max-width: 720px; margin: 0 auto; }
+.grocery .notice-slot {
+  position: fixed; left: 0; right: 0; z-index: 20; pointer-events: none;
+  bottom: calc(var(--bottom-bar-h) + 8px + env(safe-area-inset-bottom)); padding: 0 var(--gutter);
+}
+.grocery .notice {
+  pointer-events: auto; max-width: 720px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  min-height: 52px; padding: 4px 4px 4px 16px; border-radius: var(--r-btn); background: var(--ink); color: var(--on-primary); font-size: 15px;
+  animation: notice-in 350ms var(--ease-smooth);
+}
+.grocery .notice-action {
+  flex: none; min-height: 44px; padding: 0 12px; border: 0; border-radius: 10px; background: transparent; color: var(--on-primary);
+  font-size: 15px; font-weight: 700; text-decoration: underline; text-underline-offset: 3px; cursor: pointer;
+}
+.grocery .notice-action:focus-visible { outline-color: var(--on-primary); outline-offset: -2px; }
+@keyframes notice-in { from { opacity: 0; transform: translateY(16px); filter: blur(2px); } to { opacity: 1; transform: none; filter: none; } }
+@media (min-width: 960px) {
+  .grocery .list-page { padding: 40px var(--gutter) 96px; }
+  .grocery .notice-slot { bottom: 24px; }
+  .grocery .group-rows { margin: 0; }
+}
+/* ---------- 담기 시트 ---------- */
+.grocery .sheet-layer { position: fixed; inset: 0; z-index: 30; display: flex; align-items: flex-end; justify-content: center; }
+.grocery .sheet-backdrop { position: absolute; inset: 0; background: var(--backdrop); animation: fade-in var(--dur-sheet) var(--ease-out); }
+.grocery .sheet {
+  position: relative; width: 100%; max-height: calc(100dvh - 24px); display: flex; flex-direction: column;
+  background: var(--canvas); border-radius: var(--r-lg) var(--r-lg) 0 0; overscroll-behavior: contain;
+  animation: sheet-in var(--dur-sheet) var(--ease-drawer);
+}
+.grocery .is-closing .sheet { animation: sheet-out var(--dur-quick) var(--ease-out) forwards; }
+.grocery .is-closing .sheet-backdrop { animation: fade-out var(--dur-quick) var(--ease-out) forwards; }
+@keyframes sheet-in { from { transform: translateY(100%); } to { transform: none; } }
+@keyframes sheet-out { from { transform: none; } to { transform: translateY(100%); } }
+@keyframes fade-out { from { opacity: 1; } to { opacity: 0; } }
+.grocery .sheet-head { display: flex; align-items: center; justify-content: space-between; padding: 12px 12px 0 var(--gutter); }
+.grocery .sheet-head h2 { margin: 0; font-size: 20px; font-weight: 700; }
+.grocery .sheet-body { flex: 1; overflow-y: auto; padding: 8px var(--gutter) 16px; overscroll-behavior: contain; }
+.grocery .field-label { display: block; margin-bottom: 8px; font-size: 14px; font-weight: 600; color: var(--ink-2); }
+.grocery .add-text {
+  display: block; width: 100%; min-height: 120px; padding: 12px 14px; resize: vertical; line-height: 1.5;
+  background: var(--oat); color: var(--ink); border: 1px solid var(--field-border); border-radius: var(--r-sm);
+}
+.grocery .add-text::placeholder { color: var(--ink-3); opacity: 1; }
+.grocery .preview { margin-top: 20px; }
+.grocery .preview-title { margin: 0 0 8px; font-size: 15px; font-weight: 700; }
+.grocery .preview-title .num { color: var(--ink-2); font-weight: 500; }
+.grocery .preview-list { list-style: none; margin: 0; padding: 0 16px; background: var(--oat); border-radius: var(--r-md); }
+.grocery .preview-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 48px; padding: 8px 0; }
+.grocery .preview-row + .preview-row { border-top: 1px solid var(--oat-deep); }
+.grocery .preview-name { min-width: 0; font-size: 16px; font-weight: 600; overflow-wrap: anywhere; }
+.grocery .preview-note { display: block; margin-top: 2px; font-size: 13px; font-weight: 500; color: var(--ink-2); }
+.grocery .form-error { margin-top: 12px; color: var(--clay); font-size: 14px; }
+.grocery .sheet-foot { padding: 12px var(--gutter) calc(12px + env(safe-area-inset-bottom)); }
+@media (min-width: 960px) {
+  .grocery .sheet-layer { align-items: center; }
+  .grocery .sheet { width: 560px; max-height: min(720px, calc(100dvh - 80px)); border-radius: var(--r-lg); animation: dialog-in var(--dur-quick) var(--ease-out); }
+  .grocery .is-closing .sheet { animation: dialog-out var(--dur-quick) var(--ease-out) forwards; }
+  .grocery .sheet-foot { padding-bottom: 20px; }
+}
+@keyframes dialog-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@keyframes dialog-out { from { opacity: 1; transform: none; } to { opacity: 0; transform: translateY(8px); } }
+@media (hover: hover) and (pointer: fine) {
+  .grocery .seg button:not([aria-pressed="true"]):hover { color: var(--ink); }
+  .grocery .btn-text:hover { color: var(--ink); }
+  .grocery .btn-secondary:hover { background: var(--oat-deep); }
+  .grocery .check:hover .check-mark { border-color: var(--ink-2); }
+}
+/* 움직임 줄이기: 이동·크기 변화를 빼고 투명도 교차만 남긴다 */
+@media (prefers-reduced-motion: reduce) {
+  .grocery .btn-primary, .grocery .btn-quiet, .grocery .btn-secondary, .grocery .btn-text, .grocery .seg button, .grocery .row-remove, .grocery .notice-action, .grocery .row-body { transition: none; }
+  .grocery .btn-primary:active:not(:disabled), .grocery .btn-quiet:active, .grocery .btn-secondary:active, .grocery .seg button:active, .grocery .notice-action:active { transform: none; }
+  .grocery .sheet { animation: fade-in var(--dur-quick) linear; }
+  .grocery .is-closing .sheet { animation: fade-out var(--dur-quick) linear forwards; }
+  .grocery .notice { animation: fade-in var(--dur-quick) linear; }
+}
+/* 가격 확인(④-1): 목록 줄의 최저가·상품 고르기, 요약 주석 */
+.grocery .row-price { flex: none; display: flex; flex-direction: column; align-items: flex-end; gap: 2px; text-align: right; }
+.grocery .row-price-v { font-size: 15px; font-weight: 700; line-height: 1.3; }
+.grocery .row-price-where { font-size: 12px; font-weight: 500; color: var(--ink-2); line-height: 1.3; max-width: 128px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.grocery .row-pick {
+  position: relative; flex: none; min-height: 32px; padding: 0 12px; border: 0; border-radius: var(--r-btn); cursor: pointer;
+  background: var(--ink); color: var(--on-primary); font: inherit; font-size: 13px; font-weight: 700;
+}
+.grocery .row-pick::before { content: ''; position: absolute; inset: -6px -4px; }
+.grocery .row-pick:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+.grocery .summary-note { margin-top: 2px; font-size: 12px; font-weight: 500; color: var(--ink-2); }
+/* 상품 고르기 시트 */
+.grocery .cand-search { display: flex; gap: 8px; margin: 4px 0 8px; }
+.grocery .cand-input {
+  flex: 1; min-width: 0; min-height: 44px; padding: 0 12px; border: 1px solid var(--oat-deep); border-radius: var(--r-btn);
+  background: var(--canvas); color: var(--ink); font: inherit; font-size: 16px;
+}
+.grocery .cand-input:focus-visible { outline: 2px solid var(--ink); outline-offset: 1px; }
+.grocery .cand-source, .grocery .cand-state { margin: 4px 0 12px; font-size: 13px; color: var(--ink-2); }
+.grocery .cand-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 12px; }
+.grocery .cand-card { padding: 12px; background: var(--oat); border-radius: var(--r-md); }
+.grocery .cand-head { display: flex; gap: 12px; align-items: center; }
+.grocery .cand-img { flex: none; width: 56px; height: 56px; border-radius: 10px; background: var(--canvas); object-fit: contain; }
+.grocery .cand-title { min-width: 0; }
+.grocery .cand-name { font-size: 15px; font-weight: 600; line-height: 1.4; }
+.grocery .cand-rating { margin-top: 2px; font-size: 12px; color: var(--ink-2); }
+.grocery .cand-variants { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
+.grocery .cand-variant {
+  display: grid; grid-template-columns: 56px auto 1fr; align-items: baseline; gap: 10px; min-height: 48px; padding: 8px 12px;
+  border: 0; border-radius: var(--r-btn); background: var(--canvas); color: var(--ink); font: inherit; text-align: left; cursor: pointer;
+}
+.grocery .cand-variant:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+.grocery .cand-qty { font-size: 17px; font-weight: 700; }
+.grocery .cand-price { font-size: 15px; font-weight: 700; }
+.grocery .cand-unit { font-size: 12px; color: var(--ink-2); justify-self: end; text-align: right; }
+@media (hover: hover) {
+  .grocery .cand-variant:hover { background: var(--oat-deep); }
+}
+/* 품목 상세 */
+.grocery .detail-head { display: flex; align-items: center; gap: 12px; margin: 4px 0 12px; }
+.grocery .detail-head .cand-title { flex: 1; }
+.grocery .detail-change { flex: none; min-height: 44px; padding: 0 14px; font-size: 14px; }
+.grocery .detail-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); margin-top: 0; }
+.grocery .detail-small { font-size: 15px; }
+.grocery .detail-tabs { margin-top: 16px; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.grocery .detail-block { margin-top: 16px; }
+.grocery .detail-sub { margin: 16px 0 8px; font-size: 13px; font-weight: 700; color: var(--ink-2); }
+.grocery .detail-block .detail-sub { margin-top: 0; }
+.grocery .detail-none { font-size: 14px; color: var(--ink-2); }
+.grocery .price-list { list-style: none; margin: 0; padding: 0 12px; background: var(--oat); border-radius: var(--r-md); }
+.grocery .price-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 56px; padding: 8px 0; }
+.grocery .price-row + .price-row { border-top: 1px solid var(--oat-deep); }
+.grocery .price-where { font-size: 15px; font-weight: 600; }
+.grocery .price-src { margin-top: 2px; font-size: 12px; color: var(--ink-2); }
+.grocery .price-v { flex: none; font-size: 14px; font-weight: 700; text-align: right; }
+.grocery .detail-links { display: flex; flex-wrap: wrap; gap: 8px; }
+.grocery .detail-link { display: inline-flex; align-items: center; text-decoration: none; font-size: 14px; }
+.grocery .detail-link:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+.grocery .detail-rating { margin: 16px 0 12px; font-size: 16px; font-weight: 600; }
+.grocery .detail-farm { padding-left: 0; color: var(--ink-2); }
+
+/* ---------- 가계부 셸 안에서 ---------- */
+/* 가계부 main.wrap이 이미 좌우 16px·아래 여백(아래 탭과 기록하기 버튼 자리)을 두므로, 목록 쪽은 4px만 더해 장보기 원래 좌우 20px을 맞춘다.
+   화면 높이 채우기(100dvh)는 위쪽 줄과 겹쳐 쓸데없는 스크롤을 만들어 뺀다. */
+.grocery .list-page { min-height: 0; padding: 8px 4px 16px; }
+/* 휴대폰: 담기 바와 되돌리기 알림을 가계부 아래 탭(--tabbar-h) 위에 놓고, 아래 탭처럼 앱 폭(--col) 가운데에 둔다 */
+@media (max-width: 959.98px) {
+  .grocery .bottom-bar, .grocery .notice-slot { left: 50%; right: auto; width: 100%; max-width: var(--col); transform: translateX(-50%); }
+  .grocery .bottom-bar { bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom, 0px)); padding-bottom: 12px; }
+  .grocery .notice-slot { bottom: calc(var(--tabbar-h) + var(--bottom-bar-h) + 8px + env(safe-area-inset-bottom, 0px)); }
+}
+@media (min-width: 960px) {
+  .grocery .list-page { padding: 8px 0 0; }
+}
