@@ -104,6 +104,9 @@ const shellShots = [
   // 셸 안 품목 상세: 가짜 데이터에 고른 상품·가격 줄이 있어 내용까지 보인다(P8). 다른 탭 내용은 grocery-item-detail-*(장보기 데모)에서 본다
   ...each((w, c) => ({ name: `shell-grocery-detail-${w}-${c}`, path: '/', w, c, shell: true, tab: '장보기', detail: '비비고 왕교자' })),
   ...each((w, c) => ({ name: `shell-entry-sheet-${w}-${c}`, path: '/', w, c, shell: true, tab: '내역', record: true })),
+  // 고정 탭: 기간을 정한 항목 고치기 시트(기간 6개월)와 고정지출 추가 시트(기간 '계속')
+  ...each((w, c) => ({ name: `shell-recurring-sheet-${w}-${c}`, path: '/', w, c, shell: true, tab: '고정', rcOpen: '자동차 취득세 할부' })),
+  ...both(390, (w, c) => ({ name: `shell-recurring-add-${w}-${c}`, path: '/', w, c, shell: true, tab: '고정', rcAdd: '고정지출' })),
   ...both(390, (w, c) => ({ name: `shell-deeplink-grocery-${w}-${c}`, path: '/?tab=grocery', w, c, shell: true })),
   ...each((w, c) => ({ name: `shell-grocery-market-${w}-${c}`, path: '/', w, c, shell: true, tab: '장보기', market: true })),
   // 영수증 확인 화면의 '장보기 목록에서 찾은 품목'(D-011 길 ①). 가짜 영수증 응답(RECEIPT)
@@ -219,6 +222,14 @@ try {
       if (s.where) await page.getByRole('button', { name: '어디서 살지' }).click()
       if (s.record) {
         await page.locator('.fab, .side-record').locator('visible=true').first().click()
+        await page.getByRole('dialog').first().waitFor()
+      }
+      if (s.rcOpen) {
+        await page.locator('.rc-row', { hasText: s.rcOpen }).click()
+        await page.getByRole('dialog').first().waitFor()
+      }
+      if (s.rcAdd) {
+        await page.getByRole('button', { name: `+ ${s.rcAdd} 추가` }).click()
         await page.getByRole('dialog').first().waitFor()
       }
       if (s.receipt) {

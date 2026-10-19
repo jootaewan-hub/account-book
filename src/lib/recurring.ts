@@ -96,6 +96,22 @@ export function installmentPlan(total: number, months: number): { first: number;
   return { first: total - rest * (months - 1), rest }
 }
 
+/** 시작 달(YYYY-MM)부터 term개월째 달(1일): 기간을 정한 항목의 end_month */
+export function endMonthFor(startYm: string, term: number): string {
+  return `${addMonths(startYm, term - 1)}-01`
+}
+
+/** 기간(개월 수). 끝나는 달이 없거나 매년 항목(기간을 쓰지 않는다)이면 null */
+export function termOf(r: Pick<Recurring, 'start_month' | 'end_month' | 'every_months'>): number | null {
+  if (!r.end_month || r.every_months !== 1) return null
+  return monthIndex(r.end_month.slice(0, 7)) - monthIndex(r.start_month.slice(0, 7)) + 1
+}
+
+/** 끝나는 달이 있는 항목(할부, 기간을 정한 고정지출·구독)의 오늘 이후 남은 회차. 끝나는 달이 없으면 null */
+export function termLeft(r: Pick<Recurring, 'day_of_month' | 'every_months' | 'start_month' | 'end_month'>, today: string): number | null {
+  return r.end_month ? installmentsLeft(r, today) : null
+}
+
 /** 할부 항목에서 오늘 이후 남은 회차 수 */
 export function installmentsLeft(r: Pick<Recurring, 'day_of_month' | 'every_months' | 'start_month' | 'end_month'>, today: string): number {
   if (!r.end_month) return 0

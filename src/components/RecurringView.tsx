@@ -3,7 +3,7 @@ import { fetchRange, fetchRecurring, friendlyError, generateRecurring, recordRec
 import { addMonths } from '../lib/dates'
 import { won } from '../lib/format'
 import { SCOPE_LABEL, type Lookup } from '../lib/lookup'
-import { installmentsLeft, KIND_LABEL, monthlyAmount, nextDue, pastAmounts, pendingInputs, subscriptionCandidates } from '../lib/recurring'
+import { installmentsLeft, KIND_LABEL, monthlyAmount, nextDue, pastAmounts, pendingInputs, subscriptionCandidates, termLeft } from '../lib/recurring'
 import type { Category, Recurring, RecurringKind, Transaction } from '../lib/types'
 import { draftFrom, RecurringSheet, type RecurringDraft } from './RecurringSheet'
 import { ServiceLogo } from './ServiceLogo'
@@ -59,12 +59,12 @@ export function RecurringView({ householdId, today, lookup, categories, onTxChan
 
   if (!list) return <section className="view"><p className="lead">{err || '불러오는 중…'}</p></section>
 
-  const active = list.filter((r) => r.active && r.type === 'expense')
+  // 끝나는 달이 있는 항목(할부, 기간을 정한 고정지출·구독)은 남은 회차가 있는 것만 매달 나가는 돈에 넣는다
+  const active = list.filter((r) => r.active && r.type === 'expense' && (r.end_month === null || installmentsLeft(r, today) > 0))
   const sumOf = (k: RecurringKind) => active.filter((r) => r.kind === k).reduce((s, r) => s + monthlyAmount(r), 0)
   const utilityLast = active.filter((r) => r.kind === 'utility' && r.amount === null)
     .reduce((s, r) => s + (pastAmounts(r, history)[0]?.amount ?? 0), 0)
-  // 할부는 남은 회차가 있는 것만 매달 나가는 돈에 넣는다
-  const installment = active.filter((r) => r.kind === 'installment' && installmentsLeft(r, today) > 0).reduce((s, r) => s + monthlyAmount(r), 0)
+  const installment = sumOf('installment')
   const hasInstallments = list.some((r) => r.kind === 'installment')
   const kinds: RecurringKind[] = hasInstallments ? [...KINDS, 'installment'] : KINDS
 
@@ -102,7 +102,7 @@ export function RecurringView({ householdId, today, lookup, categories, onTxChan
             {items.map((r) => {
               const next = nextDue(r, today)
               const last = r.amount === null ? pastAmounts(r, history)[0] : undefined
-              const left = k === 'installment' ? installmentsLeft(r, today) : null
+              const left = k === 'installment' ? installmentsLeft(r, today) : termLeft(r, today)
               return (
                 <button key={r.id} className={`rc-row${r.active ? '' : ' off'}`} onClick={() => setSheet(draftFrom(r))}>
                   {k === 'subscription' && <ServiceLogo name={r.title} size={34} />}
@@ -112,7 +112,10 @@ export function RecurringView({ householdId, today, lookup, categories, onTxChan
                       {r.every_months === 12 ? `매년 ${Number(r.start_month.slice(5, 7))}월 ` : '매달 '}
                       {r.day_of_month === 31 ? '말일' : `${r.day_of_month}일`}
                       {`, ${SCOPE_LABEL[r.scope]}`}
-                      {left !== null && (left > 0 ? `, ${r.installment_months}개월 중 남은 ${left}회` : ', 다 냈어요')}
+                      {k === 'installment' && left !== null && (left > 0 ? `, ${r.installment_months}개월 중 남은 ${left}회` : ', 다 냈어요')}
+                      {k !== 'installment' && left !== null && r.end_month && (left > 0
+                        ? `, ${r.end_month.slice(0, 4)}년 ${Number(r.end_month.slice(5, 7))}월까지 ${left}회 남음`
+                        : ', 끝났어요')}
                       {!r.active && ', 꺼 둠'}
                     </span>
                   </span>
@@ -126,7 +129,7 @@ export function RecurringView({ householdId, today, lookup, categories, onTxChan
               )
             })}
             {k === 'installment'
-              ? <p className="tx-meta">할부는 문자·사진으로 넣을 때 결제를 할부로 고르면 생겨요.</p>
+              ? <p className="tx-meta">할부는 문자·사진으로 넣을 때 결제를 할부로 고르면 생겨요. 취득세·가전 할부처럼 직접 넣는 것은 고정지출에 기간을 정해 추가하세요.</p>
               : <button className="ghost full-btn" onClick={() => setSheet({ kind: k })}>+ {KIND_LABEL[k]} 추가</button>}
           </div>
         )

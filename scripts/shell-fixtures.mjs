@@ -75,7 +75,15 @@ export const TABLES = {
   'public.anniversaries': [{ id: 'a1', household_id: HH, name: '결혼기념일', kind: 'couple', lunar: false, month: 11, day: 2 }],
   'public.events': [],
   'public.transactions': transactions,
-  'public.recurring': [],
+  // 고정 탭: 계속 내는 구독 하나와 기간(6개월)을 정한 고정지출 하나(취득세 할부). 금액은 캡처 확인용 예시
+  'public.recurring': [
+    { id: 'r1', household_id: HH, kind: 'subscription', type: 'expense', title: '넷플릭스', amount: 17000, day_of_month: 5, every_months: 1,
+      category_id: categories.find((c) => c.name === '구독')?.id ?? null, payment_method_id: null, scope: 'shared', start_month: '2026-01-01',
+      end_month: null, generated_through: null, active: true, memo: null, installment_months: null, created_by: ME, created_at: ago(200), updated_at: ago(200) },
+    { id: 'r2', household_id: HH, kind: 'fixed', type: 'expense', title: '자동차 취득세 할부', amount: 120000, day_of_month: 10, every_months: 1,
+      category_id: categories.find((c) => c.name === '세금')?.id ?? null, payment_method_id: null, scope: 'shared', start_month: '2026-09-01',
+      end_month: '2027-02-01', generated_through: null, active: true, memo: null, installment_months: null, created_by: ME, created_at: ago(40), updated_at: ago(40) },
+  ],
   'public.utility_bills': [],
   'public.rpc/generate_recurring': 0,
   'public.rpc/monthly_totals': [],

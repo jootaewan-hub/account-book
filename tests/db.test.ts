@@ -521,6 +521,16 @@ describe('할부 (20261015140000_installments)', () => {
     expect(await errorOf(as(C, `insert into public.recurring (household_id, kind, title, amount, day_of_month, start_month, end_month, installment_months) values ($1, 'fixed', 'x', 1, 1, '2027-01-01', '2027-03-01', 3)`, [hhC])))
       .toContain('recurring_installment_check')
   })
+
+  it('할부가 아닌 항목도 끝나는 달을 둘 수 있고(구독 기간 제한), 그 달까지만 넣고 메모는 붙이지 않는다', async () => {
+    const [{ id }] = await as<{ id: string }>(C,
+      `insert into public.recurring (household_id, kind, title, amount, day_of_month, start_month, end_month)
+       values ($1, 'fixed', '취득세 할부', 120000, 10, '2026-11-01', '2027-01-01') returning id`, [hhC])
+    await as(C, `select public.generate_recurring($1, '2027-04-20')`, [hhC])
+    const rows = await as<{ d: string; memo: string | null }>(C,
+      `select to_char(occurred_on, 'YYYY-MM-DD') as d, memo from public.transactions where recurring_id = $1 order by occurred_on`, [id])
+    expect(rows).toEqual([{ d: '2026-11-10', memo: null }, { d: '2026-12-10', memo: null }, { d: '2027-01-10', memo: null }])
+  })
 })
 
 describe('일정 (20261015150000_events)', () => {

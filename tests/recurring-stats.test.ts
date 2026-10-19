@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { dueDate, installmentPlan, installmentsLeft, monthlyAmount, nextDue, pendingInputs, subscriptionCandidates } from '../src/lib/recurring'
+import { dueDate, endMonthFor, installmentPlan, installmentsLeft, monthlyAmount, nextDue, pendingInputs, subscriptionCandidates, termLeft, termOf } from '../src/lib/recurring'
 import { categoryBreakdown, monthSeries, OTHER_PLATFORM, pctChange, platformBreakdown, platformOf, scopeSplit, totalOf } from '../src/lib/stats'
 import type { Category, MonthTotal, Recurring, Transaction } from '../src/lib/types'
 
@@ -136,5 +136,23 @@ describe('할부', () => {
     expect(installmentsLeft(r, '2026-11-15')).toBe(3) // 11월 15일 당일분도 남은 것으로 센다
     expect(installmentsLeft(r, '2026-11-16')).toBe(2)
     expect(installmentsLeft(r, '2027-01-16')).toBe(0)
+  })
+})
+
+describe('기간 (끝나는 달이 있는 고정지출·구독)', () => {
+  it('개월 수로 끝나는 달을 정하고, 끝나는 달에서 개월 수를 되읽는다 (매년은 기간을 쓰지 않는다)', () => {
+    expect(endMonthFor('2026-10', 6)).toBe('2027-03-01')
+    expect(endMonthFor('2026-10', 1)).toBe('2026-10-01')
+    expect(termOf(rec({ start_month: '2026-10-01', end_month: '2027-03-01' }))).toBe(6)
+    expect(termOf(rec({ end_month: null }))).toBeNull()
+    expect(termOf(rec({ every_months: 12, start_month: '2026-10-01', end_month: '2028-10-01' }))).toBeNull()
+  })
+
+  it('남은 회차: 끝나는 달이 없으면 null, 있으면 오늘부터 마지막 달까지, 지나면 0', () => {
+    const r = rec({ day_of_month: 25, start_month: '2026-10-01', end_month: '2027-03-01' })
+    expect(termLeft(rec({ end_month: null }), '2026-10-20')).toBeNull()
+    expect(termLeft(r, '2026-10-20')).toBe(6)
+    expect(termLeft(r, '2026-10-26')).toBe(5)
+    expect(termLeft(r, '2027-03-26')).toBe(0)
   })
 })

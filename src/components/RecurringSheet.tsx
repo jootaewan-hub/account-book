@@ -3,7 +3,7 @@ import { deleteRecurring, friendlyError, insertRecurring, updateRecurring } from
 import { addMonths, formatDateLong } from '../lib/dates'
 import { won } from '../lib/format'
 import { SCOPE_LABEL, SCOPES, type Lookup } from '../lib/lookup'
-import { dueDate, KIND_LABEL } from '../lib/recurring'
+import { dueDate, endMonthFor, KIND_LABEL, termOf } from '../lib/recurring'
 import { POPULAR } from '../lib/services'
 import type { Category, Recurring, RecurringInput, RecurringKind, Scope, TxType } from '../lib/types'
 import { defaultScope } from './EntrySheet'
@@ -25,6 +25,9 @@ interface Props {
 
 const KINDS: RecurringKind[] = ['fixed', 'subscription', 'utility']
 const DEFAULT_CATEGORY: Record<RecurringKind, string> = { fixed: '기타', subscription: '구독', utility: '관리비', installment: '기타' }
+// 기간(개월 수) 선택지. 할부(installment_months)와 같은 2~60개월. 매년 항목에는 기간을 두지 않는다
+const TERMS = Array.from({ length: 59 }, (_, i) => i + 2)
+const ymLabel = (month: string) => `${month.slice(0, 4)}년 ${Number(month.slice(5, 7))}월`
 
 export function RecurringSheet({ open, draft, householdId, today, lookup, categories, onSaved, onClose }: Props) {
   const [kind, setKind] = useState<RecurringKind>('fixed')
@@ -35,6 +38,7 @@ export function RecurringSheet({ open, draft, householdId, today, lookup, catego
   const [day, setDay] = useState(25)
   const [every, setEvery] = useState<1 | 12>(1)
   const [startMonth, setStartMonth] = useState(today.slice(0, 7))
+  const [term, setTerm] = useState<number | null>(null)
   const [categoryId, setCategoryId] = useState<string | null>(null)
   const [scope, setScope] = useState<Scope>('shared')
   const [active, setActive] = useState(true)
@@ -56,6 +60,7 @@ export function RecurringSheet({ open, draft, householdId, today, lookup, catego
     setDay(draft.day_of_month ?? Number(today.slice(8, 10)))
     setEvery(draft.every_months ?? 1)
     setStartMonth((draft.start_month ?? today).slice(0, 7))
+    setTerm(k === 'installment' ? null : termOf({ start_month: draft.start_month ?? today, end_month: draft.end_month ?? null, every_months: draft.every_months ?? 1 }))
     setCategoryId(draft.category_id !== undefined ? draft.category_id : catFor(k, draft.type ?? 'expense'))
     setScope(draft.scope ?? defaultScope(lookup))
     setActive(draft.active ?? true)
@@ -74,14 +79,16 @@ export function RecurringSheet({ open, draft, householdId, today, lookup, catego
   }
 
   const n = parseInt(amount || '0', 10)
+  const isInstallment = kind === 'installment'
   const input: RecurringInput = {
     kind, type, title: title.trim(), amount: variable ? null : n, day_of_month: day, every_months: every,
     category_id: categoryId, payment_method_id: draft?.payment_method_id ?? null, scope, start_month: `${startMonth}-01`,
-    // 화면에서 고치지 않는 값은 그대로 둔다 (할부의 마지막 달·개월 수, 메모)
-    end_month: draft?.end_month ?? null, active, memo: draft?.memo ?? null,
-    installment_months: kind === 'installment' ? draft?.installment_months ?? null : null,
+    // 할부의 마지막 달·개월 수와 메모는 화면에서 고치지 않는다. 매달 항목은 기간(개월 수)으로 마지막 달을 정한다(없으면 계속)
+    end_month: isInstallment || every === 12 ? draft?.end_month ?? null : term ? endMonthFor(startMonth, term) : null,
+    active, memo: draft?.memo ?? null,
+    installment_months: isInstallment ? draft?.installment_months ?? null : null,
   }
-  const isInstallment = kind === 'installment'
+  const termChoices = term && !TERMS.includes(term) ? [...TERMS, term].sort((a, b) => a - b) : TERMS
   const firstDue = dueDate(input, today.slice(0, 7)) ?? dueDate(input, startMonth)
   const willAddNow = !draft?.id && !variable && n > 0 && firstDue !== null && firstDue <= today && startMonth <= today.slice(0, 7)
   // 금액을 매달 넣던 항목에 금액을 정하면, 아직 넣지 않은 지난 달(최대 12개월) 분이 한꺼번에 들어간다 (DB generate_recurring)
@@ -193,6 +200,18 @@ export function RecurringSheet({ open, draft, householdId, today, lookup, catego
             저장하면 아직 넣지 않은 {backfill}개월 분이 {won(n)}원씩 한꺼번에 내역에 들어가요. 지난 달 분을 이미 직접 적었다면 시작 달을 이번 달로 바꾸세요.
           </span>
         )}
+      </div>}
+      {!isInstallment && every === 1 && <div className="field">
+        <label htmlFor="rc-term">기간</label>
+        <select id="rc-term" className="input" value={term ?? 0} onChange={(e) => setTerm(Number(e.target.value) || null)}>
+          <option value={0}>계속 (끝나는 달 없음)</option>
+          {termChoices.map((m) => <option key={m} value={m}>{m}개월</option>)}
+        </select>
+        <span className="tx-meta">
+          {term
+            ? `${ymLabel(startMonth)}부터 ${ymLabel(endMonthFor(startMonth, term))}까지 ${term}회 넣고 끝나요.`
+            : '취득세·가전 할부처럼 정해진 기간만 내는 것은 개월 수를 고르세요. 마지막 달이 지나면 더 넣지 않아요.'}
+        </span>
       </div>}
       <div className="field">
         <span className="lbl">분류</span>
