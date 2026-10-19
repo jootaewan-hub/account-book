@@ -29,6 +29,12 @@ describe('parseMarket', () => {
     expect(onion.orgnl_reg_dt).toBe('2026-10-16T15:07:24.000Z')
   })
 
+  it('축산물은 전국 행만 남긴다(지역 행은 조사처 값이 아니다)', () => {
+    const base = SAMPLE.response.body.items.item.find((x: { item_cd: string }) => x.item_cd === '4304')
+    const body = { response: { header: { resultCode: '0' }, body: { items: { item: [base, { ...base, sgg_cd: '1101', sgg_nm: '서울', exmn_dd_prc: '1749' }] } } } }
+    expect(parseMarket(body).rows.map((r) => [r.sgg_cd, r.price])).toEqual([['1000', 1699]])
+  })
+
   it('축산물 전국 행은 시장이 빈 글자이고 원본등록일시가 없다', () => {
     const pork = parseMarket(SAMPLE).rows.find((r) => r.item_cd === '4304')!
     expect(pork).toMatchObject({ sgg_cd: '1000', mrkt_cd: '', mrkt_nm: '', price: 1699, unit: 'g', unit_sz: '100', orgnl_reg_dt: null })

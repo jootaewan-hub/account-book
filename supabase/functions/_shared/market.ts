@@ -205,7 +205,7 @@ export function parsePrice(v: unknown): number | null {
 
 /**
  * API 응답(JSON) → 저장할 행과 전체 건수.
- * 소매만, KEEP_SGG의 시군구만, 조사일이 YYYYMMDD이고 가격이 양의 정수인 행만 남긴다.
+ * 소매만, KEEP_SGG의 시군구만(축산물은 전국만), 조사일이 YYYYMMDD이고 가격이 양의 정수인 행만 남긴다.
  * 오류 응답(인증키 오류 등)은 MarketApiError(코드와 문구, 키는 담기지 않는다).
  */
 export function parseMarket(body: unknown): { rows: MarketRow[]; total: number; seen: number } {
@@ -224,6 +224,8 @@ export function parseMarket(body: unknown): { rows: MarketRow[]; total: number; 
     const price = parsePrice(x.exmn_dd_prc)
     const sgg = str(x.sgg_cd)
     if (str(x.se_cd) !== RETAIL || !KEEP_SGG.has(sgg) || !/^\d{8}$/.test(ymd) || price === null) continue
+    // 축산물은 전국 값만 쓴다(D-012). 서울 등 지역 행(시장 없음)도 오지만 조사처 값이 아니라 범위·띠에 섞지 않는다
+    if (str(x.ctgry_cd) === '500' && sgg !== SGG.national) continue
     const item = str(x.item_cd)
     if (!item) continue
     const reg = str(x.orgnl_reg_dt)

@@ -73,9 +73,10 @@ describe('비교', () => {
   })
   it('주변 범위는 조사처가 둘 이상일 때만, 출처 값 그대로', () => {
     expect(rangeText(GREEN)).toBe('서울·수원·성남 12곳 1,980~4,780원')
-    expect(rangeText({ low: 2000, high: 2000, markets: 3 })).toBe('서울·수원·성남 3곳 2,000원')
-    expect(rangeText({ low: 2000, high: 2000, markets: 1 })).toBeNull()
+    expect(rangeText({ sgg: '3112', low: 2000, high: 2000, markets: 3 })).toBe('서울·수원·성남 3곳 2,000원')
+    expect(rangeText({ sgg: '3112', low: 2000, high: 2000, markets: 1 })).toBeNull()
     expect(rangeText(PORK)).toBeNull()
+    expect(rangeText({ ...PORK, low: 4227, high: 4300, markets: 2 })).toBeNull()
   })
 })
 

@@ -119,7 +119,13 @@ export default function MarketPanel({ store, series, initial, isWatched, onWatch
       <p className="detail-sub">최근 45일</p>
       {failed && <p className="detail-none" role="status">추이를 불러오지 못했어요. 잠시 뒤 다시 열어 주세요.</p>}
       {!failed && !trend && <p className="detail-none" role="status">시세 기록 불러오는 중</p>}
-      {trend && <MarketChart points={trend} where={where} />}
+      {trend && (
+        <MarketChart
+          // 축산물(전국 값)은 조사처 범위 띠를 그리지 않는다
+          points={s.sgg === '1000' ? trend.map((p) => ({ ...p, low: null, high: null, markets: 0 })) : trend}
+          where={where}
+        />
+      )}
       <p className="market-record">{recordText(s)}</p>
 
       {s.sgg !== '1000' && (

@@ -104,8 +104,9 @@ export function pastText(period: Period | 'prev', p: DatedPrice | null): string 
 }
 
 /** 주변 범위: "서울·수원·성남 12곳 1,990~4,780원". 조사처가 하나뿐이거나 축산물이면 null */
-export function rangeText(s: Pick<MarketSeries, 'low' | 'high' | 'markets'>): string | null {
-  if (s.low === null || s.high === null || s.markets < 2) return null
+export function rangeText(s: Pick<MarketSeries, 'sgg' | 'low' | 'high' | 'markets'>): string | null {
+  // 축산물(전국 값)은 조사처 범위가 없다. 예전에 저장된 지역 행이 있어도 쓰지 않는다
+  if (s.sgg === '1000' || s.low === null || s.high === null || s.markets < 2) return null
   return `서울·수원·성남 ${s.markets}곳 ${s.low === s.high ? won(s.low) : `${won(s.low).replace('원', '')}~${won(s.high)}`}`
 }
 
