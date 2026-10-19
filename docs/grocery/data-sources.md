@@ -41,6 +41,12 @@
 | GS fresh | — | 2023-11-30 서비스 종료. 지금은 우리동네GS·네이버 장보기에서 판매. |
 
 - 원칙(제안): robots.txt가 막는 곳과 약관이 자동 수집을 금지하는 곳은 수집하지 않는다. 허용된 곳도 품목 확인 때 한 번씩만 받고 캐시한다.
+- **상품 주소 찾기(2026-10-19, 이 작업 환경에서 curl, 검색 1건씩)**:
+  - 컬리 `www.kurly.com/search?sword=`: robots 허용(별표 그룹 Allow /). 서버 HTML(76KB)의 `__NEXT_DATA__`에 검색 결과 상품이 없다 → 브라우저에서 따로 불러오는 구조. 서버에서 주소를 찾으려면 컬리 내부 API를 불러야 한다(쓰지 않음).
+  - 홈플러스 `mfront.homeplus.co.kr/search?keyword=`: robots 허용. 서버 HTML 7.5KB로 상품 없음(브라우저에서 그림).
+  - CJ더마켓: 첫 화면이 `/the/pc/main`(Vue 앱, 850KB). 검색 결과는 브라우저에서 그린다(검색 주소를 서버 HTML에서 찾지 못함).
+  - 에누리 `price.enuri.com/search?keyword=`: robots 허용(`/api/*` 금지, Crawl-delay 1). 서버 HTML(1.4MB)에 JSON-LD `ItemList` → `Product`(이름, `sku`=에누리 모델번호, `AggregateOffer` lowPrice·highPrice·offerCount, `aggregateRating`). 예: "CJ제일제당 비비고 왕교자 1.05kg" lowPrice 27,090·판매처 284·평점 4.8(8,956). lowPrice는 묶음 수량일 수 있다(다나와와 같은 문제).
+  - 결론: 컬리·홈플러스·CJ더마켓은 서버가 스스로 상품 주소를 찾을 수 없다. 주소를 알면 상품 페이지 JSON-LD로 가격을 읽을 수 있다(1-2 표).
 - 참고 판례: 여기어때 크롤링 사건은 형사 무죄(대법원 2021도1533)였지만 민사에서는 부정경쟁방지법 위반으로 10억 원 배상(2018가합508729)이 인정됐다. 대량 수집은 하지 않는다.
 - 확인 필요
   - 각 몰 이용약관의 자동 수집 조항(컬리·CJ더마켓·홈플러스·다나와). 다나와 약관은 인코딩이 깨져 읽지 못했다.
@@ -89,7 +95,13 @@
 
 - 168개 품목(604개 상품)을 격주로 조사(대형마트·슈퍼는 목요일), 전국 약 500개 판매점. 조사 대상: 이마트, 농협하나로마트, 롯데슈퍼, GS더프레시, 현대·신세계백화점, CU·GS25·세븐일레븐·이마트24. **홈플러스·롯데마트·킴스클럽은 없다.** https://www.price.go.kr/tprice/portal/pricenewsandtpriceintro/tpriceintro/getPriceIntro.do
 - 공개 API: 공공데이터포털 "한국소비자원_생필품 가격 정보" https://www.data.go.kr/data/3043385/openapi.do (GW판 15158701). 무료, 자동 승인, 개발계정 하루 2,000회, 공공누리 1유형(출처 표시).
-- 확인 필요: 실제 응답의 판매점별 가격·조사일 필드(키 발급 후), 두 API 중 존속할 쪽.
+- **GW판(15158701) 실제 호출(2026-10-19, 서버 함수에서 사용자 키 `DATA_GO_KR_SERVICE_KEY`로)**: 사용자가 활용 승인을 받았고 시세(15156057)와 같은 키로 통한다. 응답은 XML만(항목 태그 `iros.openapi.service.vo.…VO`). 개발계정 트래픽 2,000.
+  - 주소 `https://apis.data.go.kr/B551919/ProductPriceInfoService/` + 기능 4개: `getStandardInfoSvc.do`(`ServiceKey`, `classCode`), `getStoreInfoSvc.do`(판매점, `entpId` 선택), `getProductInfoSvc.do`(상품, `goodId` 선택), `getProductPriceInfoSvc`(가격: 소문자 `serviceKey`, `goodInspectDay` 필수, `entpId`나 `goodId` 중 하나는 꼭 있어야 함 — 없으면 resultCode `05`).
+  - 기준정보 classCode: `AR` 지역 311개(경기 `020900000`, 성남 분당 `020925000`, 수정 `020918000`, 중원 `020919000`), `AL` 상품분류 188개, `UT` 단위 29개, `BU` 업태 5개(CS 편의점, DP 백화점, LM 대형마트, MF 제조사, SM 슈퍼마켓). 그 밖의 코드는 `02`(classCode 값이 정확하지 않음).
+  - 판매점 630곳(LM 163, SM 441, DP 22, CS 4). 성남(주소에 성남·분당) 15곳: 이마트분당점(7), 이마트성남점(912), 농협하나로유통 성남점(82), 롯데슈퍼 분당·분당서현·분당이매·분당구미·야탑·판교, GS더프레시 분당시범단지·미래·판교운중·위례중앙, 현대백화점판교점(1948). 홈플러스·롯데마트·코스트코·킴스클럽 이름의 판매점은 없다.
+  - 상품 604개. 열: `goodId`, `goodName`(용량 포함, 예 "비비고 왕교자(1.12kg)", "서울우유 흰우유(1L)", "대파(흙대파, 500~800g)"), `goodTotalCnt`·`goodTotalDivCode`(용량), `goodBaseCnt`·`goodUnitDivCode`(단위가격 기준), `goodSmlclsCode`(분류), `detailMean`(예 "120g*5개입"), `productEntpCode`(제조사). 바코드는 없다.
+  - 가격: 이마트분당점(7)은 조사일 2026-09-25에 314개, 10-09에 299개. 09-26·10-02·10-03·10-10·10-16·10-17은 0개. **조사일은 격주 금요일**(위 안내 문구의 "목요일"과 다름). 열은 `goodInspectDay`, `entpId`, `goodId`, `goodPrice`, `inputDttm`(10-09 값은 10-15 15:32 입력). 할인·1+1 열은 이 응답들에 없었다(명세에는 있음, 해당할 때만 오는 것으로 보임: 추측입니다).
+- 확인 필요: 두 API(3043385·15158701) 중 존속할 쪽, 할인 열이 오는 조건, 다음 조사일(10-23 추측) 값이 언제 들어오는지.
 
 ## 3. 농축수산물 시세 — KAMIS Open API
 
