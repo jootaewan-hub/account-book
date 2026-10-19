@@ -79,8 +79,11 @@ describe('rowToItem', () => {
   it('null 열을 그대로 camelCase로 옮긴다', () => {
     expect(rowToItem(base)).toEqual({
       id: 'i', householdId: 'h', name: '대파', spec: null, count: 1, category: '채소',
-      productKey: null, productQty: null, addedBy: null, addedAt: 't', boughtBy: null, boughtAt: null, paid: null,
+      productKey: null, productQty: null, addedBy: null, addedAt: 't', boughtBy: null, boughtAt: null, paid: null, transactionId: null,
     })
+  })
+  it('가계부에 넣은 품목은 transaction_id에서 온다', () => {
+    expect(rowToItem({ ...base, bought_by: 'u', bought_at: 't', transaction_id: 'tx1' }).transactionId).toBe('tx1')
   })
   it('고른 상품은 product_id·product_qty에서 온다', () => {
     expect(rowToItem({ ...base, product_id: 'p1', product_qty: 3 })).toMatchObject({ productKey: 'p1', productQty: 3 })
