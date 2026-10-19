@@ -69,7 +69,7 @@ npm run screens
 
 ## 5. 로컬 진행(2026-10-19 밤, 맥북, 브랜치 `claude/p3-price-sources`) — 다음 세션이 볼 것
 
-이 브랜치에서 P3·P2·P4·P6·P7·P8의 코드·시험·캡처·문서를 끝냈다(main 미병합, 공유 DB 미적용, 함수 미배포). 자세한 기록은 `docs/grocery/tracking/status.md` "된 것"과
+이 브랜치에서 P3·P2·P4·P6·P7·P8의 코드·시험·캡처·문서를 끝냈다(2026-10-20 아침 공유 DB 적용·함수 배포·main 병합까지 됨, 아래 진행 상황). 자세한 기록은 `docs/grocery/tracking/status.md` "된 것"과
 계획서 각 단계의 "진행" 묶음, 실행 기록 `docs/superpowers/plans/2026-10-19-remaining-work.progress.md`(단계별 커밋·시험 결과·결정 근거 Ruling 줄·최종 리뷰 결과)에 있다.
 
 ### 적용·배포 진행 상황(2026-10-20 06:15~06:35 KST, 사용자 확인 뒤 맥북에서)
@@ -82,7 +82,7 @@ npm run screens
    안 됨 — 워크플로 수동 실행: `gh workflow run`이 404(기본 브랜치에 파일이 없음). main 병합 뒤 Actions에서 `tprice-sync`·`price-recheck`를 한 번씩 돌려 200을 본다. 그 전에는 예약 실행도 돌지 않는다.
 4. 남음(로그인 필요, 사용자가 앱에서) — 컬리·홈플러스·로우차트 주소 각 1개 이상(화면 값 = 페이지 값), 참가격 매장 값 3개(`tprice_prices`와 price.go.kr 대조), 포장 사진 3장·캡처 3장
    (`grocery-photo` 첫 호출 = WIF 교환 확인, D-009; 안 되면 함수 로그의 `wif_exchange_failed`), 바코드 10개(iPhone), C002 후보 3개.
-5. 남음 — main 병합·푸시(=배포)는 사용자 지시로.
+5. 됨 — 2026-10-20 06:55 KST 사용자 지시로 main에 fast-forward 병합·푸시(= GitHub Pages 배포). 병합 뒤 Actions에서 `tprice-sync`·`price-recheck` 수동 실행.
 
 ### 사용자 할 일
 

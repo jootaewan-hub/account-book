@@ -8,7 +8,7 @@
 
 ## 된 것 (2026-10-19, 통합 1단계)
 
-- 가계부 저장소로 옮기기(브랜치 `claude/optimistic-newton-rp08ut`, main 미병합): 장보기 main 2578f58의 화면·계산·테스트·마이그레이션 7개(내용 그대로)·
+- 가계부 저장소로 옮기기(브랜치 `claude/optimistic-newton-rp08ut`, main 병합됨): 장보기 main 2578f58의 화면·계산·테스트·마이그레이션 7개(내용 그대로)·
   Edge Function 3개·함수 설정(`supabase/config.toml`)·식약처 예약 워크플로·문서. 가계부 아래 탭에 '장보기'(설정은 톱니 버튼), `?tab=grocery`.
   장보기 DB 테스트는 가계부 사본 대신 실제 마이그레이션 전부 위에서 돈다. 공유 DB와 배포된 함수에는 아무것도 하지 않았다.
   계획: `docs/superpowers/plans/2026-10-19-grocery-integration-move.md`(저장소 맨 위 docs).
@@ -37,7 +37,7 @@
 
 남은 작업 전체 계획: `docs/superpowers/plans/2026-10-19-remaining-work.md`(저장소 맨 위 docs). P0 통합 마무리 → P1 장 본 것 → 가계부 → P2 우리가 산 값 → P3~P8.
 
-- P1 장 본 것 → 가계부(2026-10-19, 브랜치 `claude/optimistic-newton-rp08ut`, main 미병합): 코드·시험·캡처 끝(P1-1~P1-4).
+- P1 장 본 것 → 가계부(2026-10-19, 브랜치 `claude/optimistic-newton-rp08ut`, main 병합됨): 코드·시험·캡처 끝(P1-1~P1-4).
   공유 DB 적용(2026-10-19, 사용자 확인): MCP `apply_migration`(이름 `grocery_purchase_link`). 확인: `grocery.items.transaction_id`,
   제약 `items_transaction_fkey`·`items_linked_bought`, 트리거 `items_keep_purchase_link`, `link_purchase`·`record_purchase`는 authenticated만 실행(anon 불가),
   연결된 행 0. 보안 점검(Advisors)은 적용 전과 같은 항목뿐(grocery `fetch_gate`·`sync_lock` INFO, 가계부 SECURITY DEFINER 함수 3개, 유출 비밀번호 보호 꺼짐).
@@ -63,7 +63,7 @@
   보안 점검은 적용 전과 같은 항목뿐. `market-sync` 배포(v2) 뒤 첫 수집 성공(33,137행), 다시 부르면 `skipped`, GET은 405.
   저장값과 직접 호출 응답 대조: 성남 7개 값 일치(`data-sources.md` 3-1).
 
-- P3 가격 출처 넓히기(2026-10-19 밤, 로컬 Claude Code, 브랜치 `claude/p3-price-sources`, main 미병합): 코드·시험·캡처 끝(P3-1~P3-5, P3-7). 공유 DB 적용·함수 배포(P3-6)는 2026-10-20 아침에 했다(아래 운영 반영).
+- P3 가격 출처 넓히기(2026-10-19 밤, 로컬 Claude Code, 브랜치 `claude/p3-price-sources`, 2026-10-20 main 병합): 코드·시험·캡처 끝(P3-1~P3-5, P3-7). 공유 DB 적용·함수 배포(P3-6)는 2026-10-20 아침에 했다(아래 운영 반영).
   - P3-1 `_shared/shops.ts`: 붙여 넣은 주소 정리(컬리 `goods/{id}`, 홈플러스 `item?itemNo=&storeType=`, 쿠팡 `vp/products/{pid}?itemId=` → 로우차트 `{pid}-{itemId}`; 짧은 주소·다른 사이트 거절)와
     JSON-LD Product 읽기(이름·양의 정수 가격만·평점·후기 수·중량/용량·로우차트 관측 최저·최고·평균가·최근 변동일). 사본은 2026-10-19 실제 페이지에서 후기 본문을 지운 것.
   - P3-2 `_shared/tprice.ts`: 참가격 GW(15158701) 주소 만들기와 XML 읽기(판매점·상품·가격·기준정보), 성남 상세코드(020918000·020919000·020925000) 고르기, 최근 금요일.
