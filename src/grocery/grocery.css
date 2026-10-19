@@ -453,7 +453,7 @@
 .grocery .ours-block .price-list + .detail-sub { margin-top: 16px; }
 
 /* P4 사진으로 찾기·캡처로 가격 넣기 */
-.grocery .photo-input { position: absolute; width: 1px; height: 1px; opacity: 0; overflow: hidden; pointer-events: none; }
+.grocery .photo-input { display: none; } /* 보이는 버튼이 프로그램으로 연다(iOS Safari도 동작). 자동 확인의 터치 대상 검사에서도 빠진다 */
 .grocery .photo-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin: 8px 0; }
 .grocery .read-form { margin: 8px 0 4px; padding: 12px 16px 16px; background: var(--oat); border-radius: var(--r-lg); }
 .grocery .read-form .detail-sub { margin-top: 0; }

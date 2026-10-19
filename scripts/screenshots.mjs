@@ -101,8 +101,7 @@ const shellShots = [
   // 장보기는 화면 높이 그대로: 아래 탭·담기 바가 화면 아래에 어떻게 겹치는지 본다
   ...both(390, (w, c) => ({ name: `shell-grocery-removed-${w}-${c}`, path: '/', w, c, shell: true, tab: '장보기', remove: '삼겹살 600g' })),
   ...each((w, c) => ({ name: `shell-grocery-add-sheet-${w}-${c}`, path: '/', w, c, shell: true, tab: '장보기', sheet: SHEET_TEXT })),
-  // 시트 위치(휴대폰 바닥 시트, 넓은 화면 가운데 창)만 본다. 셸의 가짜 데이터에는 상품 정보가 없어 상세 안에는 불러오기 오류 문구가 뜬다.
-  // 상세 내용은 grocery-item-detail-*(장보기 데모)에서 본다
+  // 셸 안 품목 상세: 가짜 데이터에 고른 상품·가격 줄이 있어 내용까지 보인다(P8). 다른 탭 내용은 grocery-item-detail-*(장보기 데모)에서 본다
   ...each((w, c) => ({ name: `shell-grocery-detail-${w}-${c}`, path: '/', w, c, shell: true, tab: '장보기', detail: '비비고 왕교자' })),
   ...each((w, c) => ({ name: `shell-entry-sheet-${w}-${c}`, path: '/', w, c, shell: true, tab: '내역', record: true })),
   ...both(390, (w, c) => ({ name: `shell-deeplink-grocery-${w}-${c}`, path: '/?tab=grocery', w, c, shell: true })),
@@ -129,12 +128,22 @@ async function fakeSupabase(context) {
     if (url.pathname.startsWith('/functions/v1/')) return json({ status: 'skipped' })
     if (url.pathname.startsWith('/storage/v1/')) return json([])
     const m = url.pathname.match(/^\/rest\/v1\/(.+)$/)
-    if (!m) return json({ message: 'not mocked' }, 404)
+    if (!m) {
+      if (process.env.DEBUG_SHOTS) console.log('[not mocked]', url.pathname)
+      return json({ message: 'not mocked' }, 404)
+    }
     const schema = req.headers()['accept-profile'] ?? req.headers()['content-profile'] ?? 'public'
     const key = `${schema}.${m[1]}`
     const method = req.method()
     if (method !== 'GET' && method !== 'HEAD' && !m[1].startsWith('rpc/')) return json([], method === 'POST' ? 201 : 200)
-    const rows = key in TABLES ? TABLES[key] : []
+    if (process.env.DEBUG_SHOTS && !(key in TABLES)) console.log('[no fixture]', key, url.search.slice(0, 120))
+    let rows = key in TABLES ? TABLES[key] : []
+    // 같음 조건(id=eq.g5 등)은 적용한다: 한 건 조회(maybeSingle)는 행이 하나여야 하고, 상세는 그 품목·상품의 행만 봐야 한다
+    if (Array.isArray(rows)) {
+      for (const [k, v] of url.searchParams) {
+        if (v.startsWith('eq.') && !['select', 'order', 'limit', 'offset'].includes(k)) rows = rows.filter((r) => !(k in r) || String(r[k]) === v.slice(3))
+      }
+    }
     if ((req.headers()['accept'] ?? '').includes('vnd.pgrst.object')) {
       const one = Array.isArray(rows) ? rows[0] : rows
       return one == null ? json({ code: 'PGRST116', message: 'no rows' }, 406) : json(one)
@@ -171,6 +180,12 @@ try {
       await fakeSupabase(context)
       const page = await context.newPage()
       page.on('pageerror', (e) => problems.push(`${s.name}: ${e.message}`))
+      // DEBUG_SHOTS=1이면 콘솔 오류와 가짜 Supabase가 모르는 요청도 적는다(셸 가짜 데이터를 채울 때 쓴다)
+      if (process.env.DEBUG_SHOTS) page.on('console', (m) => { if (m.type() === 'error') problems.push(`${s.name} [console] ${m.text().slice(0, 300)}`) })
+      if (process.env.DEBUG_SHOTS) {
+        page.on('response', (r) => { if (r.status() >= 400) problems.push(`${s.name} [${r.status()}] ${r.request().method()} ${r.url().slice(0, 200)}`) })
+        page.on('requestfailed', (r) => problems.push(`${s.name} [failed] ${r.method()} ${r.url().slice(0, 200)} ${r.failure()?.errorText ?? ''}`))
+      }
       await page.goto(BASE + s.path, { waitUntil: 'networkidle' })
       await page.evaluate(() => document.fonts.ready)
       if (s.shell) {

@@ -34,18 +34,20 @@ const transactions = [
   tx('t7', 18, 9800, '휴지 30롤', '생활용품', { platform: '쿠팡' }),
 ]
 
+// 가짜 Supabase는 조건과 상관없이 표의 행을 그대로 돌려주므로(한 건 조회는 첫 행), 상세를 여는 '비비고 왕교자'를 첫 행에 두고 고른 상품(p1)을 붙인다
 const groceryItems = [
+  ['g5', '비비고 왕교자', '1.05kg', 1, '냉동'],
   ['g1', '삼겹살', '600g', 1, '정육'],
   ['g2', '대파', null, 1, '채소'],
   ['g3', '우유', '900ml', 2, '유제품'],
   ['g4', '계란', '30구', 1, '계란'],
-  ['g5', '비비고 왕교자', '1.05kg', 1, '냉동'],
   ['g6', '두부', '300g', 2, '가공'],
   ['g7', '휴지', '30롤', 1, '생활용품'],
 ].map(([id, name, spec, count, category], i) => ({
   id, household_id: HH, name, spec, count, category, product_key: null, product_id: null, product_qty: null,
   added_by: i % 2 ? YOU : ME, added_at: ago(300 - i), bought_by: null, bought_at: null, paid: null,
 }))
+groceryItems[0] = { ...groceryItems[0], product_id: 'p1', product_qty: 1 }
 groceryItems[5] = { ...groceryItems[5], bought_by: YOU, bought_at: ago(30) }
 // 어제 장 봐서 이미 가계부에 넣은 품목(영수증 확인 화면에서 '이미 넣었어요'로 보인다)
 groceryItems.push({ id: 'g8', household_id: HH, name: '라면', spec: null, count: 1, category: '가공', product_key: null, product_id: null,
@@ -83,8 +85,24 @@ export const TABLES = {
     .filter((i) => !['정육', '수산', '채소', '과일'].includes(i.category))
     .map((i) => ({ item_id: i.id, status: 'done', candidate_count: 3, updated_at: ago(20) })),
   'grocery.rpc/item_alerts': [],
-  'grocery.rpc/item_prices': [],
+  // 상세(비비고 왕교자, 고른 상품 p1)의 응답: 숫자는 캡처 확인용 예시(실제 다나와 값 아님)
+  'grocery.rpc/item_prices': [{ item_id: 'g5', price: 10380, seller: '예시몰 A', source: 'danawa', qty: 1, delivery: 3000, checked_at: ago(60) }],
+  'grocery.products': [{ id: 'p1', source_id: '5643303', name: 'CJ제일제당 비비고 왕교자 1.05kg', image_url: null, rating: 4.8, review_count: 9099, rated_at: ago(60) }],
+  'grocery.price_checks': [{ id: 'c1', checked_at: ago(60), ok: true, error: null }],
+  'grocery.price_quotes': [
+    { qty: 1, seller: '예시몰 A', price: 10380, delivery: 3000, unit_price: null, unit_label: null, mall_count: null },
+    { qty: 1, seller: null, price: 10380, delivery: null, unit_price: 989, unit_label: '100g', mall_count: 26 },
+  ],
+  'grocery.captured_quotes': [],
+  'grocery.item_candidates': [],
+  'grocery.product_info': [],
+  'grocery.rpc/item_safety': [],
+  'grocery.rpc/shop_prices': [],
+  'grocery.rpc/item_store_link': [],
+  'grocery.rpc/item_store_prices': [],
+  'grocery.rpc/our_purchases': [],
   'grocery.sync_runs': ['I0490', 'I2620', 'I2715', 'kamis'].map((source) => ({ source, ran_at: ago(180) })),
+  'grocery.rpc/last_synced': ['I0490', 'I2620', 'I2715', 'kamis'].map((source) => ({ source, ran_at: ago(180) })),
   // 시세판(D-012) 두 줄: 숫자는 캡처 확인용 예시(실제 조사값 아님)
   'grocery.rpc/market_board': [
     marketRow('246', '00', '04', '200', '파', '대파', '상품', 'kg', '1', 1980, 2100),

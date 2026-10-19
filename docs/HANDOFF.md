@@ -63,3 +63,33 @@ npm run screens
 - 시세(P5): 화면 숫자는 조사처 값 그대로(성남 B-유통 → 수원 → 서울, 축산물은 전국). 평균·비율은 내지 않는다(D-012). 첫 수집 때 들어간 축산물 서울 지역 행 1,713개는 쓰지 않으니 지워도 된다.
 - 확인용 함수가 필요하면 예전처럼 `market-probe`에 토큰 헤더를 요구하는 일회용 코드를 배포하고, 끝나면 410 내용으로 되돌린다(키 값은 응답에 넣지 않는다).
 - 클라우드 세션의 임시 파일(받은 페이지 사본, 코드표 xlsx 등)은 저장소에 없다. 필요하면 위 주소와 공공데이터포털 15156057 상세 페이지의 첨부 zip에서 다시 받는다.
+
+
+---
+
+## 5. 로컬 진행(2026-10-19 밤, 맥북, 브랜치 `claude/p3-price-sources`) — 다음 세션이 볼 것
+
+이 브랜치에서 P3·P2·P4·P6·P7·P8의 코드·시험·캡처·문서를 끝냈다(main 미병합, 공유 DB 미적용, 함수 미배포). 자세한 기록은 `docs/grocery/tracking/status.md` "된 것"과
+계획서 각 단계의 "진행" 묶음, 실행 기록 `.superpowers/sdd/2026-10-19-remaining-work/progress.md`(git 밖, 결정 근거 Ruling 줄)에 있다.
+
+### 적용·배포할 것(사용자 확인 뒤, 이 순서로)
+
+1. 마이그레이션 5개를 `apply_migration`으로(이름 순): `grocery_sources`(20261023000000), `grocery_our_purchases`(20261024000000), `grocery_captured_quotes`(20261025000000),
+   `grocery_product_info`(20261026000000), `grocery_last_synced`(20261027000000). 적용 뒤 보안 점검(Advisors)을 다시 본다.
+2. 함수 배포: `product-check`(몰 주소 읽기 추가), 새 함수 `tprice-sync`·`price-recheck`·`grocery-photo`·`food-info`. `supabase/config.toml`의 verify_jwt와 같게.
+   `grocery-photo`는 배포 뒤 **첫 호출로 WIF 교환이 되는지 확인**(D-009; 안 되면 사용자에게 묻는다). `food-info`는 `FOODSAFETY_API_KEY`(있음)와 `DATA_GO_KR_SERVICE_KEY`(식품영양성분DB 활용신청 필요)를 쓴다.
+3. 워크플로 첫 수동 실행: `tprice-sync`(07:20), `price-recheck`(07:30). `tprice-sync` 첫 실행에서 `goodInspectDay` 날짜 모양(YYYYMMDD)이 맞는지 resultCode로 확인.
+4. 실제 대조: 컬리·홈플러스·로우차트 주소 각 1개 이상(화면 값 = 페이지 값), 참가격 매장 값 3개, 포장 사진 3장·캡처 3장, 바코드 10개(실기기 iPhone), C002 후보 3개.
+5. main 병합·푸시(=배포)는 사용자 지시로.
+
+### 사용자 할 일
+
+- 공공데이터포털 식품영양성분DB(15127578) 활용신청(키는 `DATA_GO_KR_SERVICE_KEY`와 같을 것으로 보임, 확인 필요).
+- 실기기(iPhone PWA)에서 카메라 바코드 읽기 확인(`BarcodeDetector`가 없으면 wasm 포니필로 간다 — 추측).
+- `docs/grocery/tracking/status.md` "확정할 결정" 4개.
+
+### 로컬 준비 메모(2026-10-19 밤 확인)
+
+- 개발 서버 포트 5173은 다른 프로젝트가 잡고 있어 5188을 쓴다: `npx vite --port 5188 --strictPort`, 캡처는 `BASE_URL=http://localhost:5188 npm run screens -- <장면 이름…>`.
+- 플레이라이트 브라우저는 `npx playwright install chromium`(버전이 바뀌면 다시).
+- `npm test`는 56개 파일 743개(2026-10-19 밤 기준), `npx tsc --noEmit` 통과.

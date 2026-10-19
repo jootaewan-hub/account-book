@@ -114,7 +114,8 @@ export default function ItemDetail({ item, store, onChangeProduct, onClose, mark
         setData(d)
         return d
       },
-      () => {
+      (e: unknown) => {
+        console.error('품목 상세 불러오기 실패', e)
         setFailed(true)
         return null
       },
