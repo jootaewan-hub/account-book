@@ -18,3 +18,7 @@ verify_jwt = true
 
 [functions.product-check]
 verify_jwt = true
+
+# market-sync(농수산물 시세)는 GitHub Actions 예약 실행이 비밀번호 없이 부른다(함수가 20시간 1회·30분 잠금으로 스스로 막는다).
+[functions.market-sync]
+verify_jwt = false

@@ -169,6 +169,18 @@ describe('market_trend', () => {
   })
 })
 
+describe('market_covered', () => {
+  it('기간 안에 값이 있는 품목만, 서비스 롤만 부른다', async () => {
+    await point({ sgg: '3112', mrkt: '0310407', on: day(3), price: 2000 })
+    await point({ item: '245', sgg: '3112', mrkt: '0310407', on: day(30), price: 2000 })
+    await db.exec('set role service_role')
+    const r = await db.query<{ item_cd: string }>(`select * from grocery.market_covered(array['246','245','411'], $1, $2)`, [day(15), day(0)])
+    await db.exec('reset role')
+    expect(r.rows.map((x) => x.item_cd)).toEqual(['246'])
+    expect(await errorOf(as(A, `select * from grocery.market_covered(array['246'], '2026-01-01', '2026-12-31')`))).toMatch(/permission denied/)
+  })
+})
+
 describe('market_priority', () => {
   it('SQL과 market.ts가 같은 순서', async () => {
     const cases: [string, string][] = [['1000', ''], ['3112', '0310407'], ['3112', '0310999'], ['3111', '0310001'], ['1101', '0110212'], ['2100', '0210000']]

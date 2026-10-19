@@ -252,8 +252,19 @@ export function parseMarket(body: unknown): { rows: MarketRow[]; total: number; 
 
 export const PAGE_ROWS = 1000
 
-/** 한 품목·기간·쪽의 요청 주소. 키는 앞뒤 공백을 빼고 인코딩한다(이미 %가 들어 있으면 그대로) */
-export function marketUrl(key: string, m: Pick<MarketItem, 'ctgry' | 'item'>, from: string, to: string, page = 1): string {
+/** 축산물(전국 값만 있는 품목) */
+export const isNational = (m: Pick<MarketItem, 'ctgry'>) => m.ctgry === '500'
+
+/**
+ * 시군구마다 따로 부른다(서울·수원·성남만 받아 응답을 줄인다). 축산물은 전국 값만 있어 시군구 조건 없이 한 번 부른다
+ * (null). 시군구 조건이 무시되더라도 parseMarket이 KEEP_SGG만 남긴다.
+ */
+export function regionsOf(m: Pick<MarketItem, 'ctgry'>): (string | null)[] {
+  return isNational(m) ? [null] : [SGG.seongnam, SGG.suwon, SGG.seoul]
+}
+
+/** 한 품목·시군구·기간·쪽의 요청 주소. 키는 앞뒤 공백을 빼고 인코딩한다(이미 %가 들어 있으면 그대로) */
+export function marketUrl(key: string, m: Pick<MarketItem, 'ctgry' | 'item'>, from: string, to: string, page = 1, sgg: string | null = null): string {
   const k = key.trim()
   const params = new URLSearchParams({
     pageNo: String(page),
@@ -265,6 +276,7 @@ export function marketUrl(key: string, m: Pick<MarketItem, 'ctgry' | 'item'>, fr
     'cond[ctgry_cd::EQ]': m.ctgry,
     'cond[item_cd::EQ]': m.item,
   })
+  if (sgg) params.set('cond[sgg_cd::EQ]', sgg)
   return `${MARKET_API}?serviceKey=${k.includes('%') ? k : encodeURIComponent(k)}&${params}`
 }
 

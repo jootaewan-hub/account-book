@@ -12,7 +12,7 @@ grant usage on schema auth to anon, authenticated;
 grant execute on function auth.uid() to anon, authenticated;
 alter default privileges in schema public grant all on tables to anon, authenticated;
 alter default privileges in schema public grant all on sequences to anon, authenticated;
-create role service_role nologin;
+create role service_role nologin bypassrls; -- 실제 Supabase의 service_role처럼 RLS를 건너뛴다
 grant usage on schema public to service_role;
 create role supabase_auth_admin nologin;
 create publication supabase_realtime;

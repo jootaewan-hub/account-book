@@ -208,6 +208,20 @@ as $$
    order by d.exmn_ymd
 $$;
 
+-- 수집 함수가 받을 범위를 정할 때 쓴다: 품목 코드 중 기간 안에 값이 하나라도 있는 것(서비스 롤만)
+create function grocery.market_covered(p_items text[], p_from date, p_to date)
+returns table (item_cd text)
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select distinct p.item_cd from grocery.price_points p
+   where p.item_cd = any(p_items) and p.exmn_ymd between p_from and p_to
+$$;
+
+revoke execute on function grocery.market_covered(text[], date, date) from public, anon, authenticated;
+grant execute on function grocery.market_covered(text[], date, date) to service_role;
 revoke execute on function grocery.market_priority(text, text) from public, anon;
 grant execute on function grocery.market_priority(text, text) to authenticated, service_role;
 revoke execute on function grocery.market_board() from public, anon;
