@@ -1,0 +1,15 @@
+{
+  "header": { "resultCode": "00", "resultMsg": "NORMAL SERVICE." },
+  "body": {
+    "pageNo": 1, "totalCount": 1, "numOfRows": 10,
+    "items": [
+      {
+        "NUM": "1", "FOOD_CD": "P000000001", "FOOD_NM_KR": "왕교자", "DB_GRP_NM": "가공식품", "DB_CLASS_NM": "상용제품",
+        "FOOD_CAT1_NM": "즉석식품류", "SERVING_SIZE": "100g", "AMT_NUM1": "232", "AMT_NUM2": "55.1", "AMT_NUM3": "9.8", "AMT_NUM4": "9.2",
+        "AMT_NUM6": "27.9", "AMT_NUM7": "2.1", "AMT_NUM13": "540", "AMT_NUM23": "12", "AMT_NUM24": "3.1", "AMT_NUM25": "0",
+        "SUB_REF_NAME": "식품의약품안전처(식품영양성분DB)", "NUTRI_AMOUNT_SERVING": "100", "Z10500": "1050", "DISH_ONE_SERVING": "-",
+        "ITEM_REPORT_NO": "1997040105528", "MAKER_NM": "씨제이제일제당(주)", "IMP_YN": "N", "RESEARCH_YMD": "20240101", "UPDATE_DATE": "20250301"
+      }
+    ]
+  }
+}

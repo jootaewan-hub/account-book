@@ -1,0 +1,71 @@
+// 성분(P7): grocery.product_info(상품 ↔ 식약처 품목제조보고·원재료·영양성분 캐시)를 PGlite에서 검증한다. 공개 자료라 로그인한 사용자는 읽고, 쓰기는 서비스 롤(함수)만.
+import type { PGlite } from '@electric-sql/pglite'
+import { beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { freshDb } from './dbSetup'
+
+const A = '00000000-0000-4000-8000-00000000000a'
+let db: PGlite
+let product: string
+
+async function as<T = Record<string, unknown>>(uid: string | null, sql: string, params: unknown[] = []): Promise<T[]> {
+  await db.exec('reset role')
+  await db.query(`select set_config('request.jwt.claim.sub', $1, false)`, [uid ?? ''])
+  await db.exec(uid ? 'set role authenticated' : 'set role anon')
+  try {
+    return (await db.query<T>(sql, params)).rows
+  } finally {
+    await db.exec('reset role')
+  }
+}
+async function errorOf(p: Promise<unknown>): Promise<string> {
+  try {
+    await p
+  } catch (e) {
+    return (e as Error).message
+  }
+  return 'NO_ERROR'
+}
+const scalar = async <T>(sql: string, params: unknown[] = []): Promise<T> =>
+  Object.values((await db.query<Record<string, T>>(sql, params)).rows[0])[0]
+
+beforeAll(async () => {
+  db = await freshDb([A], async (d) => {
+    const hh = (await d.query<{ id: string }>(`insert into public.households default values returning id`)).rows[0].id
+    await d.query(`insert into public.members (household_id, user_id, display_name, role, spouse_role) values ($1, $2, 'A', 'owner', 'husband')`, [hh, A])
+  })
+})
+
+beforeEach(async () => {
+  await db.exec('reset role; delete from grocery.product_info; delete from grocery.products;')
+  product = await scalar<string>(`insert into grocery.products (source, source_id, name) values ('danawa', '5643303', '비비고 왕교자 1.05kg') returning id`)
+})
+
+describe('product_info', () => {
+  it('서비스 롤(함수)이 넣고 바꾼다. 로그인한 사용자는 읽기만', async () => {
+    await db.query(
+      `insert into grocery.product_info (product_id, report_no, name, maker, kind, raw_materials, changed_on, nutrition, chosen_by)
+       values ($1, '1997040105528', '비비고 왕교자', '씨제이제일제당(주)', '만두', '돼지고기, 밀가루', '2025-03-01', $2, $3)`,
+      [product, JSON.stringify({ basis: '100g', kcal: 232, sodium: 540 }), A],
+    )
+    const rows = await as(A, `select report_no, name, maker, kind, raw_materials, nutrition, nutrition_error from grocery.product_info`)
+    expect(rows[0]).toMatchObject({ report_no: '1997040105528', name: '비비고 왕교자', maker: '씨제이제일제당(주)', raw_materials: '돼지고기, 밀가루', nutrition_error: null })
+    expect((rows[0].nutrition as { kcal: number }).kcal).toBe(232)
+    expect(await errorOf(as(A, `update grocery.product_info set name = 'x'`))).toMatch(/permission denied/)
+    expect(await errorOf(as(A, `insert into grocery.product_info (product_id, report_no, name) values ($1, '1', 'x')`, [product]))).toMatch(/permission denied/)
+    expect(await errorOf(as(null, `select 1 from grocery.product_info`))).toMatch(/permission denied/)
+    // 다시 고르면 덮어쓴다(상품마다 하나)
+    await db.query(
+      `insert into grocery.product_info (product_id, report_no, name, nutrition, nutrition_error) values ($1, '2', '다른 품목', null, 'http_500')
+       on conflict (product_id) do update set report_no = excluded.report_no, name = excluded.name, nutrition = excluded.nutrition, nutrition_error = excluded.nutrition_error, updated_at = now()`,
+      [product],
+    )
+    expect(await as(A, `select report_no, nutrition, nutrition_error from grocery.product_info`)).toEqual([{ report_no: '2', nutrition: null, nutrition_error: 'http_500' }])
+  })
+
+  it('상품을 지우면 함께 지워지고, 보고번호·이름은 꼭 있어야 한다', async () => {
+    expect(await errorOf(db.query(`insert into grocery.product_info (product_id, report_no, name) values ($1, '', 'x')`, [product]))).toMatch(/check constraint/)
+    await db.query(`insert into grocery.product_info (product_id, report_no, name) values ($1, '1', 'x')`, [product])
+    await db.query(`delete from grocery.products where id = $1`, [product])
+    expect(await scalar<number>(`select count(*)::int from grocery.product_info`)).toBe(0)
+  })
+})
