@@ -21,6 +21,7 @@ type Row = {
   bought_by: string | null
   bought_at: string | null
   paid: number | null
+  transaction_id?: string | null
 }
 
 export function rowToItem(r: Row): Item {
@@ -38,6 +39,7 @@ export function rowToItem(r: Row): Item {
     boughtBy: r.bought_by,
     boughtAt: r.bought_at,
     paid: r.paid == null ? null : Number(r.paid), // bigint는 문자열로 올 수 있다
+    transactionId: r.transaction_id ?? null,
   }
 }
 

@@ -17,6 +17,8 @@ export type Item = {
   boughtBy: string | null
   boughtAt: string | null // ISO-8601, 있으면 산 것
   paid: number | null
+  /** 가계부 내역(public.transactions.id)에 넣었으면 그 id(D-011). 넣기 전이면 null */
+  transactionId: string | null
 }
 
 export type Member = { userId: string; displayName: string; spouseRole: 'husband' | 'wife' | null }

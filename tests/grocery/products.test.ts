@@ -120,7 +120,7 @@ describe('자동 후보 찾기 대상', () => {
   const ago = (ms: number) => new Date(NOW - ms).toISOString()
   const it_ = (p: Partial<Item>): Item => ({
     id: 'i', householdId: 'h', name: 'x', spec: null, count: 1, category: '기타', productKey: null, productQty: null,
-    addedBy: 'u', addedAt: 't', boughtBy: null, boughtAt: null, paid: null, ...p,
+    addedBy: 'u', addedAt: 't', boughtBy: null, boughtAt: null, paid: null, transactionId: null, ...p,
   })
   const search = (status: ItemSearch['status'], updatedAt: string): ItemSearch => ({ status, candidateCount: 0, updatedAt })
 

@@ -77,6 +77,7 @@ export function createMemoryStore(
           boughtBy: null,
           boughtAt: null,
           paid: null,
+          transactionId: null,
         }),
       )
       items = [...items, ...added]

@@ -40,6 +40,7 @@ export function demoSeed(): { me: Membership; items: Item[]; alerts: AlertsResul
     boughtBy: bought?.by ?? null,
     boughtAt: bought?.at ?? null,
     paid: null,
+    transactionId: null,
   })
   const items: Item[] = [
     mk(1, '삼겹살', '600g', 1, '정육', WIFE, '2026-10-16T08:10:00+09:00'),
