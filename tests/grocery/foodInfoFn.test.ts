@@ -12,7 +12,7 @@ function deps(over: Partial<FoodInfoDeps> = {}) {
   const d: FoodInfoDeps = {
     foodKey: 'FOODKEY',
     dataKey: 'DATAKEY',
-    allowed: async () => true,
+    allowed: async () => 'hh-1',
     productName: async () => 'CJ제일제당 비비고 왕교자 1.05kg (3개)',
     fetchJson: async (url) => {
       log.urls.push(url)
@@ -20,8 +20,8 @@ function deps(over: Partial<FoodInfoDeps> = {}) {
       if (url.includes('FoodNtrCpntDbInfo03')) return read('nutrition-sample.json')
       return { unreadable: 404 }
     },
-    save: async (_id, info) => {
-      log.saved.push(info)
+    save: async (hh, _id, info) => {
+      log.saved.push({ hh, ...info })
     },
     now: () => new Date('2026-10-20T01:00:00Z'),
     ...over,
@@ -36,7 +36,7 @@ describe('food-info: 검사', () => {
     expect((await handle(post({ productId: 'x', action: 'search' }), d)).status).toBe(400)
     expect((await handle(post({ productId: PRODUCT, action: 'nope' }), d)).status).toBe(400)
     expect((await handle(post({ productId: PRODUCT, action: 'choose' }), d)).status).toBe(400) // reportNo 없음
-    expect((await handle(post({ productId: PRODUCT, action: 'search' }), deps({ allowed: async () => false }).d)).status).toBe(403)
+    expect((await handle(post({ productId: PRODUCT, action: 'search' }), deps({ allowed: async () => null }).d)).status).toBe(403)
     expect((await handle(post({ productId: PRODUCT, action: 'search' }), deps({ productName: async () => null }).d)).status).toBe(404)
   })
   it('식약처 키가 없으면 500', async () => {
@@ -94,7 +94,7 @@ describe('food-info: choose', () => {
     expect(log.urls[0]).toBe('https://openapi.foodsafetykorea.go.kr/api/FOODKEY/C002/json/1/5/PRDLST_REPORT_NO=1997040105528')
     expect(log.urls[1]).toContain('FoodNtrCpntDbInfo03/getFoodNtrCpntDbInq03?serviceKey=DATAKEY&type=json&pageNo=1&numOfRows=5&ITEM_REPORT_NO=1997040105528')
     expect(log.saved[0]).toMatchObject({
-      reportNo: '1997040105528', name: '가시오가피 냉면', maker: '주식회사 금성에프앤비', kind: '숙면', changedOn: '2023-06-10',
+      hh: 'hh-1', reportNo: '1997040105528', name: '가시오가피 냉면', maker: '주식회사 금성에프앤비', kind: '숙면', changedOn: '2023-06-10',
       nutrition: { basis: '100g', kcal: 232, sodium: 540 }, nutritionError: null,
     })
     expect(body.info).toMatchObject({ reportNo: '1997040105528', nutrition: { kcal: 232 } })

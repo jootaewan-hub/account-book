@@ -11,9 +11,10 @@ Deno.serve(async (req) => {
     foodKey: Deno.env.get('FOODSAFETY_API_KEY'),
     dataKey: Deno.env.get('DATA_GO_KR_SERVICE_KEY'),
     allowed: async (productId) => {
-      const { data, error } = await user.schema('grocery').from('items').select('id').eq('product_id', productId).limit(1)
+      // RLS로 내 가구 품목만 보인다 → 그 가구 id
+      const { data, error } = await user.schema('grocery').from('items').select('household_id').eq('product_id', productId).limit(1)
       if (error) throw error
-      return (data ?? []).length > 0
+      return ((data ?? []) as { household_id: string }[])[0]?.household_id ?? null
     },
     productName: async (id) => {
       const { data, error } = await g().from('products').select('name').eq('id', id).maybeSingle()
@@ -29,15 +30,15 @@ Deno.serve(async (req) => {
         return { unreadable: res.status } // 파서가 "결과 코드 없음"으로 알린다(본문은 남기지 않는다)
       }
     },
-    save: async (productId, info) => {
+    save: async (householdId, productId, info) => {
       const { data: me } = await user.auth.getUser()
       const { error } = await g().from('product_info').upsert(
         {
-          product_id: productId, report_no: info.reportNo, name: info.name.slice(0, 200), maker: info.maker?.slice(0, 100) ?? null, kind: info.kind?.slice(0, 60) ?? null,
+          household_id: householdId, product_id: productId, report_no: info.reportNo, name: info.name.slice(0, 200), maker: info.maker?.slice(0, 100) ?? null, kind: info.kind?.slice(0, 60) ?? null,
           raw_materials: info.rawMaterials?.slice(0, 4000) ?? null, changed_on: info.changedOn, nutrition: info.nutrition, nutrition_error: info.nutritionError,
           chosen_by: me?.user?.id ?? null, updated_at: new Date().toISOString(),
         },
-        { onConflict: 'product_id' },
+        { onConflict: 'household_id,product_id' },
       )
       if (error) throw error
     },

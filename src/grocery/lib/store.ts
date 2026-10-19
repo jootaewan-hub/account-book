@@ -16,6 +16,7 @@ import {
 import type { ItemSources, ShopLink, ShopPrice, ShopSource, StoreGood, StoreOption, StorePrice } from './sources'
 import type { OurPurchase } from './ours'
 import type { CapturedQuoteInput, ListItem, PhotoImage, PhotoJob, PhotoResult, PriceRead, ProductRead } from './photo'
+import type { C002Row, ProductInfoView } from './foodInfo'
 import { productQuery } from '../../../supabase/functions/grocery-photo/photo'
 
 export interface ListStore {
@@ -60,6 +61,12 @@ export interface ListStore {
   addCapturedQuote(itemId: string, q: CapturedQuoteInput): Promise<void>
   /** 바코드가 같은 식약처 기록(P6, 화면 설계 8-2 "기록 있음")과 서비스별 확인 시각 */
   barcodeAlerts(code: string): Promise<{ records: BarcodeRecord[]; syncedAt: AlertsResult['syncedAt'] }>
+  /** 성분(P7): 고른 상품에 붙인 식약처 품목(원재료·영양성분). 없으면 null */
+  productInfo(itemId: string): Promise<ProductInfoView | null>
+  /** 식약처 품목 후보 찾기(food-info search) */
+  searchFoodInfo(itemId: string): Promise<{ term: string | null; candidates: C002Row[] }>
+  /** 사람이 고른 품목을 저장(food-info choose) */
+  chooseFoodInfo(itemId: string, reportNo: string): Promise<void>
 }
 
 export type BarcodeRecord = FoodAlert & { barcode: string }
@@ -85,6 +92,8 @@ export type DemoPrices = {
   photo?: { product: ProductRead; price: PriceRead & { qty: number }; list?: ListItem[] }
   /** 바코드 → 식약처 기록(P6) */
   barcodes?: Record<string, BarcodeRecord[]>
+  /** 성분(P7): 상품 id → 식약처 품목, 후보 목록 */
+  foodInfo?: { info: Record<string, ProductInfoView>; candidates: C002Row[] }
 }
 
 const NO_PRICES: DemoPrices = { searches: {}, candidates: {}, products: {}, lines: {} }
@@ -110,6 +119,7 @@ export function createMemoryStore(
   }
   let chosenStores: string[] = []
   const captured = new Map<string, PriceLine[]>() // 상품 id → 캡처한 가격 줄(P4)
+  const foodInfo = new Map<string, ProductInfoView>(Object.entries(demoPrices.foodInfo?.info ?? {}))
   const ours = new Map<string, OurPurchase[]>(Object.entries(demoPrices.ours ?? {}).map(([k, v]) => [k, v.map((x) => ({ ...x }))]))
 
   return {
@@ -251,6 +261,24 @@ export function createMemoryStore(
       if (job === 'product') return { job: 'product', product: demoPrices.photo.product, query: productQuery(demoPrices.photo.product) }
       if (job === 'list') return { job: 'list', items: (demoPrices.photo.list ?? []).map((x) => ({ ...x })), note: null }
       return { job: 'price', price: demoPrices.photo.price }
+    },
+    async productInfo(itemId) {
+      const it = items.find((i) => i.id === itemId)
+      return it?.productKey ? (foodInfo.get(it.productKey) ?? null) : null
+    },
+    async searchFoodInfo() {
+      return { term: '왕교자', candidates: (demoPrices.foodInfo?.candidates ?? []).map((c) => ({ ...c })) }
+    },
+    async chooseFoodInfo(itemId, reportNo) {
+      const it = items.find((i) => i.id === itemId)
+      if (!it?.productKey) throw new Error('no_product')
+      const c = (demoPrices.foodInfo?.candidates ?? []).find((x) => x.reportNo === reportNo)
+      if (!c) throw new Error('not_found')
+      const prev = foodInfo.get(it.productKey)
+      foodInfo.set(it.productKey, {
+        reportNo: c.reportNo, name: c.name, maker: c.maker, kind: c.kind, rawMaterials: c.rawMaterials, changedOn: c.changedOn,
+        nutrition: prev?.reportNo === c.reportNo ? prev.nutrition : null, nutritionError: prev?.reportNo === c.reportNo ? prev.nutritionError : 'not_found', updatedAt: now(),
+      })
     },
     async barcodeAlerts(code) {
       return { records: (demoPrices.barcodes?.[code] ?? []).map((r) => ({ ...r })), syncedAt: demoAlerts.syncedAt }

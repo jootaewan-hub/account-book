@@ -67,6 +67,11 @@ const groceryShots = [
   { name: 'grocery-barcode-record-1280-light', path: `${G}&barcode=8801007001234`, w: 1280, c: 'light', barcode: true, barcodeWait: '회수 기록 있음' },
   { name: 'grocery-barcode-none-390-light', path: `${G}&barcode=96385074`, w: 390, c: 'light', barcode: true, barcodeWait: '식약처 기록 없음' },
   ...both(390, (w, c) => ({ name: `grocery-add-photo-list-${w}-${c}`, path: G, w, c, sheet: '', photoList: true })),
+  // P7 성분·대안
+  ...both(390, (w, c) => ({ name: `grocery-item-detail-ingredients-${w}-${c}`, path: G, w, c, detail: '비비고 왕교자', tab: 'ingredients' })),
+  { name: 'grocery-item-detail-ingredients-1280-light', path: G, w: 1280, c: 'light', detail: '비비고 왕교자', tab: 'ingredients' },
+  ...both(390, (w, c) => ({ name: `grocery-item-detail-alternatives-${w}-${c}`, path: G, w, c, detail: '비비고 왕교자', tab: 'alternatives' })),
+  { name: 'grocery-food-picker-390-light', path: G, w: 390, c: 'light', detail: '비비고 왕교자', tab: 'ingredients', foodPick: true },
   // 가계부에 넣기(D-011 길 ②): 목록 끝의 안내와 시트(총액, 품목마다, 금액 빈 오류)
   ...each((w, c) => ({ name: `grocery-record-sheet-${w}-${c}`, path: G, w, c, purchase: 'total' })),
   ...both(390, (w, c) => ({ name: `grocery-record-sheet-each-${w}-${c}`, path: G, w, c, purchase: 'each' })),
@@ -233,10 +238,14 @@ try {
       if (s.detail) {
         await page.locator('.row-name', { hasText: s.detail }).first().click()
         await page.getByRole('dialog').waitFor()
-        const label = s.shell ? null : { price: '가격', safety: '안전', rating: '평가', market: '시세' }[s.tab]
+        const label = s.shell ? null : { price: '가격', safety: '안전', rating: '평가', market: '시세', ingredients: '성분', alternatives: '대안' }[s.tab]
         if (label) await page.getByRole('tab', { name: label }).click()
         if (label === '가격') await page.getByText('매장 가격(참가격)').waitFor()
         if (s.detailScroll) await page.locator(s.detailScroll).first().scrollIntoViewIfNeeded()
+      }
+      if (s.foodPick) {
+        await page.getByRole('button', { name: '다른 품목으로 바꾸기' }).click()
+        await page.locator('.pick-row').first().waitFor()
       }
       if (s.barcode) {
         await page.getByRole('button', { name: '바코드로 상품 보기' }).click()

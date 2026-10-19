@@ -16,6 +16,8 @@ export type Candidate = {
   name: string
   imageUrl: string | null
   rating: number | null
+  /** 후기 수(다나와). 대안 탭에서 평점을 견줄 때 쓴다 */
+  reviewCount: number | null
   variants: CandidateVariant[]
   foundAt: string
 }

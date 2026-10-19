@@ -7,6 +7,7 @@ import { SEONGNAM_AREAS } from '../../../supabase/functions/_shared/tprice'
 import type { ItemSources, ShopPrice, StoreGood, StoreOption, StorePrice } from './sources'
 import type { OurPurchase } from './ours'
 import { invokePhoto } from './photo'
+import type { C002Row, Nutrition, ProductInfoView } from './foodInfo'
 import type { ListStore , BarcodeRecord } from './store'
 import type { Membership } from './membership'
 import type { Item } from './types'
@@ -146,7 +147,7 @@ export function createSupabaseStore(client: SupabaseClient, me: Membership): Lis
     async candidates(itemId) {
       const { data, error } = await g()
         .from('item_candidates')
-        .select('qty, price, unit_price, unit_label, mall_count, rank, found_at, products(id, name, image_url, rating)')
+        .select('qty, price, unit_price, unit_label, mall_count, rank, found_at, products(id, name, image_url, rating, review_count)')
         .eq('item_id', itemId)
         .order('rank', { ascending: true })
         .order('qty', { ascending: true })
@@ -159,6 +160,7 @@ export function createSupabaseStore(client: SupabaseClient, me: Membership): Lis
           name: r.products.name,
           imageUrl: r.products.image_url,
           rating: r.products.rating == null ? null : Number(r.products.rating),
+          reviewCount: r.products.review_count ?? null,
           variants: [],
           foundAt: r.found_at,
         }
@@ -283,6 +285,34 @@ export function createSupabaseStore(client: SupabaseClient, me: Membership): Lis
     readPhoto(job, image) {
       return invokePhoto(client, { job, image })
     },
+    async productInfo(itemId): Promise<ProductInfoView | null> {
+      const it = await table().select('product_id').eq('id', itemId).maybeSingle()
+      if (it.error) throw it.error
+      if (!it.data?.product_id) return null
+      const { data, error } = await g().from('product_info').select('report_no, name, maker, kind, raw_materials, changed_on, nutrition, nutrition_error, updated_at')
+        .eq('household_id', me.householdId).eq('product_id', it.data.product_id).maybeSingle()
+      if (error) throw error
+      if (!data) return null
+      const r = data as { report_no: string; name: string; maker: string | null; kind: string | null; raw_materials: string | null; changed_on: string | null; nutrition: Nutrition | null; nutrition_error: string | null; updated_at: string }
+      return { reportNo: r.report_no, name: r.name, maker: r.maker, kind: r.kind, rawMaterials: r.raw_materials, changedOn: r.changed_on, nutrition: r.nutrition, nutritionError: r.nutrition_error, updatedAt: r.updated_at }
+    },
+    async searchFoodInfo(itemId) {
+      const it = await table().select('product_id').eq('id', itemId).maybeSingle()
+      if (it.error) throw it.error
+      if (!it.data?.product_id) throw new Error('no_product')
+      const { data, error } = await client.functions.invoke<{ status: string; term: string | null; candidates: C002Row[] }>('food-info', { body: { productId: it.data.product_id, action: 'search' } })
+      if (error) throw error
+      if (!data || data.status !== 'done') throw new Error('search_failed')
+      return { term: data.term, candidates: data.candidates }
+    },
+    async chooseFoodInfo(itemId, reportNo) {
+      const it = await table().select('product_id').eq('id', itemId).maybeSingle()
+      if (it.error) throw it.error
+      if (!it.data?.product_id) throw new Error('no_product')
+      const { data, error } = await client.functions.invoke<{ status: string }>('food-info', { body: { productId: it.data.product_id, action: 'choose', reportNo } })
+      if (error) throw error
+      if (!data || data.status !== 'done') throw new Error('choose_failed')
+    },
     async barcodeAlerts(code) {
       const [rows, syncedAt] = await Promise.all([
         g().from('food_alerts').select('source, source_id, product_name, maker, reason, grade, pack_unit, barcode, registered_on').eq('barcode', code).limit(20),
@@ -374,14 +404,14 @@ export function createSupabaseStore(client: SupabaseClient, me: Membership): Lis
     },
   }
 
-  // 서비스별 마지막 성공 실행 시각(최신순이라 처음 본 값이 마지막 성공)
+  // 서비스별 마지막 성공 실행 시각(grocery.last_synced(): 서비스마다 max(ran_at), P8에서 최근 30건 훑기를 바꿈)
   async function lastSynced(): Promise<AlertsResult['syncedAt']> {
-    const runs = await g().from('sync_runs').select('source, ran_at').eq('ok', true).in('source', [...SOURCES]).order('ran_at', { ascending: false }).limit(30)
+    const runs = await g().rpc('last_synced')
     if (runs.error) throw runs.error
     const syncedAt: AlertsResult['syncedAt'] = {}
     for (const r of (runs.data ?? []) as { source: string; ran_at: string }[]) {
       const s = SOURCES.find((x) => x === r.source)
-      if (s && !syncedAt[s]) syncedAt[s] = r.ran_at
+      if (s) syncedAt[s] = r.ran_at
     }
     return syncedAt
   }
@@ -410,7 +440,7 @@ type CandidateRow = {
   unit_label: string | null
   mall_count: number | null
   found_at: string
-  products: { id: string; name: string; image_url: string | null; rating: number | string | null } | null
+  products: { id: string; name: string; image_url: string | null; rating: number | string | null; review_count?: number | null } | null
 }
 type QuoteRow = { qty: number; seller: string | null; price: number; delivery: number | null; unit_price: number | null; unit_label: string | null; mall_count: number | null }
 type ProductRow = { id: string; source_id: string; name: string; image_url: string | null; rating: number | string | null; review_count: number | null; rated_at: string | null }

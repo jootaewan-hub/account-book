@@ -226,7 +226,7 @@ export default function BarcodeSheet({ store, initialCode, onAddText, onClose }:
               <p className="barcode-code num">바코드 {result.code}</p>
               {result.records.length > 0 ? (
                 <>
-                  <p className="alert-badge is-record">회수 기록 있음</p>
+                  <p className="alert-badge alert-record">회수 기록 있음</p>
                   <ul className="alert-list">
                     {result.records.map((a) => (
                       <li key={`${a.source}-${a.sourceId}`} className="alert-card">

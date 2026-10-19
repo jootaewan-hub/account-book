@@ -1,6 +1,8 @@
 // 참가격 상품 고르기·자주 가는 매장 고르기 시트(P3). 품목 상세 위에 겹쳐 열린다(Escape·Tab은 이 시트가 처리하고 상세는 쉰다).
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import { filterGoods, storeTypeName, type StoreGood, type StoreOption } from '../lib/sources'
+import { koFullDay } from '../lib/alerts'
+import type { C002Row } from '../lib/foodInfo'
 import type { ListStore } from '../lib/store'
 
 const CLOSE_MS = 250
@@ -160,6 +162,54 @@ export function StorePickerSheet({ store, onSaved, onClose }: StoresProps) {
             {chosen.length === 0 ? '성남 판매점 전부 보기' : `매장 ${chosen.length}곳만 보기`}
           </button>
         </div>
+      )}
+    </Frame>
+  )
+}
+
+type FoodProps = { store: ListStore; itemId: string; productName: string; current: string | null; onDone: () => Promise<void>; onClose: () => void }
+
+/** 식약처 품목(C002) 고르기(P7): 상품명으로 찾은 후보 중 같은 품목을 사람이 고른다. 이름·업체·식품유형·변경일을 보고 판단한다 */
+export function FoodPickerSheet({ store, itemId, productName, current, onDone, onClose }: FoodProps) {
+  const [state, setState] = useState<'loading' | 'failed' | { term: string | null; candidates: C002Row[] }>('loading')
+  const [busy, setBusy] = useState(false)
+  const [msg, setMsg] = useState<string | null>(null)
+  useEffect(() => {
+    store.searchFoodInfo(itemId).then(setState, () => setState('failed'))
+  }, [store, itemId])
+  const pick = (reportNo: string) => {
+    if (busy) return
+    setBusy(true)
+    setMsg(null)
+    store.chooseFoodInfo(itemId, reportNo).then(
+      () => onDone().then(onClose, onClose),
+      () => {
+        setBusy(false)
+        setMsg('저장하지 못했어요. 잠시 뒤 다시 해 주세요.')
+      },
+    )
+  }
+  return (
+    <Frame title="식약처 품목 고르기" onClose={onClose}>
+      <p className="detail-none">고른 상품 "{productName}"과 같은 품목을 식약처 품목제조보고에서 골라 주세요. 이름·업체·용량을 포장과 견줘 보세요.</p>
+      {state === 'loading' && <p className="cand-state" role="status">식약처 품목 찾는 중</p>}
+      {state === 'failed' && <p className="cand-state" role="status">식약처 품목을 찾지 못했어요. 잠시 뒤 다시 해 주세요.</p>}
+      {msg && <p className="cand-state" role="alert">{msg}</p>}
+      {typeof state === 'object' && state.candidates.length === 0 && <p className="cand-state">{state.term ? `"${state.term}"으로 찾은 식약처 품목이 없어요.` : '찾을 말이 없어요.'}</p>}
+      {typeof state === 'object' && state.candidates.length > 0 && (
+        <>
+          <p className="src-line">"{state.term}"으로 찾음, {state.candidates.length}건(식품안전나라 C002)</p>
+          <ul className="pick-list">
+            {state.candidates.map((c) => (
+              <li key={c.reportNo}>
+                <button type="button" className="pick-row" aria-pressed={c.reportNo === current} disabled={busy} onClick={() => pick(c.reportNo)}>
+                  <span className="pick-name">{c.name}</span>
+                  <span className="pick-meta">{[c.maker, c.kind, c.changedOn ? `${koFullDay(c.changedOn)} 변경` : null].filter(Boolean).join(' · ')} · 보고번호 {c.reportNo}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </>
       )}
     </Frame>
   )

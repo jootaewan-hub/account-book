@@ -23,7 +23,10 @@ import { change, changeText, dayText, gradeText, pickSeries, sameKey, seriesName
 import type { MarketStore } from '../lib/marketStore'
 import MarketPanel from './MarketPanel'
 import { ShopLinks, StorePrices } from './SourceBlocks'
-import { GoodPickerSheet, StorePickerSheet } from './StoreSheets'
+import { FoodPickerSheet, GoodPickerSheet, StorePickerSheet } from './StoreSheets'
+import { INGREDIENT_NOTE, nutritionErrorText, nutritionRows, nutritionSource, type ProductInfoView } from '../lib/foodInfo'
+import { alternatives, betterText } from '../lib/alternatives'
+import type { Candidate } from '../lib/products'
 import type { ItemSources, ShopLink, ShopSource } from '../lib/sources'
 import { OursBlock } from './OursBlock'
 import type { OurPurchase } from '../lib/ours'
@@ -33,9 +36,11 @@ import { PhotoPick, PriceReadForm } from './PhotoCapture'
 import { matchMarket } from '../../../supabase/functions/_shared/market'
 
 const CLOSE_MS = 250
-type Tab = 'market' | 'price' | 'safety' | 'rating'
+type Tab = 'market' | 'price' | 'ingredients' | 'alternatives' | 'safety' | 'rating'
 const TABS: { key: Tab; label: string }[] = [
   { key: 'price', label: '가격' },
+  { key: 'ingredients', label: '성분' },
+  { key: 'alternatives', label: '대안' },
   { key: 'safety', label: '안전' },
   { key: 'rating', label: '평가' },
 ]
@@ -82,7 +87,10 @@ export default function ItemDetail({ item, store, onChangeProduct, onClose, mark
   const [ours, setOurs] = useState<OurPurchase[] | null>(null)
   const [srcFailed, setSrcFailed] = useState(false)
   const [srcBusy, setSrcBusy] = useState(false)
-  const [picker, setPicker] = useState<'good' | 'stores' | null>(null)
+  const [picker, setPicker] = useState<'good' | 'stores' | 'food' | null>(null)
+  // P7: 식약처 품목(원재료·영양성분), 대안 계산용 후보
+  const [info, setInfo] = useState<ProductInfoView | null | 'loading' | 'failed'>('loading')
+  const [cands, setCands] = useState<Candidate[] | null | 'loading'>('loading')
   // 캡처로 가격 넣기(P4): 읽는 중 → 읽은 값(고친 뒤 저장)
   const [capture, setCapture] = useState<'idle' | 'reading' | (PriceRead & { qty: number })>('idle')
   const [captureMsg, setCaptureMsg] = useState<string | null>(null)
@@ -123,6 +131,11 @@ export default function ItemDetail({ item, store, onChangeProduct, onClose, mark
   useEffect(() => {
     void loadSources()
   }, [loadSources])
+  const loadInfo = useCallback(() => store.productInfo(item.id).then(setInfo, () => setInfo('failed')), [store, item.id])
+  useEffect(() => {
+    void loadInfo()
+    store.candidates(item.id).then(setCands, () => setCands(null))
+  }, [loadInfo, store, item.id])
   const withBusy = (p: Promise<unknown>) => {
     setSrcBusy(true)
     return p.finally(() => setSrcBusy(false))
@@ -200,6 +213,7 @@ export default function ItemDetail({ item, store, onChangeProduct, onClose, mark
   const split = splitLines(data?.lines ?? [], qty, today)
   const query = data?.product?.name ?? [item.name, item.spec].filter(Boolean).join(' ')
   const lastFailed = data?.check && !data.check.ok ? data.check : null
+  const alts = data?.product && Array.isArray(cands) ? alternatives(cands, data.product.id, qty, new Set()) : []
 
   return (
     <div className={`sheet-layer${closing ? ' is-closing' : ''}`}>
@@ -253,12 +267,13 @@ export default function ItemDetail({ item, store, onChangeProduct, onClose, mark
                 </div>
                 <div className="summary-cell">
                   <p className="summary-k">더 나은 상품</p>
-                  <p className="summary-v detail-small">다음 단계</p>
+                  <p className="summary-v num">{data.product ? betterText(cands === 'loading' ? null : cands === null ? null : alts.length) : '상품 고르기 전'}</p>
+                  {data.product && alts.length > 0 && <p className="summary-note">대안 탭에서 보기</p>}
                 </div>
               </section>
               )}
 
-              <div className="seg detail-tabs" role="tablist" aria-label="품목 상세">
+              <div className={`seg detail-tabs${fresh ? '' : ' seg-5'}`} role="tablist" aria-label="품목 상세">
                 {(fresh ? FRESH_TABS : TABS).map((t) => (
                   <button key={t.key} type="button" role="tab" aria-selected={tab === t.key} aria-pressed={tab === t.key} onClick={() => setTab(t.key)}>
                     {t.label}
@@ -335,6 +350,77 @@ export default function ItemDetail({ item, store, onChangeProduct, onClose, mark
                 </div>
               )}
 
+              {tab === 'ingredients' && (
+                <div role="tabpanel">
+                  {!data.product && <p className="cand-state">상품을 고르면 식약처 품목의 원재료와 영양성분을 보여 드려요.</p>}
+                  {data.product && info === 'loading' && <p className="cand-state" role="status">성분 불러오는 중</p>}
+                  {data.product && info === 'failed' && <p className="cand-state" role="status">성분을 불러오지 못했어요. 잠시 뒤 다시 열어 주세요.</p>}
+                  {data.product && info === null && (
+                    <>
+                      <p className="detail-none">식약처 품목제조보고에서 같은 품목을 고르면 원재료와 영양성분을 보여 드려요.</p>
+                      <button type="button" className="btn-secondary detail-link" onClick={() => setPicker('food')}>식약처 품목 찾기</button>
+                    </>
+                  )}
+                  {data.product && typeof info === 'object' && info !== null && (
+                    <>
+                      <p className="store-good">
+                        <span>{info.name}</span>
+                        <button type="button" className="btn-text" onClick={() => setPicker('food')}>다른 품목으로 바꾸기</button>
+                      </p>
+                      <p className="src-line">{[info.maker, info.kind, info.changedOn ? `${koFullDay(info.changedOn)} 변경` : null].filter(Boolean).join(' · ')} · 보고번호 {info.reportNo}</p>
+                      <p className="read-note">{INGREDIENT_NOTE}</p>
+                      <div className="detail-block">
+                        <p className="detail-sub">원재료</p>
+                        <p className="ingredients-text">{info.rawMaterials ?? '확인 못 함'}</p>
+                        <p className="src-line">식품안전나라 식품 원재료(C002), {checkedText(info.updatedAt)} 받음</p>
+                      </div>
+                      <div className="detail-block">
+                        <p className="detail-sub">영양성분</p>
+                        {info.nutrition ? (
+                          <>
+                            <dl className="nutri-table">
+                              {nutritionRows(info.nutrition).map((r) => (
+                                <div key={r.label} className="nutri-row"><dt>{r.label}</dt><dd className="num">{r.value}</dd></div>
+                              ))}
+                            </dl>
+                            <p className="src-line">{nutritionSource(info.nutrition)}</p>
+                          </>
+                        ) : (
+                          <p className="detail-none">{nutritionErrorText(info.nutritionError)}</p>
+                        )}
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
+
+              {tab === 'alternatives' && (
+                <div role="tabpanel">
+                  {!data.product && <p className="cand-state">상품을 고르면 같은 품목의 다른 후보와 견줘요.</p>}
+                  {data.product && cands === 'loading' && <p className="cand-state" role="status">후보 불러오는 중</p>}
+                  {data.product && cands === null && <p className="cand-state" role="status">후보를 불러오지 못했어요.</p>}
+                  {data.product && Array.isArray(cands) && alts.length === 0 && <p className="detail-none">후보 중에 고른 상품보다 싸거나 평가가 더 좋은 것은 없어요.</p>}
+                  {alts.length > 0 && (
+                    <ul className="price-list">
+                      {alts.map((a) => (
+                        <li key={a.productId} className="price-row ours-row">
+                          <div>
+                            <p className="price-where"><span>{a.name}</span></p>
+                            <p className="alt-reasons">
+                              {a.reasons.map((r) => <span key={r.kind} className="tag">{r.kind === 'cheaper' ? '더 쌈' : '평가가 좋음'}</span>)}
+                            </p>
+                            {a.reasons.map((r) => <p key={r.kind} className="src-line">{r.text}</p>)}
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  {data.product && Array.isArray(cands) && (
+                    <p className="shop-note">숫자는 다나와 후보 값({qty}개 가격·평점·후기 수) 그대로예요. 후보의 회수·부적합 기록은 아직 대조하지 않아요. 바꾸려면 "상품 바꾸기"를 눌러요.</p>
+                  )}
+                </div>
+              )}
+
               {tab === 'safety' && (
                 <div role="tabpanel">
                   {SOURCES.map((src) => {
@@ -389,6 +475,16 @@ export default function ItemDetail({ item, store, onChangeProduct, onClose, mark
         />
       )}
       {picker === 'stores' && <StorePickerSheet store={store} onSaved={loadSources} onClose={() => setPicker(null)} />}
+      {picker === 'food' && data?.product && (
+        <FoodPickerSheet
+          store={store}
+          itemId={item.id}
+          productName={data.product.name}
+          current={typeof info === 'object' && info !== null ? info.reportNo : null}
+          onDone={() => loadInfo().then(() => {})}
+          onClose={() => setPicker(null)}
+        />
+      )}
     </div>
   )
 }

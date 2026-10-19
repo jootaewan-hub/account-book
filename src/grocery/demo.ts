@@ -7,6 +7,7 @@ import { keyOf, type MarketBoard, type MarketSeries, type NearbyPrice, type Seri
 import type { Recalls } from './lib/marketStore'
 import type { ShopPrice, StorePrice } from './lib/sources'
 import type { OurPurchase } from './lib/ours'
+import type { ProductInfoView } from './lib/foodInfo'
 import { recentFridays } from '../../supabase/functions/_shared/tprice'
 
 const H = 'demo'
@@ -98,6 +99,15 @@ export function demoSeed(): { me: Membership; items: Item[]; alerts: AlertsResul
     kind, transactionId: `tx-${id}`, transactionItemId: id, occurredOn: on, platform, place, createdBy: by, name, quantity, unitPrice, amount,
     packSize: pack?.[0] ?? null, packUnit: pack?.[1] ?? null,
   })
+  const foodInfoDemo: ProductInfoView = {
+    reportNo: '1997040105528', name: '예시 왕교자', maker: '예시식품', kind: '만두',
+    rawMaterials: '밀가루(미국산), 돼지고기(국산), 양배추, 대파, 두부, 당면, 부추, 정제소금, 설탕, 참기름(예시)', changedOn: ago(30),
+    nutrition: {
+      basis: '100g', kcal: 232, carbs: 27.9, sugars: 2.1, protein: 9.8, fat: 9.2, satFat: 3.1, transFat: 0, cholesterol: 12, sodium: 540,
+      weight: 1050, servingRef: 100, source: '예시(식품영양성분DB 모양)', foodName: '예시 왕교자', maker: '예시식품', updatedOn: ago(60),
+    },
+    nutritionError: null, updatedAt: at,
+  }
   const storeRow = (entpId: string, entpName: string, typeCode: string, inspectedOn: string | null, price: number | null, dc = false): StorePrice => ({
     goodId: '1001', goodName: '비비고 왕교자(1.12kg)', entpId, entpName, typeCode, inspectedOn, price, dc, plusOne: false,
   })
@@ -111,12 +121,21 @@ export function demoSeed(): { me: Membership; items: Item[]; alerts: AlertsResul
       'demo-item-6': { status: 'done', candidateCount: 3, updatedAt: at },
     },
     candidates: {
+      // 비비고 왕교자(고른 상품 demo-p-1)의 후보: 대안 탭이 견준다(가상 값)
+      'demo-item-3': [
+        { productId: 'demo-p-1', name: 'CJ제일제당 비비고 왕교자 1.05kg', imageUrl: null, rating: 4.8, reviewCount: 9099, foundAt: at,
+          variants: [{ qty: 1, price: 10380, unitPrice: 989, unitLabel: '100g', mallCount: 26 }] },
+        { productId: 'demo-p-5', name: '예시 교자만두 1.05kg', imageUrl: null, rating: 4.9, reviewCount: 2300, foundAt: at,
+          variants: [{ qty: 1, price: 9900, unitPrice: 943, unitLabel: '100g', mallCount: 14 }] },
+        { productId: 'demo-p-6', name: '예시 손만두 1kg', imageUrl: null, rating: 4.5, reviewCount: 410, foundAt: at,
+          variants: [{ qty: 1, price: 12000, unitPrice: 1200, unitLabel: '100g', mallCount: 9 }] },
+      ],
       'demo-item-6': [
-        { productId: 'demo-p-2', name: '예시 냉동볶음밥 300g', imageUrl: null, rating: 4.6, foundAt: at,
+        { productId: 'demo-p-2', name: '예시 냉동볶음밥 300g', imageUrl: null, rating: 4.6, reviewCount: 320, foundAt: at,
           variants: [{ qty: 1, price: 3980, unitPrice: 1327, unitLabel: '100g', mallCount: 12 }, { qty: 4, price: 14900, unitPrice: 1242, unitLabel: '100g', mallCount: 30 }] },
-        { productId: 'demo-p-3', name: '예시 새우볶음밥 420g', imageUrl: null, rating: 4.4, foundAt: at,
+        { productId: 'demo-p-3', name: '예시 새우볶음밥 420g', imageUrl: null, rating: 4.4, reviewCount: 88, foundAt: at,
           variants: [{ qty: 1, price: 5480, unitPrice: 1305, unitLabel: '100g', mallCount: 8 }] },
-        { productId: 'demo-p-4', name: '예시 볶음밥 3종 세트(300g×3)', imageUrl: null, rating: null, foundAt: at,
+        { productId: 'demo-p-4', name: '예시 볶음밥 3종 세트(300g×3)', imageUrl: null, rating: null, reviewCount: null, foundAt: at,
           variants: [{ qty: 1, price: 11900, unitPrice: null, unitLabel: null, mallCount: 5 }] },
       ],
     },
@@ -175,6 +194,15 @@ export function demoSeed(): { me: Membership; items: Item[]; alerts: AlertsResul
         { name: '우유', spec: '1L', count: 1 },
         { name: '계란', spec: '30구', count: 1 },
         { name: '두부', spec: '300g', count: 2 },
+      ],
+    },
+    // 성분(P7)의 가짜 식약처 품목·영양성분(실제 값이 아님). 영양성분DB 모양만 따랐다
+    foodInfo: {
+      info: { 'demo-p-1': foodInfoDemo },
+      candidates: [
+        { reportNo: '1997040105528', name: '예시 왕교자', maker: '예시식품', kind: '만두', rawMaterials: '밀가루(미국산), 돼지고기(국산), 양배추, 대파, 두부, 당면, 부추, 정제소금, 설탕, 참기름(예시)', changedOn: ago(30) },
+        { reportNo: '2001011234567', name: '예시 고기왕만두', maker: '예시푸드', kind: '만두', rawMaterials: '밀가루, 돼지고기, 양파, 부추(예시)', changedOn: ago(200) },
+        { reportNo: '2015030099999', name: '예시 왕교자피', maker: '예시제면', kind: '만두피', rawMaterials: '밀가루, 정제수, 정제소금(예시)', changedOn: ago(400) },
       ],
     },
     // 바코드 대조의 가짜 기록(실제 식약처 기록이 아님). 8801007001234는 GS1 검사 숫자가 맞는 보기 값

@@ -469,3 +469,13 @@
 .grocery .barcode-code { margin: 8px 0; font-size: 17px; font-weight: 700; }
 .grocery .list-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin: 16px 0 0; }
 .grocery .add-tools { margin: 8px 0 0; }
+
+/* P7 성분·대안 */
+.grocery .seg-5 { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+.grocery .seg-5 button { padding-left: 0; padding-right: 0; }
+.grocery .ingredients-text { margin: 0 0 4px; font-size: 15px; line-height: 1.55; }
+.grocery .nutri-table { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 4px 12px; margin: 0 0 6px; }
+.grocery .nutri-row { display: flex; justify-content: space-between; gap: 8px; min-height: 32px; padding: 4px 0; border-bottom: 1px solid var(--oat-deep); }
+.grocery .nutri-row dt { font-size: 14px; color: var(--ink-2); }
+.grocery .nutri-row dd { margin: 0; font-size: 14px; font-weight: 600; }
+.grocery .alt-reasons { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 2px; }

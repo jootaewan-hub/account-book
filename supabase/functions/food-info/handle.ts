@@ -1,5 +1,5 @@
 // 성분(P7): 고른 상품의 식약처 품목(C002) 후보 찾기(search)와, 사람이 고른 품목의 원재료·영양성분 저장(choose).
-// 후보는 사람이 고른다(상품명과 식약처 품목명이 같다는 보장이 없다). 숫자는 출처 값 그대로 저장한다.
+// 후보는 사람이 고른다(상품명과 식약처 품목명이 같다는 보장이 없다). 고른 것은 부른 사람의 가구에만 저장한다(다른 가구 화면을 바꾸지 못하게). 숫자는 출처 값 그대로.
 // 식약처 키(FOODSAFETY_API_KEY)와 공공데이터포털 키(DATA_GO_KR_SERVICE_KEY)는 서버에만 있다. 오류 문구에는 코드만 남긴다.
 import { c002ByReportUrl, c002Terms, c002Url, FoodInfoError, nutritionUrl, parseC002, parseNutrition, rankC002, type C002Row, type Nutrition } from '../_shared/foodInfo.ts'
 
@@ -17,12 +17,13 @@ export type ProductInfo = {
 export type FoodInfoDeps = {
   foodKey: string | undefined
   dataKey: string | undefined
-  /** 사용자 권한: 내 가구 품목 중 이 상품을 고른 것이 있는가 */
-  allowed(productId: string): Promise<boolean>
+  /** 사용자 권한(RLS): 내 가구 품목 중 이 상품을 고른 것이 있으면 그 가구 id, 아니면 null */
+  allowed(productId: string): Promise<string | null>
   productName(productId: string): Promise<string | null>
   /** 주소를 불러 JSON을 돌려준다(읽지 못하면 아무 객체). 네트워크 오류는 던진다 */
   fetchJson(url: string): Promise<unknown>
-  save(productId: string, info: ProductInfo): Promise<void>
+  /** 부른 사람의 가구에만 저장한다(가구, 상품마다 하나) */
+  save(householdId: string, productId: string, info: ProductInfo): Promise<void>
   now(): Date
 }
 
@@ -49,7 +50,8 @@ export async function handle(req: Request, deps: FoodInfoDeps): Promise<Response
   if (action === 'choose' && !/^[0-9A-Za-z-]{1,30}$/.test(reportNo)) return json(400, { error: 'bad_request' })
   const foodKey = deps.foodKey?.trim()
   if (!foodKey) return json(500, { error: 'missing_api_key' })
-  if (!(await deps.allowed(productId))) return json(403, { error: 'forbidden' })
+  const householdId = await deps.allowed(productId)
+  if (!householdId) return json(403, { error: 'forbidden' })
   const name = await deps.productName(productId)
   if (!name) return json(404, { error: 'not_found' })
 
@@ -91,7 +93,7 @@ export async function handle(req: Request, deps: FoodInfoDeps): Promise<Response
     reportNo: row.reportNo, name: row.name, maker: row.maker, kind: row.kind, rawMaterials: row.rawMaterials, changedOn: row.changedOn, nutrition, nutritionError,
   }
   try {
-    await deps.save(productId, info)
+    await deps.save(householdId, productId, info)
   } catch {
     return json(502, { status: 'error', reason: 'save_failed' })
   }
