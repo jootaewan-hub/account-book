@@ -14,6 +14,7 @@ import {
   type SearchResult,
 } from './products'
 import type { ItemSources, ShopLink, ShopPrice, ShopSource, StoreGood, StoreOption, StorePrice } from './sources'
+import type { OurPurchase } from './ours'
 
 export interface ListStore {
   list(): Promise<Item[]>
@@ -47,6 +48,10 @@ export interface ListStore {
   /** 성남 참가격 판매점과 가구가 고른 매장 */
   storeOptions(): Promise<{ stores: StoreOption[]; chosen: string[] }>
   setStores(entpIds: string[]): Promise<void>
+  /** 우리가 산 값(P2): 연결된 내역·"맞아요"·이름이 비슷한 가계부 기록(grocery.our_purchases) */
+  ourPurchases(itemId: string): Promise<OurPurchase[]>
+  /** 비슷한 기록이 같은 상품인지 적는다(grocery.decide_purchase) */
+  decidePurchase(itemId: string, transactionItemId: string, same: boolean): Promise<void>
 }
 
 /** 개발용 데모 화면에서 쓰는 가격 확인 자료(실제 가격 아님) */
@@ -64,6 +69,8 @@ export type DemoPrices = {
   /** 참가격 상품 id → 매장 줄 */
   storePrices?: Record<string, StorePrice[]>
   stores?: StoreOption[]
+  /** 품목 id → 우리가 산 값·비슷한 기록(P2) */
+  ours?: Record<string, OurPurchase[]>
 }
 
 const NO_PRICES: DemoPrices = { searches: {}, candidates: {}, products: {}, lines: {} }
@@ -88,6 +95,7 @@ export function createMemoryStore(
     if (it) storeLinks.set(nameKey(it), goodId)
   }
   let chosenStores: string[] = []
+  const ours = new Map<string, OurPurchase[]>(Object.entries(demoPrices.ours ?? {}).map(([k, v]) => [k, v.map((x) => ({ ...x }))]))
 
   return {
     async list() {
@@ -219,6 +227,16 @@ export function createMemoryStore(
     },
     async setStores(entpIds) {
       chosenStores = [...entpIds]
+    },
+    async ourPurchases(itemId) {
+      return (ours.get(itemId) ?? []).map((r) => ({ ...r }))
+    },
+    async decidePurchase(itemId, transactionItemId, same) {
+      // 메모리 구현: "맞아요"는 confirmed로, "아니에요"는 뺀다(실제는 name_key로 같은 이름의 품목이 함께 본다)
+      const rows = ours.get(itemId) ?? []
+      ours.set(itemId, same
+        ? rows.map((r) => (r.transactionItemId === transactionItemId ? { ...r, kind: 'confirmed' as const } : r))
+        : rows.filter((r) => r.transactionItemId !== transactionItemId))
     },
     async detail(itemId) {
       const it = items.find((i) => i.id === itemId)

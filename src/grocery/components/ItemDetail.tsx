@@ -25,6 +25,9 @@ import MarketPanel from './MarketPanel'
 import { ShopLinks, StorePrices } from './SourceBlocks'
 import { GoodPickerSheet, StorePickerSheet } from './StoreSheets'
 import type { ItemSources, ShopLink, ShopSource } from '../lib/sources'
+import { OursBlock } from './OursBlock'
+import type { OurPurchase } from '../lib/ours'
+import type { Member } from '../lib/types'
 import { matchMarket } from '../../../supabase/functions/_shared/market'
 
 const CLOSE_MS = 250
@@ -48,10 +51,12 @@ type Props = {
   onClose: () => void
   /** 농수산물 시세(D-012). board가 null이면 아직 불러오는 중, failed면 불러오지 못함 */
   market?: { store: MarketStore; board: MarketBoard | null; failed: boolean }
+  /** 가구 구성원(우리가 산 값의 산 사람 표시, P2) */
+  members?: readonly Member[]
 }
 
 // 품목 상세: 요약 네 칸과 가격·안전·평가 탭. 숫자마다 출처와 확인 시각을 붙인다(화면 설계 4·5절).
-export default function ItemDetail({ item, store, onChangeProduct, onClose, market }: Props) {
+export default function ItemDetail({ item, store, onChangeProduct, onClose, market, members = [] }: Props) {
   const fresh = isFresh(item.category) && Boolean(market)
   const [closing, setClosing] = useState(false)
   const [tab, setTab] = useState<Tab>(fresh ? 'market' : 'price')
@@ -72,6 +77,7 @@ export default function ItemDetail({ item, store, onChangeProduct, onClose, mark
   const [checking, setChecking] = useState(false)
   // P3: 넣은 주소의 값·참가격 매장 가격, 고르기 시트
   const [sources, setSources] = useState<ItemSources | null>(null)
+  const [ours, setOurs] = useState<OurPurchase[] | null>(null)
   const [srcFailed, setSrcFailed] = useState(false)
   const [srcBusy, setSrcBusy] = useState(false)
   const [picker, setPicker] = useState<'good' | 'stores' | null>(null)
@@ -104,7 +110,10 @@ export default function ItemDetail({ item, store, onChangeProduct, onClose, mark
 
   const loadSources = useCallback(() => {
     setSrcFailed(false)
-    return store.sources(item.id).then(setSources, () => setSrcFailed(true))
+    return Promise.all([
+      store.sources(item.id).then(setSources, () => setSrcFailed(true)),
+      store.ourPurchases(item.id).then(setOurs, () => setOurs([])),
+    ]).then(() => {})
   }, [store, item.id])
   useEffect(() => {
     void loadSources()
@@ -123,6 +132,8 @@ export default function ItemDetail({ item, store, onChangeProduct, onClose, mark
     ).then(() => {})
   const removeLink = (source: ShopSource) => withBusy(store.removeShopLink(item.id, source).then(loadSources)).then(() => {})
   const unlinkGood = () => withBusy(store.chooseStoreGood(item.id, null).then(loadSources)).then(() => {})
+  const decide = (r: OurPurchase, same: boolean) =>
+    r.transactionItemId ? withBusy(store.decidePurchase(item.id, r.transactionItemId, same).then(loadSources)).then(() => {}) : Promise.resolve()
 
   // 열 때: 고른 상품이 있고 오늘 성공한 확인이 없으면 그때 확인한다(화면 설계 8-1)
   useEffect(() => {
@@ -277,6 +288,7 @@ export default function ItemDetail({ item, store, onChangeProduct, onClose, mark
                   )}
                   {split.same.length > 0 && <PriceList title={`${qty}개`} lines={split.same} />}
                   {split.other.length > 0 && <PriceList title="다른 용량" lines={split.other} showUnit />}
+                  {ours && <OursBlock rows={ours} members={members} busy={srcBusy} onDecide={decide} />}
                   {srcFailed && <p className="cand-state" role="status">넣은 주소의 값과 매장 가격을 불러오지 못했어요. 잠시 뒤 다시 열어 주세요.</p>}
                   {!srcFailed && !sources && <p className="cand-state" role="status">넣은 주소·매장 가격 불러오는 중</p>}
                   {sources && data.product && <ShopLinks shops={sources.shops} busy={srcBusy || checking} onAdd={addLink} onRemove={removeLink} />}

@@ -444,3 +444,10 @@
 .grocery .pick-meta { font-size: 13px; color: var(--ink-2); }
 .grocery .pick-check { display: flex; align-items: center; gap: 12px; min-height: 48px; padding: 4px 0; border-top: 1px solid var(--oat-deep); cursor: pointer; }
 .grocery .pick-check input { width: 22px; height: 22px; margin: 0; accent-color: var(--ink); }
+
+/* P2 우리가 산 값 */
+.grocery .tag-ours { background: var(--blush-soft); color: var(--rose-ink); }
+.grocery .ours-row .price-where { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; }
+.grocery .ours-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 6px; }
+.grocery .ours-row .price-v .src-line { display: inline; font-weight: 400; }
+.grocery .ours-block .price-list + .detail-sub { margin-top: 16px; }

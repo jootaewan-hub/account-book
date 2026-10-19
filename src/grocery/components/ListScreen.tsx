@@ -532,6 +532,7 @@ export default function ListScreen({ store, me, ledger, market }: Props) {
         <ItemDetail
           item={detailItem}
           store={store}
+          members={me.members}
           market={market ? { store: market, board: board === 'failed' ? null : board, failed: board === 'failed' } : undefined}
           onChangeProduct={() => {
             setPickItem(detailItem)

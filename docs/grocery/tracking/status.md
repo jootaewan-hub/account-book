@@ -75,6 +75,12 @@
   - P3-5 품목 상세 가격 탭: "주소를 넣은 곳"(출처 태그·상품 이름·확인 시각·로우차트 관측값·실패 문구·페이지 열기·빼기·주소 넣기·거절 문구, 가장 싼 값에는 넣지 않음)과
     "매장 가격(참가격)"(참가격 상품 고르기 시트·바꾸기·연결 풀기·매장별 마지막 조사값·할인/1+1·자주 가는 매장 시트). 데모·캡처 11장(390 라이트·다크, 1280) 확인.
   - P3-7 `price-recheck`(verify_jwt false, 잠금 id 4, 20시간 1회): 안 산 품목이 고른 상품마다 다나와(10초 간격)와 넣은 주소를 다시 읽는다. 워크플로 매일 07:30. 100초가 넘으면 미루고 207.
+- P2 가계부 기록 → "우리가 산 값"(2026-10-19 밤, 로컬, 브랜치 `claude/p3-price-sources`): 코드·시험·캡처 끝(P2-1·P2-2). 적용(P2-3)은 사용자 확인 뒤.
+  - `20261024000000_grocery_our_purchases.sql`(grocery만): `purchase_verdicts`(가구 RLS, 가계부 줄 삭제 시 함께 삭제), `decide_purchase()`, `name_tokens()`(_alert_hits 규칙 복사),
+    `our_purchases(p_item)`(linked: 연결 내역의 가장 잘 맞는 줄 또는 총액 한 줄, confirmed: "맞아요", similar: 최근 365일 단어 일치 20줄). PGlite 시험 7개.
+  - 품목 상세 가격 탭 "우리가 산 값"(태그 `blush-soft`/`rose-ink`, 날짜·산 사람 점·곳, 개당 가격·100g당)과 "이름이 비슷한 우리 기록"(맞아요/아니에요). 가장 싼 값에는 들어가지 않는다(시험으로 고정).
+    캡처 3장(390 라이트·다크, 1280) 확인.
+  - 남은 것(P2-3, 사용자 확인 뒤): `apply_migration`(grocery_our_purchases) → 실제 가구 기록에서 비슷한 기록이 얼마나 잡히는지 보고 잘못 붙는 예를 열린 문제에 적는다.
   - 남은 것(P3-6, 사용자 확인 뒤): `apply_migration`(grocery_sources), `product-check`·`tprice-sync`·`price-recheck` 배포, `supabase/config.toml`과 맞추기, 워크플로 첫 수동 실행,
     실제 상품 3개 이상 대조(컬리·홈플러스·로우차트 페이지 값과 화면 값), 보안 점검(Advisors) 다시 보기. `DATA_GO_KR_SERVICE_KEY`는 그대로 쓴다.
 

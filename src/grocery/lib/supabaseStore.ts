@@ -4,6 +4,7 @@ import type { Category } from './categories'
 import type { Candidate, ItemDetailData, ItemPrice, ItemSearch, PriceLine, SafetyRecord, SearchResult } from './products'
 import { SEONGNAM_AREAS } from '../../../supabase/functions/_shared/tprice'
 import type { ItemSources, ShopPrice, StoreGood, StoreOption, StorePrice } from './sources'
+import type { OurPurchase } from './ours'
 import type { ListStore } from './store'
 import type { Membership } from './membership'
 import type { Item } from './types'
@@ -261,6 +262,22 @@ export function createSupabaseStore(client: SupabaseClient, me: Membership): Lis
       )
       if (error) throw error
     },
+    async ourPurchases(itemId) {
+      const { data, error } = await g().rpc('our_purchases', { p_item: itemId })
+      if (error) throw error
+      const num = (v: unknown) => (v === null || v === undefined ? null : Number(v))
+      return ((data ?? []) as OurRow[]).map(
+        (r): OurPurchase => ({
+          kind: r.kind, transactionId: r.transaction_id, transactionItemId: r.transaction_item_id, occurredOn: r.occurred_on,
+          platform: r.platform, place: r.place ?? '', createdBy: r.created_by, name: r.name, quantity: num(r.quantity), unitPrice: num(r.unit_price),
+          amount: Number(r.amount), packSize: num(r.pack_size), packUnit: r.pack_unit,
+        }),
+      )
+    },
+    async decidePurchase(itemId, transactionItemId, same) {
+      const { error } = await g().rpc('decide_purchase', { p_item: itemId, p_tx_item: transactionItemId, p_same: same })
+      if (error) throw error
+    },
     async detail(itemId): Promise<ItemDetailData> {
       const [it, safety, syncedAt] = await Promise.all([
         table().select('product_id').eq('id', itemId).maybeSingle(),
@@ -336,6 +353,10 @@ export function createSupabaseStore(client: SupabaseClient, me: Membership): Lis
 }
 
 type SearchRow = { item_id: string; status: ItemSearch['status']; candidate_count: number | null; updated_at: string }
+type OurRow = {
+  kind: OurPurchase['kind']; transaction_id: string; transaction_item_id: string | null; occurred_on: string; platform: string | null; place: string | null
+  created_by: string; name: string; quantity: number | string | null; unit_price: number | string | null; amount: number | string; pack_size: number | string | null; pack_unit: string | null
+}
 type ShopRow = {
   source: string; source_id: string; url: string; added_at: string; checked_at: string | null; ok: boolean | null; error: string | null
   priced_at: string | null; name: string | null; price: number | null; image_url: string | null; rating: number | string | null; review_count: number | null

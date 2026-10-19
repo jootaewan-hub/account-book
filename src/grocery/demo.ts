@@ -6,6 +6,7 @@ import type { Item } from './lib/types'
 import { keyOf, type MarketBoard, type MarketSeries, type NearbyPrice, type SeriesKey, type TrendPoint } from './lib/market'
 import type { Recalls } from './lib/marketStore'
 import type { ShopPrice, StorePrice } from './lib/sources'
+import type { OurPurchase } from './lib/ours'
 import { recentFridays } from '../../supabase/functions/_shared/tprice'
 
 const H = 'demo'
@@ -89,6 +90,14 @@ export function demoSeed(): { me: Membership; items: Item[]; alerts: AlertsResul
     source, sourceId, url, addedAt: dayAgo, checkedAt: at, ok: true, error: null, pricedAt: null, name: null, price: null, imageUrl: null,
     rating: null, reviewCount: null, size: null, priceFrom: null, obsLow: null, obsHigh: null, obsAvg: null, changedOn: null, ...v,
   })
+  const ago = (n: number) => new Date(Date.now() + 9 * 3600_000 - n * 86400_000).toISOString().slice(0, 10)
+  const our = (
+    kind: OurPurchase['kind'], id: string, on: string, platform: string | null, place: string, by: string, name: string,
+    quantity: number, unitPrice: number, amount: number, pack: [number, string] | null = [1050, 'g'],
+  ): OurPurchase => ({
+    kind, transactionId: `tx-${id}`, transactionItemId: id, occurredOn: on, platform, place, createdBy: by, name, quantity, unitPrice, amount,
+    packSize: pack?.[0] ?? null, packUnit: pack?.[1] ?? null,
+  })
   const storeRow = (entpId: string, entpName: string, typeCode: string, inspectedOn: string | null, price: number | null, dc = false): StorePrice => ({
     goodId: '1001', goodName: '비비고 왕교자(1.12kg)', entpId, entpName, typeCode, inspectedOn, price, dc, plusOne: false,
   })
@@ -147,6 +156,14 @@ export function demoSeed(): { me: Membership; items: Item[]; alerts: AlertsResul
         storeRow('7', '이마트분당점', 'LM', lastFriday, 9980),
         storeRow('201', '롯데슈퍼 분당서현점', 'SM', lastFriday, 10480, true),
         storeRow('82', '농협하나로유통 성남점', 'SM', null, null),
+      ],
+    },
+    // 데모용 가상 가계부 기록(실제 기록이 아님). 산 사람은 데모 구성원.
+    ours: {
+      'demo-item-3': [
+        our('confirmed', 'l1', ago(21), '쿠팡', '쿠팡', WIFE, '비비고 왕교자 1.05kg x2', 2, 10980, 21960),
+        our('similar', 'l2', ago(35), '컬리', '컬리', HUSBAND, '[비비고] 왕교자 만두 대용량 1.05kg', 1, 10480, 10480),
+        our('similar', 'l3', ago(50), null, '이마트 분당점', WIFE, '왕교자 1.05kg*2', 1, 21900, 21900, null),
       ],
     },
     stores: [

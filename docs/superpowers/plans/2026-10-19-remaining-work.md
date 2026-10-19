@@ -213,17 +213,17 @@
 
 ### Task P2-1: 표와 읽기 함수
 
-- [ ] `grocery.purchase_verdicts`:
+- [x] `grocery.purchase_verdicts`:
   - 열: `household_id`(→ households cascade), `name_key text`, `transaction_item_id uuid`(→ `public.transaction_items(id)` on delete cascade), `same boolean`, `decided_by`(→ members set null), `decided_at`.
   - pk: `(household_id, name_key, transaction_item_id)`.
   - RLS: 구성원만 select·insert·update.
-- [ ] `grocery.our_purchases(p_item uuid)` → `(kind text, transaction_id, transaction_item_id, occurred_on, platform, place, created_by, name, quantity, unit_price, amount, pack_size, pack_unit)`.
+- [x] `grocery.our_purchases(p_item uuid)` → `(kind text, transaction_id, transaction_item_id, occurred_on, platform, place, created_by, name, quantity, unit_price, amount, pack_size, pack_unit)`.
   - `kind`는 `'linked' | 'confirmed' | 'similar'`.
   - `linked`: `grocery.items.transaction_id`의 내역. 품목 줄이 여럿이면 이름이 가장 잘 맞는 줄. 품목 줄이 없으면(총액만 넣은 경우) 단위 가격을 비운 내역 한 줄.
   - `confirmed`: verdict `same = true`.
   - `similar`: 최근 365일 가계부 품목 중 이름 단어가 맞는 것. `same = false`와 이미 linked·confirmed는 빼고 최대 20줄.
   - 맞추는 규칙은 `grocery._alert_hits`의 단어 일치 방식을 따른다(한 글자는 단어 전체).
-- [ ] 시험:
+- [x] 시험:
   - 남의 가구 기록은 나오지 않는다.
   - "아니에요"를 고른 기록은 다시 나오지 않는다.
   - 가계부 품목을 지우면 verdict도 지워진다.
@@ -232,13 +232,13 @@
 
 ### Task P2-2: 화면
 
-- [ ] `ItemDetail` 가격 탭 아래에 "우리가 산 값" 묶음:
+- [x] `ItemDetail` 가격 탭 아래에 "우리가 산 값" 묶음:
   - 줄 = 날짜, 산 사람(색 점 + 이름), 곳(플랫폼 또는 가게), 개당 가격, 100g·1개당 가격.
   - 출처 태그는 "우리가 산 값"(`blush-soft` 바탕, `rose-ink` 글자, `docs/grocery/DESIGN.md`).
   - 단위 가격 계산은 가계부 `src/lib/units.ts`의 `perUnit`을 쓴다.
-- [ ] 그 아래 "이름이 비슷한 우리 기록"(가계부에 적힌 원래 상품명·용량·날짜)과 줄마다 "같은 상품 맞아요" / "아니에요". 누르면 저장하고 목록을 다시 읽는다.
-- [ ] 요약 칸 "가장 싼 값"과 목록 최저가 계산에 우리가 산 값이 들어가지 않음을 테스트로 고정한다(`bestPrice` 입력에 과거 값이 들어오면 무시).
-- [ ] 캡처: 데모에 우리 기록을 더해 `grocery-item-detail-price-ours-{390,1280}-{light,dark}`.
+- [x] 그 아래 "이름이 비슷한 우리 기록"(가계부에 적힌 원래 상품명·용량·날짜)과 줄마다 "같은 상품 맞아요" / "아니에요". 누르면 저장하고 목록을 다시 읽는다.
+- [x] 요약 칸 "가장 싼 값"과 목록 최저가 계산에 우리가 산 값이 들어가지 않음을 테스트로 고정한다(`bestPrice` 입력에 과거 값이 들어오면 무시).
+- [x] 캡처: 데모에 우리 기록을 더해 `grocery-item-detail-price-ours-{390,1280}-{light,dark}`.
 
 ### Task P2-3: 적용·확인
 

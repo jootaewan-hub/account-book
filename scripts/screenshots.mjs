@@ -51,6 +51,9 @@ const groceryShots = [
   ...both(390, (w, c) => ({ name: `grocery-item-detail-store-${w}-${c}`, path: G, w, c, detail: '비비고 왕교자', tab: 'price', detailScroll: '.detail-links' })),
   { name: 'grocery-item-detail-store-1280-light', path: G, w: 1280, c: 'light', detail: '비비고 왕교자', tab: 'price', detailScroll: '.detail-links' },
   { name: 'grocery-item-detail-store-none-390-light', path: G, w: 390, c: 'light', detail: '○○ 냉동볶음밥', tab: 'price', detailScroll: '.detail-links' },
+  // P2 우리가 산 값
+  ...both(390, (w, c) => ({ name: `grocery-item-detail-price-ours-${w}-${c}`, path: G, w, c, detail: '비비고 왕교자', tab: 'price', detailScroll: '.ours-block' })),
+  { name: 'grocery-item-detail-price-ours-1280-light', path: G, w: 1280, c: 'light', detail: '비비고 왕교자', tab: 'price', detailScroll: '.ours-block' },
   // 가계부에 넣기(D-011 길 ②): 목록 끝의 안내와 시트(총액, 품목마다, 금액 빈 오류)
   ...each((w, c) => ({ name: `grocery-record-sheet-${w}-${c}`, path: G, w, c, purchase: 'total' })),
   ...both(390, (w, c) => ({ name: `grocery-record-sheet-each-${w}-${c}`, path: G, w, c, purchase: 'each' })),
