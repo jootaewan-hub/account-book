@@ -46,7 +46,12 @@
   - 홈플러스 `mfront.homeplus.co.kr/search?keyword=`: robots 허용. 서버 HTML 7.5KB로 상품 없음(브라우저에서 그림).
   - CJ더마켓: 첫 화면이 `/the/pc/main`(Vue 앱, 850KB). 검색 결과는 브라우저에서 그린다(검색 주소를 서버 HTML에서 찾지 못함).
   - 에누리 `price.enuri.com/search?keyword=`: robots 허용(`/api/*` 금지, Crawl-delay 1). 서버 HTML(1.4MB)에 JSON-LD `ItemList` → `Product`(이름, `sku`=에누리 모델번호, `AggregateOffer` lowPrice·highPrice·offerCount, `aggregateRating`). 예: "CJ제일제당 비비고 왕교자 1.05kg" lowPrice 27,090·판매처 284·평점 4.8(8,956). lowPrice는 묶음 수량일 수 있다(다나와와 같은 문제).
-  - 결론: 컬리·홈플러스·CJ더마켓은 서버가 스스로 상품 주소를 찾을 수 없다. 주소를 알면 상품 페이지 JSON-LD로 가격을 읽을 수 있다(1-2 표).
+  - 결론: 컬리·홈플러스·CJ더마켓은 서버가 스스로 상품 주소를 찾을 수 없다.
+- **상품 페이지(주소를 알 때) 다시 확인(2026-10-19, 1건씩)**:
+  - 컬리 `www.kurly.com/goods/5082274`: JSON-LD `@graph` 안 `Product`의 `offers.price` 10980(숫자), `additionalProperty`에 "판매단위 1봉", "중량/용량 1050g". 평점 없음, `review`(후기 본문·가린 작성자 이름)가 함께 온다 → 후기 본문은 저장하지 않는다.
+  - 홈플러스 `mfront.homeplus.co.kr/item?itemNo=120074651&storeType=HYPER`(front.도 mfront로 넘어감): JSON-LD `Product` 이름 "농심 신라면 120G*5입", `offers.price` "4150"(글자), `aggregateRating` 4.9·121,683. `price`가 "0"인 상품이 있다(1-2 표) → 0이면 버린다.
+  - 로우차트 `www.lowchart.com/{쿠팡 productId}-{itemId}`(사이트맵의 상품 주소 모양): robots 허용(`/api/`, `?keyword=` 등 금지). JSON-LD `Product`: `offers.price`(현재가)·`validFrom`, `aggregateRating`, `additionalProperty`에 "관측 최저가", "관측 최고가", "관측 평균가", "최근 가격 변동일", "단위가", "배송". 쿠팡 주소 `/vp/products/{productId}?itemId={itemId}`에서 만들 수 있다(쿠팡에는 요청하지 않는다).
+  - CJ더마켓: 사이트가 `/the/` 구조로 바뀌어 옛 상품 주소(`/pc/prod/prodDetail?prdCd=`)가 `/the/product/product-main?prdCd=`로 넘어간다. 새 페이지에는 JSON-LD가 없고 값이 Nuxt 앱 데이터에만 있다(10-16에 본 `price`·`gtin13`이 사라짐) → 읽지 않고 바로가기로 둔다(D-013).
 - 참고 판례: 여기어때 크롤링 사건은 형사 무죄(대법원 2021도1533)였지만 민사에서는 부정경쟁방지법 위반으로 10억 원 배상(2018가합508729)이 인정됐다. 대량 수집은 하지 않는다.
 - 확인 필요
   - 각 몰 이용약관의 자동 수집 조항(컬리·CJ더마켓·홈플러스·다나와). 다나와 약관은 인코딩이 깨져 읽지 못했다.
