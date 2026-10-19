@@ -267,3 +267,33 @@ describe('가격 출처(메모리, P3)', () => {
     expect((await s.sources('demo-item-3')).store.prices.length).toBeGreaterThanOrEqual(2)
   })
 })
+
+describe('사진·캡처(메모리, P4)', () => {
+  const seed = () => {
+    const { me: d, items, alerts, prices } = demoSeed()
+    return createMemoryStore(items, d, undefined, alerts, prices) // 캡처 시각은 실제 시각(오늘 확인한 줄이어야 후보가 된다)
+  }
+  const img = { media_type: 'image/jpeg' as const, data: 'abc', width: 10, height: 10 }
+
+  it('데모 저장소: 포장 사진은 이름·브랜드·용량과 검색어, 캡처는 판매처·가격을 돌려준다(가짜 값)', async () => {
+    const s = seed()
+    const p = await s.readPhoto('product', img)
+    expect(p.job).toBe('product')
+    if (p.job === 'product') expect(p.query.length).toBeGreaterThan(0)
+    const q = await s.readPhoto('price', img)
+    expect(q.job).toBe('price')
+    if (q.job === 'price') expect(q.price.price).toBeGreaterThan(0)
+  })
+
+  it('캡처한 가격은 오늘 확인한 줄(source capture)로 상세에 나오고, 같은 수량이면 가장 싼 값 후보가 된다', async () => {
+    const s = seed()
+    await s.addCapturedQuote('demo-item-3', { seller: '쿠팡', price: 9900, qty: 1, delivery: 0 })
+    const d = await s.detail('demo-item-3')
+    const cap = d.lines.find((l) => l.source === 'capture')
+    expect(cap).toMatchObject({ seller: '쿠팡', price: 9900, qty: 1, delivery: 0, capturedBy: 'demo-husband' })
+    const today = new Date(new Date(cap!.checkedAt).getTime() + 9 * 3600_000).toISOString().slice(0, 10)
+    expect(new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10)).toBe(today)
+    expect((await s.extras()).prices.get('demo-item-3')).toMatchObject({ price: 9900, source: 'capture', seller: '쿠팡' })
+    await expect(s.addCapturedQuote('demo-item-6', { seller: 'x', price: 1, qty: 1, delivery: null })).rejects.toThrow('no_product')
+  })
+})

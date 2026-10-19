@@ -451,3 +451,15 @@
 .grocery .ours-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 6px; }
 .grocery .ours-row .price-v .src-line { display: inline; font-weight: 400; }
 .grocery .ours-block .price-list + .detail-sub { margin-top: 16px; }
+
+/* P4 사진으로 찾기·캡처로 가격 넣기 */
+.grocery .photo-input { position: absolute; width: 1px; height: 1px; opacity: 0; overflow: hidden; pointer-events: none; }
+.grocery .photo-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin: 8px 0; }
+.grocery .read-form { margin: 8px 0 4px; padding: 12px 16px 16px; background: var(--oat); border-radius: var(--r-lg); }
+.grocery .read-form .detail-sub { margin-top: 0; }
+.grocery .read-note { margin: 0 0 8px; font-size: 13px; color: var(--ink); }
+.grocery .read-field { display: grid; gap: 4px; margin-top: 8px; font-size: 14px; font-weight: 600; color: var(--ink-2); }
+.grocery .read-field .cand-input { background: var(--canvas); }
+.grocery .read-actions { display: flex; align-items: center; gap: 12px; margin-top: 12px; }
+.grocery .read-actions .btn-primary { min-height: 44px; padding: 0 16px; font-size: 15px; }
+.grocery .capture-block { margin-top: 8px; }

@@ -2,9 +2,11 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { groupAlerts, SOURCES, type AlertsResult, type ItemAlertRow } from './alerts'
 import type { Category } from './categories'
 import type { Candidate, ItemDetailData, ItemPrice, ItemSearch, PriceLine, SafetyRecord, SearchResult } from './products'
+import { kstDay } from './products'
 import { SEONGNAM_AREAS } from '../../../supabase/functions/_shared/tprice'
 import type { ItemSources, ShopPrice, StoreGood, StoreOption, StorePrice } from './sources'
 import type { OurPurchase } from './ours'
+import { invokePhoto } from './photo'
 import type { ListStore } from './store'
 import type { Membership } from './membership'
 import type { Item } from './types'
@@ -133,7 +135,7 @@ export function createSupabaseStore(client: SupabaseClient, me: Membership): Lis
       }
       const p = new Map<string, ItemPrice>()
       for (const r of (prices.data ?? []) as PriceRow[]) {
-        p.set(r.item_id, { price: r.price, seller: r.seller, source: 'danawa', qty: r.qty, delivery: r.delivery, checkedAt: r.checked_at })
+        p.set(r.item_id, { price: r.price, seller: r.seller, source: r.source === 'capture' ? 'capture' : 'danawa', qty: r.qty, delivery: r.delivery, checkedAt: r.checked_at })
       }
       const names = new Map<string, string>()
       for (const r of (chosen.data ?? []) as unknown as { id: string; products: { name: string } | null }[]) {
@@ -278,6 +280,18 @@ export function createSupabaseStore(client: SupabaseClient, me: Membership): Lis
       const { error } = await g().rpc('decide_purchase', { p_item: itemId, p_tx_item: transactionItemId, p_same: same })
       if (error) throw error
     },
+    readPhoto(job, image) {
+      return invokePhoto(client, { job, image })
+    },
+    async addCapturedQuote(itemId, q) {
+      const it = await table().select('product_id').eq('id', itemId).maybeSingle()
+      if (it.error) throw it.error
+      if (!it.data?.product_id) throw new Error('no_product')
+      const { error } = await g().from('captured_quotes').insert({
+        household_id: me.householdId, product_id: it.data.product_id, seller: q.seller, price: q.price, qty: q.qty, delivery: q.delivery, captured_by: me.userId,
+      })
+      if (error) throw error
+    },
     async detail(itemId): Promise<ItemDetailData> {
       const [it, safety, syncedAt] = await Promise.all([
         table().select('product_id').eq('id', itemId).maybeSingle(),
@@ -302,12 +316,16 @@ export function createSupabaseStore(client: SupabaseClient, me: Membership): Lis
       )
       const productId = (it.data?.product_id ?? null) as string | null
       if (!productId) return { product: null, check: null, lines: [], safety: records, syncedAt }
-      const [prod, checks] = await Promise.all([
+      const [prod, checks, caps] = await Promise.all([
         g().from('products').select('id, source_id, name, image_url, rating, review_count, rated_at').eq('id', productId).maybeSingle(),
         g().from('price_checks').select('id, checked_at, ok, error').eq('product_id', productId).order('checked_at', { ascending: false }).limit(10),
+        // 오늘(한국 시간) 우리 가구가 캡처한 값(P4)
+        g().from('captured_quotes').select('seller, price, qty, delivery, captured_at, captured_by').eq('product_id', productId).eq('household_id', me.householdId)
+          .eq('captured_on', kstDay(new Date().toISOString())).order('captured_at', { ascending: false }),
       ])
       if (prod.error) throw prod.error
       if (checks.error) throw checks.error
+      if (caps.error) throw caps.error
       const list = (checks.data ?? []) as { id: string; checked_at: string; ok: boolean; error: string | null }[]
       const lastOk = list.find((c) => c.ok)
       let lines: PriceLine[] = []
@@ -325,6 +343,9 @@ export function createSupabaseStore(client: SupabaseClient, me: Membership): Lis
           unitLabel: r.unit_label,
           mallCount: r.mall_count,
         }))
+      }
+      for (const c of (caps.data ?? []) as { seller: string; price: number; qty: number; delivery: number | null; captured_at: string; captured_by: string | null }[]) {
+        lines.push({ price: c.price, seller: c.seller, source: 'capture', qty: c.qty, delivery: c.delivery, checkedAt: c.captured_at, capturedBy: c.captured_by, unitPrice: null, unitLabel: null, mallCount: null })
       }
       const p = prod.data as ProductRow | null
       return {
@@ -366,7 +387,7 @@ type StoreRow = {
   good_id: string; good_name: string; entp_id: string; entp_name: string; type_code: string
   inspected_on: string | null; price: number | null; dc: boolean | null; plus_one: boolean | null
 }
-type PriceRow = { item_id: string; price: number; seller: string | null; qty: number; delivery: number | null; checked_at: string }
+type PriceRow = { item_id: string; price: number; seller: string | null; source: string; qty: number; delivery: number | null; checked_at: string }
 type CandidateRow = {
   qty: number
   price: number

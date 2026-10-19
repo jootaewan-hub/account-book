@@ -26,6 +26,8 @@ const SHEET_TEXT = '비비고 왕교자 1.05kg x2\n우유 900ml\n대파\n고추�
 const LONG_LINE = '[무료배송] 풀무원 국산콩 두부 부침용 300g 2개입 + 찌개용 300g 2개입 냉장 신선 묶음 기획 특가 세트'
 const SPLIT_TEXT = '양파 당근 감자 비비고 왕교자 파'
 const G = '/?demo=grocery'
+// 1x1 JPEG 한 장(사진·캡처 읽기 장면용, 내용은 쓰지 않는다: 데모 저장소가 가짜 값을 돌려준다)
+const TINY_JPEG = Buffer.from('/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRofHh0aHBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/wAALCAABAAEBAREA/8QAFAABAAAAAAAAAAAAAAAAAAAACf/EABQQAQAAAAAAAAAAAAAAAAAAAAD/2gAIAQEAAD8AKp//2Q==', 'base64')
 
 const groceryShots = [
   ...each((w, c) => ({ name: `grocery-list-${w}-${c}`, path: G, w, c, full: true })),
@@ -54,6 +56,11 @@ const groceryShots = [
   // P2 우리가 산 값
   ...both(390, (w, c) => ({ name: `grocery-item-detail-price-ours-${w}-${c}`, path: G, w, c, detail: '비비고 왕교자', tab: 'price', detailScroll: '.ours-block' })),
   { name: 'grocery-item-detail-price-ours-1280-light', path: G, w: 1280, c: 'light', detail: '비비고 왕교자', tab: 'price', detailScroll: '.ours-block' },
+  // P4 사진으로 찾기·캡처로 가격 넣기(데모 저장소의 가짜 읽기 값)
+  ...both(390, (w, c) => ({ name: `grocery-photo-product-${w}-${c}`, path: G, w, c, pick: true, photoProduct: true })),
+  ...both(390, (w, c) => ({ name: `grocery-capture-price-${w}-${c}`, path: G, w, c, detail: '비비고 왕교자', tab: 'price', capturePrice: true })),
+  { name: 'grocery-capture-price-1280-light', path: G, w: 1280, c: 'light', detail: '비비고 왕교자', tab: 'price', capturePrice: true },
+  { name: 'grocery-capture-saved-390-light', path: G, w: 390, c: 'light', detail: '비비고 왕교자', tab: 'price', capturePrice: true, captureSave: true },
   // 가계부에 넣기(D-011 길 ②): 목록 끝의 안내와 시트(총액, 품목마다, 금액 빈 오류)
   ...each((w, c) => ({ name: `grocery-record-sheet-${w}-${c}`, path: G, w, c, purchase: 'total' })),
   ...both(390, (w, c) => ({ name: `grocery-record-sheet-each-${w}-${c}`, path: G, w, c, purchase: 'each' })),
@@ -224,6 +231,20 @@ try {
         if (label) await page.getByRole('tab', { name: label }).click()
         if (label === '가격') await page.getByText('매장 가격(참가격)').waitFor()
         if (s.detailScroll) await page.locator(s.detailScroll).first().scrollIntoViewIfNeeded()
+      }
+      if (s.photoProduct) {
+        await page.getByLabel('포장 사진').setInputFiles({ name: 'p.jpg', mimeType: 'image/jpeg', buffer: TINY_JPEG })
+        await page.getByRole('button', { name: '이 이름으로 검색' }).waitFor()
+      }
+      if (s.capturePrice) {
+        await page.getByLabel('가격 캡처 사진').setInputFiles({ name: 'c.jpg', mimeType: 'image/jpeg', buffer: TINY_JPEG })
+        await page.getByRole('button', { name: '이 값으로 넣기' }).waitFor()
+        await page.getByRole('button', { name: '이 값으로 넣기' }).scrollIntoViewIfNeeded()
+      }
+      if (s.captureSave) {
+        await page.getByRole('button', { name: '이 값으로 넣기' }).click()
+        await page.getByText('캡처(남편)').first().waitFor()
+        await page.locator('.price-list').first().scrollIntoViewIfNeeded()
       }
       if (s.storeGood) {
         await page.getByRole('button', { name: '참가격 상품 고르기' }).click()

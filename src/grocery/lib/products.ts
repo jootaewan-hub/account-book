@@ -20,7 +20,9 @@ export type Candidate = {
   foundAt: string
 }
 
-export type ItemPrice = { price: number; seller: string | null; source: 'danawa'; qty: number; delivery: number | null; checkedAt: string }
+/** 가격 줄의 출처: 다나와 확인, 또는 우리 가구가 올린 캡처(P4) */
+export type PriceSource = 'danawa' | 'capture'
+export type ItemPrice = { price: number; seller: string | null; source: PriceSource; qty: number; delivery: number | null; checkedAt: string; capturedBy?: string | null }
 export type PriceLine = ItemPrice & { unitPrice: number | null; unitLabel: string | null; mallCount: number | null }
 
 export type SafetyRecord = FoodAlert & { via: 'item_name' | 'product_name'; farm: boolean }

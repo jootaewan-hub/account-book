@@ -166,6 +166,11 @@ export function demoSeed(): { me: Membership; items: Item[]; alerts: AlertsResul
         our('similar', 'l3', ago(50), null, '이마트 분당점', WIFE, '왕교자 1.05kg*2', 1, 21900, 21900, null),
       ],
     },
+    // 사진·캡처 읽기의 가짜 결과(실제 모델 응답이 아님)
+    photo: {
+      product: { name: '왕교자 만두 대용량', brand: '예시', size: '1.05kg', note: null },
+      price: { seller: '예시몰', name: '예시 왕교자 만두 1.05kg', price: 9900, qty: 1, size: '1.05kg', delivery: 0, note: '가격 옆의 작은 글씨는 읽지 못했어요.' },
+    },
     stores: [
       { entpId: '7', name: '이마트분당점', typeCode: 'LM' },
       { entpId: '912', name: '이마트성남점', typeCode: 'LM' },

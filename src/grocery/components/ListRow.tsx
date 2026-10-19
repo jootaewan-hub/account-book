@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type MouseEvent, type PointerEvent, type ReactNode } from 'react'
 import { BADGE } from '../lib/alerts'
 import { checkedText, isFresh, isStale, searchLabel, type ItemPrice, type ItemSearch } from '../lib/products'
+import { sourceLabel } from '../lib/photo'
 import type { AlertLevel, Item, Member } from '../lib/types'
 import { josa, won } from '../lib/format'
 import type { RowQuote } from '../lib/market'
@@ -254,7 +255,7 @@ export default function ListRow({
           <span className="row-price">
             <span className="row-price-v num">{won(price.price)}</span>
             <span className="row-price-where">{price.seller ?? '최저가'}</span>
-            <span className="row-price-where">다나와, {checkedText(price.checkedAt)}</span>
+            <span className="row-price-where">{sourceLabel(price.source, price.capturedBy, members)}, {checkedText(price.checkedAt)}</span>
           </span>
         ) : (
           <span className="tag">가격 확인 못 함</span>

@@ -230,6 +230,8 @@
 - 서버 함수에서 이미지와 지시문을 보내 `[{name, spec, count, barcode}]` 형태로 받는다. 읽히지 않는 글자는 추측하지 말고 빼라고 지시한다.
 - 확인 필요: 쓸 모델과 1장당 비용, 가계부의 WIF 방식 재사용 여부(status.md 확정할 결정).
 
+- (2026-10-19 로컬, P4) `grocery-photo` 함수는 `claude-sonnet-5-5`로 포장·캡처를 읽는다(구조화 출력). WIF 교환은 배포 뒤 첫 호출로 확인한다. 2026-10-19 밤 기준 Anthropic 모델 목록: Opus 5.5·Sonnet 5.5·Haiku 5.5(claude-api 스킬로 확인).
+
 ## 조사에 쓴 도구 (2026-10-16)
 
 - 잘 된 것: Exa(검색·페이지 읽기, 네이버 문서와 robots.txt까지 읽힘), WebFetch(식품안전나라 sample 호출), curl(컬리·CJ더마켓·다나와·홈플러스 원본 HTML).

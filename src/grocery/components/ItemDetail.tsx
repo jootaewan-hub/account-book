@@ -28,6 +28,8 @@ import type { ItemSources, ShopLink, ShopSource } from '../lib/sources'
 import { OursBlock } from './OursBlock'
 import type { OurPurchase } from '../lib/ours'
 import type { Member } from '../lib/types'
+import { READING_TEXT, sourceLabel, type CapturedQuoteInput, type PriceRead } from '../lib/photo'
+import { PhotoPick, PriceReadForm } from './PhotoCapture'
 import { matchMarket } from '../../../supabase/functions/_shared/market'
 
 const CLOSE_MS = 250
@@ -81,6 +83,9 @@ export default function ItemDetail({ item, store, onChangeProduct, onClose, mark
   const [srcFailed, setSrcFailed] = useState(false)
   const [srcBusy, setSrcBusy] = useState(false)
   const [picker, setPicker] = useState<'good' | 'stores' | null>(null)
+  // 캡처로 가격 넣기(P4): 읽는 중 → 읽은 값(고친 뒤 저장)
+  const [capture, setCapture] = useState<'idle' | 'reading' | (PriceRead & { qty: number })>('idle')
+  const [captureMsg, setCaptureMsg] = useState<string | null>(null)
   const sheet = useRef<HTMLDivElement>(null)
   const closeBtn = useRef<HTMLButtonElement>(null)
   const closeTimer = useRef<number | undefined>(undefined)
@@ -132,6 +137,19 @@ export default function ItemDetail({ item, store, onChangeProduct, onClose, mark
     ).then(() => {})
   const removeLink = (source: ShopSource) => withBusy(store.removeShopLink(item.id, source).then(loadSources)).then(() => {})
   const unlinkGood = () => withBusy(store.chooseStoreGood(item.id, null).then(loadSources)).then(() => {})
+  const readCapture = (img: { media_type: 'image/jpeg'; data: string; width: number; height: number }) => {
+    setCapture('reading')
+    setCaptureMsg(null)
+    store.readPhoto('price', { media_type: img.media_type, data: img.data, width: img.width, height: img.height }).then(
+      (r) => setCapture(r.job === 'price' ? r.price : 'idle'),
+      (e: unknown) => {
+        setCapture('idle')
+        setCaptureMsg(e instanceof Error && e.message ? e.message : '캡처를 읽지 못했어요. 값을 직접 적어 주세요.')
+      },
+    )
+  }
+  const saveCapture = (q: CapturedQuoteInput) =>
+    withBusy(store.addCapturedQuote(item.id, q).then(() => load())).then(() => setCapture('idle'))
   const decide = (r: OurPurchase, same: boolean) =>
     r.transactionItemId ? withBusy(store.decidePurchase(item.id, r.transactionItemId, same).then(loadSources)).then(() => {}) : Promise.resolve()
 
@@ -286,8 +304,19 @@ export default function ItemDetail({ item, store, onChangeProduct, onClose, mark
                   {data.product && !checking && split.same.length === 0 && split.other.length === 0 && !lastFailed && (
                     <p className="cand-state">가격 확인 못 함</p>
                   )}
-                  {split.same.length > 0 && <PriceList title={`${qty}개`} lines={split.same} />}
-                  {split.other.length > 0 && <PriceList title="다른 용량" lines={split.other} showUnit />}
+                  {split.same.length > 0 && <PriceList title={`${qty}개`} lines={split.same} members={members} />}
+                  {split.other.length > 0 && <PriceList title="다른 용량" lines={split.other} members={members} showUnit />}
+                  {data.product && (
+                    <div className="detail-block capture-block">
+                      <div className="photo-row">
+                        <PhotoPick label="화면 캡처로 가격 넣기" inputLabel="가격 캡처 사진" disabled={capture === 'reading' || srcBusy} onImage={readCapture} />
+                        <span className="src-line">쇼핑몰 화면이나 가격표를 찍으면 값을 읽어 와요. 확인한 값만 저장돼요.</span>
+                      </div>
+                      {capture === 'reading' && <p className="cand-state" role="status">{READING_TEXT}</p>}
+                      {captureMsg && <p className="cand-state" role="alert">{captureMsg}</p>}
+                      {typeof capture === 'object' && <PriceReadForm read={capture} busy={srcBusy} onSave={saveCapture} onCancel={() => setCapture('idle')} />}
+                    </div>
+                  )}
                   {ours && <OursBlock rows={ours} members={members} busy={srcBusy} onDecide={decide} />}
                   {srcFailed && <p className="cand-state" role="status">넣은 주소의 값과 매장 가격을 불러오지 못했어요. 잠시 뒤 다시 열어 주세요.</p>}
                   {!srcFailed && !sources && <p className="cand-state" role="status">넣은 주소·매장 가격 불러오는 중</p>}
@@ -364,7 +393,7 @@ export default function ItemDetail({ item, store, onChangeProduct, onClose, mark
   )
 }
 
-function PriceList({ title, lines, showUnit = false }: { title: string; lines: PriceLine[]; showUnit?: boolean }) {
+function PriceList({ title, lines, members, showUnit = false }: { title: string; lines: PriceLine[]; members: readonly Member[]; showUnit?: boolean }) {
   return (
     <div className="detail-block">
       <p className="detail-sub">{title}</p>
@@ -374,7 +403,7 @@ function PriceList({ title, lines, showUnit = false }: { title: string; lines: P
             <div>
               <p className="price-where">{l.seller ?? `다나와 최저가(${l.qty}개)`}</p>
               <p className="price-src">
-                다나와, {checkedText(l.checkedAt)}
+                {sourceLabel(l.source, l.capturedBy, members)}, {checkedText(l.checkedAt)}
                 {showUnit && l.seller !== null ? `, ${l.qty}개` : ''}
                 {showUnit && l.unitPrice !== null && l.unitLabel ? `, ${l.unitLabel}당 ${won(l.unitPrice)}` : ''}
               </p>

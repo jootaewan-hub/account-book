@@ -3,6 +3,8 @@ import { won } from '../lib/format'
 import { checkedText, type Candidate } from '../lib/products'
 import type { ListStore } from '../lib/store'
 import type { Item } from '../lib/types'
+import { READING_TEXT, type ProductRead } from '../lib/photo'
+import { PhotoPick, ProductReadForm } from './PhotoCapture'
 
 const CLOSE_MS = 250
 // 묶음 구성(+, 세트, 구성, ×N)은 단품 아래에 둔다
@@ -23,6 +25,9 @@ export default function CandidateSheet({ item, store, onPicked, onClose }: Props
   const [failed, setFailed] = useState(false)
   const [searching, setSearching] = useState(false)
   const [query, setQuery] = useState(item.spec ? `${item.name} ${item.spec}` : item.name)
+  // 사진으로 찾기(P4): 읽는 중 → 읽은 값(고친 뒤 검색)
+  const [photo, setPhoto] = useState<'idle' | 'reading' | ProductRead>('idle')
+  const [photoMsg, setPhotoMsg] = useState<string | null>(null)
   const sheet = useRef<HTMLDivElement>(null)
   const closeBtn = useRef<HTMLButtonElement>(null)
   const closeTimer = useRef<number | undefined>(undefined)
@@ -69,9 +74,7 @@ export default function CandidateSheet({ item, store, onPicked, onClose }: Props
     return () => window.removeEventListener('keydown', onKey)
   })
 
-  const research = (e: FormEvent) => {
-    e.preventDefault()
-    const q = query.replace(/\s+/g, ' ').trim()
+  const runSearch = (q: string) => {
     if (!q || searching) return
     setSearching(true)
     store.findCandidates(item.id, q).then(
@@ -82,6 +85,21 @@ export default function CandidateSheet({ item, store, onPicked, onClose }: Props
       () => {
         setSearching(false)
         setFailed(true)
+      },
+    )
+  }
+  const research = (e: FormEvent) => {
+    e.preventDefault()
+    runSearch(query.replace(/\s+/g, ' ').trim())
+  }
+  const readPhoto = (img: { media_type: 'image/jpeg'; data: string; width: number; height: number }) => {
+    setPhoto('reading')
+    setPhotoMsg(null)
+    store.readPhoto('product', { media_type: img.media_type, data: img.data, width: img.width, height: img.height }).then(
+      (r) => setPhoto(r.job === 'product' ? r.product : 'idle'),
+      (e: unknown) => {
+        setPhoto('idle')
+        setPhotoMsg(e instanceof Error && e.message ? e.message : '사진을 읽지 못했어요. 이름을 직접 적어 주세요.')
       },
     )
   }
@@ -108,6 +126,23 @@ export default function CandidateSheet({ item, store, onPicked, onClose }: Props
             />
             <button type="submit" className="btn-secondary" disabled={searching}>다시 검색</button>
           </form>
+          <div className="photo-row">
+            <PhotoPick label="사진으로 찾기" inputLabel="포장 사진" disabled={photo === 'reading' || searching} onImage={readPhoto} className="btn-secondary detail-link" />
+            <span className="src-line">포장 앞면을 찍으면 이름을 읽어 검색어로 써요.</span>
+          </div>
+          {photo === 'reading' && <p className="cand-state" role="status">{READING_TEXT}</p>}
+          {photoMsg && <p className="cand-state" role="alert">{photoMsg}</p>}
+          {typeof photo === 'object' && (
+            <ProductReadForm
+              read={photo}
+              onSearch={(q) => {
+                setQuery(q)
+                setPhoto('idle')
+                runSearch(q)
+              }}
+              onCancel={() => setPhoto('idle')}
+            />
+          )}
           {foundAt && !searching && <p className="cand-source">다나와, {checkedText(foundAt)} 확인</p>}
           {searching && <p className="cand-state" role="status">후보 찾는 중</p>}
           {!searching && list === null && !failed && <p className="cand-state" role="status">후보 불러오는 중</p>}

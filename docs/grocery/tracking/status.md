@@ -80,6 +80,14 @@
     `our_purchases(p_item)`(linked: 연결 내역의 가장 잘 맞는 줄 또는 총액 한 줄, confirmed: "맞아요", similar: 최근 365일 단어 일치 20줄). PGlite 시험 7개.
   - 품목 상세 가격 탭 "우리가 산 값"(태그 `blush-soft`/`rose-ink`, 날짜·산 사람 점·곳, 개당 가격·100g당)과 "이름이 비슷한 우리 기록"(맞아요/아니에요). 가장 싼 값에는 들어가지 않는다(시험으로 고정).
     캡처 3장(390 라이트·다크, 1280) 확인.
+- P4 사진으로 상품 찾기·캡처로 가격 넣기(2026-10-19 밤, 로컬, 브랜치 `claude/p3-price-sources`): 코드·시험·캡처 끝. 적용·배포와 WIF 첫 호출 확인은 사용자 확인 뒤.
+  - Edge Function `grocery-photo`(verify_jwt true, `supabase/functions/grocery-photo/`): `product`(포장 앞면 → 이름·브랜드·용량·검색어), `price`(캡처·가격표 → 판매처·상품명·가격·수량·용량·배송비).
+    Claude 인증은 가계부와 같은 WIF(`_shared/anthropic-wif.ts`로 옮겨 적음, `extract-entries`는 안 건드림). 모델 `claude-sonnet-5-5`(가계부 쇼핑 캡처와 같음), 구조화 출력(zod), 읽히지 않는 글자는 null.
+    순수 부분(`photo.ts`: 요청 검사·프롬프트·응답 다듬기)은 Vitest 시험 5개. **WIF 교환이 새 함수에서도 되는지는 배포 뒤 첫 호출로 확인한다(D-009). 안 되면 사용자에게 묻는다.**
+  - `20261025000000_grocery_captured_quotes.sql`(grocery만): `captured_quotes`(가구 RLS, 올린 사람 본인), `item_prices()`를 다시 정의해 오늘 캡처한 같은 수량의 값을 "가장 싼 값" 후보에 넣음(source `capture`). PGlite 시험 5개.
+  - 화면: 후보 시트 "사진으로 찾기" → 읽은 값(이름·브랜드·용량) 고친 뒤 그 이름으로 다나와 검색(읽은 값은 검색어로만). 가격 탭 "화면 캡처로 가격 넣기" → 읽은 값(판매처·가격·수량·배송비) 고친 뒤 저장 → 가격 줄에 "캡처(올린 사람), 시각"으로.
+    진행 문구 "사진 읽는 중". 사진 줄이기는 가계부 `src/lib/image.ts`. 데모의 가짜 읽기 값으로 캡처 6장 확인.
+  - 남은 것(사용자 확인 뒤): `apply_migration`(grocery_captured_quotes), `grocery-photo` 배포, **첫 호출로 WIF 교환 확인**, 실제 포장 사진 3장·캡처 3장 대조.
   - 남은 것(P2-3, 사용자 확인 뒤): `apply_migration`(grocery_our_purchases) → 실제 가구 기록에서 비슷한 기록이 얼마나 잡히는지 보고 잘못 붙는 예를 열린 문제에 적는다.
   - 남은 것(P3-6, 사용자 확인 뒤): `apply_migration`(grocery_sources), `product-check`·`tprice-sync`·`price-recheck` 배포, `supabase/config.toml`과 맞추기, 워크플로 첫 수동 실행,
     실제 상품 3개 이상 대조(컬리·홈플러스·로우차트 페이지 값과 화면 값), 보안 점검(Advisors) 다시 보기. `DATA_GO_KR_SERVICE_KEY`는 그대로 쓴다.

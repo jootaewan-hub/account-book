@@ -15,6 +15,8 @@ import {
 } from './products'
 import type { ItemSources, ShopLink, ShopPrice, ShopSource, StoreGood, StoreOption, StorePrice } from './sources'
 import type { OurPurchase } from './ours'
+import type { CapturedQuoteInput, PhotoImage, PhotoJob, PhotoResult, PriceRead, ProductRead } from './photo'
+import { productQuery } from '../../../supabase/functions/grocery-photo/photo'
 
 export interface ListStore {
   list(): Promise<Item[]>
@@ -52,6 +54,10 @@ export interface ListStore {
   ourPurchases(itemId: string): Promise<OurPurchase[]>
   /** 비슷한 기록이 같은 상품인지 적는다(grocery.decide_purchase) */
   decidePurchase(itemId: string, transactionItemId: string, same: boolean): Promise<void>
+  /** 사진·캡처 읽기(grocery-photo, P4). 실패는 던진다. 읽은 값은 화면에서 확인·고친 뒤에만 쓴다 */
+  readPhoto(job: PhotoJob, image: PhotoImage): Promise<PhotoResult>
+  /** 캡처에서 확인한 가격을 넣는다(captured_quotes). 상품을 안 고른 품목이면 no_product */
+  addCapturedQuote(itemId: string, q: CapturedQuoteInput): Promise<void>
 }
 
 /** 개발용 데모 화면에서 쓰는 가격 확인 자료(실제 가격 아님) */
@@ -71,6 +77,8 @@ export type DemoPrices = {
   stores?: StoreOption[]
   /** 품목 id → 우리가 산 값·비슷한 기록(P2) */
   ours?: Record<string, OurPurchase[]>
+  /** 사진·캡처 읽기의 가짜 결과(P4) */
+  photo?: { product: ProductRead; price: PriceRead & { qty: number } }
 }
 
 const NO_PRICES: DemoPrices = { searches: {}, candidates: {}, products: {}, lines: {} }
@@ -95,6 +103,7 @@ export function createMemoryStore(
     if (it) storeLinks.set(nameKey(it), goodId)
   }
   let chosenStores: string[] = []
+  const captured = new Map<string, PriceLine[]>() // 상품 id → 캡처한 가격 줄(P4)
   const ours = new Map<string, OurPurchase[]>(Object.entries(demoPrices.ours ?? {}).map(([k, v]) => [k, v.map((x) => ({ ...x }))]))
 
   return {
@@ -170,7 +179,7 @@ export function createMemoryStore(
         const name = demoPrices.products[i.productKey]?.name
         if (name) productNames.set(i.id, name)
         if (i.boughtAt) continue
-        const best = splitLines(demoPrices.lines[i.productKey] ?? [], i.productQty, today).best
+        const best = splitLines([...(demoPrices.lines[i.productKey] ?? []), ...(captured.get(i.productKey) ?? [])], i.productQty, today).best
         if (best) prices.set(i.id, best)
       }
       return { searches: new Map(Object.entries(demoPrices.searches)), prices, productNames }
@@ -231,6 +240,20 @@ export function createMemoryStore(
     async ourPurchases(itemId) {
       return (ours.get(itemId) ?? []).map((r) => ({ ...r }))
     },
+    async readPhoto(job) {
+      if (!demoPrices.photo) throw new Error('no_demo')
+      return job === 'product'
+        ? { job: 'product', product: demoPrices.photo.product, query: productQuery(demoPrices.photo.product) }
+        : { job: 'price', price: demoPrices.photo.price }
+    },
+    async addCapturedQuote(itemId, q) {
+      const it = items.find((i) => i.id === itemId)
+      if (!it?.productKey) throw new Error('no_product')
+      captured.set(it.productKey, [
+        ...(captured.get(it.productKey) ?? []),
+        { price: q.price, seller: q.seller, source: 'capture', qty: q.qty, delivery: q.delivery, checkedAt: now(), capturedBy: me.userId, unitPrice: null, unitLabel: null, mallCount: null },
+      ])
+    },
     async decidePurchase(itemId, transactionItemId, same) {
       // 메모리 구현: "맞아요"는 confirmed로, "아니에요"는 뺀다(실제는 name_key로 같은 이름의 품목이 함께 본다)
       const rows = ours.get(itemId) ?? []
@@ -241,7 +264,7 @@ export function createMemoryStore(
     async detail(itemId) {
       const it = items.find((i) => i.id === itemId)
       const product = it?.productKey ? (demoPrices.products[it.productKey] ?? null) : null
-      const lines = it?.productKey ? (demoPrices.lines[it.productKey] ?? []) : []
+      const lines = it?.productKey ? [...(demoPrices.lines[it.productKey] ?? []), ...(captured.get(it.productKey) ?? [])] : []
       const last = lines.map((l) => l.checkedAt).sort().at(-1)
       return {
         product,
