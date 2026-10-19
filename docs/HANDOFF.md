@@ -72,15 +72,17 @@ npm run screens
 이 브랜치에서 P3·P2·P4·P6·P7·P8의 코드·시험·캡처·문서를 끝냈다(main 미병합, 공유 DB 미적용, 함수 미배포). 자세한 기록은 `docs/grocery/tracking/status.md` "된 것"과
 계획서 각 단계의 "진행" 묶음, 실행 기록 `docs/superpowers/plans/2026-10-19-remaining-work.progress.md`(단계별 커밋·시험 결과·결정 근거 Ruling 줄·최종 리뷰 결과)에 있다.
 
-### 적용·배포할 것(사용자 확인 뒤, 이 순서로)
+### 적용·배포 진행 상황(2026-10-20 06:15~06:35 KST, 사용자 확인 뒤 맥북에서)
 
-1. 마이그레이션 5개를 `apply_migration`으로(이름 순): `grocery_sources`(20261023000000), `grocery_our_purchases`(20261024000000), `grocery_captured_quotes`(20261025000000),
-   `grocery_product_info`(20261026000000), `grocery_last_synced`(20261027000000). 적용 뒤 보안 점검(Advisors)을 다시 본다.
-2. 함수 배포: `product-check`(몰 주소 읽기 추가), 새 함수 `tprice-sync`·`price-recheck`·`grocery-photo`·`food-info`. `supabase/config.toml`의 verify_jwt와 같게.
-   `grocery-photo`는 배포 뒤 **첫 호출로 WIF 교환이 되는지 확인**(D-009; 안 되면 사용자에게 묻는다). `food-info`는 `FOODSAFETY_API_KEY`(있음)와 `DATA_GO_KR_SERVICE_KEY`(식품영양성분DB 활용신청 필요)를 쓴다.
-3. 워크플로 첫 수동 실행: `tprice-sync`(07:20), `price-recheck`(07:30). `tprice-sync` 첫 실행에서 `goodInspectDay` 날짜 모양(YYYYMMDD)이 맞는지 resultCode로 확인.
-4. 실제 대조: 컬리·홈플러스·로우차트 주소 각 1개 이상(화면 값 = 페이지 값), 참가격 매장 값 3개, 포장 사진 3장·캡처 3장, 바코드 10개(실기기 iPhone), C002 후보 3개.
-5. main 병합·푸시(=배포)는 사용자 지시로.
+1. 됨 — 마이그레이션 5개를 `apply_migration`으로 이름 순 적용: `grocery_sources`, `grocery_our_purchases`, `grocery_captured_quotes`, `grocery_product_info`, `grocery_last_synced`.
+   원격 기록의 version은 적용 시각(20261019…)이라 로컬 파일 이름(20261023…~27)과 다르다(전부터 그런 방식). Advisors 보안 항목은 적용 전과 같다.
+2. 됨 — 함수 배포: `product-check` v4, `tprice-sync` v1, `price-recheck` v1, `grocery-photo` v1(`deno.json`을 import map으로), `food-info` v1. verify_jwt는 `supabase/config.toml`과 같다.
+   배포 파일 이름 규칙은 전과 같이 `index.ts`·`handle.ts`·`../_shared/*.ts`(서버가 `source/`와 `_shared/`로 둔다). 로그인 없이 부르면 product-check·food-info·grocery-photo는 401.
+3. 됨(직접 호출) — `tprice-sync` 200 done(판매점 14곳·상품 604개·가격 4,528행, `goodInspectDay`=YYYYMMDD 확인됨), `price-recheck` 200 done(대상 상품 0개).
+   안 됨 — 워크플로 수동 실행: `gh workflow run`이 404(기본 브랜치에 파일이 없음). main 병합 뒤 Actions에서 `tprice-sync`·`price-recheck`를 한 번씩 돌려 200을 본다. 그 전에는 예약 실행도 돌지 않는다.
+4. 남음(로그인 필요, 사용자가 앱에서) — 컬리·홈플러스·로우차트 주소 각 1개 이상(화면 값 = 페이지 값), 참가격 매장 값 3개(`tprice_prices`와 price.go.kr 대조), 포장 사진 3장·캡처 3장
+   (`grocery-photo` 첫 호출 = WIF 교환 확인, D-009; 안 되면 함수 로그의 `wif_exchange_failed`), 바코드 10개(iPhone), C002 후보 3개.
+5. 남음 — main 병합·푸시(=배포)는 사용자 지시로.
 
 ### 사용자 할 일
 

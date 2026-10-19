@@ -56,3 +56,4 @@ Final: Ruling: 계획 P3의 "어디서 살지 보기"·설정 묶음·source_lin
 Final: Ruling: P7 후보의 회수·부적합 대조 미구현(확정할 결정), P6 매대 앞 확인은 바코드 시트 — 앞선 룰링 그대로.
 Final: Ruling: goodInspectDay 모양·영양성분DB 응답 모양은 첫 호출 전 판단 불가(확인 필요로 기록).
 Final: Ruling: AddSheet→바코드 전환의 닫기 애니메이션 생략, 데모·셸 fixture는 캡처 전용 — 손대지 않음.
+Apply (2026-10-20 06:15~06:35 KST, 사용자 확인 뒤): 마이그레이션 5개 apply_migration 적용(Advisors 보안 변화 없음), 함수 5개 배포(product-check v4, tprice-sync·price-recheck·grocery-photo·food-info v1), 직접 POST 첫 실행 tprice-sync done 4,528행(goodInspectDay=YYYYMMDD 확인), price-recheck done 0개. 워크플로 수동 실행은 main 병합 뒤(404). 실제 대조·WIF 첫 호출은 사용자(로그인 필요).
