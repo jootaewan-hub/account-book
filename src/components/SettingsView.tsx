@@ -1,10 +1,17 @@
 import { useState } from 'react'
+import { waitGroceryFlush } from '../grocery/flush'
 import { friendlyError, insertCategory, setCategoryArchived, updateDisplayName, updateSpouseRole } from '../lib/api'
 import { formatInviteCode } from '../lib/format'
 import { SCOPE_LABEL, type Lookup } from '../lib/lookup'
 import { sb } from '../lib/supabase'
 import type { Anniversary, Category, Household, Spouse } from '../lib/types'
 import { AnniversaryCard } from './AnniversaryCard'
+
+// 장보기에서 뺀 품목의 지우기 요청이 서버에 닿은 뒤 로그아웃한다(세션이 먼저 끝나면 거부되어 품목이 되살아난다)
+async function signOut() {
+  await waitGroceryFlush()
+  await sb().auth.signOut()
+}
 
 interface Props {
   household: Household
@@ -105,7 +112,7 @@ export function SettingsView({ household, categories, annivs, today, lookup, ema
       <div className="card">
         <h2 className="section-title">계정</h2>
         <div className="set-row"><span>로그인</span><span className="r">{email}</span></div>
-        <button className="ghost" style={{ width: '100%', marginTop: 8 }} onClick={() => void sb().auth.signOut()}>로그아웃</button>
+        <button className="ghost" style={{ width: '100%', marginTop: 8 }} onClick={() => void signOut()}>로그아웃</button>
       </div>
       <p className="app-version">앱 버전 {__APP_VERSION__}</p>
     </section>

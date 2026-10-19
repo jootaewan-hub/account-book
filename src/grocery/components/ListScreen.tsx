@@ -13,6 +13,7 @@ import AlertSheet from './AlertSheet'
 import CandidateSheet from './CandidateSheet'
 import ItemDetail from './ItemDetail'
 import ListRow from './ListRow'
+import { trackGroceryFlush } from '../flush'
 
 const UNDO_MS = 5000
 
@@ -20,12 +21,11 @@ const UNDO_MS = 5000
 type Props = {
   store: ListStore
   me: Membership
-  onSignOut?: () => void
 }
 
 type Notice = { kind: 'removed'; ids: string[]; what: string } | { kind: 'error'; text: string }
 
-export default function ListScreen({ store, me, onSignOut }: Props) {
+export default function ListScreen({ store, me }: Props) {
   const [items, setItems] = useState<Item[] | null>(null)
   const [loadState, setLoadState] = useState<'loading' | 'ready' | 'error'>('loading')
   const [staleError, setStaleError] = useState(false) // 한 번 불러온 뒤 다시 불러오기에 실패
@@ -155,7 +155,7 @@ export default function ListScreen({ store, me, onSignOut }: Props) {
   const commitRemove = useCallback(
     (id: string): Promise<void> => {
       pending.current.delete(id)
-      return store.remove(id).then(
+      return trackGroceryFlush(store.remove(id)).then(
         () => {
           // 다시 불러오기가 돌아오기 전에 줄이 잠깐 되살아나지 않게, 지역 목록에서 먼저 뺀 뒤 숨김을 푼다.
           setItems((l) => l?.filter((i) => i.id !== id) ?? l)
@@ -197,7 +197,7 @@ export default function ListScreen({ store, me, onSignOut }: Props) {
     setNotice(null)
   }
 
-  // 기다리던 빼기를 지금 지운다. 앱이 백그라운드로 가거나(휴대폰은 그대로 종료될 수 있다) 로그아웃할 때 쓴다.
+  // 기다리던 빼기를 지금 지운다. 앱이 백그라운드로 갈 때 쓴다(휴대폰은 그대로 종료될 수 있다).
   // 되돌릴 수 없게 되므로 "되돌리기" 알림도 닫는다.
   const flushRemovals = useCallback((): Promise<unknown> => {
     const ids = [...pending.current.keys()]
@@ -220,22 +220,15 @@ export default function ListScreen({ store, me, onSignOut }: Props) {
     }
   }, [flushRemovals])
 
-  // 로그아웃은 기다리던 빼기가 서버에 닿은 뒤에 한다(세션이 먼저 사라지면 지우기 요청이 거부된다).
-  const signOut = onSignOut
-    ? async () => {
-        await flushRemovals()
-        onSignOut()
-      }
-    : undefined
-
   // 화면을 떠나면 기다리던 빼기는 바로 지운다(사용자가 이미 뺀 것이므로).
+  // 로그아웃은 가계부 설정에서 하고, 지우기 요청은 trackGroceryFlush에 등록해 두어 로그아웃이 기다린다(src/grocery/flush.ts).
   useEffect(() => {
     const map = pending.current
     return () => {
       window.clearTimeout(noticeTimer.current)
       for (const [id, t] of map) {
         window.clearTimeout(t)
-        void store.remove(id).catch(() => {})
+        void trackGroceryFlush(store.remove(id)).catch(() => {})
       }
       map.clear()
     }
@@ -336,7 +329,6 @@ export default function ListScreen({ store, me, onSignOut }: Props) {
   return (
     <div className="list-page">
       <header className="list-head">
-        <h1>이번 장보기</h1>
         <div className="list-head-actions">
           <button type="button" className="btn-primary only-wide" onClick={openSheet}>담기</button>
           {ready && visible.length > 0 && (
@@ -344,7 +336,6 @@ export default function ListScreen({ store, me, onSignOut }: Props) {
               {editing ? '완료' : '편집'}
             </button>
           )}
-          {signOut && <button type="button" className="btn-text" onClick={() => void signOut()}>로그아웃</button>}
         </div>
       </header>
 

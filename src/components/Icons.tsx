@@ -24,6 +24,9 @@ export const ChartIcon = () => (
 export const RepeatIcon = () => (
   <svg {...base} strokeWidth={1.8}><path d="M17 2l3 3-3 3" /><path d="M4 11V9a4 4 0 014-4h12" /><path d="M7 22l-3-3 3-3" /><path d="M20 13v2a4 4 0 01-4 4H4" /></svg>
 )
+export const CartIcon = () => (
+  <svg {...base} strokeWidth={1.8}><path d="M2.5 4h2.6l2.2 10.6a1.5 1.5 0 001.5 1.2h8.4a1.5 1.5 0 001.5-1.2L20.5 8H6.1" /><circle cx="9.5" cy="19.5" r="1.3" /><circle cx="17" cy="19.5" r="1.3" /></svg>
+)
 export const CameraIcon = () => (
   <svg {...base} strokeWidth={1.75}><path d="M4 8h3l2-3h6l2 3h3v11H4z" /><circle cx="12" cy="13" r="3.5" /></svg>
 )

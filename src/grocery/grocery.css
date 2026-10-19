@@ -83,8 +83,8 @@
   min-height: 100dvh; max-width: 760px; margin: 0 auto;
   padding: 24px var(--gutter) calc(var(--bottom-bar-h) + 72px + env(safe-area-inset-bottom));
 }
-.grocery .list-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 44px; }
-.grocery .list-head h1 { font-size: 24px; font-weight: 800; letter-spacing: -0.02em; }
+/* 제목은 가계부 위쪽 줄이 맡는다. 여기에는 넓은 화면의 담기와 편집만 남아 오른쪽에 둔다 */
+.grocery .list-head { display: flex; align-items: center; justify-content: flex-end; gap: 12px; min-height: 44px; }
 .grocery .list-head-actions { display: flex; align-items: center; gap: 8px; }
 .grocery .list-head-actions .btn-text { margin-right: -8px; }
 .grocery .summary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 16px; }

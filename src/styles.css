@@ -80,6 +80,8 @@ button { cursor: pointer; touch-action: manipulation; user-select: none; -webkit
 .topbar h1 { font-size: 24px; font-weight: 800; letter-spacing: -.02em; margin: 0; white-space: nowrap; }
 .topbar h1.brand-mark { font-size: 19px; }
 .top-right { display: flex; align-items: center; gap: 2px; min-width: 0; }
+.top-left { display: flex; align-items: center; gap: 2px; min-width: 0; }
+.back-btn { margin-left: -12px; } /* 설정 화면의 돌아가기: 글자 줄을 화면 여백에 맞춘다 */
 .month-nav { display: flex; align-items: center; }
 .month-nav .ym { font-size: 16px; font-weight: 700; min-width: 3.4em; text-align: center; white-space: nowrap; }
 .icon-btn { width: 44px; height: 44px; border-radius: 50%; border: 0; background: none; display: grid; place-items: center; color: var(--ink-2); }
@@ -219,7 +221,7 @@ main.wrap { padding-block: 4px calc(150px + env(safe-area-inset-bottom, 0px)); }
 .tab svg { width: 24px; height: 24px; stroke-width: 1.75; }
 .tab[aria-current="page"] { color: var(--ink); font-weight: 700; }
 .tab[aria-current="page"] svg { stroke-width: 2.1; }
-.side-record { display: none; } /* 넓은 화면의 세로 메뉴에서만 보인다 */
+.side-record, .tab.side-settings { display: none; } /* 넓은 화면의 세로 메뉴에서만 보인다 */
 
 /* 바닥 시트: 열 때 400ms, 닫을 때 250ms, 손잡이를 끌어 닫는다 */
 .scrim { position: fixed; inset: 0; background: var(--scrim); z-index: 40; opacity: 0; transition: opacity var(--dur-sheet) var(--ease-drawer); }
@@ -476,6 +478,8 @@ input[type="search"].input { -webkit-appearance: none; appearance: none; }
   .ledger .tab { flex-direction: row; justify-content: flex-start; gap: 12px; min-height: 48px; padding: 0 14px; border-radius: var(--r-btn); font-size: 15px; }
   .ledger .tab[aria-current="page"] { background: var(--oat); }
   .side-record { display: flex; align-items: center; justify-content: center; gap: 6px; margin-bottom: 16px; }
+  .ledger .tab.side-settings { display: flex; margin-top: 12px; }
+  .narrow-only { display: none; } /* 위쪽 줄의 톱니·돌아가기: 넓은 화면은 세로 메뉴의 설정 줄을 쓴다 */
   .side-record svg { width: 20px; height: 20px; }
 
 

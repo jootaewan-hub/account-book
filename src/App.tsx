@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { CalendarView } from './components/CalendarView'
 import { EntrySheet } from './components/EntrySheet'
 import { ExportCard } from './components/ExportCard'
-import { CalendarIcon, ChartIcon, ChevronLeft, ChevronRight, GearIcon, ListIcon, Plus, RepeatIcon } from './components/Icons'
+import { CalendarIcon, CartIcon, ChartIcon, ChevronLeft, ChevronRight, GearIcon, ListIcon, Plus, RepeatIcon } from './components/Icons'
 import { ListView, type ListFocus } from './components/ListView'
 import { Soft, Toast } from './components/Motion'
 import { PlanSheet, type PlanTarget } from './components/PlanSheet'
@@ -14,6 +14,7 @@ import { RecurringView } from './components/RecurringView'
 import { SettingsView } from './components/SettingsView'
 import { SmartSheet, type SmartMode } from './components/SmartSheet'
 import { StatsView } from './components/StatsView'
+import { GroceryTab } from './grocery/GroceryTab'
 import { useLedgerMeta, useLiveUpdates, useMonthEvents, useMonthTransactions } from './hooks/useLedger'
 import { deleteTransaction, friendlyError, generateRecurring, insertInstallmentPurchase, insertTransaction, updateSpouseRole, updateTransaction } from './lib/api'
 import { addMonths, parseYM, todayLocal } from './lib/dates'
@@ -75,7 +76,12 @@ function Home({ userId, email }: { userId: string; email: string }) {
   return <Ledger household={meta.household} meta={meta} userId={userId} email={email} />
 }
 
-type Tab = 'cal' | 'list' | 'stats' | 'fixed' | 'settings'
+type Tab = 'cal' | 'list' | 'grocery' | 'stats' | 'fixed' | 'settings'
+
+/** 처음 열 탭: ?tab=grocery(예전 장보기 주소의 안내 페이지가 여기로 보낸다). 다른 값은 무시한다 */
+function initialTab(): Tab {
+  return new URLSearchParams(window.location.search).get('tab') === 'grocery' ? 'grocery' : 'cal'
+}
 
 function Ledger({ household, meta, userId, email }: {
   household: Household
@@ -86,7 +92,10 @@ function Ledger({ household, meta, userId, email }: {
   const [today, setToday] = useState(todayLocal())
   const [ym, setYm] = useState(today.slice(0, 7))
   const [sel, setSel] = useState(today)
-  const [tab, setTab] = useState<Tab>('cal')
+  const [tab, setTab] = useState<Tab>(initialTab)
+  // 설정은 아래 탭이 아니라 위쪽 톱니 버튼으로 연다. 돌아가기는 설정을 연 탭으로
+  const [beforeSettings, setBeforeSettings] = useState<Exclude<Tab, 'settings'>>('cal')
+  const openSettings = () => { if (tab !== 'settings') setBeforeSettings(tab); setTab('settings') }
   const [sheet, setSheet] = useState<{ open: boolean; editing: Transaction | null }>({ open: false, editing: null })
   const [smart, setSmart] = useState<{ open: boolean; mode: SmartMode }>({ open: false, mode: 'text' })
   // 관리비 고지서를 저장하면 통계 탭의 관리비 분석을 다시 불러온다
@@ -175,26 +184,37 @@ function Ledger({ household, meta, userId, email }: {
 
   const { y, m } = parseYM(ym)
   const showMonth = tab === 'cal' || tab === 'list' || tab === 'stats'
-  const TITLE: Record<Tab, string> = { cal: '우리집', list: '내역', stats: '통계', fixed: '고정 지출', settings: '설정' }
+  const TITLE: Record<Tab, string> = { cal: '우리집', list: '내역', grocery: '장보기', stats: '통계', fixed: '고정 지출', settings: '설정' }
 
   return (
     // 넓은 화면에서는 아래 탭이 왼쪽 세로 메뉴가 된다 (styles.css 넓은 화면)
     <div className="app ledger" data-tab={tab}>
       <header className="topbar">
         <div className="wrap">
-          <h1 className={tab === 'cal' ? 'brand-mark' : undefined}>{TITLE[tab]}</h1>
-          {showMonth && (
-            <div className="top-right">
-              {ym !== today.slice(0, 7) && (
-                <button className="today-btn" onClick={() => { setYm(today.slice(0, 7)); setSel(today) }}>오늘</button>
-              )}
-              <div className="month-nav">
-                <button className="icon-btn" onClick={() => goMonth(-1)} aria-label="이전 달"><ChevronLeft /></button>
-                <span className="ym num" aria-live="polite"><Soft value={y === Number(today.slice(0, 4)) ? `${m}월` : `${y}년 ${m}월`} /></span>
-                <button className="icon-btn" onClick={() => goMonth(1)} aria-label="다음 달"><ChevronRight /></button>
-              </div>
-            </div>
-          )}
+          <div className="top-left">
+            {tab === 'settings' && (
+              <button className="icon-btn narrow-only back-btn" onClick={() => setTab(beforeSettings)} aria-label="돌아가기"><ChevronLeft /></button>
+            )}
+            <h1 className={tab === 'cal' ? 'brand-mark' : undefined}>{TITLE[tab]}</h1>
+          </div>
+          <div className="top-right">
+            {showMonth && (
+              <>
+                {ym !== today.slice(0, 7) && (
+                  <button className="today-btn" onClick={() => { setYm(today.slice(0, 7)); setSel(today) }}>오늘</button>
+                )}
+                <div className="month-nav">
+                  <button className="icon-btn" onClick={() => goMonth(-1)} aria-label="이전 달"><ChevronLeft /></button>
+                  <span className="ym num" aria-live="polite"><Soft value={y === Number(today.slice(0, 4)) ? `${m}월` : `${y}년 ${m}월`} /></span>
+                  <button className="icon-btn" onClick={() => goMonth(1)} aria-label="다음 달"><ChevronRight /></button>
+                </div>
+              </>
+            )}
+            {/* 휴대폰에서만 보인다. 넓은 화면은 왼쪽 메뉴의 설정 줄을 쓴다 */}
+            {tab !== 'settings' && (
+              <button className="icon-btn narrow-only" onClick={openSettings} aria-label="설정"><GearIcon /></button>
+            )}
+          </div>
         </div>
       </header>
 
@@ -220,6 +240,7 @@ function Ledger({ household, meta, userId, email }: {
         {tab === 'list' && (
           <ListView cur={cur} lookup={lookup} focus={listFocus} onClearFocus={() => setListFocus(null)} onEdit={(t) => setSheet({ open: true, editing: t })} />
         )}
+        {tab === 'grocery' && <GroceryTab userId={userId} members={meta.members} />}
         {tab === 'stats' && (
           <StatsView household={household} ym={ym} today={today} cur={cur} prev={prev} lookup={lookup}
             categories={meta.categories} billsVersion={billsVersion} onBill={() => setSmart({ open: true, mode: 'bill' })}
@@ -250,9 +271,11 @@ function Ledger({ household, meta, userId, email }: {
           <button className="primary side-record" onClick={() => setSheet({ open: true, editing: null })}><Plus />기록하기</button>
           <button className="tab" aria-current={tab === 'cal' ? 'page' : undefined} onClick={() => setTab('cal')}><CalendarIcon />달력</button>
           <button className="tab" aria-current={tab === 'list' ? 'page' : undefined} onClick={() => { setListFocus(null); setTab('list') }}><ListIcon />내역</button>
+          <button className="tab" aria-current={tab === 'grocery' ? 'page' : undefined} onClick={() => setTab('grocery')}><CartIcon />장보기</button>
           <button className="tab" aria-current={tab === 'stats' ? 'page' : undefined} onClick={() => setTab('stats')}><ChartIcon />통계</button>
           <button className="tab" aria-current={tab === 'fixed' ? 'page' : undefined} onClick={() => setTab('fixed')}><RepeatIcon />고정</button>
-          <button className="tab" aria-current={tab === 'settings' ? 'page' : undefined} onClick={() => setTab('settings')}><GearIcon />설정</button>
+          {/* 넓은 화면에서만 보인다. 휴대폰은 위쪽 톱니 버튼을 쓴다 */}
+          <button className="tab side-settings" aria-current={tab === 'settings' ? 'page' : undefined} onClick={openSettings}><GearIcon />설정</button>
         </div>
       </nav>
 
