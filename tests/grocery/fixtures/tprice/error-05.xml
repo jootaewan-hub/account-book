@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<response>
+  <result/>
+  <resultCode>05</resultCode>
+  <resultMsg>entpId 혹은 goodId 값이 없습니다.</resultMsg>
+</response>

@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<response>
+  <result>
+    <iros.openapi.service.vo.entpInfoVO>
+      <entpId>7</entpId>
+      <entpName>이마트분당점</entpName>
+      <entpTypeCode>LM</entpTypeCode>
+      <entpAreaCode>020900000</entpAreaCode>
+      <areaDetailCode>020925000</areaDetailCode>
+      <entpTelno>031-000-0000</entpTelno>
+      <postNo>13590</postNo>
+      <plmkAddrBasic>경기도 성남시 분당구 서현동</plmkAddrBasic>
+      <plmkAddrDetail>263</plmkAddrDetail>
+      <roadAddrBasic>경기도 성남시 분당구 황새울로 &amp; 360번길</roadAddrBasic>
+      <roadAddrDetail>2</roadAddrDetail>
+      <xMapCoord>127.1</xMapCoord>
+      <yMapCoord>37.3</yMapCoord>
+    </iros.openapi.service.vo.entpInfoVO>
+    <iros.openapi.service.vo.entpInfoVO>
+      <entpId>912</entpId>
+      <entpName>이마트성남점</entpName>
+      <entpTypeCode>LM</entpTypeCode>
+      <entpAreaCode>020900000</entpAreaCode>
+      <areaDetailCode>020918000</areaDetailCode>
+      <entpTelno></entpTelno>
+      <roadAddrBasic><![CDATA[경기도 성남시 수정구 수정로]]></roadAddrBasic>
+      <roadAddrDetail/>
+    </iros.openapi.service.vo.entpInfoVO>
+    <iros.openapi.service.vo.entpInfoVO>
+      <entpId>82</entpId>
+      <entpName>농협하나로유통 성남점</entpName>
+      <entpTypeCode>SM</entpTypeCode>
+      <entpAreaCode>020900000</entpAreaCode>
+      <areaDetailCode>020919000</areaDetailCode>
+    </iros.openapi.service.vo.entpInfoVO>
+    <iros.openapi.service.vo.entpInfoVO>
+      <entpId>1948</entpId>
+      <entpName>현대백화점판교점</entpName>
+      <entpTypeCode>DP</entpTypeCode>
+      <entpAreaCode>020900000</entpAreaCode>
+      <areaDetailCode>020925000</areaDetailCode>
+    </iros.openapi.service.vo.entpInfoVO>
+    <iros.openapi.service.vo.entpInfoVO>
+      <entpId>1</entpId>
+      <entpName>이마트 수원점</entpName>
+      <entpTypeCode>LM</entpTypeCode>
+      <entpAreaCode>020900000</entpAreaCode>
+      <areaDetailCode>020800000</areaDetailCode>
+    </iros.openapi.service.vo.entpInfoVO>
+    <iros.openapi.service.vo.entpInfoVO>
+      <entpName>id 없는 줄</entpName>
+    </iros.openapi.service.vo.entpInfoVO>
+  </result>
+  <resultCode>00</resultCode>
+  <resultMsg>성공</resultMsg>
+</response>

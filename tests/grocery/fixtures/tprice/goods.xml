@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<response>
+  <result>
+    <item>
+      <goodId>1001</goodId>
+      <goodName>비비고 왕교자(1.12kg)</goodName>
+      <goodTotalCnt>1.12</goodTotalCnt>
+      <goodTotalDivCode>kg</goodTotalDivCode>
+      <goodBaseCnt>100</goodBaseCnt>
+      <goodUnitDivCode>g</goodUnitDivCode>
+      <goodSmlclsCode>A0301</goodSmlclsCode>
+      <detailMean>냉동만두</detailMean>
+      <productEntpCode>CJ</productEntpCode>
+    </item>
+    <item>
+      <goodId>1002</goodId>
+      <goodName>서울우유 흰우유(1L)</goodName>
+      <goodTotalCnt>1</goodTotalCnt>
+      <goodTotalDivCode>L</goodTotalDivCode>
+      <goodBaseCnt>100</goodBaseCnt>
+      <goodUnitDivCode>ml</goodUnitDivCode>
+      <goodSmlclsCode>A0101</goodSmlclsCode>
+      <datailMean>120g*5개입</datailMean>
+      <productEntpCode></productEntpCode>
+    </item>
+    <item>
+      <goodId>1003</goodId>
+      <goodName>대파(흙대파, 500~800g)</goodName>
+      <goodTotalCnt>abc</goodTotalCnt>
+      <goodTotalDivCode>g</goodTotalDivCode>
+    </item>
+  </result>
+  <resultCode>00</resultCode>
+  <resultMsg>성공</resultMsg>
+</response>

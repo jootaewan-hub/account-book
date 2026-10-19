@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<response>
+  <result>
+    <iros.openapi.service.vo.goodPriceVO>
+      <goodInspectDay>20261009</goodInspectDay>
+      <entpId>7</entpId>
+      <goodId>1001</goodId>
+      <goodPrice>9980</goodPrice>
+      <inputDttm>2026-10-15 15:32:07</inputDttm>
+    </iros.openapi.service.vo.goodPriceVO>
+    <iros.openapi.service.vo.goodPriceVO>
+      <goodInspectDay>2026-10-09</goodInspectDay>
+      <entpId>7</entpId>
+      <goodId>1002</goodId>
+      <goodPrice>2,980</goodPrice>
+      <goodDcYn>Y</goodDcYn>
+      <goodDcStartDay>20261008</goodDcStartDay>
+      <goodDcEndDay>20261014</goodDcEndDay>
+      <plusoneYn>N</plusoneYn>
+      <inputDttm>20261015153207</inputDttm>
+    </iros.openapi.service.vo.goodPriceVO>
+    <iros.openapi.service.vo.goodPriceVO>
+      <goodInspectDay>20261009</goodInspectDay>
+      <entpId>7</entpId>
+      <goodId>1003</goodId>
+      <goodPrice>0</goodPrice>
+    </iros.openapi.service.vo.goodPriceVO>
+    <iros.openapi.service.vo.goodPriceVO>
+      <goodInspectDay>20261009</goodInspectDay>
+      <entpId>7</entpId>
+      <goodId>1004</goodId>
+      <goodPrice>-</goodPrice>
+    </iros.openapi.service.vo.goodPriceVO>
+  </result>
+  <resultCode>00</resultCode>
+  <resultMsg>성공</resultMsg>
+</response>
