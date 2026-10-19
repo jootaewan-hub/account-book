@@ -21,7 +21,10 @@ async function devScreen(mode: string | null): Promise<ReactNode | null> {
   const store = mode === 'grocery-error' ? { ...memory, list: () => Promise.reject(new Error('데모: 불러오기 실패')) } : memory
   // 가계부 셸(아래 탭) 없이 장보기 화면만 본다: 아래 탭 높이를 0으로 두어 담기 바를 화면 맨 아래에 둔다
   const noTabbar = { '--tabbar-h': '0px' } as CSSProperties
-  return <div className="wrap" style={noTabbar}><div className="grocery"><ListScreen store={store} me={d.me} /></div></div>
+  // 가계부에 넣기(D-011)를 보이게 가계부 분류 몇 개를 흉내 낸다(저장은 메모리 저장소)
+  const categories = ['식비', '장보기', '세제·소모품', '생활용품', '기타'].map((name, i) => ({ id: `demo-c-${i}`, household_id: d.me.householdId, type: 'expense' as const, name, sort: i, archived: false }))
+  // main.wrap: 가계부 셸처럼 아래 여백을 둬 목록 끝이 담기 바에 가리지 않게
+  return <main className="wrap" style={noTabbar}><div className="grocery"><ListScreen store={store} me={d.me} ledger={{ categories, onRecorded: () => {} }} /></div></main>
 }
 
 const root = createRoot(document.getElementById('root')!)

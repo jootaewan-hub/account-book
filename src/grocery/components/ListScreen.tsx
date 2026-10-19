@@ -8,11 +8,14 @@ import type { ListStore } from '../lib/store'
 import type { Item, PriceCompare } from '../lib/types'
 import { josa } from '../lib/format'
 import { EMPTY_EXTRAS, toFind, type ItemExtras } from '../lib/products'
+import type { PurchaseEntry } from '../lib/purchase'
 import AddSheet from './AddSheet'
 import AlertSheet from './AlertSheet'
 import CandidateSheet from './CandidateSheet'
 import ItemDetail from './ItemDetail'
 import ListRow from './ListRow'
+import RecordSheet from './RecordSheet'
+import type { Category as LedgerCategory } from '../../lib/types'
 import { trackGroceryFlush } from '../flush'
 
 const UNDO_MS = 5000
@@ -21,11 +24,13 @@ const UNDO_MS = 5000
 type Props = {
   store: ListStore
   me: Membership
+  /** 가계부 안에서 열렸을 때: 가계부 분류와, 가계부에 넣은 뒤 가계부 내역을 다시 불러오는 함수(D-011) */
+  ledger?: { categories: LedgerCategory[]; onRecorded: () => void }
 }
 
-type Notice = { kind: 'removed'; ids: string[]; what: string } | { kind: 'error'; text: string }
+type Notice = { kind: 'removed'; ids: string[]; what: string } | { kind: 'error' | 'info'; text: string }
 
-export default function ListScreen({ store, me }: Props) {
+export default function ListScreen({ store, me, ledger }: Props) {
   const [items, setItems] = useState<Item[] | null>(null)
   const [loadState, setLoadState] = useState<'loading' | 'ready' | 'error'>('loading')
   const [staleError, setStaleError] = useState(false) // 한 번 불러온 뒤 다시 불러오기에 실패
@@ -246,6 +251,11 @@ export default function ListScreen({ store, me }: Props) {
   }, [openRow])
 
   const toggle = (item: Item) => {
+    // 가계부에 넣은 품목은 체크를 풀지 않는다(DB도 막는다). 가계부에서 그 내역을 지우면 연결이 풀린다
+    if (item.transactionId) {
+      showNotice({ kind: 'info', text: '가계부에 넣은 품목이에요. 가계부에서 그 내역을 지우면 체크를 풀 수 있어요.' })
+      return
+    }
     const bought = item.boughtAt === null
     // 바로 보이게 먼저 바꾸고, 저장 결과로 다시 맞춘다.
     setItems((list) =>
@@ -324,6 +334,15 @@ export default function ListScreen({ store, me }: Props) {
     if (visible.length === 0) setEditing(false)
   }, [visible.length])
   const sum = summarize(visible, prices)
+  // 산 것 중 아직 가계부에 넣지 않은 품목(D-011 길 ②)
+  const unrecorded = useMemo(() => visible.filter((i) => i.boughtAt && !i.transactionId), [visible])
+  const [recordOpen, setRecordOpen] = useState(false)
+  const record = async (entries: PurchaseEntry[]) => {
+    const ids = await store.recordPurchase(entries)
+    refetch()
+    ledger?.onRecorded()
+    showNotice({ kind: 'info', text: `가계부에 ${ids.length}건 넣었어요.` })
+  }
   const ready = loadState === 'ready' && items !== null
 
   return (
@@ -453,6 +472,13 @@ export default function ListScreen({ store, me }: Props) {
                 </section>
               ))
             )}
+
+            {ledger && unrecorded.length > 0 && !editing && (
+              <section className="record-card" aria-label="가계부에 넣기">
+                <p>산 것 <span className="num">{unrecorded.length}</span>개를 아직 가계부에 넣지 않았어요.</p>
+                <button type="button" className="btn-secondary" onClick={(e) => { opener.current = e.currentTarget; setRecordOpen(true) }}>가계부에 넣기</button>
+              </section>
+            )}
           </div>
         )}
       </main>
@@ -468,7 +494,7 @@ export default function ListScreen({ store, me }: Props) {
             <button type="button" className="notice-action" onClick={() => undo(notice.ids)}>되돌리기</button>
           </div>
         )}
-        {notice?.kind === 'error' && (
+        {(notice?.kind === 'error' || notice?.kind === 'info') && (
           <div className="notice" key="error">
             <p>{notice.text}</p>
           </div>
@@ -496,6 +522,17 @@ export default function ListScreen({ store, me }: Props) {
           store={store}
           onPicked={(productId, qty) => pick(pickItem, productId, qty)}
           onClose={() => setPickItem(null)}
+        />
+      )}
+      {recordOpen && ledger && (
+        <RecordSheet
+          items={unrecorded}
+          categories={ledger.categories}
+          onSave={record}
+          onClose={() => {
+            setRecordOpen(false)
+            opener.current?.focus({ preventScroll: true })
+          }}
         />
       )}
       {alertItem && (

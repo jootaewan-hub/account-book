@@ -240,7 +240,7 @@ function Ledger({ household, meta, userId, email }: {
         {tab === 'list' && (
           <ListView cur={cur} lookup={lookup} focus={listFocus} onClearFocus={() => setListFocus(null)} onEdit={(t) => setSheet({ open: true, editing: t })} />
         )}
-        {tab === 'grocery' && <GroceryTab userId={userId} members={meta.members} />}
+        {tab === 'grocery' && <GroceryTab userId={userId} members={meta.members} categories={meta.categories} onRecorded={() => void reload()} />}
         {tab === 'stats' && (
           <StatsView household={household} ym={ym} today={today} cur={cur} prev={prev} lookup={lookup}
             categories={meta.categories} billsVersion={billsVersion} onBill={() => setSmart({ open: true, mode: 'bill' })}

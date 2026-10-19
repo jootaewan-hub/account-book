@@ -126,6 +126,7 @@ export default function ListRow({
   if (bought) {
     second.push(buyer ? `${buyer.displayName}${josa(buyer.displayName, '이', '가')} 샀어요` : '샀어요')
     if (item.paid != null && item.paid > 0) second.push(<span className="num" key="paid">{won(item.paid)}</span>)
+    if (item.transactionId) second.push('가계부에 넣음')
   } else {
     if (adder) {
       second.push(

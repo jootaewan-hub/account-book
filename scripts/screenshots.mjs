@@ -44,6 +44,11 @@ const groceryShots = [
   ...['price', 'safety', 'rating'].flatMap((t) => both(390, (w, c) => ({ name: `grocery-item-detail-${t}-${w}-${c}`, path: G, w, c, detail: '비비고 왕교자', tab: t }))),
   { name: 'grocery-item-detail-price-1280-light', path: G, w: 1280, c: 'light', detail: '비비고 왕교자', tab: 'price' },
   { name: 'grocery-item-detail-safety-390-light-alert', path: G, w: 390, c: 'light', detail: '○○ 냉동볶음밥', tab: 'safety' },
+  // 가계부에 넣기(D-011 길 ②): 목록 끝의 안내와 시트(총액, 품목마다, 금액 빈 오류)
+  ...each((w, c) => ({ name: `grocery-record-sheet-${w}-${c}`, path: G, w, c, purchase: 'total' })),
+  ...both(390, (w, c) => ({ name: `grocery-record-sheet-each-${w}-${c}`, path: G, w, c, purchase: 'each' })),
+  { name: 'grocery-record-sheet-error-390-light', path: G, w: 390, c: 'light', purchase: 'error' },
+  { name: 'grocery-recorded-390-light', path: G, w: 390, c: 'light', purchase: 'save', full: true },
   ...both(390, (w, c) => ({ name: `grocery-list-empty-${w}-${c}`, path: '/?demo=grocery-empty', w, c, wait: '아직 담은 게 없어요' })),
   { name: 'grocery-list-error-390-light', path: '/?demo=grocery-error', w: 390, c: 'light', wait: '목록을 불러오지 못했어요.' },
 ]
@@ -166,7 +171,22 @@ try {
         const label = s.shell ? null : { price: '가격', safety: '안전', rating: '평가' }[s.tab]
         if (label) await page.getByRole('tab', { name: label }).click()
       }
-      if (s.openRemove) await page.getByRole('button', { name: `${s.openRemove} 빼기` }).focus()
+      if (s.purchase) {
+      await page.getByRole('button', { name: '가계부에 넣기', exact: true }).click()
+      await page.getByRole('dialog').waitFor()
+      if (s.purchase === 'total' || s.purchase === 'save') await page.getByLabel('낸 금액(원)').fill('12400')
+      if (s.purchase === 'each') {
+        await page.getByRole('button', { name: '품목마다' }).click()
+        const inputs = page.getByLabel(/금액\(원\)$/)
+        await inputs.first().fill('3500')
+      }
+      if (s.purchase === 'error') await page.locator('.sheet-foot .btn-primary').click()
+      if (s.purchase === 'save') {
+        await page.locator('.sheet-foot .btn-primary').click()
+        await page.getByText(/가계부에 \d+건 넣었어요/).waitFor()
+      }
+    }
+    if (s.openRemove) await page.getByRole('button', { name: `${s.openRemove} 빼기` }).focus()
       if (s.remove) {
         await page.getByRole('button', { name: `${s.remove} 빼기` }).focus()
         await page.keyboard.press('Enter')
@@ -180,7 +200,8 @@ try {
         const out = []
         if (document.documentElement.scrollWidth > window.innerWidth) out.push(`가로 스크롤 ${document.documentElement.scrollWidth}px`)
         for (const el of document.querySelectorAll('button, a, input, textarea, [role="button"]')) {
-          const r = el.getBoundingClientRect()
+          // label로 감싼 입력(체크 상자 등)은 label 전체가 누르는 곳이다
+          const r = (el.tagName === 'INPUT' && el.closest('label') ? el.closest('label') : el).getBoundingClientRect()
           const cs = getComputedStyle(el)
           if (r.width === 0 || cs.visibility === 'hidden' || el.closest('.sr-only')) continue
           // 장보기 규칙(44px)은 장보기 화면 안에서만 잰다. 가계부 화면은 가계부 DESIGN.md 기준이라 여기서 재지 않는다
@@ -210,7 +231,7 @@ try {
       await context.close()
     } catch (e) {
       // 한 화면이 실패해도 나머지는 찍는다
-      problems.push(`${s.name}: 찍지 못함 — ${String(e.message).split('\n')[0]}`)
+      problems.push(`${s.name}: 찍지 못함 — ${String(e.message).split('\n').slice(0, process.env.DEBUG_SHOTS ? 12 : 1).join(' / ')}`)
     }
   }
 } finally {

@@ -1,4 +1,5 @@
 import type { Item } from './types'
+import type { PurchaseEntry } from './purchase'
 import type { ParsedItem } from './parse'
 import { EMPTY_ALERTS, type AlertsResult } from './alerts'
 import {
@@ -31,6 +32,8 @@ export interface ListStore {
   /** 고른 상품의 다나와 가격을 확인한다(product-check). 같은 날은 서버가 캐시를 쓴다 */
   checkPrice(itemId: string): Promise<void>
   detail(itemId: string): Promise<ItemDetailData>
+  /** 산 품목을 가계부 내역으로 넣고 연결한다(grocery.record_purchase, D-011). 만든 내역 id를 돌려준다 */
+  recordPurchase(entries: PurchaseEntry[]): Promise<string[]>
 }
 
 /** 개발용 데모 화면에서 쓰는 가격 확인 자료(실제 가격 아님) */
@@ -97,6 +100,19 @@ export function createMemoryStore(
     async remove(id) {
       items = items.filter((i) => i.id !== id)
       notify()
+    },
+    async recordPurchase(entries) {
+      // 메모리 구현: 서버 함수처럼 이미 넣은 품목은 거절하고, 안 산 품목은 산 것으로 바꿔 연결한다
+      const ids = entries.map(() => crypto.randomUUID())
+      const links = entries.flatMap((e, k) => e.links.map((l) => ({ ...l, tx: ids[k], date: e.tx.occurred_on })))
+      if (links.some((l) => items.find((i) => i.id === l.item_id)?.transactionId)) throw new Error('already_linked')
+      items = items.map((i) => {
+        const l = links.find((x) => x.item_id === i.id)
+        if (!l) return i
+        return { ...i, transactionId: l.tx, paid: l.paid, boughtBy: i.boughtBy ?? me.userId, boughtAt: i.boughtAt ?? `${l.date}T03:00:00.000Z` }
+      })
+      notify()
+      return ids
     },
     subscribe(onChange) {
       listeners.add(onChange)

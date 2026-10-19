@@ -300,6 +300,44 @@
 .grocery .detail-rating { margin: 16px 0 12px; font-size: 16px; font-weight: 600; }
 .grocery .detail-farm { padding-left: 0; color: var(--ink-2); }
 
+/* ---------- 가계부에 넣기(D-011 길 ②) ---------- */
+.grocery .record-card {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+  margin-top: 24px; padding: 16px; background: var(--oat); border-radius: var(--r-md);
+}
+.grocery .record-card p { font-size: 15px; }
+.grocery .record-lead { margin-bottom: 16px; font-size: 14px; color: var(--ink-2); }
+.grocery .record-items { list-style: none; margin: 0 0 16px; padding: 0 16px; background: var(--oat); border-radius: var(--r-md); }
+.grocery .record-item { padding: 8px 0; }
+.grocery .record-item + .record-item { border-top: 1px solid var(--oat-deep); }
+.grocery .record-check { display: flex; align-items: center; gap: 12px; min-height: 44px; cursor: pointer; }
+.grocery .record-check input { width: 22px; height: 22px; accent-color: var(--ink); flex: none; }
+.grocery .record-name { font-size: 16px; font-weight: 600; overflow-wrap: anywhere; }
+.grocery .record-fields { display: flex; gap: 8px; margin: 4px 0 4px 34px; }
+.grocery .record-fields select, .grocery .record-amount, .grocery .record-input {
+  min-height: 44px; padding: 0 12px; font-size: 16px; color: var(--ink);
+  background: var(--canvas); border: 1px solid var(--field-border); border-radius: var(--r-sm);
+}
+.grocery .record-fields select { flex: 1; min-width: 0; }
+.grocery .record-amount { width: 128px; text-align: right; }
+.grocery .record-input { display: block; width: 100%; background: var(--oat); }
+.grocery .record-input::placeholder, .grocery .record-amount::placeholder { color: var(--ink-3); opacity: 1; }
+.grocery .record-mode { margin: 0 0 16px; }
+.grocery .record-field { display: block; margin-bottom: 16px; }
+.grocery .record-who { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; padding: 4px; background: var(--oat); border-radius: var(--r-btn); }
+.grocery .record-who button {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 44px; border: 0; border-radius: 10px;
+  background: transparent; color: var(--ink-2); font-size: 15px; font-weight: 600; cursor: pointer;
+}
+.grocery .record-who button[aria-pressed="true"] { background: var(--ink); color: var(--on-primary); }
+.grocery .who-dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+.grocery .who-dot-shared { background: var(--who-shared); }
+.grocery .who-dot-child { background: var(--who-child); }
+.grocery .who-dot-husband { background: var(--who-husband); }
+.grocery .who-dot-wife { background: var(--who-wife); }
+.grocery .record-fields select:focus-visible, .grocery .record-amount:focus-visible, .grocery .record-input:focus-visible,
+.grocery .record-who button:focus-visible, .grocery .record-check input:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+
 /* ---------- 가계부 셸 안에서 ---------- */
 /* 가계부 main.wrap이 이미 좌우 16px·아래 여백(아래 탭과 기록하기 버튼 자리)을 두므로, 목록 쪽은 4px만 더해 장보기 원래 좌우 20px을 맞춘다.
    화면 높이 채우기(100dvh)는 위쪽 줄과 겹쳐 쓸데없는 스크롤을 만들어 뺀다. */

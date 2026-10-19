@@ -82,6 +82,11 @@ export function createSupabaseStore(client: SupabaseClient, me: Membership): Lis
       const { error } = await table().delete().eq('id', id).eq('household_id', me.householdId)
       if (error) throw error
     },
+    async recordPurchase(entries) {
+      const { data, error } = await g().rpc('record_purchase', { p_household_id: me.householdId, p_entries: entries })
+      if (error) throw error
+      return (data ?? []) as string[]
+    },
     subscribe(onChange) {
       // 구독마다 고유한 이름: StrictMode의 재마운트에서 아직 지워지지 않은 채널과 겹치지 않게 한다.
       const channel = client
