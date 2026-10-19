@@ -11,6 +11,13 @@ create table grocery.shop_links (
   url text not null check (url ~ '^https://(www\.kurly\.com/goods/[0-9]{1,20}|mfront\.homeplus\.co\.kr/item\?itemNo=[0-9]{1,20}&storeType=[A-Z]{1,10}|www\.lowchart\.com/[0-9]{1,20}-[0-9]{1,20})$'),
   added_by uuid default auth.uid(),
   added_at timestamptz not null default now(),
+  -- 주소는 출처·출처 id에서 만든 것과 같아야 한다(_shared/shops.ts의 shopUrl과 같은 규칙). 확인 기록(shop_checks)은 출처·id로 가구들이 함께 쓰므로,
+  -- 다른 주소를 그 id에 붙여 다른 가구가 보는 값을 오염시키지 못하게 한다. 함수도 저장된 url 대신 id로 주소를 다시 만든다.
+  check (url = case source
+    when 'kurly' then 'https://www.kurly.com/goods/' || source_id
+    when 'homeplus' then 'https://mfront.homeplus.co.kr/item?itemNo=' || split_part(source_id, ':', 1) || '&storeType=' || split_part(source_id, ':', 2)
+    when 'lowchart' then 'https://www.lowchart.com/' || source_id
+  end),
   primary key (household_id, product_id, source),
   foreign key (household_id, added_by) references public.members (household_id, user_id) on delete set null (added_by)
 );

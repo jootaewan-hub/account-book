@@ -1,7 +1,7 @@
 // Edge Function 진입점: 고른 상품의 다나와 가격 확인과 가구가 넣은 몰 주소(컬리·홈플러스·로우차트) 확인.
 // 권한 확인은 사용자 권한(RLS), 저장은 서비스 롤로 한다.
 import { admin, cors, fetchHtml, userClient, withCors } from '../_shared/edge.ts'
-import type { ShopSource } from '../_shared/shops.ts'
+import { shopUrl, type ShopLink, type ShopSource } from '../_shared/shops.ts'
 import { handle } from './handle.ts'
 
 const g = () => admin.schema('grocery')
@@ -60,12 +60,17 @@ Deno.serve(async (req) => {
     },
     now: () => new Date(),
     shopLinks: async (id) => {
-      const { data, error } = await g().from('shop_links').select('source, source_id, url').eq('product_id', id).order('source')
+      const { data, error } = await g().from('shop_links').select('source, source_id').eq('product_id', id).order('source')
       if (error) throw error
       const seen = new Set<string>() // 두 가구가 같은 주소를 넣었으면 한 번만 읽는다
-      return ((data ?? []) as { source: string; source_id: string; url: string }[])
-        .filter((r) => (seen.has(`${r.source}|${r.source_id}`) ? false : (seen.add(`${r.source}|${r.source_id}`), true)))
-        .map((r) => ({ source: r.source as ShopSource, sourceId: r.source_id, url: r.url }))
+      const links: ShopLink[] = []
+      for (const r of (data ?? []) as { source: string; source_id: string }[]) {
+        const url = shopUrl(r.source as ShopSource, r.source_id) // 저장된 url 대신 출처·id로 다시 만든다(DB check와 같은 규칙)
+        if (!url || seen.has(`${r.source}|${r.source_id}`)) continue
+        seen.add(`${r.source}|${r.source_id}`)
+        links.push({ source: r.source as ShopSource, sourceId: r.source_id, url })
+      }
+      return links
     },
     shopTodayOk: async (source, sourceId) => {
       const { data, error } = await g().from('shop_checks').select('id').eq('source', source).eq('source_id', sourceId).eq('ok', true)

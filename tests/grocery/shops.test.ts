@@ -1,9 +1,10 @@
 // 몰 상품 페이지(컬리·홈플러스·로우차트) 주소 정리와 JSON-LD 읽기. 사본은 2026-10-19에 받은 실제 페이지(후기 본문은 지움).
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
-import { parseShopProduct, parseShopUrl, SHOP_LABEL, ShopParseError } from '../../supabase/functions/_shared/shops'
+import { parseShopProduct, parseShopUrl, SHOP_LABEL, ShopParseError, shopUrl } from '../../supabase/functions/_shared/shops'
 
 const read = (f: string) => readFileSync(new URL(`./fixtures/shops/${f}`, import.meta.url), 'utf8')
+const KURLY_IN = 'https://www.kurly.com/goods/5082274?x=1'
 
 describe('주소 정리', () => {
   it('컬리 goods 주소는 번호만 남기고 www.kurly.com으로', () => {
@@ -60,6 +61,18 @@ describe('주소 정리', () => {
     expect(parseShopUrl('https://www.kurly.com/search?sword=왕교자')).toEqual({ ok: false, reason: 'unsupported' })
     expect(parseShopUrl('https://www.lowchart.com/c/194176')).toEqual({ ok: false, reason: 'unsupported' })
     expect(parseShopUrl('http://www.kurly.com/goods/abc')).toEqual({ ok: false, reason: 'unsupported' })
+  })
+
+  it('출처·출처 id에서 받을 주소를 다시 만든다(저장된 주소를 믿지 않는다)', () => {
+    expect(shopUrl('kurly', '5082274')).toBe('https://www.kurly.com/goods/5082274')
+    expect(shopUrl('homeplus', '120074651:HYPER')).toBe('https://mfront.homeplus.co.kr/item?itemNo=120074651&storeType=HYPER')
+    expect(shopUrl('lowchart', '9519439579-18170724212')).toBe('https://www.lowchart.com/9519439579-18170724212')
+    for (const r of [parseShopUrl(KURLY_IN), parseShopUrl('https://front.homeplus.co.kr/item?itemNo=120074651'), parseShopUrl('https://www.coupang.com/vp/products/9519439579?itemId=18170724212')]) {
+      expect(r.ok && shopUrl(r.link.source, r.link.sourceId) === r.link.url).toBe(true)
+    }
+    expect(shopUrl('homeplus', '120074651')).toBeNull()
+    expect(shopUrl('kurly', 'abc')).toBeNull()
+    expect(shopUrl('lowchart', '1')).toBeNull()
   })
 
   it('출처 이름', () => {

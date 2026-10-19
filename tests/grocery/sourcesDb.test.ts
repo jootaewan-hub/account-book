@@ -103,6 +103,14 @@ describe('shop_links(가구가 상품에 붙인 몰 주소)', () => {
     expect((await as(A, `select count(*)::int as n from grocery.shop_links`))[0].n).toBe(2)
   })
 
+  it('주소는 출처·출처 id에서 만든 것과 같아야 한다(다른 가구가 같은 출처 id로 보는 값을 오염시키지 못하게)', async () => {
+    expect(await errorOf(link(A, hhAB, 'kurly', '1', LOW))).toMatch(/check constraint/)
+    expect(await errorOf(link(A, hhAB, 'kurly', '5082274', 'https://www.kurly.com/goods/1000466118'))).toMatch(/check constraint/)
+    expect(await errorOf(link(A, hhAB, 'homeplus', '120074651:EXP', HOME))).toMatch(/check constraint/)
+    expect(await errorOf(link(A, hhAB, 'lowchart', '9519439579-1', LOW))).toMatch(/check constraint/)
+    await link(A, hhAB, 'kurly', '5082274', KURLY)
+  })
+
   it('출처마다 하나: 같은 출처를 다시 넣으면 덮어쓰고(upsert), 뺄 수 있다', async () => {
     await link(A, hhAB, 'kurly', '5082274', KURLY)
     await as(B, `insert into grocery.shop_links (household_id, product_id, source, source_id, url) values ($1, $2, 'kurly', '1000466118', 'https://www.kurly.com/goods/1000466118')

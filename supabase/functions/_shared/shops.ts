@@ -86,6 +86,16 @@ export function parseShopUrl(text: string): ShopUrlResult {
   return { ok: false, reason: 'unsupported' }
 }
 
+/** 출처·출처 id로 받을 주소를 만든다(DB check와 같은 규칙). id 모양이 틀리면 null. 저장된 url을 믿지 않고 이것으로 받는다. */
+export function shopUrl(source: ShopSource, sourceId: string): string | null {
+  if (source === 'kurly') return DIGITS.test(sourceId) ? `https://www.kurly.com/goods/${sourceId}` : null
+  if (source === 'homeplus') {
+    const m = sourceId.match(/^(\d{1,20}):([A-Z]{1,10})$/)
+    return m ? `https://mfront.homeplus.co.kr/item?itemNo=${m[1]}&storeType=${m[2]}` : null
+  }
+  return /^\d{1,20}-\d{1,20}$/.test(sourceId) ? `https://www.lowchart.com/${sourceId}` : null
+}
+
 function lowchart(productId: string, itemId: string): ShopUrlResult {
   const id = `${productId}-${itemId}`
   return { ok: true, link: { source: 'lowchart', sourceId: id, url: `https://www.lowchart.com/${id}` } }
