@@ -368,7 +368,7 @@ export default function ItemDetail({ item, store, onChangeProduct, onClose, mark
                         <span>{info.name}</span>
                         <button type="button" className="btn-text" onClick={() => setPicker('food')}>다른 품목으로 바꾸기</button>
                       </p>
-                      <p className="src-line">{[info.maker, info.kind, info.changedOn ? `${koFullDay(info.changedOn)} 변경` : null].filter(Boolean).join(' · ')} · 보고번호 {info.reportNo}</p>
+                      <p className="src-line">{[info.maker, info.kind, info.changedOn ? `${koFullDay(info.changedOn)} 변경` : null, `보고번호 ${info.reportNo}`].filter(Boolean).join(', ')}</p>
                       <p className="read-note">{INGREDIENT_NOTE}</p>
                       <div className="detail-block">
                         <p className="detail-sub">원재료</p>

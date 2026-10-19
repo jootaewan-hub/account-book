@@ -204,7 +204,7 @@ export function FoodPickerSheet({ store, itemId, productName, current, onDone, o
               <li key={c.reportNo}>
                 <button type="button" className="pick-row" aria-pressed={c.reportNo === current} disabled={busy} onClick={() => pick(c.reportNo)}>
                   <span className="pick-name">{c.name}</span>
-                  <span className="pick-meta">{[c.maker, c.kind, c.changedOn ? `${koFullDay(c.changedOn)} 변경` : null].filter(Boolean).join(' · ')} · 보고번호 {c.reportNo}</span>
+                  <span className="pick-meta">{[c.maker, c.kind, c.changedOn ? `${koFullDay(c.changedOn)} 변경` : null, `보고번호 ${c.reportNo}`].filter(Boolean).join(', ')}</span>
                 </button>
               </li>
             ))}
