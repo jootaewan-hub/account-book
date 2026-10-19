@@ -102,6 +102,18 @@
   - 평년은 5년간(금년 제외) 최고·최저를 뺀 3년 평균.
 - 확인 필요: 일별 API의 축산물 포함 여부(추측: 포함), 갱신 시각, 호출 한도.
 
+### 3-1. 공공데이터포털 게이트웨이판 — 사용자가 키를 받은 API (2026-10-19 확인)
+
+- 이름: "한국농수산식품유통공사_일별 도,소매 가격정보 조회", 공공데이터포털 15156057, https://www.data.go.kr/data/15156057/openapi.do. 등록 2025-12-08, 수정 2026-09-21, 이용허락범위 제한 없음, JSON+XML. 사용자가 개발계정으로 활용 신청했고, 키를 Supabase Edge Function Secrets에 넣었다(사용자 말, 비밀 이름은 확인 필요).
+- 위 KAMIS 직접 API(`p_cert_key`·`action=...`)와 **요청·응답 형식이 다르다.** 아래는 상세 페이지에 실린 Swagger 명세에서 읽은 것이다.
+- 요청: `GET https://apis.data.go.kr/B552845/perDay/price`
+  - 필수: `serviceKey`, `pageNo`, `numOfRows`(최대 1000), `cond[exmn_ymd::GTE]`, `cond[exmn_ymd::LTE]`(조사일자 범위), `cond[ctgry_cd::EQ]`(부류코드), `cond[item_cd::EQ]`(품목코드), `returnType`(JSON 기본, XML).
+  - 선택: `cond[se_cd::EQ]`(구분코드), `cond[vrty_cd::EQ]`(품종), `cond[grd_cd::EQ]`(등급), `cond[sgg_cd::EQ]`(시군구), `cond[mrkt_cd::EQ]`(시장), `selectable`(받을 열).
+- 응답 `body.items.item[]`: `exmn_ymd` 조사일자, `se_cd`/`se_nm` 구분, `ctgry_cd`/`ctgry_nm` 부류, `item_cd`/`item_nm` 품목, `vrty_cd`/`vrty_nm` 품종, `grd_cd`/`grd_nm` 등급, `sgg_cd`/`sgg_nm` 시군구, `unit`, `unit_sz`, `mrkt_cd`/`mrkt_nm` 시장, `exmn_dd_prc` 조사일가격, `exmn_dd_cnvs_prc` 조사일kg환산가격, `orgnl_reg_dt` 원본등록일시. 값은 모두 문자열로 명세돼 있다. 오류 코드 -10은 "트래픽 허용 횟수 초과".
+- 키 없이 부르면 HTTP 401, `SERVICE_KEY_IS_NULL`(2026-10-19 실제 호출). 주소는 살아 있다.
+- 같은 기관의 형제 API(같은 날 수정): 15156062 지역별 품목별, 15156063 최근일자(1일·1주·1개월·1년 전 가격 포함), 15156065 기간별 소매, 15156069 가격 추이, 15156070 가격 등락. 등락률을 직접 계산하지 않고 받으려면 15156063이나 15156070이 더 맞을 수 있다(추측입니다, 응답 확인 필요).
+- 확인 필요: 부류·품목·구분 코드표(명세서 첨부 파일), 구분코드의 소매/도매 값, 개발계정 하루 호출 한도, 갱신 시각, 축산물·수산물 포함 여부, 키를 넣은 실제 응답.
+
 ## 4. 평점·후기
 
 - 공식 API 가운데 별점·후기 수를 주는 곳은 없다(네이버 쇼핑 API에도 없었고, 쿠팡 파트너스 응답에도 없다).
