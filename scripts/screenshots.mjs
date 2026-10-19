@@ -1,0 +1,226 @@
+// 화면 캡처: 이미 떠 있는 개발 서버(npm run dev)에서 화면을 열어 screenshots/에 저장한다.
+// 실행: VITE_SUPABASE_URL=https://kifdfpbwiebfgvdumqjf.supabase.co VITE_SUPABASE_PUBLISHABLE_KEY=<deploy.yml의 공개용 키> npm run dev (다른 창)
+//       → npm run screens. BASE_URL로 주소를, OUT_DIR로 저장 폴더를 바꿀 수 있다.
+// 두 가지를 찍는다.
+//  - grocery-*: 장보기 화면만(?demo=grocery…, 메모리 데이터). 장보기 grocery-app의 scripts/screenshots.mjs에서 옮겼다.
+//  - shell-*: 로그인한 가계부 셸 전체. Supabase로 가는 요청을 모두 가로채 scripts/shell-fixtures.mjs의 가짜 응답을 준다.
+// 이름을 주면 그 화면만 다시 찍는다: npm run screens -- shell-grocery-390-light grocery-list-390-dark
+import { existsSync, mkdirSync } from 'node:fs'
+import { fileURLToPath, pathToFileURL } from 'node:url'
+import { chromium } from 'playwright'
+import { fakeSession, TABLES, USER } from './shell-fixtures.mjs'
+
+const BASE = process.env.BASE_URL ?? 'http://localhost:5173'
+const OUT = process.env.OUT_DIR ? pathToFileURL(`${process.env.OUT_DIR.replace(/\/$/, '')}/`) : new URL('../screenshots/', import.meta.url)
+mkdirSync(OUT, { recursive: true })
+const SUPABASE = 'https://kifdfpbwiebfgvdumqjf.supabase.co'
+const STORAGE_KEY = 'sb-kifdfpbwiebfgvdumqjf-auth-token'
+
+const SIZES = { 390: { width: 390, height: 844 }, 1280: { width: 1280, height: 800 } }
+const BOTH = ['light', 'dark']
+const both = (w, f) => BOTH.map((c) => f(w, c))
+const each = (f) => [390, 1280].flatMap((w) => both(w, f))
+
+const SHEET_TEXT = '비비고 왕교자 1.05kg x2\n우유 900ml\n대파\n고추장 500g\n휴지 30롤'
+// 쇼핑몰 상품명을 통째로 붙여 넣은 경우(60자 넘음): "이름이 길어 60자까지만 담아요"가 보여야 한다.
+const LONG_LINE = '[무료배송] 풀무원 국산콩 두부 부침용 300g 2개입 + 찌개용 300g 2개입 냉장 신선 묶음 기획 특가 세트'
+const SPLIT_TEXT = '양파 당근 감자 비비고 왕교자 파'
+const G = '/?demo=grocery'
+
+const groceryShots = [
+  ...each((w, c) => ({ name: `grocery-list-${w}-${c}`, path: G, w, c, full: true })),
+  ...each((w, c) => ({ name: `grocery-add-sheet-${w}-${c}`, path: G, w, c, sheet: SHEET_TEXT })),
+  ...both(390, (w, c) => ({ name: `grocery-add-sheet-split-${w}-${c}`, path: G, w, c, sheet: SPLIT_TEXT })),
+  { name: 'grocery-add-sheet-long-390-light', path: G, w: 390, c: 'light', sheet: `${LONG_LINE}\n대파` },
+  ...both(390, (w, c) => ({ name: `grocery-list-where-${w}-${c}`, path: G, w, c, where: true, full: true })),
+  { name: 'grocery-row-remove-open-390-light', path: G, w: 390, c: 'light', openRemove: '삼겹살 600g' },
+  ...both(390, (w, c) => ({ name: `grocery-removed-notice-${w}-${c}`, path: G, w, c, remove: '삼겹살 600g' })),
+  ...each((w, c) => ({ name: `grocery-list-edit-${w}-${c}`, path: G, w, c, edit: true, full: true })),
+  ...both(390, (w, c) => ({ name: `grocery-group-removed-${w}-${c}`, path: G, w, c, edit: true, groupRemove: true })),
+  ...both(390, (w, c) => ({ name: `grocery-alert-sheet-${w}-${c}`, path: G, w, c, alert: '비슷한 제품 기록' })),
+  { name: 'grocery-alert-sheet-1280-light', path: G, w: 1280, c: 'light', alert: '비슷한 제품 기록' },
+  ...both(390, (w, c) => ({ name: `grocery-candidate-sheet-${w}-${c}`, path: G, w, c, pick: true })),
+  { name: 'grocery-candidate-sheet-1280-light', path: G, w: 1280, c: 'light', pick: true },
+  ...['price', 'safety', 'rating'].flatMap((t) => both(390, (w, c) => ({ name: `grocery-item-detail-${t}-${w}-${c}`, path: G, w, c, detail: '비비고 왕교자', tab: t }))),
+  { name: 'grocery-item-detail-price-1280-light', path: G, w: 1280, c: 'light', detail: '비비고 왕교자', tab: 'price' },
+  { name: 'grocery-item-detail-safety-390-light-alert', path: G, w: 390, c: 'light', detail: '○○ 냉동볶음밥', tab: 'safety' },
+  ...both(390, (w, c) => ({ name: `grocery-list-empty-${w}-${c}`, path: '/?demo=grocery-empty', w, c, wait: '아직 담은 게 없어요' })),
+  { name: 'grocery-list-error-390-light', path: '/?demo=grocery-error', w: 390, c: 'light', wait: '목록을 불러오지 못했어요.' },
+]
+
+const TAB_SLUG = { 달력: 'cal', 내역: 'list', 장보기: 'grocery', 통계: 'stats', 고정: 'fixed', 설정: 'settings' }
+// 가계부 셸: 탭 이름(아래 탭·왼쪽 메뉴의 글자)으로 연다. 설정은 '설정' 버튼(휴대폰 톱니, 넓은 화면 메뉴 줄)
+const shellShots = [
+  ...['달력', '내역', '장보기', '통계', '고정', '설정'].flatMap((tab) =>
+    each((w, c) => ({ name: `shell-${TAB_SLUG[tab]}-${w}-${c}`, path: '/', w, c, shell: true, tab, full: tab !== '장보기' }))),
+  // 장보기는 화면 높이 그대로: 아래 탭·담기 바가 화면 아래에 어떻게 겹치는지 본다
+  ...both(390, (w, c) => ({ name: `shell-grocery-removed-${w}-${c}`, path: '/', w, c, shell: true, tab: '장보기', remove: '삼겹살 600g' })),
+  ...each((w, c) => ({ name: `shell-grocery-add-sheet-${w}-${c}`, path: '/', w, c, shell: true, tab: '장보기', sheet: SHEET_TEXT })),
+  // 시트 위치(휴대폰 바닥 시트, 넓은 화면 가운데 창)만 본다. 셸의 가짜 데이터에는 상품 정보가 없어 상세 안에는 불러오기 오류 문구가 뜬다.
+  // 상세 내용은 grocery-item-detail-*(장보기 데모)에서 본다
+  ...each((w, c) => ({ name: `shell-grocery-detail-${w}-${c}`, path: '/', w, c, shell: true, tab: '장보기', detail: '비비고 왕교자' })),
+  ...each((w, c) => ({ name: `shell-entry-sheet-${w}-${c}`, path: '/', w, c, shell: true, tab: '내역', record: true })),
+  ...both(390, (w, c) => ({ name: `shell-deeplink-grocery-${w}-${c}`, path: '/?tab=grocery', w, c, shell: true })),
+]
+
+const shots = [...groceryShots, ...shellShots]
+const only = process.argv.slice(2)
+const selected = only.length ? shots.filter((s) => only.some((o) => s.name === o || s.name.startsWith(o))) : shots
+
+/** Supabase로 가는 요청을 모두 가로챈다. 표·rpc는 TABLES, 쓰기는 빈 성공, 인증은 가짜 사용자 */
+async function fakeSupabase(context) {
+  await context.addInitScript(([key, session]) => localStorage.setItem(key, JSON.stringify(session)), [STORAGE_KEY, fakeSession()])
+  await context.route(`${SUPABASE}/**`, async (route) => {
+    const req = route.request()
+    const url = new URL(req.url())
+    const json = (body, status = 200) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) })
+    if (url.pathname.startsWith('/auth/v1/user')) return json(USER)
+    if (url.pathname.startsWith('/auth/v1/token')) return json(fakeSession())
+    if (url.pathname.startsWith('/auth/v1/logout')) return route.fulfill({ status: 204 })
+    if (url.pathname.startsWith('/functions/v1/')) return json({ status: 'skipped' })
+    if (url.pathname.startsWith('/storage/v1/')) return json([])
+    const m = url.pathname.match(/^\/rest\/v1\/(.+)$/)
+    if (!m) return json({ message: 'not mocked' }, 404)
+    const schema = req.headers()['accept-profile'] ?? req.headers()['content-profile'] ?? 'public'
+    const key = `${schema}.${m[1]}`
+    const method = req.method()
+    if (method !== 'GET' && method !== 'HEAD' && !m[1].startsWith('rpc/')) return json([], method === 'POST' ? 201 : 200)
+    const rows = key in TABLES ? TABLES[key] : []
+    if ((req.headers()['accept'] ?? '').includes('vnd.pgrst.object')) {
+      const one = Array.isArray(rows) ? rows[0] : rows
+      return one == null ? json({ code: 'PGRST116', message: 'no rows' }, 406) : json(one)
+    }
+    return json(rows)
+  })
+  // 실시간 연결은 열지 않는다(가짜 토큰으로 실제 서버에 붙지 않게)
+  await context.routeWebSocket(/supabase\.co/, (ws) => ws.close())
+}
+
+async function launch() {
+  try {
+    return await chromium.launch()
+  } catch (e) {
+    // 이 판의 Playwright 브라우저가 없으면 미리 깔린 Chromium을 쓴다(클라우드 환경)
+    if (existsSync('/opt/pw-browsers/chromium')) return chromium.launch({ executablePath: '/opt/pw-browsers/chromium' })
+    throw e
+  }
+}
+
+const browser = await launch()
+const problems = []
+try {
+  for (const s of selected) {
+    try {
+      const context = await browser.newContext({
+        viewport: SIZES[s.w],
+        deviceScaleFactor: s.w === 390 ? 2 : 1,
+        colorScheme: s.c,
+        reducedMotion: 'reduce', // 캡처가 움직임 중간에 찍히지 않게
+        locale: 'ko-KR',
+      })
+      // 장보기 데모도 실제 서버로 나가는 요청이 없어야 한다. 셸이 아니어도 가로채 둔다
+      await fakeSupabase(context)
+      const page = await context.newPage()
+      page.on('pageerror', (e) => problems.push(`${s.name}: ${e.message}`))
+      await page.goto(BASE + s.path, { waitUntil: 'networkidle' })
+      await page.evaluate(() => document.fonts.ready)
+      if (s.shell) {
+        await page.locator('.tabbar').waitFor()
+        if (s.tab) {
+          if (s.tab === '설정') await page.getByRole('button', { name: '설정', exact: true }).locator('visible=true').first().click()
+          else await page.locator('.tabbar .tab', { hasText: s.tab }).click()
+        }
+        if (s.tab === '장보기' || s.path.includes('tab=grocery')) await page.getByText('살 것', { exact: true }).waitFor()
+        else await page.waitForLoadState('networkidle')
+      } else if (s.path === G) {
+        await page.getByText('살 것', { exact: true }).waitFor()
+      }
+      if (s.wait) await page.getByText(s.wait).waitFor()
+      if (s.where) await page.getByRole('button', { name: '어디서 살지' }).click()
+      if (s.record) {
+        await page.locator('.fab, .side-record').locator('visible=true').first().click()
+        await page.getByRole('dialog').first().waitFor()
+      }
+      if (s.sheet) {
+        await page.getByRole('button', { name: '담기', exact: true }).locator('visible=true').first().click()
+        await page.getByRole('dialog').waitFor()
+        await page.getByLabel('살 것').fill(s.sheet)
+      }
+      if (s.alert) {
+        await page.getByRole('button', { name: s.alert }).first().click()
+        await page.getByRole('dialog').waitFor()
+      }
+      if (s.edit) await page.getByRole('button', { name: '편집' }).click()
+      if (s.groupRemove) {
+        await page.locator('.group-remove').first().click()
+        await page.getByRole('button', { name: '되돌리기' }).waitFor()
+      }
+      if (s.pick) {
+        await page.getByRole('button', { name: '상품 고르기' }).first().click()
+        await page.getByRole('dialog').waitFor()
+        await page.locator('.cand-variant').first().waitFor()
+      }
+      if (s.detail) {
+        await page.locator('.row-name', { hasText: s.detail }).first().click()
+        await page.getByRole('dialog').waitFor()
+        const label = s.shell ? null : { price: '가격', safety: '안전', rating: '평가' }[s.tab]
+        if (label) await page.getByRole('tab', { name: label }).click()
+      }
+      if (s.openRemove) await page.getByRole('button', { name: `${s.openRemove} 빼기` }).focus()
+      if (s.remove) {
+        await page.getByRole('button', { name: `${s.remove} 빼기` }).focus()
+        await page.keyboard.press('Enter')
+        await page.getByRole('button', { name: '되돌리기' }).waitFor()
+      }
+      await page.waitForTimeout(450)
+
+      // 숫자로 확인할 수 있는 것은 여기서 먼저 잡는다: 가로 스크롤, 44px보다 작은 버튼, "0원", 금지 문구,
+      // 화면 아래 고정 요소끼리 겹침(장보기 담기 바·알림과 가계부 아래 탭)
+      const check = await page.evaluate(() => {
+        const out = []
+        if (document.documentElement.scrollWidth > window.innerWidth) out.push(`가로 스크롤 ${document.documentElement.scrollWidth}px`)
+        for (const el of document.querySelectorAll('button, a, input, textarea, [role="button"]')) {
+          const r = el.getBoundingClientRect()
+          const cs = getComputedStyle(el)
+          if (r.width === 0 || cs.visibility === 'hidden' || el.closest('.sr-only')) continue
+          // 장보기 규칙(44px)은 장보기 화면 안에서만 잰다. 가계부 화면은 가계부 DESIGN.md 기준이라 여기서 재지 않는다
+          if (!el.closest('.grocery')) continue
+          const ext = el.hasAttribute('data-touch-extend') ? getComputedStyle(el, '::before') : null
+          const extH = ext ? -parseFloat(ext.top) - parseFloat(ext.bottom) : 0
+          const extW = ext ? -parseFloat(ext.left) - parseFloat(ext.right) : 0
+          if (r.height + extH < 44 || r.width + extW < 44) out.push(`작은 터치 대상 ${Math.round(r.width)}x${Math.round(r.height)} "${(el.textContent || el.getAttribute('aria-label') || '').trim().slice(0, 20)}"`)
+        }
+        const g = document.querySelector('.grocery')
+        const text = g ? g.innerText : ''
+        if (/(^|[^\d,])0원/.test(text)) out.push('"0원" 있음')
+        for (const w of ['AI', '분석 중', '안전함', '문제 없음', ' · ']) if (text.includes(w)) out.push(`금지 문구 "${w}"`)
+        const box = (sel) => { const e = document.querySelector(sel); if (!e) return null; const r = e.getBoundingClientRect(); const cs = getComputedStyle(e); return cs.display === 'none' || r.height === 0 ? null : r }
+        const tab = box('.tabbar')
+        for (const sel of ['.grocery .bottom-bar', '.grocery .notice']) {
+          const b = box(sel)
+          if (tab && b && getComputedStyle(document.querySelector('.tabbar')).position === 'fixed' && b.bottom > tab.top + 0.5)
+            out.push(`${sel}이(가) 아래 탭과 겹침(아래 끝 ${Math.round(b.bottom)}, 탭 위 ${Math.round(tab.top)})`)
+        }
+        return out
+      })
+      for (const p of check) problems.push(`${s.name}: ${p}`)
+
+      await page.screenshot({ path: fileURLToPath(new URL(`${s.name}.png`, OUT)), fullPage: Boolean(s.full) })
+      console.log(`저장 ${s.name}.png`)
+      await context.close()
+    } catch (e) {
+      // 한 화면이 실패해도 나머지는 찍는다
+      problems.push(`${s.name}: 찍지 못함 — ${String(e.message).split('\n')[0]}`)
+    }
+  }
+} finally {
+  await browser.close()
+}
+
+if (problems.length) {
+  console.log('\n확인할 것:')
+  for (const p of problems) console.log(`- ${p}`)
+  process.exitCode = 1
+} else {
+  console.log('\n자동 확인: 문제 없음(눈으로도 확인할 것)')
+}

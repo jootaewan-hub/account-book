@@ -1,4 +1,4 @@
-import { StrictMode, type ReactNode } from 'react'
+import { StrictMode, type CSSProperties, type ReactNode } from 'react'
 import { createRoot } from 'react-dom/client'
 import App from './App'
 import { startPwa } from './lib/pwa'
@@ -19,7 +19,9 @@ async function devScreen(mode: string | null): Promise<ReactNode | null> {
   const full = mode === 'grocery'
   const memory = createMemoryStore(full ? d.items : [], d.me, undefined, full ? d.alerts : undefined, full ? d.prices : undefined)
   const store = mode === 'grocery-error' ? { ...memory, list: () => Promise.reject(new Error('데모: 불러오기 실패')) } : memory
-  return <div className="app wrap"><div className="grocery"><ListScreen store={store} me={d.me} /></div></div>
+  // 가계부 셸(아래 탭) 없이 장보기 화면만 본다: 아래 탭 높이를 0으로 두어 담기 바를 화면 맨 아래에 둔다
+  const noTabbar = { '--tabbar-h': '0px' } as CSSProperties
+  return <div className="wrap" style={noTabbar}><div className="grocery"><ListScreen store={store} me={d.me} /></div></div>
 }
 
 const root = createRoot(document.getElementById('root')!)
