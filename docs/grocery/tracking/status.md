@@ -10,6 +10,12 @@
   Edge Function 3개·함수 설정(`supabase/config.toml`)·식약처 예약 워크플로·문서. 가계부 아래 탭에 '장보기'(설정은 톱니 버튼), `?tab=grocery`.
   장보기 DB 테스트는 가계부 사본 대신 실제 마이그레이션 전부 위에서 돈다. 공유 DB와 배포된 함수에는 아무것도 하지 않았다.
   계획: `docs/superpowers/plans/2026-10-19-grocery-integration-move.md`(저장소 맨 위 docs).
+- 통합 2단계 일부(2026-10-19): 가계부 `main` f5eef3c로 병합(fast-forward)·배포 성공(Actions run 29). 배포된 페이지에서 커밋 f5eef3c,
+  CSP의 `img.danuri.io`, 번들의 장보기 탭을 확인했다. 가계부 쪽 식약처 워크플로 수동 실행: HTTP 200 `{"status":"skipped"}`(20시간 안에 이미 받음).
+  남은 것: 두 기기에서 장보기 탭 확인(사용자).
+- 통합 3단계 준비(2026-10-19): 장보기 저장소 브랜치 `claude/optimistic-newton-rp08ut`(52a08d1)에 안내 페이지(5초 뒤 가계부 `?tab=grocery`로),
+  서비스 워커 스스로 지우기(vite-plugin-pwa `selfDestroying`), 식약처 워크플로 삭제, 문서 맨 위 안내. 장보기 main 병합(=배포)은 두 기기 확인 뒤 사용자 지시로.
+  저장소 보관(archive)은 GitHub 저장소 Settings에서 사용자가 한다.
 
 ## 된 것 (2026-10-16 ~ 10-19, 장보기 저장소 때)
 
