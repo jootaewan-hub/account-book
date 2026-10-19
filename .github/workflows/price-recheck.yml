@@ -1,0 +1,39 @@
+name: 가격 다시 확인
+
+# 매일 07:30(한국 시간)과 수동 실행. Supabase Edge Function price-recheck를 부른다(안 산 품목이 고른 상품의 다나와·몰 주소 가격).
+# 호출 비밀번호는 없다: 함수가 20시간에 한 번만 실제로 받는다(이미 받았으면 200 {"status":"skipped"}, 30분 안 재시도는 429).
+# 207(일부만 확인)이면 31분 뒤 한 번 더 부른다(잠금 30분). 다나와는 상품 사이에 10초를 두므로 한 번에 10개 안팎을 본다.
+on:
+  schedule:
+    - cron: '30 22 * * *'
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: price-recheck
+  cancel-in-progress: false
+
+jobs:
+  recheck:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: 가격 다시 확인
+        run: |
+          call() {
+            code=$(curl -sS -m 170 -o body.json -w '%{http_code}' -X POST \
+              "https://kifdfpbwiebfgvdumqjf.supabase.co/functions/v1/price-recheck")
+            cat body.json
+            echo
+          }
+          call
+          if [ "$code" = "207" ]; then
+            echo "일부만 확인: 31분 뒤 다시 부른다"
+            sleep 1860
+            call
+          fi
+          if [ "$code" != "200" ]; then
+            echo "가격 다시 확인 실패: HTTP $code"
+            exit 1
+          fi

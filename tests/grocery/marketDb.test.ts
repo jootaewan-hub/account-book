@@ -217,9 +217,9 @@ describe('권한', () => {
     expect(await errorOf(as(null, `select * from grocery.watch`))).toMatch(/permission denied/)
   })
 
-  it('시세 잠금 행(2)이 있고 식약처 잠금(1)은 그대로(참가격 잠금 3은 20261023000000에서)', async () => {
+  it('시세 잠금 행(2)이 있고 식약처 잠금(1)은 그대로(잠금 3·4는 20261023000000에서)', async () => {
     const r = await db.query<{ id: number }>(`select id from grocery.sync_lock order by id`)
-    expect(r.rows.map((x) => x.id)).toEqual([1, 2, 3])
-    expect(await errorOf(db.query(`insert into grocery.sync_lock (id, locked_at) values (4, now())`))).toMatch(/sync_lock_id_check/)
+    expect(r.rows.map((x) => x.id)).toEqual([1, 2, 3, 4])
+    expect(await errorOf(db.query(`insert into grocery.sync_lock (id, locked_at) values (5, now())`))).toMatch(/sync_lock_id_check/)
   })
 })

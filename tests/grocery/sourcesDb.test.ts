@@ -173,9 +173,9 @@ describe('참가격 표', () => {
     expect(await errorOf(price('7', '1002', '2026-10-09', 100))).toMatch(/foreign key/)
   })
 
-  it('수집 잠금 id 3이 있다', async () => {
-    expect(await scalar<number>(`select count(*)::int from grocery.sync_lock where id = 3 and locked_at = '-infinity'`)).toBe(1)
-    expect(await errorOf(db.query(`insert into grocery.sync_lock (id, locked_at) values (4, now())`))).toMatch(/check constraint/)
+  it('수집 잠금 id 3(참가격)·4(가격 다시 확인)가 있다', async () => {
+    expect(await scalar<number>(`select count(*)::int from grocery.sync_lock where id in (3, 4) and locked_at = '-infinity'`)).toBe(2)
+    expect(await errorOf(db.query(`insert into grocery.sync_lock (id, locked_at) values (5, now())`))).toMatch(/check constraint/)
   })
 })
 

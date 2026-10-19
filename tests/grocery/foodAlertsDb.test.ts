@@ -82,8 +82,8 @@ describe('동기화 잠금', () => {
     expect((await take('2026-10-19T10:01:00Z', '2026-10-19T10:31:00Z')).rows).toHaveLength(1)
   })
 
-  it('잠금 행은 식약처(1)·시세(2, 20261022000000)·참가격(3, 20261023000000)뿐이다', async () => {
-    expect(await errorOf(db.query(`insert into grocery.sync_lock (id, locked_at) values (4, now())`))).toMatch(/check/)
+  it('잠금 행은 식약처(1)·시세(2, 20261022000000)·참가격(3)·가격 다시 확인(4, 20261023000000)뿐이다', async () => {
+    expect(await errorOf(db.query(`insert into grocery.sync_lock (id, locked_at) values (5, now())`))).toMatch(/check/)
     expect(await errorOf(db.query(`insert into grocery.sync_lock (id, locked_at) values (2, now())`))).toMatch(/duplicate key/)
   })
 

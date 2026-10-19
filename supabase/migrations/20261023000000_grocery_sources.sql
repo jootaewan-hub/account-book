@@ -295,7 +295,7 @@ $$;
 revoke execute on function grocery.item_store_prices(uuid) from public, anon;
 grant execute on function grocery.item_store_prices(uuid) to authenticated;
 
--- 6. 참가격 수집 잠금 id 3(식약처 1, 시세 2와 같은 방식).
+-- 6. 수집 잠금: 참가격 id 3, 하루 한 번 가격 다시 확인(price-recheck) id 4(식약처 1, 시세 2와 같은 방식).
 alter table grocery.sync_lock drop constraint sync_lock_id_check;
-alter table grocery.sync_lock add constraint sync_lock_id_check check (id in (1, 2, 3));
-insert into grocery.sync_lock (id, locked_at) values (3, '-infinity');
+alter table grocery.sync_lock add constraint sync_lock_id_check check (id in (1, 2, 3, 4));
+insert into grocery.sync_lock (id, locked_at) values (3, '-infinity'), (4, '-infinity');
