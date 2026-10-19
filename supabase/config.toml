@@ -1,0 +1,20 @@
+# Supabase CLI 설정 중 이 저장소의 함수에 필요한 부분만 둔다. 값은 배포된 함수의 설정과 같다(2026-10-19 확인).
+
+# 스마트 입력은 로그인한 사용자만 부른다(로그인 토큰을 Anthropic 단기 토큰으로 바꾼다).
+[functions.extract-entries]
+verify_jwt = true
+
+# 구글 시트 IMPORTDATA가 로그인 없이 부른다(주소의 가구별 비밀 토큰으로 막는다).
+[functions.export-csv]
+verify_jwt = false
+
+# food-alerts-sync는 GitHub Actions 예약 실행이 비밀번호 없이 부른다(함수가 20시간 1회·30분 잠금으로 스스로 막는다).
+[functions.food-alerts-sync]
+verify_jwt = false
+
+# 가격 확인 함수는 로그인한 사용자만 부른다(가구 소속은 함수 안에서 RLS로 확인).
+[functions.product-search]
+verify_jwt = true
+
+[functions.product-check]
+verify_jwt = true
