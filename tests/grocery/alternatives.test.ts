@@ -15,6 +15,7 @@ describe('alternatives', () => {
   it('같은 수량 가격이 더 싸면 "더 쌈"(차액), 평점이 0.2 이상 높고 후기 100개 이상이면 "평가가 좋음"', () => {
     const out = alternatives([chosen, c('p2', '동원 왕교자 1.05kg', 4.8, 9900), c('p3', '풀무원 왕교자 1kg', 4.9, 10900, 1, 150), c('p4', '오뚜기 교자 1kg', 4.2, 12000), c('p5', '후기 적음', 4.9, 10900, 1, 50)], 'p1', 1, new Set())
     expect(out.map((a) => a.productId)).toEqual(['p2', 'p3'])
+    expect(out.map((a) => a.foundAt)).toEqual([at, at]) // 줄마다 다나와 확인 시각(기준일)을 쓴다
     expect(out[0].reasons).toEqual([
       { kind: 'cheaper', text: '1개 9,900원, 480원 더 쌈' },
       { kind: 'rating', text: '평점 4.8(후기 500개), 고른 상품 4.6' },

@@ -93,7 +93,7 @@ security invoker
 set search_path = ''
 as $$
   with it as (
-    select i.household_id, i.transaction_id, grocery.name_key(i.name, i.spec) as k, grocery.name_tokens(i.name) as toks
+    select i.household_id, i.transaction_id, i.paid, grocery.name_key(i.name, i.spec) as k, grocery.name_tokens(i.name) as toks
       from grocery.items i where i.id = p_item
   ),
   lines as (
@@ -105,16 +105,32 @@ as $$
       join public.transaction_items ti on ti.transaction_id = t.id
      where t.occurred_on >= current_date - 365 or t.id = it.transaction_id
   ),
+  -- 연결된 내역의 줄 고르기: 산 금액(items.paid)과 같은 줄 → 이름 단어가 가장 많이 맞는 줄. 단어가 하나도 안 맞고(한 글자 품목 등) 줄이 여럿이면
+  -- 다른 상품 줄을 집지 않고 총액 한 줄(이름은 내역 제목, 단위 가격 없음, 금액은 산 금액 또는 내역 총액)로 둔다.
   linked as (
-    select 0 as r, 'linked'::text as kind, t.id as txid, l.tid, t.occurred_on, t.platform, t.title, t.created_by,
-           coalesce(l.name, t.title) as name, l.quantity, l.unit_price, coalesce(l.amount, t.amount) as amount, l.pack_size, l.pack_unit
+    select 0 as r, 'linked'::text as kind, t.id as txid,
+           case when l.use_line then l.tid end as tid,
+           t.occurred_on, t.platform, t.title, t.created_by,
+           case when l.use_line then l.name else t.title end as name,
+           case when l.use_line then l.quantity end as quantity,
+           case when l.use_line then l.unit_price end as unit_price,
+           case when l.use_line then l.amount else coalesce(it.paid, t.amount) end as amount,
+           case when l.use_line then l.pack_size end as pack_size,
+           case when l.use_line then l.pack_unit end as pack_unit
       from it
       join public.transactions t on t.id = it.transaction_id
       left join lateral (
-        select l.* from lines l
+        select l.*,
+               (select count(*) from unnest(it.toks) k where strpos(l.nn, k) > 0) as hits,
+               (select count(*) from lines x where x.txid = t.id) as n_lines
+          from lines l
          where l.txid = t.id
-         order by (select count(*) from unnest(it.toks) k where strpos(l.nn, k) > 0) desc, l.sort
+         order by (it.paid is not null and l.amount = it.paid) desc, (select count(*) from unnest(it.toks) k where strpos(l.nn, k) > 0) desc, l.sort
          limit 1
+      ) l0 on true
+      left join lateral (
+        select l0.tid, l0.name, l0.quantity, l0.unit_price, l0.amount, l0.pack_size, l0.pack_unit,
+               (l0.tid is not null and (l0.n_lines = 1 or l0.hits > 0 or (it.paid is not null and l0.amount = it.paid))) as use_line
       ) l on true
   ),
   verdicts as (

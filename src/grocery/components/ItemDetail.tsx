@@ -411,6 +411,7 @@ export default function ItemDetail({ item, store, onChangeProduct, onClose, mark
                               {a.reasons.map((r) => <span key={r.kind} className="tag">{r.kind === 'cheaper' ? '더 쌈' : '평가가 좋음'}</span>)}
                             </p>
                             {a.reasons.map((r) => <p key={r.kind} className="src-line">{r.text}</p>)}
+                            <p className="src-line">다나와, {checkedText(a.foundAt)} 확인</p>
                           </div>
                         </li>
                       ))}

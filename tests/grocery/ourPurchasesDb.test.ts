@@ -91,6 +91,26 @@ describe('our_purchases: 연결된 기록(linked)', () => {
     expect(rows[0].pack_size).toBe(1050)
   })
 
+  it('이름 단어가 하나도 안 맞으면(한 글자 품목 등) 산 금액(paid)과 같은 줄을 고르고, 그것도 없으면 다른 상품 줄 대신 총액 한 줄', async () => {
+    const t = await tx(hhAB, A, day(2), 5500, '시장', null)
+    await line(t, hhAB, '대파 1단', 3000, 1, 3000, null, 0)
+    const milk = await line(t, hhAB, '우유', 2500, 1, 2500, null, 1)
+    // '파'는 두 글자 미만이라 단어가 없다. 산 금액이 2,500원이면 우유 줄이 아니라… 금액이 같은 줄을 고른다
+    const it1 = await scalar<string>(
+      `insert into grocery.items (household_id, name, category, added_by, transaction_id, bought_at, bought_by, paid) values ($1, '파', '채소', $2, $3, now(), $2, 2500) returning id`,
+      [hhAB, A, t],
+    )
+    expect((await ours(A, it1)).map((r) => [r.kind, r.transaction_item_id, r.unit_price])).toEqual([['linked', milk, 2500]])
+    // 산 금액을 모르면 다른 상품(첫 줄 '대파')을 집지 않고 총액 한 줄
+    const it2 = await scalar<string>(
+      `insert into grocery.items (household_id, name, category, added_by, transaction_id, bought_at, bought_by) values ($1, '무', '채소', $2, $3, now(), $2) returning id`,
+      [hhAB, A, t],
+    )
+    const rows = await ours(A, it2)
+    expect(rows).toHaveLength(1)
+    expect(rows[0]).toMatchObject({ kind: 'linked', transaction_item_id: null, name: '시장', unit_price: null, quantity: null, amount: 5500 })
+  })
+
   it('품목 줄이 없는 내역(총액만)은 단위 가격을 비운 한 줄', async () => {
     const t = await tx(hhAB, A, day(1), 23000, '시장', null)
     const it1 = await item(hhAB, A, '대파', null, t)

@@ -55,7 +55,7 @@ Deno.serve(async (req) => {
   if (!member) return fail('no_household', '가계부에 참여한 뒤 쓸 수 있어요.', 403)
 
   const client = anthropicFor(userId, jwt)
-  if (!client) return fail('ai_not_configured', 'AI 연결 설정이 아직 안 됐어요.', 503)
+  if (!client) return fail('ai_not_configured', '사진 읽기 설정이 아직 안 됐어요.', 503)
 
   const content: Anthropic.ContentBlockParam[] = [
     { type: 'image', source: { type: 'base64', media_type: input.image.media_type, data: input.image.data } },
@@ -104,12 +104,12 @@ Deno.serve(async (req) => {
   } catch (e) {
     if (e instanceof WorkloadIdentityError) {
       console.error('wif_exchange_failed', e.statusCode, e.requestId, e.message)
-      return fail('wif_denied', 'AI 연결 인증에 실패했어요.', 502)
+      return fail('wif_denied', '사진 읽기 서버 인증에 실패했어요.', 502)
     }
     if (e instanceof Anthropic.APIError) {
       console.error('anthropic_error', e.status, e.requestID, e.message)
       if (e.status === 429) return fail('rate_limited', '잠시 후 다시 시도해 주세요.', 429)
-      return fail('ai_error', 'AI 응답에 문제가 생겼어요. 잠시 후 다시 시도해 주세요.', 502)
+      return fail('ai_error', '사진을 읽지 못했어요. 잠시 후 다시 시도해 주세요.', 502)
     }
     console.error('photo_failed', e)
     return fail('ai_error', '사진을 읽지 못했어요. 다시 시도하거나 직접 적어 주세요.', 502)

@@ -84,3 +84,15 @@ describe('사진으로 담기(list)', () => {
     expect(LIST_PROMPT).toMatch(/추측/)
   })
 })
+
+describe('사진 읽기 오류 문구(장보기 화면용)', () => {
+  it('서버 코드마다 "AI"라는 말 없이 하는 일 그대로 쓰고, 모르는 코드는 서버 문구를 그대로 쓴다', async () => {
+    const { photoErrorText } = await import('../../src/grocery/lib/photo')
+    for (const code of ['ai_not_configured', 'wif_denied', 'wif_aud_missing', 'ai_error', 'rate_limited', 'refused', 'no_household', 'unauthorized', 'bad_request', 'network']) {
+      expect(photoErrorText(code, 'AI 연결 설정이 아직 안 됐어요.')).not.toMatch(/AI|분석/)
+    }
+    expect(photoErrorText('ai_not_configured', 'x')).toBe('사진 읽기 설정이 아직 안 됐어요.')
+    expect(photoErrorText('rate_limited', 'x')).toBe('잠시 후 다시 시도해 주세요.')
+    expect(photoErrorText('odd_code', '서버가 준 문구')).toBe('서버가 준 문구')
+  })
+})

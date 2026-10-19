@@ -10,7 +10,8 @@ import { PhotoPick } from './PhotoCapture'
 const CLOSE_MS = 250
 const SCAN_MS = 300
 
-type Result = { code: string; records: BarcodeRecord[]; syncedAt: AlertsResult['syncedAt'] }
+/** failed: 식약처 기록을 확인하지 못함("기록 없음"이 아니다) */
+type Result = { code: string; records: BarcodeRecord[]; syncedAt: AlertsResult['syncedAt']; failed: boolean }
 type Stage = 'camera' | 'nocam' | 'reading' | 'checking' | Result
 
 type Props = {
@@ -55,22 +56,21 @@ export default function BarcodeSheet({ store, initialCode, onAddText, onClose }:
       stopCamera()
       setStage('checking')
       store.barcodeAlerts(code).then(
-        (r) => setStage({ code, records: r.records, syncedAt: r.syncedAt }),
-        () => {
-          setStage({ code, records: [], syncedAt: {} })
-          setMsg('식약처 기록을 확인하지 못했어요. 잠시 뒤 다시 해 주세요.')
-        },
+        (r) => setStage({ code, records: r.records, syncedAt: r.syncedAt, failed: false }),
+        () => setStage({ code, records: [], syncedAt: {}, failed: true }),
       )
     },
     [store, stopCamera],
   )
 
-  // 카메라 열기(사용자 동작으로 연 시트 안이라 iOS에서도 된다). 못 열면 사진으로 읽기만 둔다.
+  // 개발용 initialCode: 카메라 없이 바로 결과
   useEffect(() => {
-    if (initialCode) {
-      lookup(initialCode)
-      return
-    }
+    if (initialCode) lookup(initialCode)
+  }, [initialCode, lookup])
+
+  // 카메라 열기(사용자 동작으로 연 시트 안이라 iOS에서도 된다). 못 열면 사진으로 읽기만 둔다. "다른 바코드 읽기"로 stage가 camera로 돌아오면 다시 켠다.
+  useEffect(() => {
+    if (stage !== 'camera') return
     let cancelled = false
     const start = async () => {
       if (!navigator.mediaDevices?.getUserMedia) {
@@ -108,7 +108,7 @@ export default function BarcodeSheet({ store, initialCode, onAddText, onClose }:
       cancelled = true
       stopCamera()
     }
-  }, [initialCode, lookup, stopCamera])
+  }, [stage, lookup, stopCamera])
 
   useEffect(() => {
     closeBtn.current?.focus({ preventScroll: true })
@@ -224,7 +224,9 @@ export default function BarcodeSheet({ store, initialCode, onAddText, onClose }:
           {result && (
             <>
               <p className="barcode-code num">바코드 {result.code}</p>
-              {result.records.length > 0 ? (
+              {result.failed ? (
+                <p className="cand-state" role="status">식약처 기록을 확인하지 못했어요. 잠시 뒤 "다른 바코드 읽기"로 다시 해 주세요. 확인 전에는 기록이 없다고 볼 수 없어요.</p>
+              ) : result.records.length > 0 ? (
                 <>
                   <p className="alert-badge alert-record">회수 기록 있음</p>
                   <ul className="alert-list">
@@ -247,7 +249,7 @@ export default function BarcodeSheet({ store, initialCode, onAddText, onClose }:
               ) : (
                 <p className="detail-none">확인한 범위에서 바코드가 같은 식약처 기록 없음</p>
               )}
-              <p className="alert-range">{checkedRange(result.syncedAt)}</p>
+              {!result.failed && <p className="alert-range">{checkedRange(result.syncedAt)}</p>}
 
               <p className="detail-sub">상품 찾기</p>
               <div className="detail-links">

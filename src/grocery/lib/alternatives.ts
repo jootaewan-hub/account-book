@@ -4,7 +4,7 @@ import { won } from './format'
 import type { Candidate } from './products'
 
 export type Reason = { kind: 'cheaper' | 'rating'; text: string }
-export type Alternative = { productId: string; name: string; imageUrl: string | null; reasons: Reason[] }
+export type Alternative = { productId: string; name: string; imageUrl: string | null; reasons: Reason[]; /** 다나와 후보를 찾은 시각(기준일) */ foundAt: string }
 
 const RATING_GAP = 0.2
 const MIN_REVIEWS = 100
@@ -25,7 +25,7 @@ export function alternatives(candidates: Candidate[], chosenId: string, qty: num
     if (c.rating !== null && chosen.rating !== null && c.rating - chosen.rating >= RATING_GAP - 1e-9 && (c.reviewCount ?? 0) >= MIN_REVIEWS) {
       reasons.push({ kind: 'rating', text: `평점 ${c.rating.toFixed(1)}(후기 ${(c.reviewCount ?? 0).toLocaleString('ko-KR')}개), 고른 상품 ${chosen.rating.toFixed(1)}` })
     }
-    if (reasons.length > 0) out.push({ productId: c.productId, name: c.name, imageUrl: c.imageUrl, reasons })
+    if (reasons.length > 0) out.push({ productId: c.productId, name: c.name, imageUrl: c.imageUrl, reasons, foundAt: c.foundAt })
   }
   return out
 }
