@@ -1,5 +1,7 @@
 # 현재 상태
 
+> **이어서 하기(2026-10-19 클라우드 세션 끝)**: `docs/HANDOFF.md`를 먼저 본다. 다음은 P3-1(몰 상품 페이지 읽기)이다.
+
 > 2026-10-19부터 장보기는 가계부 저장소(jootaewan-hub/account-book) 안의 '장보기' 탭이다(D-010). 이 문서는 장보기 저장소(jootaewan-hub/grocery-app)에서 옮겨 왔고,
 > 아래 "된 것"의 경로(`docs/…`, `src/…`, `tests/…`)는 장보기 저장소 때 경로다. 지금 위치는 `docs/grocery/…`, `src/grocery/…`, `tests/grocery/…`이고
 > 마이그레이션·Edge Function은 이름 그대로 `supabase/` 아래에 있다.
