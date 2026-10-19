@@ -2,7 +2,7 @@
 // 금액은 사용자가 적은 값이나 영수증 값만 쓴다. 장보기에서 확인한 가격(다나와 등)을 낸 금액으로 채우지 않는다.
 import { suggestCategory } from '../../lib/categorize'
 import { platformOf } from '../../lib/platform'
-import { productTitle } from '../../lib/smart'
+import { isProductLine, productTitle } from '../../lib/smart'
 import type { Category as LedgerCategory, Scope } from '../../lib/types'
 import type { Category } from './categories'
 import type { Item } from './types'
@@ -156,6 +156,50 @@ export function matchReceipt(
       out.set(g.id, hit.key)
       used.add(hit.key)
     }
+  }
+  return out
+}
+
+/** 영수증·주문 초안에서 장보기 품목과 맞춰 볼 상품 줄. key = '초안 key:품목 번호' */
+export type ReceiptLine = { key: string; draftKey: string; name: string; amount: number }
+
+type DraftLike = {
+  key: string; include: boolean; type: 'expense' | 'income'; title: string; amount: number
+  items: { name: string; amount: number; is_product?: boolean }[]
+}
+
+/**
+ * 저장할 지출 초안의 상품 줄. 상품이 하나뿐인 초안은 초안 금액(할인을 나눠 뺀 실제 낸 값)을, 여럿이면 그 줄 금액을 쓴다.
+ * 상품 줄이 없는 초안(카드 문자 등)은 내역 이름을 한 줄로 쓴다.
+ */
+export function receiptLines(drafts: DraftLike[]): ReceiptLine[] {
+  return drafts
+    .filter((d) => d.include && d.type === 'expense')
+    .flatMap((d) => {
+      const products = d.items.map((it, j) => ({ it, j })).filter(({ it }) => isProductLine(it))
+      if (products.length === 0) return [{ key: `${d.key}:t`, draftKey: d.key, name: d.title, amount: d.amount }]
+      return products.map(({ it, j }) => ({
+        key: `${d.key}:${j}`, draftKey: d.key, name: it.name, amount: products.length === 1 ? d.amount : it.amount,
+      }))
+    })
+}
+
+/**
+ * 고른 짝(장보기 품목 id → 상품 줄 key)과 저장한 초안의 내역 id로 link_purchase에 보낼 묶음을 만든다.
+ * 저장하지 않은 초안(빼기)에 붙은 짝은 버린다. 돌려주는 것: 내역 id → [{ item_id, paid }]
+ */
+export function linksByTx(
+  lines: ReceiptLine[],
+  picks: ReadonlyMap<string, string>,
+  txOf: ReadonlyMap<string, string>,
+): Map<string, { item_id: string; paid: number | null }[]> {
+  const out = new Map<string, { item_id: string; paid: number | null }[]>()
+  for (const [itemId, lineKey] of picks) {
+    const line = lines.find((l) => l.key === lineKey)
+    const tx = line ? txOf.get(line.draftKey) : undefined
+    if (!line || !tx) continue
+    const paid = line.amount > 0 ? line.amount : null
+    out.set(tx, [...(out.get(tx) ?? []), { item_id: itemId, paid }])
   }
   return out
 }

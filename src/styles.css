@@ -421,6 +421,14 @@ input[type="search"].input { -webkit-appearance: none; appearance: none; }
 .pv { position: relative; flex: none; }
 .pv-x { position: absolute; top: -6px; right: -6px; width: 28px; height: 28px; border-radius: 50%; border: 2px solid var(--canvas); background: var(--primary); color: var(--on-primary); font-size: 16px; line-height: 1; padding: 0; }
 .draft-group { display: flex; flex-direction: column; gap: 10px; }
+/* 영수증·주문 확인 화면의 장보기 품목 연결(D-011) */
+.grocery-match { display: flex; flex-direction: column; gap: 10px; margin-top: 12px; }
+.grocery-match .section-title { margin: 0; }
+.grocery-match-lead { margin: 0; font-size: 14px; color: var(--ink-2); }
+.grocery-match-row { min-height: 44px; align-items: center; font-size: 15px; color: var(--ink); }
+.grocery-match-row b { font-weight: 700; margin-right: 6px; }
+.grocery-match-line { color: var(--ink-2); }
+.grocery-match-done { margin: 0; font-size: 14px; color: var(--ink-2); }
 .split-toggle { font-size: 14px; color: var(--ink-2); align-items: flex-start; }
 .update-bar { position: fixed; z-index: 70; left: 50%; transform: translateX(-50%); top: calc(8px + env(safe-area-inset-top, 0px)); background: var(--primary); color: var(--on-primary); border: 0; border-radius: 22px; padding: 10px 16px; font-size: 14px; font-weight: 700; white-space: nowrap; max-width: calc(100% - 32px); }
 .update-bar:active { transform: translateX(-50%) scale(.97); }

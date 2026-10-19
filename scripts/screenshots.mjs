@@ -8,7 +8,7 @@
 import { existsSync, mkdirSync } from 'node:fs'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { chromium } from 'playwright'
-import { fakeSession, TABLES, USER } from './shell-fixtures.mjs'
+import { fakeSession, RECEIPT, TABLES, USER } from './shell-fixtures.mjs'
 
 const BASE = process.env.BASE_URL ?? 'http://localhost:5173'
 const OUT = process.env.OUT_DIR ? pathToFileURL(`${process.env.OUT_DIR.replace(/\/$/, '')}/`) : new URL('../screenshots/', import.meta.url)
@@ -66,6 +66,8 @@ const shellShots = [
   ...each((w, c) => ({ name: `shell-grocery-detail-${w}-${c}`, path: '/', w, c, shell: true, tab: '장보기', detail: '비비고 왕교자' })),
   ...each((w, c) => ({ name: `shell-entry-sheet-${w}-${c}`, path: '/', w, c, shell: true, tab: '내역', record: true })),
   ...both(390, (w, c) => ({ name: `shell-deeplink-grocery-${w}-${c}`, path: '/?tab=grocery', w, c, shell: true })),
+  // 영수증 확인 화면의 '장보기 목록에서 찾은 품목'(D-011 길 ①). 가짜 영수증 응답(RECEIPT)
+  ...each((w, c) => ({ name: `shell-smart-grocery-${w}-${c}`, path: '/', w, c, shell: true, tab: '내역', receipt: true })),
 ]
 
 const shots = [...groceryShots, ...shellShots]
@@ -82,6 +84,7 @@ async function fakeSupabase(context) {
     if (url.pathname.startsWith('/auth/v1/user')) return json(USER)
     if (url.pathname.startsWith('/auth/v1/token')) return json(fakeSession())
     if (url.pathname.startsWith('/auth/v1/logout')) return route.fulfill({ status: 204 })
+    if (url.pathname === '/functions/v1/extract-entries') return json(RECEIPT)
     if (url.pathname.startsWith('/functions/v1/')) return json({ status: 'skipped' })
     if (url.pathname.startsWith('/storage/v1/')) return json([])
     const m = url.pathname.match(/^\/rest\/v1\/(.+)$/)
@@ -146,7 +149,17 @@ try {
         await page.locator('.fab, .side-record').locator('visible=true').first().click()
         await page.getByRole('dialog').first().waitFor()
       }
-      if (s.sheet) {
+      if (s.receipt) {
+      await page.locator('.fab, .side-record').locator('visible=true').first().click()
+      await page.getByRole('button', { name: '영수증', exact: true }).click()
+      // 1x1 JPEG 한 장(내용은 쓰지 않는다: 분석 응답은 가짜)
+      const jpeg = Buffer.from('/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRofHh0aHBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/wAALCAABAAEBAREA/8QAFAABAAAAAAAAAAAAAAAAAAAACf/EABQQAQAAAAAAAAAAAAAAAAAAAAD/2gAIAQEAAD8AKp//2Q==', 'base64')
+      await page.locator('input[type=file]').setInputFiles({ name: 'r.jpg', mimeType: 'image/jpeg', buffer: jpeg })
+      await page.getByRole('button', { name: /장 분석하기$/ }).click()
+      await page.getByText('장보기 목록에서 찾은 품목').waitFor()
+      await page.locator('.grocery-match').scrollIntoViewIfNeeded()
+    }
+    if (s.sheet) {
         await page.getByRole('button', { name: '담기', exact: true }).locator('visible=true').first().click()
         await page.getByRole('dialog').waitFor()
         await page.getByLabel('살 것').fill(s.sheet)

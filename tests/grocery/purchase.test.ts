@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildEntries, itemLabel, ledgerCategoryFor, matchReceipt, parsePack, type PurchaseInput } from '../../src/grocery/lib/purchase'
+import { buildEntries, itemLabel, ledgerCategoryFor, linksByTx, matchReceipt, parsePack, receiptLines, type PurchaseInput } from '../../src/grocery/lib/purchase'
 import type { Item } from '../../src/grocery/lib/types'
 import type { Category as LedgerCategory } from '../../src/lib/types'
 
@@ -145,5 +145,38 @@ describe('영수증 상품 ↔ 장보기 품목 맞추기', () => {
   })
   it('맞는 게 없으면 비어 있다', () => {
     expect(matchReceipt(lines('배송비'), [{ id: 'a', name: '대파' }]).size).toBe(0)
+  })
+})
+
+describe('영수증 초안 → 상품 줄 → 연결 묶음', () => {
+  const draft = (key: string, p: Partial<Parameters<typeof receiptLines>[0][number]> = {}) =>
+    ({ key, include: true, type: 'expense' as const, title: '이마트', amount: 10000, items: [], ...p })
+
+  it('상품이 하나뿐인 초안은 초안 금액(할인 반영), 여럿이면 줄 금액, 배송비·할인 줄은 빼고, 수입·뺀 초안은 넣지 않는다', () => {
+    const lines = receiptLines([
+      draft('0-0', { title: '대파', amount: 2700, items: [{ name: '국산 대파', amount: 3000 }] }),
+      draft('1', { amount: 9000, items: [{ name: '우유', amount: 5000 }, { name: '두부', amount: 4000 }, { name: '배송비', amount: 3000 }, { name: '쿠폰', amount: -3000 }] }),
+      draft('2', { title: '스타벅스', amount: 6500 }),
+      draft('3', { type: 'income', title: '환불' }),
+      draft('4', { include: false, title: '빼 둔 것' }),
+    ])
+    expect(lines).toEqual([
+      { key: '0-0:0', draftKey: '0-0', name: '국산 대파', amount: 2700 },
+      { key: '1:0', draftKey: '1', name: '우유', amount: 5000 },
+      { key: '1:1', draftKey: '1', name: '두부', amount: 4000 },
+      { key: '2:t', draftKey: '2', name: '스타벅스', amount: 6500 },
+    ])
+  })
+
+  it('고른 짝을 내역별로 묶고, 저장 안 한 초안의 짝은 버린다', () => {
+    const lines = receiptLines([
+      draft('a', { items: [{ name: '대파', amount: 3000 }] , amount: 3000 }),
+      draft('b', { amount: 9000, items: [{ name: '우유', amount: 5000 }, { name: '두부', amount: 4000 }] }),
+    ])
+    const picks = new Map([['g1', 'a:0'], ['g2', 'b:0'], ['g3', 'b:1'], ['g4', 'x:0']])
+    const out = linksByTx(lines, picks, new Map([['a', 'tx-a'], ['b', 'tx-b']]))
+    expect(out.get('tx-a')).toEqual([{ item_id: 'g1', paid: 3000 }])
+    expect(out.get('tx-b')).toEqual([{ item_id: 'g2', paid: 5000 }, { item_id: 'g3', paid: 4000 }])
+    expect(linksByTx(lines, picks, new Map([['a', 'tx-a']])).has('tx-b')).toBe(false)
   })
 })

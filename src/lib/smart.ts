@@ -398,9 +398,9 @@ export async function analyzeImages(
 /**
  * 초안 하나를 저장한다. 할부를 나눠 넣으면 첫 회차만 이 날짜의 내역으로 넣고,
  * 남은 회차는 반복 항목(할부)으로 등록해 날짜가 되면 자동으로 들어가게 한다.
- * 저장한 것이 할부 나눠 넣기였으면 true.
+ * installment: 할부 나눠 넣기였는지, txId: 만든 내역 id(장보기 품목을 연결할 때 쓴다, D-011).
  */
-export async function saveDraft(householdId: string, d: Draft, source: 'text' | 'photo'): Promise<boolean> {
+export async function saveDraft(householdId: string, d: Draft, source: 'text' | 'photo'): Promise<{ installment: boolean; txId: string }> {
   const months = d.type === 'expense' ? d.installment : null
   const title = d.title.trim().slice(0, 60)
   const plan = months && d.splitInstallment && canSplitInstallment(d.amount, months)
@@ -414,7 +414,7 @@ export async function saveDraft(householdId: string, d: Draft, source: 'text' | 
   // 상품 사진을 먼저 올리고 경로를 품목에 붙인다. 사진 올리기가 실패해도 내역은 저장한다
   const paths = await Promise.all(d.items.map((it) =>
     it.photo ? uploadItemImage(householdId, it.photo.blob).catch(() => null) : Promise.resolve(null)))
-  const { error } = await sb().rpc('add_transaction_with_items', {
+  const { data, error } = await sb().rpc('add_transaction_with_items', {
     p_household_id: householdId,
     p_tx: {
       type: d.type, occurred_on: d.date, occurred_at: d.time, amount: plan ? plan.first : d.amount, title, memo,
@@ -431,5 +431,5 @@ export async function saveDraft(householdId: string, d: Draft, source: 'text' | 
     if (recurringId) await sb().from('recurring').delete().eq('id', recurringId)
     throw new Error(error.message)
   }
-  return plan !== null
+  return { installment: plan !== null, txId: data as string }
 }

@@ -1,4 +1,6 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { linkGroceryItems, loadReceiptGroceryItems, type ReceiptGroceryItem } from '../grocery/lib/ledgerLink'
+import { linksByTx, matchReceipt, receiptLines } from '../grocery/lib/purchase'
 import { friendlyError, generateRecurring } from '../lib/api'
 import { won } from '../lib/format'
 import { cropImage, fileToJpeg, type PreparedImage } from '../lib/image'
@@ -10,6 +12,7 @@ import {
 import { BillReview } from './BillReview'
 import type { Category, Transaction, TxType } from '../lib/types'
 import { defaultScope } from './EntrySheet'
+import { GroceryMatchCard } from './GroceryMatchCard'
 import { InstallmentPicker } from './InstallmentPicker'
 import { ItemInfo } from './ItemInfo'
 import { PlatformInput } from './PlatformInput'
@@ -62,6 +65,23 @@ export function SmartSheet({ open, mode, today, householdId, lookup, categories,
   const [preparing, setPreparing] = useState(false)
   const [progress, setProgress] = useState('')
   const [bill, setBill] = useState<CheckedBill | null>(null)
+  // 영수증·쇼핑 주문을 장보기 품목과 맞춘다(D-011 길 ①). 장보기를 못 불러와도 입력은 그대로 된다
+  const [grocery, setGrocery] = useState<ReceiptGroceryItem[]>([])
+  const [picks, setPicks] = useState<ReadonlyMap<string, string>>(new Map())
+  const lines = useMemo(() => receiptLines(drafts), [drafts])
+  const suggested = useMemo(() => matchReceipt(lines, grocery.filter((g) => !g.linked)), [lines, grocery])
+  const linkedMatches = useMemo(() => matchReceipt(lines, grocery.filter((g) => g.linked)), [lines, grocery])
+  // 제안이 바뀔 때만 체크를 다시 채운다(초안 이름·금액을 고쳐도 사용자가 푼 체크는 그대로)
+  const suggestKey = [...suggested].map(([id, key]) => `${id}>${key}`).join('|')
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { setPicks(suggested) }, [suggestKey])
+  const withGrocery = mode === 'photo' || mode === 'shop'
+  useEffect(() => {
+    if (!open || stage !== 'review' || !withGrocery) return
+    let alive = true
+    loadReceiptGroceryItems(householdId).then((g) => { if (alive) setGrocery(g) }, () => { if (alive) setGrocery([]) })
+    return () => { alive = false }
+  }, [open, stage, withGrocery, householdId])
   // 관리비 고지서는 한 장의 여러 부분이라 한 번에 보낸다
   const maxPhotos = mode === 'bill' ? BATCH_SIZE : MAX_PHOTOS
   const fileRef = useRef<HTMLInputElement>(null)
@@ -78,6 +98,7 @@ export function SmartSheet({ open, mode, today, householdId, lookup, categories,
     reqRef.current++
     dropPhotos()
     setStage('input'); setText(''); setDrafts([]); setGroups([]); setNote(null); setModel(null); setErr(''); setBusy(false); setPreparing(false); setProgress(''); setBill(null)
+    setGrocery([])
     setImages((prev) => { prev.forEach((i) => URL.revokeObjectURL(i.preview)); return [] })
   }, [open, mode])
 
@@ -205,16 +226,27 @@ export function SmartSheet({ open, mode, today, householdId, lookup, categories,
     setBusy(true); setErr('')
     let saved = 0
     let installments = 0
+    const txOf = new Map<string, string>()
     try {
       for (const d of chosen) {
-        if (await saveDraft(householdId, d, mode === 'text' ? 'text' : 'photo')) installments++
+        const r = await saveDraft(householdId, d, mode === 'text' ? 'text' : 'photo')
+        txOf.set(d.key, r.txId)
+        if (r.installment) installments++
         saved++
         patch(d.key, { include: false })
       }
       // 지난 날짜에 산 할부면 이미 지난 회차를 바로 넣는다
       if (installments) await generateRecurring(householdId, today).catch(() => 0)
+      // 체크한 장보기 품목을 저장한 내역에 연결한다. 실패해도 내역 저장은 되돌리지 않고 알린다
+      let linked = 0
+      let linkFailed = false
+      for (const [tx, links] of linksByTx(lines, picks, txOf)) {
+        try { linked += await linkGroceryItems(tx, links) } catch { linkFailed = true }
+      }
+      const parts = [installments ? `${saved}건 저장했어요. 할부 남은 회차는 고정 탭의 할부에 넣었어요` : null,
+        linked ? `장보기 품목 ${linked}개를 연결했어요` : null, linkFailed ? '장보기 연결은 하지 못했어요' : null].filter(Boolean)
       await onSaved(saved, chosen[chosen.length - 1].date,
-        installments ? `${saved}건 저장했어요. 할부 남은 회차는 고정 탭의 할부에 넣었어요` : undefined)
+        parts.length ? (installments ? parts.join('. ') : [`${saved}건 저장했어요`, ...parts].join('. ')) : undefined)
     } catch (e) {
       setErr(`${saved}건 저장 후 멈췄어요: ${friendlyError(e)}`); setBusy(false)
     }
@@ -316,6 +348,15 @@ export function SmartSheet({ open, mode, today, householdId, lookup, categories,
               ))}
             </div>
           ))}
+          {withGrocery && (suggested.size > 0 || linkedMatches.size > 0) && (
+            <GroceryMatchCard items={grocery} lines={lines} suggested={suggested} linkedMatches={linkedMatches} picks={picks}
+              onToggle={(id) => setPicks((p) => {
+                const next = new Map(p)
+                if (next.has(id)) next.delete(id)
+                else { const k = suggested.get(id); if (k) next.set(id, k) }
+                return next
+              })} />
+          )}
           <p className="err" role="alert">{err}</p>
           <button className="primary" disabled={busy || !chosen.length} onClick={saveAll}>
             {busy ? '저장 중…' : chosen.length ? `${chosen.length}건 저장` : '저장할 내역을 고르세요'}

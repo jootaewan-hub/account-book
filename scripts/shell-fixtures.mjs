@@ -47,6 +47,10 @@ const groceryItems = [
   added_by: i % 2 ? YOU : ME, added_at: ago(300 - i), bought_by: null, bought_at: null, paid: null,
 }))
 groceryItems[5] = { ...groceryItems[5], bought_by: YOU, bought_at: ago(30) }
+// 어제 장 봐서 이미 가계부에 넣은 품목(영수증 확인 화면에서 '이미 넣었어요'로 보인다)
+groceryItems.push({ id: 'g8', household_id: HH, name: '라면', spec: null, count: 1, category: '가공', product_key: null, product_id: null,
+  product_qty: null, added_by: ME, added_at: ago(2000), bought_by: ME, bought_at: ago(1500), paid: 5000, transaction_id: 't7' })
+for (const i of groceryItems) i.transaction_id ??= null
 
 /** `${스키마}.${표 또는 rpc/함수}` → 응답 행 */
 export const TABLES = {
@@ -72,6 +76,22 @@ export const TABLES = {
   'grocery.rpc/item_alerts': [],
   'grocery.rpc/item_prices': [],
   'grocery.sync_runs': ['I0490', 'I2620', 'I2715'].map((source) => ({ source, ran_at: ago(180) })),
+}
+
+/** 영수증 사진 분석(extract-entries) 가짜 응답: 장보기 목록과 이름이 맞는 상품이 섞인 마트 영수증 */
+export const RECEIPT = {
+  model: 'claude-haiku-5-5',
+  note: null,
+  entries: [{
+    date: day(19), time: '18:20', merchant: '이마트 분당점', platform: null, amount: 15800, is_income: false, is_cancellation: false,
+    card_last4: null, payment_hint: null, installment_months: null, category: '장보기', type: 'expense', items_match: true,
+    items: [
+      { name: '국산 대파 1단', is_product: true, quantity: 1, unit_price: 3000, amount: 3000, pack_size: null, pack_unit: null, category: '장보기', image_box: null },
+      { name: '서울우유 900ml', is_product: true, quantity: 2, unit_price: 2500, amount: 5000, pack_size: 900, pack_unit: 'ml', category: '장보기', image_box: null },
+      { name: '농심 신라면 5입', is_product: true, quantity: 1, unit_price: 5000, amount: 5000, pack_size: 5, pack_unit: '입', category: '장보기', image_box: null },
+      { name: '부침두부 300g', is_product: true, quantity: 1, unit_price: 2800, amount: 2800, pack_size: 300, pack_unit: 'g', category: '장보기', image_box: null },
+    ],
+  }],
 }
 
 export const USER = {
