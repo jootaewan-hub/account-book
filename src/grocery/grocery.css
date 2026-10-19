@@ -258,6 +258,8 @@
 }
 .grocery .cand-input:focus-visible { outline: 2px solid var(--ink); outline-offset: 1px; }
 .grocery .cand-source, .grocery .cand-state { margin: 4px 0 12px; font-size: 13px; color: var(--ink-2); }
+.grocery .cand-bulk { display: flex; flex-wrap: wrap; align-items: center; gap: 0 8px; margin: 12px 0 4px; }
+.grocery .cand-bulk .btn-text { min-height: 44px; }
 .grocery .cand-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 12px; }
 .grocery .cand-card { padding: 12px; background: var(--oat); border-radius: var(--r-md); }
 .grocery .cand-head { display: flex; gap: 12px; align-items: center; }

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import { checkedRange, koDay, koFullDay, SOURCE_NAME, SOURCES } from '../lib/alerts'
 import { danawaProductUrl } from '../../../supabase/functions/_shared/danawa'
+import { isBulk, referenceSize } from '../../../supabase/functions/_shared/fit'
 import { won } from '../lib/format'
 import {
   checkedText,
@@ -214,7 +215,12 @@ export default function ItemDetail({ item, store, onChangeProduct, onClose, mark
   const split = splitLines(data?.lines ?? [], qty, today)
   const query = data?.product?.name ?? [item.name, item.spec].filter(Boolean).join(' ')
   const lastFailed = data?.check && !data.check.ok ? data.check : null
-  const alts = data?.product && Array.isArray(cands) ? alternatives(cands, data.product.id, qty, new Set()) : []
+  // 대안도 2~3인 가구에 맞는 크기만 견준다(D-014). 고른 상품은 큰 용량이어도 남긴다
+  const chosenId = data?.product?.id
+  const fitRef = referenceSize(item.name, item.spec, item.count)
+  const alts = chosenId && Array.isArray(cands)
+    ? alternatives(cands.filter((c) => c.productId === chosenId || !isBulk(c, fitRef)), chosenId, qty, new Set())
+    : []
 
   return (
     <div className={`sheet-layer${closing ? ' is-closing' : ''}`}>

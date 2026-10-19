@@ -19,9 +19,19 @@ const KEYWORDS: ReadonlyArray<readonly [Exclude<Category, '기타'>, readonly st
   ['가공', ['라면','햇반','즉석밥','쌀','현미','잡곡','밀가루','부침가루','튀김가루','설탕','소금','간장','된장','고추장','쌈장','식용유','올리브유','참기름','들기름','식초','케첩','마요네즈','소스','드레싱','김치','두부','햄','스팸','소시지','베이컨','참치캔','통조림','시리얼','과자','빵','식빵','떡','국수','파스타','소면','당면','카레','짜장','김','조미김','견과','아몬드','꿀','잼','올리고당','물엿','젓갈','액젓','육수','다시다','미원','후추','고춧가루','깨','통깨','찹쌀','김밥','떡볶이','단무지','딸기잼','잼','감자칩','새우깡','양파링','초코파이']],
 ]
 
+// 신선 분류(정육·수산·채소·과일) 키워드에 가공 꼬리말이 붙은 공산품(참치액, 멸치액젓, 사과즙, 연어캔, 마늘가루)은 가공으로 본다
+// (사용자 2026-10-20: 참치액은 공산품인데 농산물 시세로 갔다). 단독 단어 캔·분말·가루도 같다.
+const FRESH: ReadonlySet<Category> = new Set<Category>(['정육', '수산', '채소', '과일'])
+const PROCESSED_WORD = /^(?:.+(?:액|캔|즙|젓|가루|분말|소스|통조림|엑기스|농축액|조미료)|캔|분말|가루)$/
+
 export function categorize(name: string): Category {
   const text = name.trim()
   const words = text.split(/\s+/)
+  const best = longestKeyword(text, words)
+  return FRESH.has(best) && words.some((w) => PROCESSED_WORD.test(w)) ? '가공' : best
+}
+
+function longestKeyword(text: string, words: string[]): Category {
   // 모든 분류에서 가장 긴 키워드를 고른다(고추장은 '고추'가 아니라 '고추장'). 길이가 같으면 먼저 나온 분류.
   let best: Category = '기타'
   let bestLen = 0

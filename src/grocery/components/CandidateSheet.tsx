@@ -5,6 +5,7 @@ import type { ListStore } from '../lib/store'
 import type { Item } from '../lib/types'
 import { READING_TEXT, type ProductRead } from '../lib/photo'
 import { PhotoPick, ProductReadForm } from './PhotoCapture'
+import { referenceSize, splitCandidates } from '../../../supabase/functions/_shared/fit'
 
 const CLOSE_MS = 250
 // 묶음 구성(+, 세트, 구성, ×N)은 단품 아래에 둔다
@@ -28,6 +29,8 @@ export default function CandidateSheet({ item, store, onPicked, onClose }: Props
   // 사진으로 찾기(P4): 읽는 중 → 읽은 값(고친 뒤 검색)
   const [photo, setPhoto] = useState<'idle' | 'reading' | ProductRead>('idle')
   const [photoMsg, setPhotoMsg] = useState<string | null>(null)
+  // 큰 용량·묶음(D-014)은 기본으로 숨기고 버튼으로 본다
+  const [showBulk, setShowBulk] = useState(false)
   const sheet = useRef<HTMLDivElement>(null)
   const closeBtn = useRef<HTMLButtonElement>(null)
   const closeTimer = useRef<number | undefined>(undefined)
@@ -42,6 +45,7 @@ export default function CandidateSheet({ item, store, onPicked, onClose }: Props
 
   const load = useCallback(() => {
     setFailed(false)
+    setShowBulk(false)
     store.candidates(item.id).then(setList, () => setFailed(true))
   }, [store, item.id])
 
@@ -104,8 +108,41 @@ export default function CandidateSheet({ item, store, onPicked, onClose }: Props
     )
   }
 
-  const sorted = (list ?? []).slice().sort((a, b) => Number(BUNDLE.test(a.name)) - Number(BUNDLE.test(b.name)))
-  const foundAt = sorted[0]?.foundAt
+  // 2~3인 가구 기준(D-014): 품목 규격 × 개수(없으면 기본 크기 표)의 1.5배를 넘는 큰 용량·묶음은 따로 두고, 맞는 후보는 수량 줄도 기준 안의 것만
+  const ref = referenceSize(item.name, item.spec, item.count)
+  const { fit, bulk } = splitCandidates(list ?? [], ref)
+  const sorted = fit.slice().sort((a, b) => Number(BUNDLE.test(a.name)) - Number(BUNDLE.test(b.name)))
+  const foundAt = (list ?? [])[0]?.foundAt
+
+  const card = (c: Candidate) => (
+    <li key={c.productId} className="cand-card">
+      <div className="cand-head">
+        {c.imageUrl ? <img className="cand-img" src={c.imageUrl} alt="" loading="lazy" /> : <div className="cand-img" aria-hidden="true" />}
+        <div className="cand-title">
+          <p className="cand-name">{c.name}</p>
+          {c.rating !== null && <p className="cand-rating num">평점 {c.rating.toFixed(1)}(다나와)</p>}
+        </div>
+      </div>
+      <div className="cand-variants">
+        {c.variants.map((v) => (
+          <button
+            key={v.qty}
+            type="button"
+            className="cand-variant"
+            aria-label={`${c.name} ${v.qty}개 ${won(v.price)} 고르기`}
+            onClick={() => onPicked(c.productId, v.qty)}
+          >
+            <span className="cand-qty num">{v.qty}개</span>
+            <span className="cand-price num">{won(v.price)}</span>
+            <span className="cand-unit num">
+              {v.unitPrice !== null && v.unitLabel ? `${v.unitLabel}당 ${won(v.unitPrice)}` : '단위가격 확인 못 함'}
+              {v.mallCount !== null ? `, 판매처 ${v.mallCount}곳` : ''}
+            </span>
+          </button>
+        ))}
+      </div>
+    </li>
+  )
 
   return (
     <div className={`sheet-layer${closing ? ' is-closing' : ''}`}>
@@ -148,39 +185,19 @@ export default function CandidateSheet({ item, store, onPicked, onClose }: Props
           {!searching && list === null && !failed && <p className="cand-state" role="status">후보 불러오는 중</p>}
           {!searching && failed && <p className="cand-state" role="status">후보를 불러오지 못했어요. 잠시 뒤 다시 해 주세요.</p>}
           {!searching && list !== null && list.length === 0 && !failed && <p className="cand-state">후보를 찾지 못했어요. 이름을 바꿔 다시 검색해 보세요.</p>}
-          {!searching && sorted.length > 0 && (
-            <ul className="cand-list">
-              {sorted.map((c) => (
-                <li key={c.productId} className="cand-card">
-                  <div className="cand-head">
-                    {c.imageUrl ? <img className="cand-img" src={c.imageUrl} alt="" loading="lazy" /> : <div className="cand-img" aria-hidden="true" />}
-                    <div className="cand-title">
-                      <p className="cand-name">{c.name}</p>
-                      {c.rating !== null && <p className="cand-rating num">평점 {c.rating.toFixed(1)}(다나와)</p>}
-                    </div>
-                  </div>
-                  <div className="cand-variants">
-                    {c.variants.map((v) => (
-                      <button
-                        key={v.qty}
-                        type="button"
-                        className="cand-variant"
-                        aria-label={`${c.name} ${v.qty}개 ${won(v.price)} 고르기`}
-                        onClick={() => onPicked(c.productId, v.qty)}
-                      >
-                        <span className="cand-qty num">{v.qty}개</span>
-                        <span className="cand-price num">{won(v.price)}</span>
-                        <span className="cand-unit num">
-                          {v.unitPrice !== null && v.unitLabel ? `${v.unitLabel}당 ${won(v.unitPrice)}` : '단위가격 확인 못 함'}
-                          {v.mallCount !== null ? `, 판매처 ${v.mallCount}곳` : ''}
-                        </span>
-                      </button>
-                    ))}
-                  </div>
-                </li>
-              ))}
-            </ul>
+          {!searching && list !== null && list.length > 0 && fit.length === 0 && (
+            <p className="cand-state">2~3인 가구에 맞는 크기의 후보가 없어요. 큰 용량·묶음을 보거나 이름을 바꿔 다시 검색해 보세요.</p>
           )}
+          {!searching && sorted.length > 0 && <ul className="cand-list">{sorted.map(card)}</ul>}
+          {!searching && bulk.length > 0 && (
+            <p className="cand-state cand-bulk">
+              {fit.length > 0 && <span>2~3인 가구에 맞는 크기만 보여요.</span>}
+              <button type="button" className="btn-text" onClick={() => setShowBulk((v) => !v)}>
+                {showBulk ? '큰 용량·묶음 숨기기' : `큰 용량·묶음 ${bulk.length}개 보기`}
+              </button>
+            </p>
+          )}
+          {!searching && showBulk && bulk.length > 0 && <ul className="cand-list">{bulk.map(card)}</ul>}
         </div>
       </div>
     </div>

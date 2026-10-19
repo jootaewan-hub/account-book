@@ -43,6 +43,8 @@ const groceryShots = [
   { name: 'grocery-alert-sheet-1280-light', path: G, w: 1280, c: 'light', alert: '비슷한 제품 기록' },
   ...both(390, (w, c) => ({ name: `grocery-candidate-sheet-${w}-${c}`, path: G, w, c, pick: true })),
   { name: 'grocery-candidate-sheet-1280-light', path: G, w: 1280, c: 'light', pick: true },
+  // 큰 용량·묶음 보기(D-014): 숨긴 후보를 버튼으로 펼친 모습
+  ...both(390, (w, c) => ({ name: `grocery-candidate-sheet-bulk-${w}-${c}`, path: G, w, c, pick: true, showBulk: true })),
   ...['price', 'safety', 'rating'].flatMap((t) => both(390, (w, c) => ({ name: `grocery-item-detail-${t}-${w}-${c}`, path: G, w, c, detail: '비비고 왕교자', tab: t }))),
   { name: 'grocery-item-detail-price-1280-light', path: G, w: 1280, c: 'light', detail: '비비고 왕교자', tab: 'price' },
   { name: 'grocery-item-detail-safety-390-light-alert', path: G, w: 390, c: 'light', detail: '○○ 냉동볶음밥', tab: 'safety' },
@@ -257,9 +259,15 @@ try {
         await page.getByRole('button', { name: '되돌리기' }).waitFor()
       }
       if (s.pick) {
-        await page.getByRole('button', { name: '상품 고르기' }).first().click()
+        // pickItem: 그 품목 줄의 상품 고르기(없으면 첫 줄)
+        const scope = s.pickItem ? page.locator('.row', { hasText: s.pickItem }) : page
+        await scope.getByRole('button', { name: '상품 고르기' }).first().click()
         await page.getByRole('dialog').waitFor()
         await page.locator('.cand-variant').first().waitFor()
+      }
+      if (s.showBulk) {
+        await page.getByRole('button', { name: /큰 용량·묶음 \d+개 보기/ }).click()
+        await page.getByRole('button', { name: '큰 용량·묶음 숨기기' }).waitFor()
       }
       if (s.detail) {
         await page.locator('.row-name', { hasText: s.detail }).first().click()

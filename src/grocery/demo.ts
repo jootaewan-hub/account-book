@@ -124,11 +124,22 @@ export function demoSeed(): { me: Membership; items: Item[]; alerts: AlertsResul
       // 비비고 왕교자(고른 상품 demo-p-1)의 후보: 대안 탭이 견준다(가상 값)
       'demo-item-3': [
         { productId: 'demo-p-1', name: 'CJ제일제당 비비고 왕교자 1.05kg', imageUrl: null, rating: 4.8, reviewCount: 9099, foundAt: at,
-          variants: [{ qty: 1, price: 10380, unitPrice: 989, unitLabel: '100g', mallCount: 26 }] },
+          variants: [
+            { qty: 1, price: 10380, unitPrice: 989, unitLabel: '100g', mallCount: 26 },
+            { qty: 2, price: 21150, unitPrice: 1007, unitLabel: '100g', mallCount: 20 },
+            { qty: 4, price: 37950, unitPrice: 904, unitLabel: '100g', mallCount: 11 }, // 4.2kg: 2봉 기준의 1.5배를 넘어 수량 줄에서 빠진다(D-014)
+          ] },
         { productId: 'demo-p-5', name: '예시 교자만두 1.05kg', imageUrl: null, rating: 4.9, reviewCount: 2300, foundAt: at,
           variants: [{ qty: 1, price: 9900, unitPrice: 943, unitLabel: '100g', mallCount: 14 }] },
         { productId: 'demo-p-6', name: '예시 손만두 1kg', imageUrl: null, rating: 4.5, reviewCount: 410, foundAt: at,
           variants: [{ qty: 1, price: 12000, unitPrice: 1200, unitLabel: '100g', mallCount: 9 }] },
+        { productId: 'demo-p-7', name: 'CJ제일제당 비비고 왕교자 1.925kg', imageUrl: null, rating: 4.7, reviewCount: 1200, foundAt: at,
+          variants: [{ qty: 1, price: 15105, unitPrice: 785, unitLabel: '100g', mallCount: 18 }] },
+        // 큰 용량·묶음(D-014): 품목이 1.05kg 2봉이라 기준 2.1kg, 그 1.5배를 넘어 기본으로 숨긴다
+        { productId: 'demo-p-8', name: 'CJ제일제당 비비고 왕교자 1.05kg x 4 + 김치 왕교자 1.05kg x 2', imageUrl: null, rating: null, reviewCount: null, foundAt: at,
+          variants: [{ qty: 1, price: 41300, unitPrice: null, unitLabel: null, mallCount: 3 }] },
+        { productId: 'demo-p-9', name: '예시 업소용 왕교자 5kg', imageUrl: null, rating: null, reviewCount: null, foundAt: at,
+          variants: [{ qty: 1, price: 32000, unitPrice: 640, unitLabel: '100g', mallCount: 2 }] },
       ],
       'demo-item-6': [
         { productId: 'demo-p-2', name: '예시 냉동볶음밥 300g', imageUrl: null, rating: 4.6, reviewCount: 320, foundAt: at,
@@ -137,6 +148,11 @@ export function demoSeed(): { me: Membership; items: Item[]; alerts: AlertsResul
           variants: [{ qty: 1, price: 5480, unitPrice: 1305, unitLabel: '100g', mallCount: 8 }] },
         { productId: 'demo-p-4', name: '예시 볶음밥 3종 세트(300g×3)', imageUrl: null, rating: null, reviewCount: null, foundAt: at,
           variants: [{ qty: 1, price: 11900, unitPrice: null, unitLabel: null, mallCount: 5 }] },
+        // 큰 용량·묶음(D-014): 규격이 없는 품목은 무게 2kg을 넘으면 기본으로 숨긴다
+        { productId: 'demo-p-10', name: '예시 냉동볶음밥 300g x 10', imageUrl: null, rating: 4.3, reviewCount: 150, foundAt: at,
+          variants: [{ qty: 1, price: 33000, unitPrice: 1100, unitLabel: '100g', mallCount: 6 }] },
+        { productId: 'demo-p-11', name: '예시 업소용 볶음밥 3kg', imageUrl: null, rating: null, reviewCount: null, foundAt: at,
+          variants: [{ qty: 1, price: 24900, unitPrice: 830, unitLabel: '100g', mallCount: 2 }] },
       ],
     },
     products: {
