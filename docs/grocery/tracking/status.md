@@ -60,7 +60,7 @@
 ## 준비할 키 (사용자)
 
 - 네이버 개발자센터 애플리케이션 Client ID / Secret (검색 API)
-- KAMIS 인증키·ID (공공데이터포털 경유 가능)
+- ~~KAMIS 인증키·ID~~ → 공공데이터포털 15156057 "일별 도,소매 가격정보" 키를 Supabase Secrets `DATA_GO_KR_SERVICE_KEY`에 넣었다(2026-10-19). 실제 호출로 응답 확인(`docs/grocery/data-sources.md` 3-1). 값 끝에 공백이 붙어 있어 다시 넣는 것이 좋다(코드는 다듬어 쓴다).
 - 식품안전나라 Open API 인증키
 - Anthropic API 키 (확정할 결정 1에서 WIF를 고르면 필요 없음)
 - Supabase 프로젝트: 가계부 프로젝트를 공유하므로 새로 만들지 않는다(D-003).
@@ -68,6 +68,7 @@
 ## 열린 문제
 
 - 배포된 Edge Function 중 두 저장소 어디에도 소스가 없는 `danawa-probe`가 있다(verify_jwt false, 2026-10-19 생성, Supabase `list_edge_functions`로 2026-10-19 확인). 다나와 접근 확인용 임시 함수로 보인다(추측입니다). 지울지는 사용자가 정한다.
+- 시세 API 확인용 일회용 함수 `market-probe`를 2026-10-19 배포했다가, 확인 뒤 410만 돌려주는 내용(v4)으로 바꿨다. Supabase MCP에는 함수를 지우는 도구가 없어 남아 있다. 대시보드(Edge Functions → market-probe → Delete)에서 지우면 된다. 소스는 저장소에 넣지 않았다.
 
 - 담기 자동 나누기는 분류 사전에 있는 단어에 기댄다(2026-10-17). 사전에 없는 단어가 이어지면 한 품목으로 남는다(예: "닭 가슴살 계란" → 한 품목, "우유 요거트" → 한 품목). 미리보기에서 보이므로 쉼표로 나누면 된다. 실제로 자주 틀리는 단어가 보이면 사전(`src/lib/categories.ts`, `src/lib/parse.ts`의 MODIFIERS·FORM_SUFFIXES·COMPOUNDS)에 더한다.
 - 기본 수량(`src/lib/staples.ts`)은 두 사람·일주일 저녁 4~5번 기준으로 정한 제안값이다. 실제 장보기와 다르면 표를 고친다.
