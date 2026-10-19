@@ -70,7 +70,7 @@ npm run screens
 ## 5. 로컬 진행(2026-10-19 밤, 맥북, 브랜치 `claude/p3-price-sources`) — 다음 세션이 볼 것
 
 이 브랜치에서 P3·P2·P4·P6·P7·P8의 코드·시험·캡처·문서를 끝냈다(main 미병합, 공유 DB 미적용, 함수 미배포). 자세한 기록은 `docs/grocery/tracking/status.md` "된 것"과
-계획서 각 단계의 "진행" 묶음, 실행 기록 `.superpowers/sdd/2026-10-19-remaining-work/progress.md`(git 밖, 결정 근거 Ruling 줄)에 있다.
+계획서 각 단계의 "진행" 묶음, 실행 기록 `docs/superpowers/plans/2026-10-19-remaining-work.progress.md`(단계별 커밋·시험 결과·결정 근거 Ruling 줄·최종 리뷰 결과)에 있다.
 
 ### 적용·배포할 것(사용자 확인 뒤, 이 순서로)
 
@@ -92,4 +92,4 @@ npm run screens
 
 - 개발 서버 포트 5173은 다른 프로젝트가 잡고 있어 5188을 쓴다: `npx vite --port 5188 --strictPort`, 캡처는 `BASE_URL=http://localhost:5188 npm run screens -- <장면 이름…>`.
 - 플레이라이트 브라우저는 `npx playwright install chromium`(버전이 바뀌면 다시).
-- `npm test`는 56개 파일 743개(2026-10-19 밤 기준), `npx tsc --noEmit` 통과.
+- `npm test`는 56개 파일 745개(2026-10-19 밤 기준), `npx tsc --noEmit` 통과. 캡처 142장 자동 확인 통과.
