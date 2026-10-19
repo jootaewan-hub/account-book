@@ -4,6 +4,7 @@ import { PGlite } from '@electric-sql/pglite'
 import { readFileSync } from 'node:fs'
 import { beforeAll, describe, expect, it } from 'vitest'
 import { EXPORT_ITEMS } from './fixtures'
+import { SUPABASE_STUB } from './supabaseStub'
 
 const read = (f: string) => readFileSync(new URL(`../supabase/migrations/${f}`, import.meta.url), 'utf8')
 const INIT = read('20261015000000_init.sql')
@@ -28,31 +29,6 @@ const TX_UPDATE = read('20261015180000_tx_update_grants.sql')
 const DROP_UNUSED = read('20261015190000_drop_unused.sql')
 const DETAILED_CATS = read('20261015200000_detailed_categories.sql')
 
-const SUPABASE_STUB = `
-create schema auth;
-create table auth.users (id uuid primary key, email text, raw_app_meta_data jsonb default '{}'::jsonb);
-create function auth.uid() returns uuid language sql stable as
-  $$ select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid $$;
-create role anon nologin;
-create role authenticated nologin;
-grant usage on schema public to anon, authenticated;
-grant usage on schema auth to anon, authenticated;
-grant execute on function auth.uid() to anon, authenticated;
-alter default privileges in schema public grant all on tables to anon, authenticated;
-alter default privileges in schema public grant all on sequences to anon, authenticated;
-create role service_role nologin;
-grant usage on schema public to service_role;
-create role supabase_auth_admin nologin;
-create publication supabase_realtime;
-create schema storage;
-create table storage.buckets (id text primary key, name text not null, public boolean default false,
-  file_size_limit bigint, allowed_mime_types text[]);
-create table storage.objects (id uuid primary key default gen_random_uuid(), bucket_id text references storage.buckets (id),
-  name text not null, owner uuid default auth.uid(), created_at timestamptz default now());
-alter table storage.objects enable row level security;
-grant usage on schema storage to anon, authenticated;
-grant select, insert, update, delete on storage.objects to authenticated;
-`
 
 const A = '00000000-0000-4000-8000-00000000000a'
 const B = '00000000-0000-4000-8000-00000000000b'
