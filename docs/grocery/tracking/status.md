@@ -88,6 +88,17 @@
   - 화면: 후보 시트 "사진으로 찾기" → 읽은 값(이름·브랜드·용량) 고친 뒤 그 이름으로 다나와 검색(읽은 값은 검색어로만). 가격 탭 "화면 캡처로 가격 넣기" → 읽은 값(판매처·가격·수량·배송비) 고친 뒤 저장 → 가격 줄에 "캡처(올린 사람), 시각"으로.
     진행 문구 "사진 읽는 중". 사진 줄이기는 가계부 `src/lib/image.ts`. 데모의 가짜 읽기 값으로 캡처 6장 확인.
   - 남은 것(사용자 확인 뒤): `apply_migration`(grocery_captured_quotes), `grocery-photo` 배포, **첫 호출로 WIF 교환 확인**, 실제 포장 사진 3장·캡처 3장 대조.
+
+- P6 사진·바코드로 담기, 매대 앞 바로 확인(2026-10-19 밤, 로컬): 코드·시험·캡처 끝. 실기기 확인은 사용자.
+  - 바코드 읽기: 브라우저 `BarcodeDetector`가 소매 형식(ean_13·ean_8·upc_a·upc_e)을 지원하면 그것을, 아니면 `barcode-detector`(MIT, ZXing-C++ WebAssembly 포니필, zxing-wasm 3.1.3) — `.wasm` 약 1.1MB는
+    번들 자산으로 이 사이트에서만 받고(외부 스크립트 금지), 읽을 때만 불러온다. CSP `script-src`에 `'wasm-unsafe-eval'` 추가(시험 기대값도 갱신), 서비스 워커가 `.wasm`도 캐시.
+    **추측입니다: iPhone Safari는 `BarcodeDetector`가 없어 포니필로 간다.** 실기기(iPhone PWA)에서 카메라·읽기 성공률 확인은 사용자 할 일(상품 10개).
+  - `src/grocery/lib/barcode.ts`: 숫자만 남기고 UPC-A는 앞에 0, GS1 검사 숫자 확인. 시험 6개.
+  - 바코드 시트(목록 아래 "바코드로 상품 보기", 담기 시트 "바코드로 담기"): 카메라 → 못 열면 사진으로 읽기·숫자 직접 입력 → 먼저 `grocery.food_alerts.barcode`와 대조("회수 기록 있음" 배지·카드, 없으면 "확인한 범위에서 바코드가 같은 식약처 기록 없음" + 확인 범위)
+    → 다나와에서 바코드로 검색(새 창) → 담기(포장 사진으로 이름 읽기 또는 직접 적기 → 담기 시트로).
+  - 사진으로 담기: `grocery-photo`에 `list` 일(메모·냉장고·영수증 → 살 것 목록) 추가, 담기 시트 "사진으로 담기"가 글로 채운다(한 줄에 하나 "이름 규격 N개").
+  - 캡처 8장(390 라이트·다크, 1280) 확인. 데모는 `?demo=grocery&barcode=…`로 결과 화면을 연다.
+  - 남은 것: 실기기에서 카메라·바코드 10개 성공률 기록(사용자). 회수 목록 바코드 일치 시험은 메모리 저장소 시험으로 둠(실제 표 대조는 `food_alerts.barcode` eq 조회).
   - 남은 것(P2-3, 사용자 확인 뒤): `apply_migration`(grocery_our_purchases) → 실제 가구 기록에서 비슷한 기록이 얼마나 잡히는지 보고 잘못 붙는 예를 열린 문제에 적는다.
   - 남은 것(P3-6, 사용자 확인 뒤): `apply_migration`(grocery_sources), `product-check`·`tprice-sync`·`price-recheck` 배포, `supabase/config.toml`과 맞추기, 워크플로 첫 수동 실행,
     실제 상품 3개 이상 대조(컬리·홈플러스·로우차트 페이지 값과 화면 값), 보안 점검(Advisors) 다시 보기. `DATA_GO_KR_SERVICE_KEY`는 그대로 쓴다.

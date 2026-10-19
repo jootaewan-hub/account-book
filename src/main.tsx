@@ -27,7 +27,9 @@ async function devScreen(mode: string | null): Promise<ReactNode | null> {
   // main.wrap: 가계부 셸처럼 아래 여백을 둬 목록 끝이 담기 바에 가리지 않게
   // 시세(D-012): 데모 시세(실제 조사값 아님). 빈 목록 데모는 시세도 비운다
   const market = createMemoryMarketStore(full ? demoMarket() : { board: { series: [], syncedAt: null } })
-  return <main className="wrap" style={noTabbar}><div className="grocery"><GroceryHome store={store} market={market} me={d.me} ledger={{ categories, onRecorded: () => {} }} /></div></main>
+  // ?barcode=…: 바코드 시트를 그 값의 결과로 연다(카메라 없이 캡처하려고)
+  const dev = { barcode: new URLSearchParams(window.location.search).get('barcode') ?? undefined }
+  return <main className="wrap" style={noTabbar}><div className="grocery"><GroceryHome store={store} market={market} me={d.me} ledger={{ categories, onRecorded: () => {} }} dev={dev} /></div></main>
 }
 
 const root = createRoot(document.getElementById('root')!)

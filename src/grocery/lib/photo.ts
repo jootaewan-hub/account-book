@@ -1,14 +1,15 @@
 // 사진으로 상품 찾기·캡처로 가격 넣기(P4, D-009)의 클라이언트 부분: Edge Function grocery-photo 부르기(WIF 거절 시 세션 갱신 뒤 한 번 더),
 // 출처 글자. 읽은 값은 화면에서 사람이 확인·고친 뒤에만 쓴다.
 import type { SupabaseClient } from '@supabase/supabase-js'
-import type { PhotoImage, PhotoJob, PriceRead, ProductRead } from '../../../supabase/functions/grocery-photo/photo'
+import type { ListItem, PhotoImage, PhotoJob, PriceRead, ProductRead } from '../../../supabase/functions/grocery-photo/photo'
 import type { Member } from './types'
 import type { PriceSource } from './products'
 
-export type { PhotoImage, PhotoJob, PriceRead, ProductRead }
+export type { ListItem, PhotoImage, PhotoJob, PriceRead, ProductRead }
 export type PhotoResult =
   | { job: 'product'; product: ProductRead; query: string; model?: string }
   | { job: 'price'; price: PriceRead & { qty: number }; model?: string }
+  | { job: 'list'; items: ListItem[]; note: string | null; model?: string }
 export type CapturedQuoteInput = { seller: string; price: number; qty: number; delivery: number | null }
 
 export class PhotoError extends Error {

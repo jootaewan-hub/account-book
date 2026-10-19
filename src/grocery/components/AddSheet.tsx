@@ -1,16 +1,28 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
+import type { ListStore } from '../lib/store'
+import { READING_TEXT } from '../lib/photo'
+import { listText } from '../../../supabase/functions/grocery-photo/photo'
+import { PhotoPick } from './PhotoCapture'
 import { NAME_MAX, parseLines, type ParsedItem } from '../lib/parse'
 
 const CLOSE_MS = 250 // 가계부 Motion: 닫기는 여는 것(400ms)보다 빠르게
 
 type Props = {
   onAdd: (items: ParsedItem[]) => Promise<void>
+  /** 바코드 시트에서 넘어온 글처럼 처음부터 채워 둘 글 */
+  initialText?: string
+  /** 사진으로 담기(P6): 메모·냉장고·영수증 사진을 읽어 살 것 글로 채운다 */
+  store?: ListStore
+  /** 바코드로 담기(P6) */
+  onBarcode?: () => void
   onClose: () => void
 }
 
 // 담기 시트. 휴대폰은 아래에서 올라오는 시트, 넓은 화면(960px 이상)은 가운데 창이다(CSS가 나눈다).
-export default function AddSheet({ onAdd, onClose }: Props) {
-  const [text, setText] = useState('')
+export default function AddSheet({ onAdd, onClose, initialText = '', store, onBarcode }: Props) {
+  const [text, setText] = useState(initialText)
+  const [reading, setReading] = useState(false)
+  const [readMsg, setReadMsg] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [closing, setClosing] = useState(false)
@@ -102,6 +114,40 @@ export default function AddSheet({ onAdd, onClose }: Props) {
             }}
           />
           <p id={hintId} className="sr-only">한 줄에 하나씩, 또는 쉼표로 나눠 적어요. 예: 양파, 당근, 비비고 왕교자 1.05kg x2</p>
+          {(store || onBarcode) && (
+            <div className="photo-row add-tools">
+              {store && (
+                <PhotoPick
+                  label="사진으로 담기"
+                  inputLabel="목록 사진"
+                  disabled={reading || busy}
+                  className="btn-secondary detail-link"
+                  onImage={(img) => {
+                    setReading(true)
+                    setReadMsg(null)
+                    store.readPhoto('list', { media_type: img.media_type, data: img.data, width: img.width, height: img.height }).then(
+                      (r) => {
+                        setReading(false)
+                        if (r.job !== 'list' || r.items.length === 0) {
+                          setReadMsg('사진에서 살 것을 찾지 못했어요. 직접 적어 주세요.')
+                          return
+                        }
+                        setText((t) => (t.trim() ? `${t.trimEnd()}\n` : '') + listText(r.items))
+                        if (r.note) setReadMsg(r.note)
+                      },
+                      (e: unknown) => {
+                        setReading(false)
+                        setReadMsg(e instanceof Error && e.message ? e.message : '사진을 읽지 못했어요. 직접 적어 주세요.')
+                      },
+                    )
+                  }}
+                />
+              )}
+              {onBarcode && <button type="button" className="btn-secondary detail-link" disabled={busy} onClick={onBarcode}>바코드로 담기</button>}
+              {reading && <span className="cand-state" role="status">{READING_TEXT}</span>}
+            </div>
+          )}
+          {readMsg && <p className="cand-state" role="alert">{readMsg}</p>}
           {parsed.length > 0 && (
             <section className="preview" aria-label="담을 것 미리보기">
               <h3 className="preview-title">

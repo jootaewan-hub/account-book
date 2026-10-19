@@ -61,6 +61,12 @@ const groceryShots = [
   ...both(390, (w, c) => ({ name: `grocery-capture-price-${w}-${c}`, path: G, w, c, detail: '비비고 왕교자', tab: 'price', capturePrice: true })),
   { name: 'grocery-capture-price-1280-light', path: G, w: 1280, c: 'light', detail: '비비고 왕교자', tab: 'price', capturePrice: true },
   { name: 'grocery-capture-saved-390-light', path: G, w: 390, c: 'light', detail: '비비고 왕교자', tab: 'price', capturePrice: true, captureSave: true },
+  // P6 바코드로 상품 보기·사진으로 담기(헤드리스에는 카메라가 없어 "사진으로 읽기" 상태, 결과는 ?barcode=로)
+  ...both(390, (w, c) => ({ name: `grocery-barcode-sheet-${w}-${c}`, path: G, w, c, barcode: true })),
+  ...both(390, (w, c) => ({ name: `grocery-barcode-record-${w}-${c}`, path: `${G}&barcode=8801007001234`, w, c, barcode: true, barcodeWait: '회수 기록 있음' })),
+  { name: 'grocery-barcode-record-1280-light', path: `${G}&barcode=8801007001234`, w: 1280, c: 'light', barcode: true, barcodeWait: '회수 기록 있음' },
+  { name: 'grocery-barcode-none-390-light', path: `${G}&barcode=96385074`, w: 390, c: 'light', barcode: true, barcodeWait: '식약처 기록 없음' },
+  ...both(390, (w, c) => ({ name: `grocery-add-photo-list-${w}-${c}`, path: G, w, c, sheet: '', photoList: true })),
   // 가계부에 넣기(D-011 길 ②): 목록 끝의 안내와 시트(총액, 품목마다, 금액 빈 오류)
   ...each((w, c) => ({ name: `grocery-record-sheet-${w}-${c}`, path: G, w, c, purchase: 'total' })),
   ...both(390, (w, c) => ({ name: `grocery-record-sheet-each-${w}-${c}`, path: G, w, c, purchase: 'each' })),
@@ -205,7 +211,7 @@ try {
       await page.getByText('장보기 목록에서 찾은 품목').waitFor()
       await page.locator('.grocery-match').scrollIntoViewIfNeeded()
     }
-    if (s.sheet) {
+    if (s.sheet !== undefined) {
         await page.getByRole('button', { name: '담기', exact: true }).locator('visible=true').first().click()
         await page.getByRole('dialog').waitFor()
         await page.getByLabel('살 것').fill(s.sheet)
@@ -231,6 +237,16 @@ try {
         if (label) await page.getByRole('tab', { name: label }).click()
         if (label === '가격') await page.getByText('매장 가격(참가격)').waitFor()
         if (s.detailScroll) await page.locator(s.detailScroll).first().scrollIntoViewIfNeeded()
+      }
+      if (s.barcode) {
+        await page.getByRole('button', { name: '바코드로 상품 보기' }).click()
+        await page.getByRole('dialog').waitFor()
+        if (s.barcodeWait) await page.getByText(s.barcodeWait).first().waitFor()
+        else await page.getByRole('button', { name: '사진으로 읽기' }).waitFor()
+      }
+      if (s.photoList) {
+        await page.getByLabel('목록 사진').setInputFiles({ name: 'l.jpg', mimeType: 'image/jpeg', buffer: TINY_JPEG })
+        await page.getByText('담을 것', { exact: false }).first().waitFor()
       }
       if (s.photoProduct) {
         await page.getByLabel('포장 사진').setInputFiles({ name: 'p.jpg', mimeType: 'image/jpeg', buffer: TINY_JPEG })

@@ -7,7 +7,7 @@ import { SEONGNAM_AREAS } from '../../../supabase/functions/_shared/tprice'
 import type { ItemSources, ShopPrice, StoreGood, StoreOption, StorePrice } from './sources'
 import type { OurPurchase } from './ours'
 import { invokePhoto } from './photo'
-import type { ListStore } from './store'
+import type { ListStore , BarcodeRecord } from './store'
 import type { Membership } from './membership'
 import type { Item } from './types'
 
@@ -283,6 +283,20 @@ export function createSupabaseStore(client: SupabaseClient, me: Membership): Lis
     readPhoto(job, image) {
       return invokePhoto(client, { job, image })
     },
+    async barcodeAlerts(code) {
+      const [rows, syncedAt] = await Promise.all([
+        g().from('food_alerts').select('source, source_id, product_name, maker, reason, grade, pack_unit, barcode, registered_on').eq('barcode', code).limit(20),
+        lastSynced(),
+      ])
+      if (rows.error) throw rows.error
+      return {
+        records: ((rows.data ?? []) as BarcodeRow[]).map((r) => ({
+          source: r.source as BarcodeRecord['source'], sourceId: r.source_id, productName: r.product_name, maker: r.maker, reason: r.reason,
+          grade: r.grade, packUnit: r.pack_unit, registeredOn: r.registered_on, barcode: r.barcode,
+        })),
+        syncedAt,
+      }
+    },
     async addCapturedQuote(itemId, q) {
       const it = await table().select('product_id').eq('id', itemId).maybeSingle()
       if (it.error) throw it.error
@@ -374,6 +388,7 @@ export function createSupabaseStore(client: SupabaseClient, me: Membership): Lis
 }
 
 type SearchRow = { item_id: string; status: ItemSearch['status']; candidate_count: number | null; updated_at: string }
+type BarcodeRow = { source: string; source_id: string; product_name: string; maker: string | null; reason: string | null; grade: string | null; pack_unit: string | null; barcode: string; registered_on: string | null }
 type OurRow = {
   kind: OurPurchase['kind']; transaction_id: string; transaction_item_id: string | null; occurred_on: string; platform: string | null; place: string | null
   created_by: string; name: string; quantity: number | string | null; unit_price: number | string | null; amount: number | string; pack_size: number | string | null; pack_unit: string | null

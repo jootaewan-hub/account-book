@@ -5,7 +5,7 @@ import { z } from 'zod'
 export const MAX_IMAGE_BASE64_CHARS = 8_000_000 // 약 6MB
 export const IMAGE_MEDIA_TYPES = ['image/jpeg', 'image/png', 'image/webp'] as const
 export type MediaType = (typeof IMAGE_MEDIA_TYPES)[number]
-export type PhotoJob = 'product' | 'price'
+export type PhotoJob = 'product' | 'price' | 'list'
 export type PhotoImage = { media_type: MediaType; data: string; width: number; height: number }
 export type PhotoInput = { job: PhotoJob; image: PhotoImage }
 
@@ -15,7 +15,7 @@ const MAX_WON = 10_000_000_000
 export function parsePhotoInput(body: unknown): PhotoInput | string {
   if (!body || typeof body !== 'object') return '요청 형식이 잘못됐어요.'
   const b = body as Record<string, unknown>
-  if (b.job !== 'product' && b.job !== 'price') return '무엇을 읽을지(job)가 잘못됐어요.'
+  if (b.job !== 'product' && b.job !== 'price' && b.job !== 'list') return '무엇을 읽을지(job)가 잘못됐어요.'
   const img = b.image as Record<string, unknown> | undefined
   if (!img || typeof img !== 'object') return '사진이 없어요.'
   if (typeof img.data !== 'string' || !IMAGE_MEDIA_TYPES.includes(img.media_type as MediaType)) return '사진 형식이 잘못됐어요.'
@@ -65,6 +65,28 @@ export const PRICE_PROMPT = `당신은 쇼핑몰 화면 캡처나 매장 가격�
 - delivery는 배송비입니다. 무료배송·로켓배송·새벽배송처럼 무료면 0, 표시가 없으면 null입니다.
 - size는 상품명·옵션에 적힌 용량·개수 표기를 그대로 씁니다.`
 
+export const ListSchema = z.object({
+  items: z.array(
+    z.object({
+      name: z.string().describe('살 것의 이름(브랜드·용량은 빼고). 읽히지 않으면 넣지 않는다'),
+      spec: z.string().nullable().describe('용량·규격 표기 그대로(예: "600g", "1L"). 없으면 null'),
+      count: z.number().nullable().describe('개수. 적혀 있지 않으면 null'),
+    }),
+  ),
+  note: z.string().nullable().describe('읽기 어려웠던 부분 등 사용자에게 알릴 말. 없으면 null'),
+})
+export type ListRead = z.infer<typeof ListSchema>
+export type ListItem = { name: string; spec: string | null; count: number }
+
+export const LIST_PROMPT = `당신은 장보기 메모·냉장고 사진·영수증에서 살 것 목록을 뽑는 일을 돕습니다. 주어진 JSON 형식으로만 답합니다.
+
+규칙:
+- 사진에 실제로 적혀 있거나 보이는 것만 씁니다. 읽히지 않거나 가려진 글자는 추측하지 말고 빼고, note에 적습니다.
+- 메모라면 적힌 줄마다 하나, 영수증이라면 상품 줄마다 하나입니다. 가격·합계·할인 줄은 넣지 않습니다.
+- 냉장고 사진이라면 보이는 식재료 이름만 씁니다(상표가 보이면 그 이름). 확실하지 않은 것은 넣지 않습니다.
+- name은 짧은 이름(브랜드·용량은 빼고), spec은 용량 표기 그대로, count는 적힌 개수(없으면 null)입니다.
+- 같은 것이 두 번 보이면 한 번만 넣습니다.`
+
 const text = (v: unknown): string | null => {
   if (typeof v !== 'string') return null
   const t = v.replace(/\s+/g, ' ').trim().slice(0, MAX_TEXT)
@@ -102,9 +124,33 @@ export function checkPrice(r: PriceRead): PriceRead & { qty: number } {
   return { seller: text(r.seller), name: text(r.name), price: posInt(r.price), qty, size: text(r.size), delivery: nonNegInt(r.delivery), note: text(r.note) }
 }
 
+const MAX_LIST = 40
+
+/** 모델이 읽은 목록을 다듬는다: 빈 이름·같은 이름은 빼고, 수량은 1~99(없거나 틀리면 1), 40개까지 */
+export function checkList(r: ListRead): { items: ListItem[]; note: string | null } {
+  const seen = new Set<string>()
+  const items: ListItem[] = []
+  for (const it of r.items ?? []) {
+    const name = text(it.name)
+    if (!name) continue
+    const key = name.toLowerCase().replace(/\s+/g, '')
+    if (seen.has(key)) continue
+    seen.add(key)
+    const count = typeof it.count === 'number' && Number.isInteger(it.count) && it.count >= 1 && it.count <= 99 ? it.count : 1
+    items.push({ name, spec: text(it.spec), count })
+    if (items.length >= MAX_LIST) break
+  }
+  return { items, note: text(r.note) }
+}
+
+/** 담기 시트의 글로: 한 줄에 하나, "이름 규격 N개"(담기 시트의 나누기 규칙과 맞춤) */
+export function listText(items: ListItem[]): string {
+  return items.map((it) => [it.name, it.spec, it.count > 1 ? `${it.count}개` : null].filter(Boolean).join(' ')).join('\n')
+}
+
 export function buildUserText(job: PhotoJob, image: PhotoImage): string {
   const size = image.width && image.height ? ` (${image.width}×${image.height} 픽셀)` : ''
-  return job === 'product'
-    ? `위 이미지는 사용자가 찍은 식료품 포장 사진입니다${size}. 상품 이름·브랜드·용량을 읽어 주세요.`
-    : `위 이미지는 사용자가 올린 쇼핑몰 화면 캡처 또는 매장 가격표 사진입니다${size}. 판매처·상품명·가격·수량·용량·배송비를 읽어 주세요.`
+  if (job === 'product') return `위 이미지는 사용자가 찍은 식료품 포장 사진입니다${size}. 상품 이름·브랜드·용량을 읽어 주세요.`
+  if (job === 'list') return `위 이미지는 사용자가 올린 장보기 메모·냉장고·영수증 사진입니다${size}. 살 것 목록을 뽑아 주세요.`
+  return `위 이미지는 사용자가 올린 쇼핑몰 화면 캡처 또는 매장 가격표 사진입니다${size}. 판매처·상품명·가격·수량·용량·배송비를 읽어 주세요.`
 }

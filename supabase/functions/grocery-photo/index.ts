@@ -1,4 +1,5 @@
-// 사진으로 상품 찾기(product: 포장 앞면 → 이름·브랜드·용량)와 캡처로 가격 넣기(price: 쇼핑몰 캡처·가격표 → 판매처·상품명·가격·수량·용량·배송비).
+// 사진으로 상품 찾기(product: 포장 앞면 → 이름·브랜드·용량), 캡처로 가격 넣기(price: 쇼핑몰 캡처·가격표 → 판매처·상품명·가격·수량·용량·배송비),
+// 사진으로 담기(list: 메모·냉장고·영수증 → 살 것 목록, P6).
 // P4, D-009. 로그인한 사용자만 부른다(verify_jwt true). Claude 인증은 가계부와 같은 WIF(_shared/anthropic-wif.ts). 읽은 값은 그대로 돌려주고,
 // 화면에서 사람이 확인·고친 뒤에만 쓴다. 모델은 코드에서만 정한다: 작은 글씨의 캡처·포장을 읽어야 해서 가계부 쇼핑 캡처와 같은 Sonnet 5.5.
 import Anthropic from '@anthropic-ai/sdk'
@@ -6,7 +7,9 @@ import { zodOutputFormat } from '@anthropic-ai/sdk/helpers/zod'
 import { WorkloadIdentityError } from '@anthropic-ai/sdk/lib/credentials/types'
 import { createClient } from '@supabase/supabase-js'
 import { anthropicFor, wifTokenProblem } from '../_shared/anthropic-wif.ts'
-import { buildUserText, checkPrice, checkProduct, parsePhotoInput, PRICE_PROMPT, PriceSchema, PRODUCT_PROMPT, productQuery, ProductSchema } from './photo.ts'
+import {
+  buildUserText, checkList, checkPrice, checkProduct, LIST_PROMPT, ListSchema, parsePhotoInput, PRICE_PROMPT, PriceSchema, PRODUCT_PROMPT, productQuery, ProductSchema,
+} from './photo.ts'
 
 const MODEL = 'claude-sonnet-5-5'
 
@@ -72,6 +75,20 @@ Deno.serve(async (req) => {
       console.log('photo_product_ok', MODEL, '->', res.model, res.usage.input_tokens, res.usage.output_tokens)
       const product = checkProduct(res.parsed_output)
       return json({ job: 'product', product, query: productQuery(product), model: res.model })
+    }
+    if (input.job === 'list') {
+      const res = await client.messages.parse({
+        model: MODEL,
+        max_tokens: 4000,
+        system: LIST_PROMPT,
+        messages: [{ role: 'user', content }],
+        output_config: { effort: 'low', format: zodOutputFormat(ListSchema) },
+      })
+      if (res.stop_reason === 'refusal') return fail('refused', '이 사진은 읽을 수 없어요. 직접 적어 주세요.', 422)
+      if (!res.parsed_output) throw new Error(`no_parsed_output (stop_reason=${res.stop_reason})`)
+      console.log('photo_list_ok', MODEL, '->', res.model, res.usage.input_tokens, res.usage.output_tokens)
+      const list = checkList(res.parsed_output)
+      return json({ job: 'list', items: list.items, note: list.note, model: res.model })
     }
     const res = await client.messages.parse({
       model: MODEL,

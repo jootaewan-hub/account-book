@@ -297,3 +297,25 @@ describe('사진·캡처(메모리, P4)', () => {
     await expect(s.addCapturedQuote('demo-item-6', { seller: 'x', price: 1, qty: 1, delivery: null })).rejects.toThrow('no_product')
   })
 })
+
+describe('바코드 대조(메모리, P6)', () => {
+  it('데모 저장소: 식약처 기록에 같은 바코드가 있으면 그 기록, 없으면 빈 배열과 확인 시각', async () => {
+    const { me: d, items, alerts, prices } = demoSeed()
+    const s = createMemoryStore(items, d, undefined, alerts, prices)
+    const hit = await s.barcodeAlerts('8801007001234')
+    expect(hit.records.length).toBeGreaterThanOrEqual(1)
+    expect(hit.records[0]).toMatchObject({ source: 'I0490', barcode: '8801007001234' })
+    expect(Object.keys(hit.syncedAt).length).toBeGreaterThan(0)
+    const none = await s.barcodeAlerts('96385074')
+    expect(none.records).toEqual([])
+    expect(Object.keys(none.syncedAt).length).toBeGreaterThan(0)
+  })
+
+  it('데모 저장소: 사진으로 담기(list)는 품목 목록을 돌려준다(가짜 값)', async () => {
+    const { me: d, items, alerts, prices } = demoSeed()
+    const s = createMemoryStore(items, d, undefined, alerts, prices)
+    const r = await s.readPhoto('list', { media_type: 'image/jpeg', data: 'abc', width: 10, height: 10 })
+    expect(r.job).toBe('list')
+    if (r.job === 'list') expect(r.items.length).toBeGreaterThanOrEqual(2)
+  })
+})

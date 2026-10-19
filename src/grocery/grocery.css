@@ -463,3 +463,9 @@
 .grocery .read-actions { display: flex; align-items: center; gap: 12px; margin-top: 12px; }
 .grocery .read-actions .btn-primary { min-height: 44px; padding: 0 16px; font-size: 15px; }
 .grocery .capture-block { margin-top: 8px; }
+
+/* P6 바코드로 상품 보기·사진으로 담기 */
+.grocery .barcode-video { display: block; width: 100%; max-height: 50vh; border-radius: var(--r-md); background: var(--ink); object-fit: cover; }
+.grocery .barcode-code { margin: 8px 0; font-size: 17px; font-weight: 700; }
+.grocery .list-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin: 16px 0 0; }
+.grocery .add-tools { margin: 8px 0 0; }

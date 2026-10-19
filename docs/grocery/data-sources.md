@@ -213,10 +213,15 @@
 - **I1250 품목제조보고**: 생산종료 여부, 포장재질, 최종수정일. **내용량 항목 없음.**
 - 식품안전나라 I2790(영양성분 ~2023)은 sample 호출 시 "서비스 없음", I0750은 2021년 최종수정 → 쓰지 않는다.
 
+- (2026-10-19 로컬, P7) C002(식품 원재료) `sample` 키 실제 호출 확인: `/api/{키}/C002/json/1/3/PRDLST_NM=만두`처럼 열 이름으로 거를 수 있다(부분 일치). 항목: PRDLST_REPORT_NO, PRDLST_NM, BSSH_NM, PRDLST_DCNM, RAWMTRL_NM, CHNG_DT, LCNS_NO, PRMS_DT. `total_count`는 범위와 상관없이 전체 건수(1,081,610).
+- (2026-10-19 로컬, P7) 식품영양성분DB(15127578, `FoodNtrCpntDbInfo03/getFoodNtrCpntDbInq03`, type=json): 명세(swagger)로 요청 열(FOOD_NM_KR·ITEM_REPORT_NO·MAKER_NM 등)과 응답 열(SERVING_SIZE, AMT_NUM1 에너지, 3 단백질, 4 지방, 6 탄수화물, 7 당류, 13 나트륨, 23 콜레스테롤, 24 포화지방, 25 트랜스지방, Z10500 식품중량, NUTRI_AMOUNT_SERVING, SUB_REF_NAME)을 확인했다. **확인 필요: 실제 호출(키 활용신청 뒤)로 응답 모양(items가 배열인지 {item}인지)과 ITEM_REPORT_NO 검색이 되는지.** 코드는 둘 다 읽는다.
+
 ## 7. 바코드 → 제품
 
 - 공공데이터포털 15064775 유통바코드와 식품안전나라 C005 바코드연계제품정보는 둘 다 **2018년 이후 갱신 중단**(C005 최종수정 2020-08-13). C005 실제 호출: 바코드 하나(신라면)에 품목보고번호 4건이 나와 1:1로 정해지지 않는다.
 - 대안: 상품 페이지 JSON-LD의 `gtin13`(CJ더마켓 확인), 제품 포장 사진에서 제품명 읽기, I0490·I2620의 바코드와 직접 대조.
+
+- (2026-10-19 로컬, P6) 바코드 읽기는 브라우저 `BarcodeDetector`(소매 형식 지원 시) 또는 `barcode-detector` 3.2.2(MIT, ZXing-C++ wasm 포니필)로 한다. wasm은 번들에 넣어 이 사이트에서만 받는다. 바코드 → 식약처 기록은 `grocery.food_alerts.barcode` 일치, 상품 찾기는 다나와 검색(바코드 숫자)으로 사람이 한다.
 
 ## 8. 제품 변경 소식
 

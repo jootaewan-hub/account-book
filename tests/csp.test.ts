@@ -5,8 +5,9 @@ import { CSP } from '../src/lib/csp'
 const directive = (name: string) => (CSP.split('; ').find((d) => d.startsWith(`${name} `)) ?? '').split(' ').slice(1)
 
 describe('CSP', () => {
-  it("스크립트는 이 사이트 파일만, 플러그인·프레임은 없음", () => {
-    expect(directive('script-src')).toEqual(["'self'"])
+  it("스크립트는 이 사이트 파일만(바코드 읽기 .wasm 실행 허용), 플러그인·프레임은 없음", () => {
+    // 'wasm-unsafe-eval'은 이 사이트에서 받은 .wasm(zxing-wasm, P6)을 실행하기 위한 것이다. 외부 스크립트·인라인 스크립트는 여전히 막힌다
+    expect(directive('script-src')).toEqual(["'self'", "'wasm-unsafe-eval'"])
     expect(directive('object-src')).toEqual(["'none'"])
     expect(directive('frame-src')).toEqual(["'none'"])
   })

@@ -170,6 +170,18 @@ export function demoSeed(): { me: Membership; items: Item[]; alerts: AlertsResul
     photo: {
       product: { name: '왕교자 만두 대용량', brand: '예시', size: '1.05kg', note: null },
       price: { seller: '예시몰', name: '예시 왕교자 만두 1.05kg', price: 9900, qty: 1, size: '1.05kg', delivery: 0, note: '가격 옆의 작은 글씨는 읽지 못했어요.' },
+      list: [
+        { name: '대파', spec: null, count: 2 },
+        { name: '우유', spec: '1L', count: 1 },
+        { name: '계란', spec: '30구', count: 1 },
+        { name: '두부', spec: '300g', count: 2 },
+      ],
+    },
+    // 바코드 대조의 가짜 기록(실제 식약처 기록이 아님). 8801007001234는 GS1 검사 숫자가 맞는 보기 값
+    barcodes: {
+      '8801007001234': [
+        { source: 'I0490', sourceId: 'demo-bc-1', productName: '○○ 왕만두 1kg', maker: '○○식품', reason: '대장균군 기준 초과', grade: '2등급', packUnit: '1kg', registeredOn: ago(10), barcode: '8801007001234' },
+      ],
     },
     stores: [
       { entpId: '7', name: '이마트분당점', typeCode: 'LM' },

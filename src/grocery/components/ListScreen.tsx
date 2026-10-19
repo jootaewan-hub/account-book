@@ -10,6 +10,7 @@ import { josa } from '../lib/format'
 import { EMPTY_EXTRAS, toFind, type ItemExtras } from '../lib/products'
 import type { PurchaseEntry } from '../lib/purchase'
 import AddSheet from './AddSheet'
+import BarcodeSheet from './BarcodeSheet'
 import AlertSheet from './AlertSheet'
 import CandidateSheet from './CandidateSheet'
 import ItemDetail from './ItemDetail'
@@ -31,16 +32,20 @@ type Props = {
   ledger?: { categories: LedgerCategory[]; onRecorded: () => void }
   /** 농수산물 시세(D-012): 신선 품목 줄과 상세에 쓴다 */
   market?: MarketStore
+  /** 개발용(데모 화면): 바코드 시트를 이 값의 결과로 연다 */
+  dev?: { barcode?: string }
 }
 
 type Notice = { kind: 'removed'; ids: string[]; what: string } | { kind: 'error' | 'info'; text: string }
 
-export default function ListScreen({ store, me, ledger, market }: Props) {
+export default function ListScreen({ store, me, ledger, market, dev }: Props) {
   const [items, setItems] = useState<Item[] | null>(null)
   const [loadState, setLoadState] = useState<'loading' | 'ready' | 'error'>('loading')
   const [staleError, setStaleError] = useState(false) // 한 번 불러온 뒤 다시 불러오기에 실패
   const [view, setView] = useState<ListViewMode>(() => loadListView(me.userId))
   const [sheetOpen, setSheetOpen] = useState(false)
+  const [sheetText, setSheetText] = useState('')
+  const [barcodeOpen, setBarcodeOpen] = useState(false)
   const [openRow, setOpenRow] = useState<string | null>(null)
   const [hidden, setHidden] = useState<ReadonlySet<string>>(new Set())
   const [notice, setNotice] = useState<Notice | null>(null)
@@ -499,6 +504,12 @@ export default function ListScreen({ store, me, ledger, market }: Props) {
               ))
             )}
 
+            {!editing && (
+              <div className="list-tools">
+                <button type="button" className="btn-secondary detail-link" onClick={() => setBarcodeOpen(true)}>바코드로 상품 보기</button>
+                <span className="src-line">매대 앞에서 바코드를 읽어 식약처 기록을 먼저 확인해요.</span>
+              </div>
+            )}
             {ledger && unrecorded.length > 0 && !editing && (
               <section className="record-card" aria-label="가계부에 넣기">
                 <p>산 것 <span className="num">{unrecorded.length}</span>개를 아직 가계부에 넣지 않았어요.</p>
@@ -527,7 +538,33 @@ export default function ListScreen({ store, me, ledger, market }: Props) {
         )}
       </div>
 
-      {sheetOpen && <AddSheet onAdd={add} onClose={closeSheet} />}
+      {sheetOpen && (
+        <AddSheet
+          onAdd={add}
+          onClose={() => {
+            setSheetText('')
+            closeSheet()
+          }}
+          initialText={sheetText}
+          store={store}
+          onBarcode={() => {
+            setSheetOpen(false)
+            setBarcodeOpen(true)
+          }}
+        />
+      )}
+      {barcodeOpen && (
+        <BarcodeSheet
+          store={store}
+          initialCode={dev?.barcode}
+          onAddText={(text) => {
+            setBarcodeOpen(false)
+            setSheetText(text)
+            setSheetOpen(true)
+          }}
+          onClose={() => setBarcodeOpen(false)}
+        />
+      )}
       {detailItem && (
         <ItemDetail
           item={detailItem}

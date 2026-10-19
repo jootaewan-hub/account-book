@@ -8,11 +8,13 @@ import ListScreen from './ListScreen'
 import MarketScreen from './MarketScreen'
 
 /** 장보기 탭: 위쪽 "목록 | 시세" 전환(아래 탭은 늘리지 않는다, 통합 설계 3-2). 고른 쪽은 사람마다 기억한다 */
-export default function GroceryHome({ store, market, me, ledger }: {
+export default function GroceryHome({ store, market, me, ledger, dev }: {
   store: ListStore
   market: MarketStore
   me: Membership
   ledger?: { categories: LedgerCategory[]; onRecorded: () => void }
+  /** 개발용(데모 화면) */
+  dev?: { barcode?: string }
 }) {
   const [view, setView] = useState<GroceryView>(() => loadGroceryView(me.userId))
   const choose = (v: GroceryView) => {
@@ -26,7 +28,7 @@ export default function GroceryHome({ store, market, me, ledger }: {
         <button type="button" aria-pressed={view === 'market'} onClick={() => choose('market')}>시세</button>
       </div>
       {view === 'list'
-        ? <ListScreen key={me.userId} store={store} me={me} ledger={ledger} market={market} />
+        ? <ListScreen key={me.userId} store={store} me={me} ledger={ledger} market={market} dev={dev} />
         : <MarketScreen store={market} />}
     </>
   )

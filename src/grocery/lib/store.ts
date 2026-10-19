@@ -1,7 +1,7 @@
 import type { Item } from './types'
 import type { PurchaseEntry } from './purchase'
 import type { ParsedItem } from './parse'
-import { EMPTY_ALERTS, type AlertsResult } from './alerts'
+import { EMPTY_ALERTS, type AlertsResult, type FoodAlert } from './alerts'
 import {
   kstDay,
   splitLines,
@@ -15,7 +15,7 @@ import {
 } from './products'
 import type { ItemSources, ShopLink, ShopPrice, ShopSource, StoreGood, StoreOption, StorePrice } from './sources'
 import type { OurPurchase } from './ours'
-import type { CapturedQuoteInput, PhotoImage, PhotoJob, PhotoResult, PriceRead, ProductRead } from './photo'
+import type { CapturedQuoteInput, ListItem, PhotoImage, PhotoJob, PhotoResult, PriceRead, ProductRead } from './photo'
 import { productQuery } from '../../../supabase/functions/grocery-photo/photo'
 
 export interface ListStore {
@@ -58,7 +58,11 @@ export interface ListStore {
   readPhoto(job: PhotoJob, image: PhotoImage): Promise<PhotoResult>
   /** 캡처에서 확인한 가격을 넣는다(captured_quotes). 상품을 안 고른 품목이면 no_product */
   addCapturedQuote(itemId: string, q: CapturedQuoteInput): Promise<void>
+  /** 바코드가 같은 식약처 기록(P6, 화면 설계 8-2 "기록 있음")과 서비스별 확인 시각 */
+  barcodeAlerts(code: string): Promise<{ records: BarcodeRecord[]; syncedAt: AlertsResult['syncedAt'] }>
 }
+
+export type BarcodeRecord = FoodAlert & { barcode: string }
 
 /** 개발용 데모 화면에서 쓰는 가격 확인 자료(실제 가격 아님) */
 export type DemoPrices = {
@@ -77,8 +81,10 @@ export type DemoPrices = {
   stores?: StoreOption[]
   /** 품목 id → 우리가 산 값·비슷한 기록(P2) */
   ours?: Record<string, OurPurchase[]>
-  /** 사진·캡처 읽기의 가짜 결과(P4) */
-  photo?: { product: ProductRead; price: PriceRead & { qty: number } }
+  /** 사진·캡처 읽기의 가짜 결과(P4·P6) */
+  photo?: { product: ProductRead; price: PriceRead & { qty: number }; list?: ListItem[] }
+  /** 바코드 → 식약처 기록(P6) */
+  barcodes?: Record<string, BarcodeRecord[]>
 }
 
 const NO_PRICES: DemoPrices = { searches: {}, candidates: {}, products: {}, lines: {} }
@@ -242,9 +248,12 @@ export function createMemoryStore(
     },
     async readPhoto(job) {
       if (!demoPrices.photo) throw new Error('no_demo')
-      return job === 'product'
-        ? { job: 'product', product: demoPrices.photo.product, query: productQuery(demoPrices.photo.product) }
-        : { job: 'price', price: demoPrices.photo.price }
+      if (job === 'product') return { job: 'product', product: demoPrices.photo.product, query: productQuery(demoPrices.photo.product) }
+      if (job === 'list') return { job: 'list', items: (demoPrices.photo.list ?? []).map((x) => ({ ...x })), note: null }
+      return { job: 'price', price: demoPrices.photo.price }
+    },
+    async barcodeAlerts(code) {
+      return { records: (demoPrices.barcodes?.[code] ?? []).map((r) => ({ ...r })), syncedAt: demoAlerts.syncedAt }
     },
     async addCapturedQuote(itemId, q) {
       const it = items.find((i) => i.id === itemId)
