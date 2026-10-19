@@ -7,6 +7,10 @@
 // 트래픽 초과(-10)면 바로 멈춘다. sync_runs.error는 로그인한 사용자가 읽으므로 정해진 분류와 키를 가린 짧은 문구만 남긴다.
 // Deno 전용 API를 쓰지 않아 Vitest에서 그대로 시험한다(진입점은 index.ts).
 import { MARKET_ITEMS, MarketApiError, marketUrl, PAGE_ROWS, parseMarket, regionsOf, type MarketItem, type MarketRow } from '../_shared/market.ts'
+import { kstDate, sanitize } from '../_shared/sync.ts'
+
+// 예전처럼 여기서도 내보낸다(tests/grocery/marketSync.test.ts가 kstDate를 쓴다)
+export { kstDate, sanitize }
 
 export type MarketSyncDeps = {
   apiKey: string | undefined
@@ -34,26 +38,8 @@ export const FRESH_MS = 20 * 3600_000
 export const COOLDOWN_MS = 30 * 60_000
 const MAX_PAGES = 10
 const CHUNK = 500
-const ERROR_MAX = 200
-
 const json = (status: number, body: unknown) =>
   new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json; charset=utf-8' } })
-
-const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-
-/** 키(그대로·인코딩)를 가리고, 제어 문자를 빼고, ERROR_MAX자로 자른다 */
-export function sanitize(text: string, apiKey: string): string {
-  let out = text
-  for (const form of [apiKey, apiKey.trim(), encodeURIComponent(apiKey.trim())]) {
-    if (form) out = out.replace(new RegExp(escapeRe(form), 'gi'), '***')
-  }
-  return out.replace(/[\u0000-\u001f\u007f]+/g, ' ').trim().slice(0, ERROR_MAX)
-}
-
-/** 한국 날짜 YYYY-MM-DD에서 n일 전 */
-export function kstDate(now: Date, daysAgo = 0): string {
-  return new Date(now.getTime() + 9 * 3600_000 - daysAgo * 86400_000).toISOString().slice(0, 10)
-}
 
 type Job = { m: MarketItem; sgg: string | null; from: string; to: string; kind: 'recent' | 'year' }
 

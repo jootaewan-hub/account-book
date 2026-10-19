@@ -1,5 +1,7 @@
-// Edge Function 진입점: 고른 상품의 다나와 가격 확인. 권한 확인은 사용자 권한(RLS), 저장은 서비스 롤로 한다.
+// Edge Function 진입점: 고른 상품의 다나와 가격 확인과 가구가 넣은 몰 주소(컬리·홈플러스·로우차트) 확인.
+// 권한 확인은 사용자 권한(RLS), 저장은 서비스 롤로 한다.
 import { admin, cors, fetchHtml, userClient, withCors } from '../_shared/edge.ts'
+import type { ShopSource } from '../_shared/shops.ts'
 import { handle } from './handle.ts'
 
 const g = () => admin.schema('grocery')
@@ -57,6 +59,33 @@ Deno.serve(async (req) => {
       if (error) console.error('price_checks 기록 실패', error.message)
     },
     now: () => new Date(),
+    shopLinks: async (id) => {
+      const { data, error } = await g().from('shop_links').select('source, source_id, url').eq('product_id', id).order('source')
+      if (error) throw error
+      const seen = new Set<string>() // 두 가구가 같은 주소를 넣었으면 한 번만 읽는다
+      return ((data ?? []) as { source: string; source_id: string; url: string }[])
+        .filter((r) => (seen.has(`${r.source}|${r.source_id}`) ? false : (seen.add(`${r.source}|${r.source_id}`), true)))
+        .map((r) => ({ source: r.source as ShopSource, sourceId: r.source_id, url: r.url }))
+    },
+    shopTodayOk: async (source, sourceId) => {
+      const { data, error } = await g().from('shop_checks').select('id').eq('source', source).eq('source_id', sourceId).eq('ok', true)
+        .eq('checked_on', kstToday()).limit(1)
+      if (error) throw error
+      return (data ?? []).length > 0
+    },
+    saveShop: async (link, p, at) => {
+      const { error } = await g().from('shop_checks').insert({
+        source: link.source, source_id: link.sourceId, checked_at: at, ok: true,
+        name: p.name.slice(0, 200), price: p.price, image_url: p.imageUrl, rating: p.rating, review_count: p.reviewCount,
+        size: p.size?.slice(0, 40) ?? null, price_from: p.priceFrom,
+        obs_low: p.observed?.low ?? null, obs_high: p.observed?.high ?? null, obs_avg: p.observed?.avg ?? null, changed_on: p.observed?.changedOn ?? null,
+      })
+      if (error) throw error
+    },
+    failShop: async (link, err, at) => {
+      const { error } = await g().from('shop_checks').insert({ source: link.source, source_id: link.sourceId, checked_at: at, ok: false, error: err })
+      if (error) console.error('shop_checks 기록 실패', error.message)
+    },
   }).catch((e) => {
     console.error('product-check 실패', e instanceof Error ? e.message : String(e))
     return new Response(JSON.stringify({ status: 'error' }), { status: 500, headers: { 'content-type': 'application/json' } })

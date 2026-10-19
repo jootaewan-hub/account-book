@@ -1,21 +1,26 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import type { DanawaProduct } from '../../supabase/functions/_shared/danawa'
+import type { ShopLink, ShopProduct } from '../../supabase/functions/_shared/shops'
 import { handle, type CheckDeps } from '../../supabase/functions/product-check/handle'
 
 const PRODUCT = '22222222-2222-4222-8222-222222222222'
 const HTML = readFileSync(new URL('./fixtures/danawa/product-5643303.html', import.meta.url), 'utf8')
+const KURLY_HTML = readFileSync(new URL('./fixtures/shops/kurly-5082274.html', import.meta.url), 'utf8')
+const HOME_HTML = readFileSync(new URL('./fixtures/shops/homeplus-120074651.html', import.meta.url), 'utf8')
+const KURLY: ShopLink = { source: 'kurly', sourceId: '5082274', url: 'https://www.kurly.com/goods/5082274' }
+const HOME: ShopLink = { source: 'homeplus', sourceId: '120074651:HYPER', url: 'https://mfront.homeplus.co.kr/item?itemNo=120074651&storeType=HYPER' }
 
 function deps(over: Partial<CheckDeps> = {}) {
-  const log = { urls: [] as string[], saved: [] as DanawaProduct[], failed: [] as string[] }
+  const log = {
+    urls: [] as string[], saved: [] as DanawaProduct[], failed: [] as string[],
+    shops: [] as { link: ShopLink; p: ShopProduct }[], shopFailed: [] as { link: ShopLink; err: string }[],
+  }
   const d: CheckDeps = {
     allowed: async () => true,
     product: async (id) => ({ id, sourceId: '5643303' }),
     todayOk: async () => false,
-    fetchHtml: async (url) => {
-      log.urls.push(url)
-      return { status: 200, text: HTML }
-    },
+    fetchHtml: async () => ({ status: 200, text: HTML }),
     save: async (_id, p) => {
       log.saved.push(p)
     },
@@ -23,7 +28,21 @@ function deps(over: Partial<CheckDeps> = {}) {
       log.failed.push(err)
     },
     now: () => new Date('2026-10-20T01:00:00Z'),
+    shopLinks: async () => [],
+    shopTodayOk: async () => false,
+    saveShop: async (link, p) => {
+      log.shops.push({ link, p })
+    },
+    failShop: async (link, err) => {
+      log.shopFailed.push({ link, err })
+    },
     ...over,
+  }
+  // 어떤 fetchHtml을 넣든 부른 주소는 기록한다
+  const inner = d.fetchHtml
+  d.fetchHtml = (url) => {
+    log.urls.push(url)
+    return inner(url)
   }
   return { d, log }
 }
@@ -103,5 +122,84 @@ describe('product-check', () => {
     const { d, log } = deps({ save: async () => { throw new Error('db') } })
     expect((await handle(post({ productId: PRODUCT }), d)).status).toBe(502)
     expect(log.failed).toEqual(['save_failed'])
+  })
+})
+
+/** 주소에 따라 다나와·컬리·홈플러스 사본을 돌려주는 가짜 fetch */
+const byUrl = (over: Record<string, { status: number; text: string } | 'throw'> = {}) => async (url: string) => {
+  const o = over[url]
+  if (o === 'throw') throw new TypeError('fetch failed')
+  if (o) return o
+  if (url.startsWith('https://prod.danawa.com/')) return { status: 200, text: HTML }
+  if (url === KURLY.url) return { status: 200, text: KURLY_HTML }
+  if (url === HOME.url) return { status: 200, text: HOME_HTML }
+  return { status: 404, text: '' }
+}
+
+describe('product-check: 가구가 넣은 몰 주소', () => {
+  it('다나와가 오늘 캐시여도 아직 안 읽은 주소는 읽어 저장하고, 응답에 몰 결과 수를 싣는다', async () => {
+    const { d, log } = deps({ todayOk: async () => true, shopLinks: async () => [KURLY, HOME], fetchHtml: byUrl() })
+    const res = await handle(post({ productId: PRODUCT }), d)
+    expect(await res.json()).toEqual({ status: 'cached', shops: { done: 2, cached: 0, failed: 0 } })
+    expect(log.urls).toEqual([KURLY.url, HOME.url])
+    expect(log.shops.map((s) => [s.link.source, s.p.name, s.p.price])).toEqual([
+      ['kurly', '[비비고] 왕교자 만두 대용량 1.05kg', 10980],
+      ['homeplus', '농심 신라면 120G*5입', 4150],
+    ])
+    expect(log.shopFailed).toEqual([])
+  })
+
+  it('주소가 없으면 응답은 예전 그대로(shops 없음)', async () => {
+    const { d } = deps({ todayOk: async () => true })
+    expect(await (await handle(post({ productId: PRODUCT }), d)).json()).toEqual({ status: 'cached' })
+  })
+
+  it('오늘 이미 읽은 출처는 다시 부르지 않는다', async () => {
+    const { d, log } = deps({
+      todayOk: async () => true,
+      shopLinks: async () => [KURLY, HOME],
+      shopTodayOk: async (source) => source === 'kurly',
+      fetchHtml: byUrl(),
+    })
+    expect(await (await handle(post({ productId: PRODUCT }), d)).json()).toEqual({ status: 'cached', shops: { done: 1, cached: 1, failed: 0 } })
+    expect(log.urls).toEqual([HOME.url])
+  })
+
+  it('한 출처가 실패해도 나머지는 저장한다: HTTP 오류·파싱 실패·네트워크 오류·저장 실패는 이유를 남긴다', async () => {
+    const cases: [Record<string, { status: number; text: string } | 'throw'>, string][] = [
+      [{ [KURLY.url]: { status: 503, text: '' } }, 'http_503'],
+      [{ [KURLY.url]: { status: 200, text: '<html>점검 중</html>' } }, 'parse_failed'],
+      [{ [KURLY.url]: { status: 200, text: KURLY_HTML.replace('"price":10980', '"price":0') } }, 'parse_failed'],
+      [{ [KURLY.url]: 'throw' }, 'network_error'],
+    ]
+    for (const [over, reason] of cases) {
+      const { d, log } = deps({ todayOk: async () => true, shopLinks: async () => [KURLY, HOME], fetchHtml: byUrl(over) })
+      expect(await (await handle(post({ productId: PRODUCT }), d)).json()).toEqual({ status: 'cached', shops: { done: 1, cached: 0, failed: 1 } })
+      expect(log.shopFailed).toEqual([{ link: KURLY, err: reason }])
+      expect(log.shops.map((s) => s.link.source)).toEqual(['homeplus'])
+    }
+    const { d, log } = deps({
+      todayOk: async () => true,
+      shopLinks: async () => [KURLY],
+      fetchHtml: byUrl(),
+      saveShop: async () => { throw new Error('db') },
+    })
+    expect(await (await handle(post({ productId: PRODUCT }), d)).json()).toEqual({ status: 'cached', shops: { done: 0, cached: 0, failed: 1 } })
+    expect(log.shopFailed).toEqual([{ link: KURLY, err: 'save_failed' }])
+  })
+
+  it('다나와가 실패해도(502) 몰 주소는 읽는다', async () => {
+    const { d, log } = deps({ shopLinks: async () => [KURLY], fetchHtml: byUrl({ 'https://prod.danawa.com/info/?pcode=5643303': { status: 503, text: '' } }) })
+    const res = await handle(post({ productId: PRODUCT }), d)
+    expect(res.status).toBe(502)
+    expect(await res.json()).toEqual({ status: 'error', shops: { done: 1, cached: 0, failed: 0 } })
+    expect(log.failed).toEqual(['http_503'])
+    expect(log.shops).toHaveLength(1)
+  })
+
+  it('다나와를 받은 뒤(done) 몰 주소도 읽는다', async () => {
+    const { d, log } = deps({ shopLinks: async () => [HOME], fetchHtml: byUrl() })
+    expect(await (await handle(post({ productId: PRODUCT }), d)).json()).toEqual({ status: 'done', shops: { done: 1, cached: 0, failed: 0 } })
+    expect(log.urls).toEqual(['https://prod.danawa.com/info/?pcode=5643303', HOME.url])
   })
 })
