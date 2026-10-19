@@ -52,6 +52,15 @@ groceryItems.push({ id: 'g8', household_id: HH, name: '라면', spec: null, coun
   product_qty: null, added_by: ME, added_at: ago(2000), bought_by: ME, bought_at: ago(1500), paid: 5000, transaction_id: 't7' })
 for (const i of groceryItems) i.transaction_id ??= null
 
+function marketRow(item, vrty, grd, ctgry, itemNm, vrtyNm, grdNm, unit, unitSz, cur, w1) {
+  return {
+    item_cd: item, vrty_cd: vrty, grd_cd: grd, ctgry_cd: ctgry, item_nm: itemNm, vrty_nm: vrtyNm, grd_nm: grdNm, unit, unit_sz: unitSz,
+    sgg_cd: '3112', sgg_nm: '성남', mrkt_cd: '0310407', mrkt_nm: 'B-유통', cur_on: day(16), cur_price: cur, prev_on: day(15), prev_price: cur,
+    w1_on: day(8), w1_price: w1, m1_on: null, m1_price: null, y1_on: null, y1_price: null, low: cur, high: cur + 900, markets: 8,
+    first_on: day(1), days: 12, fetched_at: ago(120),
+  }
+}
+
 /** `${스키마}.${표 또는 rpc/함수}` → 응답 행 */
 export const TABLES = {
   'public.households': [{ id: HH, name: '우리집', invite_code: 'ABCD2345' }],
@@ -75,7 +84,15 @@ export const TABLES = {
     .map((i) => ({ item_id: i.id, status: 'done', candidate_count: 3, updated_at: ago(20) })),
   'grocery.rpc/item_alerts': [],
   'grocery.rpc/item_prices': [],
-  'grocery.sync_runs': ['I0490', 'I2620', 'I2715'].map((source) => ({ source, ran_at: ago(180) })),
+  'grocery.sync_runs': ['I0490', 'I2620', 'I2715', 'kamis'].map((source) => ({ source, ran_at: ago(180) })),
+  // 시세판(D-012) 두 줄: 숫자는 캡처 확인용 예시(실제 조사값 아님)
+  'grocery.rpc/market_board': [
+    marketRow('246', '00', '04', '200', '파', '대파', '상품', 'kg', '1', 1980, 2100),
+    marketRow('245', '00', '04', '200', '양파', '양파', '상품', 'kg', '1', 1960, 2060),
+  ],
+  'grocery.rpc/market_trend': [],
+  'grocery.watch': [{ item_cd: '246', vrty_cd: '00', grd_cd: '04' }],
+  'grocery.food_alerts': [],
 }
 
 /** 영수증 사진 분석(extract-entries) 가짜 응답: 장보기 목록과 이름이 맞는 상품이 섞인 마트 영수증 */

@@ -3,8 +3,9 @@
 import { useMemo } from 'react'
 import { sb } from '../lib/supabase'
 import type { Category, Member } from '../lib/types'
-import ListScreen from './components/ListScreen'
+import GroceryHome from './components/GroceryHome'
 import { toMembership } from './lib/membership'
+import { createSupabaseMarketStore } from './lib/marketStore'
 import { createSupabaseStore } from './lib/supabaseStore'
 import './grocery.css'
 
@@ -21,10 +22,11 @@ export function GroceryTab({ userId, members, categories, onRecorded }: {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const membership = useMemo(() => toMembership(userId, members), [userId, key])
   const store = useMemo(() => (membership ? createSupabaseStore(sb(), membership) : null), [membership])
+  const market = useMemo(() => (membership ? createSupabaseMarketStore(sb(), membership.householdId) : null), [membership])
   return (
     <div className="grocery">
-      {membership && store
-        ? <ListScreen key={userId} store={store} me={membership} ledger={{ categories, onRecorded }} />
+      {membership && store && market
+        ? <GroceryHome key={userId} store={store} market={market} me={membership} ledger={{ categories, onRecorded }} />
         : <p className="lead">가구 정보 확인 중</p>}
     </div>
   )

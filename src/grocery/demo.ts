@@ -3,6 +3,8 @@ import { groupAlerts, type AlertsResult } from './lib/alerts'
 import type { Membership } from './lib/membership'
 import type { DemoPrices } from './lib/store'
 import type { Item } from './lib/types'
+import { keyOf, type MarketBoard, type MarketSeries, type NearbyPrice, type SeriesKey, type TrendPoint } from './lib/market'
+import type { Recalls } from './lib/marketStore'
 
 const H = 'demo'
 const HUSBAND = 'demo-husband'
@@ -110,4 +112,90 @@ export function demoSeed(): { me: Membership; items: Item[]; alerts: AlertsResul
     },
   }
   return { me, items, alerts, prices }
+}
+
+// 데모용 시세(실제 KAMIS 조사값이 아님). 조사처 이름은 실제 응답의 가린 이름 모양만 따랐다. 날짜는 늘 오늘 기준.
+export function demoMarket(): {
+  board: MarketBoard
+  trends: Record<string, TrendPoint[]>
+  nearby: Record<string, NearbyPrice[]>
+  watches: SeriesKey[]
+  recalls: Recalls
+} {
+  const kst = new Date(Date.now() + 9 * 3600_000)
+  const ago = (n: number) => new Date(kst.getTime() - n * 86400_000).toISOString().slice(0, 10)
+  // 마지막 조사일: 사흘 전부터 거꾸로 가장 가까운 평일
+  const weekday = (n: number) => {
+    let k = n
+    while ([0, 6].includes(new Date(`${ago(k)}T00:00:00Z`).getUTCDay())) k++
+    return k
+  }
+  const last = weekday(1)
+  const dp = (n: number, price: number) => ({ on: ago(weekday(n)), price })
+  type Def = {
+    item: string; vrty: string; grd: string; ctgry: string; itemNm: string; vrtyNm: string; grdNm: string; unit: string; unitSz: string
+    sgg: string; sggNm: string; mrkt: string; mrktNm: string; cur: number; prev: number; w1: number | null; m1: number | null; y1: number | null
+    low: number | null; high: number | null; markets: number
+  }
+  const SN = { sgg: '3112', sggNm: '성남', mrkt: '0310407', mrktNm: 'B-유통' }
+  const NAT = { sgg: '1000', sggNm: '전국', mrkt: '', mrktNm: '' }
+  const defs: Def[] = [
+    { item: '246', vrty: '00', grd: '04', ctgry: '200', itemNm: '파', vrtyNm: '대파', grdNm: '상품', unit: 'kg', unitSz: '1', ...SN, cur: 1980, prev: 1980, w1: 2100, m1: 2650, y1: 3120, low: 1980, high: 4780, markets: 12 },
+    { item: '246', vrty: '02', grd: '04', ctgry: '200', itemNm: '파', vrtyNm: '쪽파', grdNm: '상품', unit: 'kg', unitSz: '1', ...SN, cur: 3960, prev: 3960, w1: 4160, m1: 4380, y1: null, low: 3500, high: 6980, markets: 11 },
+    { item: '245', vrty: '00', grd: '04', ctgry: '200', itemNm: '양파', vrtyNm: '양파', grdNm: '상품', unit: 'kg', unitSz: '1', ...SN, cur: 1960, prev: 1960, w1: 2060, m1: 2010, y1: 2480, low: 1960, high: 2660, markets: 12 },
+    { item: '211', vrty: '02', grd: '04', ctgry: '200', itemNm: '배추', vrtyNm: '여름(고랭지)', grdNm: '상품', unit: '포기', unitSz: '1', ...SN, cur: 5340, prev: 5340, w1: 5820, m1: 7200, y1: 4980, low: 4580, high: 7900, markets: 11 },
+    { item: '411', vrty: '07', grd: '04', ctgry: '400', itemNm: '사과', vrtyNm: '홍로', grdNm: '상품', unit: '개', unitSz: '10', ...SN, cur: 18600, prev: 18600, w1: 19800, m1: 24500, y1: 21300, low: 11400, high: 29800, markets: 12 },
+    { item: '611', vrty: '03', grd: '30', ctgry: '600', itemNm: '고등어', vrtyNm: '국산(염장)', grdNm: '-', unit: '손', unitSz: '1', sgg: '3111', sggNm: '수원', mrkt: '0310001', mrktNm: '지동', cur: 5900, prev: 5900, w1: 5600, m1: 5480, y1: 4900, low: 4790, high: 10900, markets: 9 },
+    { item: '4304', vrty: '27', grd: '27', ctgry: '500', itemNm: '돼지', vrtyNm: '삼겹살', grdNm: '삼겹살', unit: 'g', unitSz: '100', ...NAT, cur: 2580, prev: 2590, w1: 2610, m1: 2490, y1: 2450, low: null, high: null, markets: 0 },
+    { item: '9903', vrty: '23', grd: '1', ctgry: '500', itemNm: '계란', vrtyNm: '특란30구', grdNm: '일반란', unit: '구', unitSz: '30', ...NAT, cur: 6980, prev: 6990, w1: 6890, m1: 6720, y1: 7120, low: null, high: null, markets: 0 },
+  ]
+  const series: MarketSeries[] = defs.map((d) => ({
+    item: d.item, vrty: d.vrty, grd: d.grd, ctgry: d.ctgry, itemNm: d.itemNm, vrtyNm: d.vrtyNm, grdNm: d.grdNm, unit: d.unit, unitSz: d.unitSz,
+    sgg: d.sgg, sggNm: d.sggNm, mrkt: d.mrkt, mrktNm: d.mrktNm,
+    cur: { on: ago(last), price: d.cur },
+    prev: dp(last + 1, d.prev),
+    w1: d.w1 === null ? null : dp(last + 7, d.w1),
+    m1: d.m1 === null ? null : dp(last + 30, d.m1),
+    y1: d.y1 === null ? null : dp(last + 365, d.y1),
+    low: d.low, high: d.high, markets: d.markets,
+    firstOn: ago(last + 400), days: 30, fetchedAt: new Date(Date.now() - 2 * 3600_000).toISOString(),
+  }))
+  // 추이: 1개월 전 값에서 1주 전 값을 거쳐 지금 값으로 가는 선(평일만), 띠는 그 위아래
+  const trends: Record<string, TrendPoint[]> = {}
+  for (const s of series) {
+    const pts: TrendPoint[] = []
+    for (let n = last + 44; n >= last; n--) {
+      const on = ago(n)
+      if ([0, 6].includes(new Date(`${on}T00:00:00Z`).getUTCDay())) continue
+      const a = s.m1?.price ?? s.cur.price
+      const b = s.w1?.price ?? s.cur.price
+      const k = n - last
+      const v = k >= 7 ? b + ((a - b) * (k - 7)) / 37 : s.cur.price + ((b - s.cur.price) * k) / 7
+      const price = Math.round((v + ((n * 37) % 5) * (s.cur.price / 400)) / 10) * 10
+      pts.push({
+        on, price, markets: s.markets,
+        low: s.low === null ? null : Math.min(price, Math.round((price * 0.82) / 10) * 10),
+        high: s.high === null ? null : Math.round((price * 1.6) / 10) * 10,
+      })
+    }
+    pts[pts.length - 1] = { ...pts[pts.length - 1], price: s.cur.price, low: s.low, high: s.high }
+    trends[keyOf(s)] = pts
+  }
+  const greenOnion = series[0]
+  const nearby: Record<string, NearbyPrice[]> = {
+    [keyOf(greenOnion)]: [
+      ['성남', 'B-유통', '0310407', 1980], ['서울', 'B-유통', '0110406', 1990], ['서울', 'C-유통', '0110403', 2160],
+      ['수원', '지동', '0310001', 2280], ['서울', '복조리', '0110213', 2500], ['수원', 'B-유통', '0310402', 2540],
+      ['서울', '경동', '0110212', 2660], ['서울', 'I-유통', '0110409', 2780], ['서울', 'K-유통', '0110407', 2870],
+      ['서울', 'L-유통', '0110410', 3150], ['서울', 'B`-유통', '0110411', 3490], ['서울', 'E-유통', '0110408', 4780],
+    ].map(([sggNm, mrktNm, mrkt, price]) => ({ sggNm: sggNm as string, mrktNm: mrktNm as string, mrkt: mrkt as string, price: price as number })),
+  }
+  const recalls: Recalls = {
+    syncedAt: new Date(Date.now() - 3600_000).toISOString(),
+    records: [
+      { source: 'I0490', sourceId: 'demo-r1', productName: '○○ 냉동볶음밥 300g', maker: '○○식품', reason: '이물 혼입', grade: '2등급', packUnit: '300g', registeredOn: ago(5) },
+      { source: 'I0490', sourceId: 'demo-r2', productName: '△△ 참기름 320ml', maker: '△△유지', reason: '벤조피렌 기준 초과', grade: '1등급', packUnit: '320ml', registeredOn: ago(9) },
+    ],
+  }
+  return { board: { series, syncedAt: new Date(Date.now() - 2 * 3600_000).toISOString() }, trends, nearby, watches: [series[0], series[6], series[2]], recalls }
 }

@@ -17,6 +17,9 @@ import ListRow from './ListRow'
 import RecordSheet from './RecordSheet'
 import type { Category as LedgerCategory } from '../../lib/types'
 import { trackGroceryFlush } from '../flush'
+import { isFresh } from '../lib/products'
+import { rowQuote, seriesForItem, type MarketBoard } from '../lib/market'
+import type { MarketStore } from '../lib/marketStore'
 
 const UNDO_MS = 5000
 
@@ -26,11 +29,13 @@ type Props = {
   me: Membership
   /** 가계부 안에서 열렸을 때: 가계부 분류와, 가계부에 넣은 뒤 가계부 내역을 다시 불러오는 함수(D-011) */
   ledger?: { categories: LedgerCategory[]; onRecorded: () => void }
+  /** 농수산물 시세(D-012): 신선 품목 줄과 상세에 쓴다 */
+  market?: MarketStore
 }
 
 type Notice = { kind: 'removed'; ids: string[]; what: string } | { kind: 'error' | 'info'; text: string }
 
-export default function ListScreen({ store, me, ledger }: Props) {
+export default function ListScreen({ store, me, ledger, market }: Props) {
   const [items, setItems] = useState<Item[] | null>(null)
   const [loadState, setLoadState] = useState<'loading' | 'ready' | 'error'>('loading')
   const [staleError, setStaleError] = useState(false) // 한 번 불러온 뒤 다시 불러오기에 실패
@@ -55,6 +60,26 @@ export default function ListScreen({ store, me, ledger }: Props) {
   const [pickItem, setPickItem] = useState<Item | null>(null)
   const refetchRef = useRef<() => void>(() => {}) // find가 refetch보다 먼저 정의돼 ref로 부른다
   const [detailItem, setDetailItem] = useState<Item | null>(null)
+  // 시세판: 신선 품목 줄의 시세 칸. 실패하면 'failed'(줄은 "시세 확인 못 함")
+  const [board, setBoard] = useState<MarketBoard | null | 'failed'>(null)
+  useEffect(() => {
+    if (!market) return
+    let live = true
+    const load = () => market.board().then((b) => live && setBoard(b), () => live && setBoard((cur) => (cur && cur !== 'failed' ? cur : 'failed')))
+    load()
+    const onVisible = () => document.visibilityState === 'visible' && load()
+    document.addEventListener('visibilitychange', onVisible)
+    return () => {
+      live = false
+      document.removeEventListener('visibilitychange', onVisible)
+    }
+  }, [market])
+  const freshOf = (item: Item) => {
+    if (!market || !isFresh(item.category)) return undefined
+    if (board === null) return { state: 'loading' as const }
+    const s = board === 'failed' ? null : seriesForItem(board.series, item.name, item.spec)
+    return s ? { state: 'ok' as const, quote: rowQuote(s) } : { state: 'none' as const }
+  }
 
   // 후보 상태·오늘 최저가·고른 상품명. 실패해도 목록은 그대로(가격은 "확인 못 함"으로 남는다).
   const refetchExtras = useCallback(() => {
@@ -466,6 +491,7 @@ export default function ListScreen({ store, me, ledger }: Props) {
                         productName={extras.productNames.get(item.id) ?? null}
                         onPick={() => setPickItem(item)}
                         onOpen={() => setDetailItem(item)}
+                        fresh={freshOf(item)}
                       />
                     ))}
                   </ul>
@@ -506,6 +532,7 @@ export default function ListScreen({ store, me, ledger }: Props) {
         <ItemDetail
           item={detailItem}
           store={store}
+          market={market ? { store: market, board: board === 'failed' ? null : board, failed: board === 'failed' } : undefined}
           onChangeProduct={() => {
             setPickItem(detailItem)
             setDetailItem(null)

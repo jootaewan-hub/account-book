@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react'
-import { checkedRange, koFullDay, SOURCE_NAME, SOURCES } from '../lib/alerts'
+import { checkedRange, koDay, koFullDay, SOURCE_NAME, SOURCES } from '../lib/alerts'
 import { danawaProductUrl } from '../../../supabase/functions/_shared/danawa'
 import { won } from '../lib/format'
 import {
@@ -19,13 +19,23 @@ import {
 } from '../lib/products'
 import type { ListStore } from '../lib/store'
 import type { Item } from '../lib/types'
+import { change, changeText, dayText, gradeText, pickSeries, sameKey, seriesName, unitOf, whereOf, type MarketBoard, type MarketSeries, type SeriesKey } from '../lib/market'
+import type { MarketStore } from '../lib/marketStore'
+import MarketPanel from './MarketPanel'
+import { matchMarket } from '../../../supabase/functions/_shared/market'
 
 const CLOSE_MS = 250
-type Tab = 'price' | 'safety' | 'rating'
+type Tab = 'market' | 'price' | 'safety' | 'rating'
 const TABS: { key: Tab; label: string }[] = [
   { key: 'price', label: '가격' },
   { key: 'safety', label: '안전' },
   { key: 'rating', label: '평가' },
+]
+// 신선 품목(정육·수산·채소·과일): 상품을 고르지 않고 시세로 본다(화면 설계 8-3, D-012)
+const FRESH_TABS: { key: Tab; label: string }[] = [
+  { key: 'market', label: '시세' },
+  { key: 'price', label: '가격' },
+  { key: 'safety', label: '안전' },
 ]
 
 type Props = {
@@ -33,12 +43,27 @@ type Props = {
   store: ListStore
   onChangeProduct: () => void
   onClose: () => void
+  /** 농수산물 시세(D-012). board가 null이면 아직 불러오는 중, failed면 불러오지 못함 */
+  market?: { store: MarketStore; board: MarketBoard | null; failed: boolean }
 }
 
 // 품목 상세: 요약 네 칸과 가격·안전·평가 탭. 숫자마다 출처와 확인 시각을 붙인다(화면 설계 4·5절).
-export default function ItemDetail({ item, store, onChangeProduct, onClose }: Props) {
+export default function ItemDetail({ item, store, onChangeProduct, onClose, market }: Props) {
+  const fresh = isFresh(item.category) && Boolean(market)
   const [closing, setClosing] = useState(false)
-  const [tab, setTab] = useState<Tab>('price')
+  const [tab, setTab] = useState<Tab>(fresh ? 'market' : 'price')
+  const matched = fresh ? matchMarket(item.name, item.spec) : null
+  const series = market?.board ? pickSeries(market.board.series, matched) : null
+  const [watches, setWatches] = useState<SeriesKey[]>([])
+  useEffect(() => {
+    if (!fresh || !market) return
+    market.store.watches().then(setWatches, () => {})
+  }, [fresh, market])
+  const toggleWatch = (s: MarketSeries, on: boolean) => {
+    const before = watches
+    setWatches(on ? [...before, { item: s.item, vrty: s.vrty, grd: s.grd }] : before.filter((w) => !sameKey(w, s)))
+    market?.store.setWatch(s, on).catch(() => setWatches(before))
+  }
   const [data, setData] = useState<ItemDetailData | null>(null)
   const [failed, setFailed] = useState(false)
   const [checking, setChecking] = useState(false)
@@ -132,7 +157,13 @@ export default function ItemDetail({ item, store, onChangeProduct, onClose }: Pr
               <div className="detail-head">
                 {data.product?.imageUrl && <img className="cand-img" src={data.product.imageUrl} alt="" />}
                 <div className="cand-title">
-                  <p className="cand-name">{data.product ? `${data.product.name} (${qty}개)` : searchLabel(null, isFresh(item.category))}</p>
+                  <p className="cand-name">
+                    {data.product
+                      ? `${data.product.name} (${qty}개)`
+                      : fresh
+                        ? series ? `시세: ${seriesName(series)}${gradeText(series) ? ` ${gradeText(series)}` : ''}` : '농수산물 시세'
+                        : searchLabel(null, isFresh(item.category))}
+                  </p>
                   <p className="cand-rating">{item.category}</p>
                 </div>
                 {(data.product || !isFresh(item.category)) && (
@@ -142,6 +173,9 @@ export default function ItemDetail({ item, store, onChangeProduct, onClose }: Pr
                 )}
               </div>
 
+              {fresh ? (
+                <FreshSummary series={series} state={market?.failed ? 'failed' : market?.board ? 'ready' : 'loading'} safety={safetySummary(data.safety, data.syncedAt)} />
+              ) : (
               <section className="summary detail-summary" aria-label="요약">
                 <div className="summary-cell">
                   <p className="summary-k">가장 싼 값</p>
@@ -162,14 +196,38 @@ export default function ItemDetail({ item, store, onChangeProduct, onClose }: Pr
                   <p className="summary-v detail-small">다음 단계</p>
                 </div>
               </section>
+              )}
 
               <div className="seg detail-tabs" role="tablist" aria-label="품목 상세">
-                {TABS.map((t) => (
+                {(fresh ? FRESH_TABS : TABS).map((t) => (
                   <button key={t.key} type="button" role="tab" aria-selected={tab === t.key} aria-pressed={tab === t.key} onClick={() => setTab(t.key)}>
                     {t.label}
                   </button>
                 ))}
               </div>
+
+              {tab === 'market' && market && (
+                <div role="tabpanel">
+                  {market.failed && <p className="cand-state" role="status">시세를 불러오지 못했어요. 잠시 뒤 다시 열어 주세요.</p>}
+                  {!market.failed && !market.board && <p className="cand-state" role="status">시세 확인 중</p>}
+                  {market.board && !series && (
+                    <p className="cand-state">
+                      {matched
+                        ? `KAMIS ${matched.label}의 최근 60일 조사값이 없어 시세 확인 못 함.`
+                        : '이 품목에 맞는 KAMIS 조사 품목을 찾지 못해 시세 확인 못 함.'}
+                    </p>
+                  )}
+                  {market.board && series && (
+                    <MarketPanel
+                      store={market.store}
+                      series={market.board.series}
+                      initial={series}
+                      isWatched={(x) => watches.some((w) => sameKey(w, x))}
+                      onWatch={toggleWatch}
+                    />
+                  )}
+                </div>
+              )}
 
               {tab === 'price' && (
                 <div role="tabpanel">
@@ -181,7 +239,7 @@ export default function ItemDetail({ item, store, onChangeProduct, onClose }: Pr
                     </p>
                   )}
                   {!data.product && (
-                    <p className="cand-state">{isFresh(item.category) ? '농수산물 시세는 다음 단계에서 붙여요.' : '상품을 고르면 가격을 확인해요.'}</p>
+                    <p className="cand-state">{isFresh(item.category) ? '신선 품목은 시세 탭에 공공 조사값을 보여 드려요. 쇼핑몰 가격은 아래에서 직접 보세요.' : '상품을 고르면 가격을 확인해요.'}</p>
                   )}
                   {data.product && !checking && split.same.length === 0 && split.other.length === 0 && !lastFailed && (
                     <p className="cand-state">가격 확인 못 함</p>
@@ -296,5 +354,35 @@ function FarmRecords({ records }: { records: SafetyRecord[] }) {
       </button>
       {open && <ul className="alert-list">{records.filter((r) => r.farm).map((r) => <SafetyCard key={r.sourceId} r={r} />)}</ul>}
     </div>
+  )
+}
+
+/** 신선 품목 요약 네 칸: 오늘 시세, 1주 전 대비, 1년 전 대비, 식약처 기록(화면 설계 8-3, 평년은 D-012로 1년 전) */
+function FreshSummary({ series, state, safety }: { series: MarketSeries | null; state: 'loading' | 'ready' | 'failed'; safety: string }) {
+  const none = state === 'loading' ? '확인 중' : '확인 못 함'
+  const cmp = (label: string, p: MarketSeries['w1']) => {
+    const c = series ? change(series.cur, p) : null
+    return (
+      <div className="summary-cell">
+        <p className="summary-k">{label} 대비</p>
+        <p className={`summary-v num${c ? ` market-change is-${c.dir}` : ''}`}>{series ? changeText(c) : none}</p>
+        {series && p && <p className="summary-note">{dayText(p.on, series.cur.on)} {won(p.price)}</p>}
+      </div>
+    )
+  }
+  return (
+    <section className="summary detail-summary" aria-label="요약">
+      <div className="summary-cell">
+        <p className="summary-k">오늘 시세</p>
+        <p className="summary-v num">{series ? won(series.cur.price) : none}</p>
+        {series && <p className="summary-note">{unitOf(series)}, {whereOf(series)} {koDay(series.cur.on)}</p>}
+      </div>
+      {cmp('1주 전', series?.w1 ?? null)}
+      {cmp('1년 전', series?.y1 ?? null)}
+      <div className="summary-cell">
+        <p className="summary-k">식약처 기록</p>
+        <p className="summary-v detail-small">{safety}</p>
+      </div>
+    </section>
   )
 }

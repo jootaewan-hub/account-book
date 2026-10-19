@@ -9,10 +9,11 @@ import './styles.css'
 // import.meta.env.DEV가 빌드에서 false로 바뀌어 이 분기와 데모 모듈은 빌드 결과에 들어가지 않는다.
 async function devScreen(mode: string | null): Promise<ReactNode | null> {
   if (mode !== 'grocery' && mode !== 'grocery-empty' && mode !== 'grocery-error') return null
-  const [{ demoSeed }, { createMemoryStore }, { default: ListScreen }] = await Promise.all([
+  const [{ demoSeed, demoMarket }, { createMemoryStore }, { createMemoryMarketStore }, { default: GroceryHome }] = await Promise.all([
     import('./grocery/demo'),
     import('./grocery/lib/store'),
-    import('./grocery/components/ListScreen'),
+    import('./grocery/lib/marketStore'),
+    import('./grocery/components/GroceryHome'),
     import('./grocery/grocery.css'),
   ])
   const d = demoSeed()
@@ -24,7 +25,9 @@ async function devScreen(mode: string | null): Promise<ReactNode | null> {
   // 가계부에 넣기(D-011)를 보이게 가계부 분류 몇 개를 흉내 낸다(저장은 메모리 저장소)
   const categories = ['식비', '장보기', '세제·소모품', '생활용품', '기타'].map((name, i) => ({ id: `demo-c-${i}`, household_id: d.me.householdId, type: 'expense' as const, name, sort: i, archived: false }))
   // main.wrap: 가계부 셸처럼 아래 여백을 둬 목록 끝이 담기 바에 가리지 않게
-  return <main className="wrap" style={noTabbar}><div className="grocery"><ListScreen store={store} me={d.me} ledger={{ categories, onRecorded: () => {} }} /></div></main>
+  // 시세(D-012): 데모 시세(실제 조사값 아님). 빈 목록 데모는 시세도 비운다
+  const market = createMemoryMarketStore(full ? demoMarket() : { board: { series: [], syncedAt: null } })
+  return <main className="wrap" style={noTabbar}><div className="grocery"><GroceryHome store={store} market={market} me={d.me} ledger={{ categories, onRecorded: () => {} }} /></div></main>
 }
 
 const root = createRoot(document.getElementById('root')!)

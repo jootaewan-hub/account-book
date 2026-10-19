@@ -3,6 +3,7 @@ import { BADGE } from '../lib/alerts'
 import { checkedText, isFresh, isStale, searchLabel, type ItemPrice, type ItemSearch } from '../lib/products'
 import type { AlertLevel, Item, Member } from '../lib/types'
 import { josa, won } from '../lib/format'
+import type { RowQuote } from '../lib/market'
 
 const ACTION_W = 88 // "빼기" 버튼 폭
 const LONG_PRESS_MS = 500
@@ -29,7 +30,11 @@ type Props = {
   onPick?: () => void
   /** 품목 상세 열기(줄 누르기) */
   onOpen?: () => void
+  /** 신선 품목의 시세(D-012). 없으면(시세 저장소 없음) 예전 문구 */
+  fresh?: { state: 'loading' | 'none' } | { state: 'ok'; quote: RowQuote }
 }
+
+const FRESH_LABEL = { loading: '시세 확인 중', none: '농수산물 시세', ok: '농수산물 시세' } as const
 
 function whoClass(m: Member): string {
   if (m.spouseRole === 'husband') return 'who-dot who-husband'
@@ -39,7 +44,7 @@ function whoClass(m: Member): string {
 
 export default function ListRow({
   item, members, showNoCompare, alertLevel, onAlert, open, onOpenChange, onToggle, onRemove, editing = false,
-  search = null, price = null, productName = null, onPick, onOpen,
+  search = null, price = null, productName = null, onPick, onOpen, fresh: freshQuote,
 }: Props) {
   const bought = item.boughtAt !== null
   const adder = members.find((m) => m.userId === item.addedBy)
@@ -136,7 +141,11 @@ export default function ListRow({
         </span>,
       )
     }
-    second.push(item.productKey === null ? (stale && !fresh ? '후보를 찾지 못했어요(다시 시도)' : searchLabel(search, fresh)) : (productName ?? '상품 고름'))
+    second.push(
+      fresh && freshQuote
+        ? FRESH_LABEL[freshQuote.state]
+        : item.productKey === null ? (stale && !fresh ? '후보를 찾지 못했어요(다시 시도)' : searchLabel(search, fresh)) : (productName ?? '상품 고름'),
+    )
     if (showNoCompare) second.push('비교 못 함')
   }
 
@@ -231,6 +240,16 @@ export default function ListRow({
           >
             상품 고르기
           </button>
+        ) : fresh && freshQuote ? (
+          freshQuote.state === 'ok' ? (
+            <span className="row-price">
+              <span className="row-price-v num">{freshQuote.quote.price}</span>
+              <span className="row-price-where">{freshQuote.quote.unit}당, KAMIS</span>
+              <span className="row-price-where">{freshQuote.quote.note}</span>
+            </span>
+          ) : freshQuote.state === 'none' ? (
+            <span className="tag">시세 확인 못 함</span>
+          ) : null
         ) : price ? (
           <span className="row-price">
             <span className="row-price-v num">{won(price.price)}</span>

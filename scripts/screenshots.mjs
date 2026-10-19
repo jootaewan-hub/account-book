@@ -50,6 +50,18 @@ const groceryShots = [
   { name: 'grocery-record-sheet-error-390-light', path: G, w: 390, c: 'light', purchase: 'error' },
   { name: 'grocery-recorded-390-light', path: G, w: 390, c: 'light', purchase: 'save', full: true },
   ...both(390, (w, c) => ({ name: `grocery-list-empty-${w}-${c}`, path: '/?demo=grocery-empty', w, c, wait: '아직 담은 게 없어요' })),
+  // 농수산물 시세(D-012): 목록 | 시세 전환, 시세 화면, 시세 상세, 신선 품목 상세
+  ...each((w, c) => ({ name: `grocery-market-${w}-${c}`, path: G, w, c, market: true, full: true })),
+  { name: 'grocery-market-all-390-light', path: G, w: 390, c: 'light', market: true, showAll: true, full: true },
+  { name: 'grocery-market-moves-y1-390-light', path: G, w: 390, c: 'light', market: true, period: '1년 전' },
+  ...both(390, (w, c) => ({ name: `grocery-market-sheet-${w}-${c}`, path: G, w, c, market: true, marketOpen: '대파' })),
+  { name: 'grocery-market-sheet-1280-light', path: G, w: 1280, c: 'light', market: true, marketOpen: '대파' },
+  { name: 'grocery-market-sheet-chip-390-light', path: G, w: 390, c: 'light', market: true, marketOpen: '대파', chip: '쪽파', scroll: '.market-chart' },
+  { name: 'grocery-market-sheet-national-390-dark', path: G, w: 390, c: 'dark', market: true, marketOpen: '돼지 삼겹살' },
+  ...both(390, (w, c) => ({ name: `grocery-item-detail-market-${w}-${c}`, path: G, w, c, detail: '대파', tab: 'market' })),
+  { name: 'grocery-item-detail-market-1280-light', path: G, w: 1280, c: 'light', detail: '대파', tab: 'market' },
+  { name: 'grocery-item-detail-market-none-390-light', path: G, w: 390, c: 'light', detail: '한우 국거리', tab: 'market' },
+  { name: 'grocery-market-empty-390-light', path: '/?demo=grocery-empty', w: 390, c: 'light', market: true, wait: '아직 받은 시세가 없어요' },
   { name: 'grocery-list-error-390-light', path: '/?demo=grocery-error', w: 390, c: 'light', wait: '목록을 불러오지 못했어요.' },
 ]
 
@@ -66,6 +78,7 @@ const shellShots = [
   ...each((w, c) => ({ name: `shell-grocery-detail-${w}-${c}`, path: '/', w, c, shell: true, tab: '장보기', detail: '비비고 왕교자' })),
   ...each((w, c) => ({ name: `shell-entry-sheet-${w}-${c}`, path: '/', w, c, shell: true, tab: '내역', record: true })),
   ...both(390, (w, c) => ({ name: `shell-deeplink-grocery-${w}-${c}`, path: '/?tab=grocery', w, c, shell: true })),
+  ...each((w, c) => ({ name: `shell-grocery-market-${w}-${c}`, path: '/', w, c, shell: true, tab: '장보기', market: true })),
   // 영수증 확인 화면의 '장보기 목록에서 찾은 품목'(D-011 길 ①). 가짜 영수증 응답(RECEIPT)
   ...each((w, c) => ({ name: `shell-smart-grocery-${w}-${c}`, path: '/', w, c, shell: true, tab: '내역', receipt: true })),
 ]
@@ -143,7 +156,23 @@ try {
       } else if (s.path === G) {
         await page.getByText('살 것', { exact: true }).waitFor()
       }
+      if (s.market) {
+        await page.getByRole('group', { name: '장보기 보기' }).getByRole('button', { name: '시세' }).click()
+        if (!s.wait) await page.getByText(/지켜보는 품목|아직 받은 시세가 없어요/).first().waitFor()
+      }
       if (s.wait) await page.getByText(s.wait).waitFor()
+      if (s.showAll) await page.getByRole('button', { name: '펼치기' }).click()
+      if (s.period) await page.getByRole('group', { name: '비교 기간' }).getByRole('button', { name: s.period }).click()
+      if (s.marketOpen) {
+        await page.locator('.market-row .row-name', { hasText: s.marketOpen }).first().click()
+        await page.getByRole('dialog').waitFor()
+        await page.locator('.market-chart, .market-panel .detail-none').first().waitFor()
+      }
+      if (s.chip) {
+        await page.locator('.market-chip', { hasText: s.chip }).click()
+        await page.locator('.market-now-name', { hasText: s.chip }).waitFor()
+      }
+      if (s.scroll) await page.locator(s.scroll).first().scrollIntoViewIfNeeded()
       if (s.where) await page.getByRole('button', { name: '어디서 살지' }).click()
       if (s.record) {
         await page.locator('.fab, .side-record').locator('visible=true').first().click()
@@ -181,7 +210,7 @@ try {
       if (s.detail) {
         await page.locator('.row-name', { hasText: s.detail }).first().click()
         await page.getByRole('dialog').waitFor()
-        const label = s.shell ? null : { price: '가격', safety: '안전', rating: '평가' }[s.tab]
+        const label = s.shell ? null : { price: '가격', safety: '안전', rating: '평가', market: '시세' }[s.tab]
         if (label) await page.getByRole('tab', { name: label }).click()
       }
       if (s.purchase) {

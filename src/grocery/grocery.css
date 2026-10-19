@@ -351,3 +351,75 @@
 @media (min-width: 960px) {
   .grocery .list-page { padding: 8px 0 0; }
 }
+
+/* ---------- 목록 | 시세 전환과 시세 화면(D-012) ---------- */
+/* 전환은 목록 화면과 같은 폭(760px) 맨 위에 둔다 */
+.grocery .view-switch { max-width: 760px; margin: 8px auto 0; }
+.grocery .seg-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.grocery .market-page { padding-top: 0; }
+.grocery .market-source { margin: 16px 0 0; font-size: 13px; color: var(--ink-2); }
+.grocery .market-empty { margin: 4px 0 0; font-size: 14px; color: var(--ink-2); }
+.grocery .market-moves + .market-moves { margin-top: 4px; }
+.grocery .market-all + .market-all { margin-top: 4px; }
+/* 줄 전체가 누르는 버튼(상세 열기) */
+.grocery .market-row {
+  width: 100%; border: 0; margin: 0; font: inherit; color: inherit; text-align: left; cursor: pointer; padding: 8px 16px; gap: 12px;
+}
+.grocery .market-row .row-main, .grocery .market-row .row-name, .grocery .market-row .row-meta { display: block; }
+.grocery .market-row:focus-visible { outline: 2px solid var(--ink); outline-offset: -2px; }
+.grocery .market-row .row-price-where { max-width: none; }
+@media (hover: hover) and (pointer: fine) {
+  .grocery .market-row:hover { background: var(--oat-deep); }
+}
+/* 등락: 오름 clay ▲, 내림 indigo ▼, 기호와 숫자를 함께(DESIGN 시세 등락) */
+.grocery .market-change { font-size: 13px; font-weight: 700; color: var(--ink-2); white-space: nowrap; }
+.grocery .market-change.is-up { color: var(--clay); }
+.grocery .market-change.is-down { color: var(--indigo); }
+.grocery .summary-v.market-change { font-size: 17px; }
+.grocery .spark { flex: none; width: 72px; height: 28px; }
+.grocery .market-badge { cursor: default; margin: 0 0 6px; }
+.grocery .market-badge::before { content: none; }
+/* 시세 상세 */
+.grocery .market-panel { padding-bottom: 8px; }
+.grocery .market-chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 4px 0 12px; }
+.grocery .market-chip {
+  position: relative; min-height: 34px; padding: 0 12px; border: 0; border-radius: 999px; cursor: pointer;
+  background: var(--oat); color: var(--ink); font: inherit; font-size: 14px; font-weight: 600;
+}
+.grocery .market-chip::before { content: ''; position: absolute; inset: -5px 0; }
+.grocery .market-chip[aria-pressed="true"] { background: var(--ink); color: var(--on-primary); }
+.grocery .market-chip:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+.grocery .market-now { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 16px; background: var(--oat); border-radius: var(--r-md); }
+.grocery .market-now-name { font-size: 15px; font-weight: 600; }
+.grocery .market-grade { color: var(--ink-2); font-weight: 500; }
+.grocery .market-now-v { margin-top: 2px; font-size: 26px; font-weight: 700; line-height: 1.25; }
+.grocery .market-unit { font-size: 15px; font-weight: 500; color: var(--ink-2); }
+.grocery .market-now-src { margin-top: 6px; font-size: 13px; color: var(--ink-2); }
+.grocery .market-range { margin-top: 4px; font-size: 13px; color: var(--ink-2); }
+.grocery .market-watch { flex: none; font-size: 14px; padding: 0 14px; background: var(--canvas); }
+.grocery .market-watch[aria-pressed="true"] { background: var(--ink); color: var(--on-primary); }
+.grocery .market-cmp { flex: none; text-align: right; }
+.grocery .market-cmp .market-change { margin-top: 2px; }
+.grocery .price-row.is-mine .price-where { font-weight: 700; }
+.grocery .market-record { margin-top: 8px; font-size: 13px; color: var(--ink-2); }
+/* 추이 그래프: 선은 한 조사처, 띠는 그날 조사처 최저~최고. 숫자는 글자로 직접 쓴다 */
+.grocery .market-chart { margin: 0; padding: 12px 12px 8px; background: var(--oat); border-radius: var(--r-md); }
+.grocery .market-chart svg { display: block; width: 100%; height: auto; overflow: visible; }
+.grocery .mc-range { margin-bottom: 8px; font-size: 13px; font-weight: 600; }
+.grocery .mc-base { stroke: var(--oat-deep); stroke-width: 1.5; }
+.grocery .mc-band { fill: var(--oat-deep); }
+.grocery .mc-line { fill: none; stroke: var(--ink-2); stroke-width: 2.5; stroke-linejoin: round; stroke-linecap: round; vector-effect: non-scaling-stroke; }
+.grocery .mc-line.is-up { stroke: var(--clay); }
+.grocery .mc-line.is-down { stroke: var(--indigo); }
+.grocery .mc-dot { fill: var(--ink-2); }
+.grocery .mc-dot.is-up { fill: var(--clay); }
+.grocery .mc-dot.is-down { fill: var(--indigo); }
+.grocery .mc-dates { display: flex; justify-content: space-between; margin-top: 4px; font-size: 12px; color: var(--ink-2); }
+.grocery .mc-caption { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; margin-top: 8px; font-size: 13px; color: var(--ink-2); }
+.grocery .mc-key-line { display: inline-block; width: 16px; height: 3px; border-radius: 2px; background: var(--ink-2); }
+.grocery .mc-key-line.is-up { background: var(--clay); }
+.grocery .mc-key-line.is-down { background: var(--indigo); }
+.grocery .mc-key-band { display: inline-block; width: 16px; height: 10px; margin-left: 6px; border-radius: 3px; background: var(--oat-deep); box-shadow: inset 0 0 0 1px var(--ink-3); }
+.grocery .tag-oat { background: var(--canvas); }
+.grocery .market-now .tag { vertical-align: 1px; }
+.grocery .nowrap { white-space: nowrap; }

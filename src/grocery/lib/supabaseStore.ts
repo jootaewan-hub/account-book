@@ -240,7 +240,7 @@ export function createSupabaseStore(client: SupabaseClient, me: Membership): Lis
 
   // 서비스별 마지막 성공 실행 시각(최신순이라 처음 본 값이 마지막 성공)
   async function lastSynced(): Promise<AlertsResult['syncedAt']> {
-    const runs = await g().from('sync_runs').select('source, ran_at').eq('ok', true).order('ran_at', { ascending: false }).limit(30)
+    const runs = await g().from('sync_runs').select('source, ran_at').eq('ok', true).in('source', [...SOURCES]).order('ran_at', { ascending: false }).limit(30)
     if (runs.error) throw runs.error
     const syncedAt: AlertsResult['syncedAt'] = {}
     for (const r of (runs.data ?? []) as { source: string; ran_at: string }[]) {

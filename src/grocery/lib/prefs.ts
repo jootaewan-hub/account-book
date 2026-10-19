@@ -19,3 +19,23 @@ export function saveListView(userId: string, v: ListViewMode): void {
     // 저장소가 막혀 있으면 기억하지 않는다
   }
 }
+
+/** 장보기 탭 위 전환: 목록 | 시세(D-012, 통합 설계 3-2) */
+export type GroceryView = 'list' | 'market'
+const viewKey = (userId: string) => `grocery:view:${userId}`
+
+export function loadGroceryView(userId: string): GroceryView {
+  try {
+    return globalThis.localStorage?.getItem(viewKey(userId)) === 'market' ? 'market' : 'list'
+  } catch {
+    return 'list'
+  }
+}
+
+export function saveGroceryView(userId: string, v: GroceryView): void {
+  try {
+    globalThis.localStorage?.setItem(viewKey(userId), v)
+  } catch {
+    // 저장소가 막혀 있으면 기억하지 않는다
+  }
+}
