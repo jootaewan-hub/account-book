@@ -95,7 +95,7 @@ export function priceRowText(l: PriceLine): string {
   return `${won(l.price)}, ${ship}`
 }
 
-const SHORT_SOURCE: Record<FoodSource, string> = { I0490: '회수·판매중지', I2620: '검사부적합', I2715: '해외직구 위해식품' }
+export const SHORT_SOURCE: Record<FoodSource, string> = { I0490: '회수·판매중지', I2620: '검사부적합', I2715: '해외직구 위해식품' }
 
 /** 요약 칸의 식약처 기록: 농가 단위 기록은 빼고 출처별 건수. 기록이 없을 때 "안전함"이라고 쓰지 않고,
  *  목록을 한 번도 받지 못했으면(확인한 범위가 없음) "확인 못 함"이라고 쓴다. */

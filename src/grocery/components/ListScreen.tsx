@@ -22,6 +22,7 @@ import { isFresh } from '../lib/products'
 import { rowQuote, seriesForItem, type MarketBoard } from '../lib/market'
 import type { MarketStore } from '../lib/marketStore'
 
+import { dropId, popGroup, pushGroup, removedText, type RemovedGroup } from '../lib/undo'
 const UNDO_MS = 5000
 
 
@@ -36,7 +37,8 @@ type Props = {
   dev?: { barcode?: string }
 }
 
-type Notice = { kind: 'removed'; ids: string[]; what: string } | { kind: 'error' | 'info'; text: string }
+type Notice = { kind: 'error' | 'info'; text: string }
+
 
 export default function ListScreen({ store, me, ledger, market, dev }: Props) {
   const [items, setItems] = useState<Item[] | null>(null)
@@ -49,6 +51,8 @@ export default function ListScreen({ store, me, ledger, market, dev }: Props) {
   const [openRow, setOpenRow] = useState<string | null>(null)
   const [hidden, setHidden] = useState<ReadonlySet<string>>(new Set())
   const [notice, setNotice] = useState<Notice | null>(null)
+  // 연달아 뺀 묶음(D-017): 되돌리기는 마지막 묶음부터
+  const [removed, setRemoved] = useState<RemovedGroup[]>([])
   const [editing, setEditing] = useState(false)
   const pending = useRef(new Map<string, number>()) // 빼기 대기 중인 id → 타이머
   const noticeTimer = useRef<number | undefined>(undefined)
@@ -195,10 +199,12 @@ export default function ListScreen({ store, me, ledger, market, dev }: Props) {
           // 다시 불러오기가 돌아오기 전에 줄이 잠깐 되살아나지 않게, 지역 목록에서 먼저 뺀 뒤 숨김을 푼다.
           setItems((l) => l?.filter((i) => i.id !== id) ?? l)
           setHidden((h) => without(h, id))
+          setRemoved((g) => dropId(g, id))
           refetch()
         },
         () => {
           setHidden((h) => without(h, id))
+          setRemoved((g) => dropId(g, id))
           showNotice({ kind: 'error', text: '빼지 못했어요. 잠시 뒤 다시 해 주세요.' })
         },
       )
@@ -206,7 +212,7 @@ export default function ListScreen({ store, me, ledger, market, dev }: Props) {
     [store, refetch, showNotice],
   )
 
-  // 한 품목이나 한 묶음(분류 통째로)을 뺀다. 되돌리기 하나로 모두 되살린다.
+  // 한 품목이나 한 묶음(분류 통째로)을 뺀다. 연달아 빼면 묶음을 쌓고(D-017), 기다리던 빼기도 마지막 빼기 기준으로 다시 5초를 센다.
   const removeMany = (list: Item[], what: string) => {
     if (list.length === 0) return
     setOpenRow(null)
@@ -215,21 +221,28 @@ export default function ListScreen({ store, me, ledger, market, dev }: Props) {
       for (const i of list) next.add(i.id)
       return next
     })
+    for (const [id, t] of pending.current) {
+      window.clearTimeout(t)
+      pending.current.set(id, window.setTimeout(() => commitRemove(id), UNDO_MS))
+    }
     for (const i of list) pending.current.set(i.id, window.setTimeout(() => commitRemove(i.id), UNDO_MS))
-    showNotice({ kind: 'removed', ids: list.map((i) => i.id), what })
+    setNotice(null)
+    setRemoved((g) => pushGroup(g, { ids: list.map((i) => i.id), what }))
   }
   const remove = (item: Item) => removeMany([item], `${item.name}${josa(item.name, '을', '를')}`)
 
-  const undo = (ids: string[]) => {
-    for (const id of ids) {
+  // 마지막에 뺀 묶음을 되살린다(D-017)
+  const undo = () => {
+    const { rest, group } = popGroup(removed)
+    if (!group) return
+    for (const id of group.ids) {
       const t = pending.current.get(id)
       if (t === undefined) continue
       window.clearTimeout(t)
       pending.current.delete(id)
       setHidden((h) => without(h, id))
     }
-    window.clearTimeout(noticeTimer.current)
-    setNotice(null)
+    setRemoved(rest)
   }
 
   // 기다리던 빼기를 지금 지운다. 앱이 백그라운드로 갈 때 쓴다(휴대폰은 그대로 종료될 수 있다).
@@ -238,7 +251,7 @@ export default function ListScreen({ store, me, ledger, market, dev }: Props) {
     const ids = [...pending.current.keys()]
     if (ids.length === 0) return Promise.resolve()
     for (const id of ids) window.clearTimeout(pending.current.get(id))
-    setNotice((n) => (n?.kind === 'removed' ? null : n))
+    setRemoved([])
     return Promise.allSettled(ids.map(commitRemove))
   }, [commitRemove])
 
@@ -525,13 +538,13 @@ export default function ListScreen({ store, me, ledger, market, dev }: Props) {
       </div>
 
       <div className="notice-slot" aria-live="polite">
-        {notice?.kind === 'removed' && (
-          <div className="notice" key={notice.ids.join()}>
-            <p>{notice.what} 뺐어요.</p>
-            <button type="button" className="notice-action" onClick={() => undo(notice.ids)}>되돌리기</button>
+        {removed.length > 0 && (
+          <div className="notice" key={removed.map((g) => g.ids.join()).join('|')}>
+            <p>{removedText(removed)}</p>
+            <button type="button" className="notice-action" onClick={undo}>되돌리기</button>
           </div>
         )}
-        {(notice?.kind === 'error' || notice?.kind === 'info') && (
+        {removed.length === 0 && (notice?.kind === 'error' || notice?.kind === 'info') && (
           <div className="notice" key="error">
             <p>{notice.text}</p>
           </div>

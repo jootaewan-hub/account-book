@@ -206,3 +206,20 @@ describe('식약처 대조', () => {
     expect(await alertsFor(A)).toHaveLength(1)
   })
 })
+
+describe('후보 대조 (grocery.candidate_alerts, 20261028000000, D-016)', () => {
+  it('내 품목의 후보 상품명이 기록과 겹치면 상품마다 돌려주고, 남의 품목은 비어 있다', async () => {
+    await alert({ id: 'c1', product: '동원 왕교자 1.05kg', maker: '동원' })
+    await alert({ id: 'c2', product: '당근무침 200g', source: 'I2620' })
+    const [{ id: itemId }] = (await db.query<{ id: string }>(
+      `insert into grocery.items (household_id, name, category, added_by) values ($1, '왕교자', '냉동', $2) returning id`, [hhA, A])).rows
+    const prods = (await db.query<{ id: string; source_id: string }>(
+      `insert into grocery.products (source, source_id, name) values ('danawa', 'ca-x1', '동원 왕교자 1.05kg'), ('danawa', 'ca-x2', '풀무원 왕교자 1kg') returning id, source_id`)).rows
+    for (const p of prods) {
+      await db.query(`insert into grocery.item_candidates (item_id, product_id, qty, price, rank, found_at) values ($1, $2, 1, 9900, 1, now())`, [itemId, p.id])
+    }
+    const rows = await as<{ product_id: string; source: string; product_name: string }>(A, `select product_id, source, product_name from grocery.candidate_alerts($1)`, [itemId])
+    expect(rows).toEqual([{ product_id: prods.find((p) => p.source_id === 'ca-x1')!.id, source: 'I0490', product_name: '동원 왕교자 1.05kg' }])
+    expect(await as(C, `select * from grocery.candidate_alerts($1)`, [itemId])).toEqual([])
+  })
+})

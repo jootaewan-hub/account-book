@@ -1,7 +1,7 @@
 import type { Item } from './types'
 import type { PurchaseEntry } from './purchase'
 import type { ParsedItem } from './parse'
-import { EMPTY_ALERTS, type AlertsResult, type FoodAlert } from './alerts'
+import { EMPTY_ALERTS, type AlertsResult, type FoodAlert, type FoodSource } from './alerts'
 import {
   kstDay,
   splitLines,
@@ -31,6 +31,8 @@ export interface ListStore {
   /** 품목별 후보 찾기 상태, 오늘 최저가, 고른 상품명 */
   extras(): Promise<ItemExtras>
   candidates(itemId: string): Promise<Candidate[]>
+  /** 품목 후보(다나와 상품)마다 이름이 겹치는 식약처 기록(D-016). 상품 id → 기록 */
+  candidateAlerts(itemId: string): Promise<ReadonlyMap<string, CandidateAlert[]>>
   /** 다나와에서 후보를 찾는다(product-search). 결과 종류를 돌려주고, 실패는 던진다 */
   findCandidates(itemId: string, query?: string): Promise<SearchResult>
   choose(itemId: string, productId: string, qty: number): Promise<void>
@@ -70,11 +72,15 @@ export interface ListStore {
 }
 
 export type BarcodeRecord = FoodAlert & { barcode: string }
+/** 후보 상품과 이름이 겹치는 식약처 기록(grocery.candidate_alerts) */
+export type CandidateAlert = { source: FoodSource; productName: string; registeredOn: string | null }
 
 /** 개발용 데모 화면에서 쓰는 가격 확인 자료(실제 가격 아님) */
 export type DemoPrices = {
   searches: Record<string, ItemSearch>
   candidates: Record<string, Candidate[]>
+  /** 품목 id → 상품 id → 식약처 기록(D-016) */
+  candidateAlerts?: Record<string, Record<string, CandidateAlert[]>>
   products: Record<string, NonNullable<ItemDetailData['product']>>
   /** 상품 id → 가격 줄 */
   lines: Record<string, PriceLine[]>
@@ -202,6 +208,9 @@ export function createMemoryStore(
     },
     async candidates(itemId) {
       return demoPrices.candidates[itemId] ?? []
+    },
+    async candidateAlerts(itemId) {
+      return new Map(Object.entries(demoPrices.candidateAlerts?.[itemId] ?? {}).map(([k, v]) => [k, v.map((a) => ({ ...a }))]))
     },
     async findCandidates() {
       return 'done' as const

@@ -82,11 +82,12 @@ npm run screens
    안 됨 — 워크플로 수동 실행: `gh workflow run`이 404(기본 브랜치에 파일이 없음). main 병합 뒤 Actions에서 `tprice-sync`·`price-recheck`를 한 번씩 돌려 200을 본다. 그 전에는 예약 실행도 돌지 않는다.
 4. 남음(로그인 필요, 사용자가 앱에서) — 컬리·홈플러스·로우차트 주소 각 1개 이상(화면 값 = 페이지 값), 참가격 매장 값 3개(`tprice_prices`와 price.go.kr 대조), 포장 사진 3장·캡처 3장
    (`grocery-photo` 첫 호출 = WIF 교환 확인, D-009; 안 되면 함수 로그의 `wif_exchange_failed`), 바코드 10개(iPhone), C002 후보 3개.
-5. 됨 — 2026-10-20 06:55 KST 사용자 지시로 main에 fast-forward 병합·푸시(= GitHub Pages 배포). 병합 뒤 Actions에서 `tprice-sync`·`price-recheck` 수동 실행.
+5. 됨 — 2026-10-20 06:55 KST 사용자 지시로 main에 fast-forward 병합·푸시(= GitHub Pages 배포). 병합 뒤 Actions에서 `tprice-sync`·`price-recheck` 수동 실행(둘 다 200 skipped).
+6. 남음(브랜치 `claude/decisions`, D-016) — 마이그레이션 `grocery_candidate_alerts`(20261028000000)를 `apply_migration`으로 적용한 뒤 main 병합. 함수 배포는 없음. 적용 전에 병합하면 대안 탭이 후보 대조를 못 읽어 표시만 빠진다(오류는 아님).
 
 ### 사용자 할 일
 
-- 공공데이터포털 식품영양성분DB(15127578) 활용신청(키는 `DATA_GO_KR_SERVICE_KEY`와 같을 것으로 보임, 확인 필요).
+- ~~공공데이터포털 식품영양성분DB(15127578) 활용신청~~ 2026-10-20 마침(사용자). 같은 키로 통하는지는 성분 탭 첫 호출로 확인.
 - 실기기(iPhone PWA)에서 카메라 바코드 읽기 확인(`BarcodeDetector`가 없으면 wasm 포니필로 간다 — 추측).
 - `docs/grocery/tracking/status.md` "확정할 결정" 4개.
 

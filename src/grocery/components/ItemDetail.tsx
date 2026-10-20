@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import { checkedRange, koDay, koFullDay, SOURCE_NAME, SOURCES } from '../lib/alerts'
 import { danawaProductUrl } from '../../../supabase/functions/_shared/danawa'
-import { isBulk, referenceSize } from '../../../supabase/functions/_shared/fit'
+import { fitRule, isBulk } from '../../../supabase/functions/_shared/fit'
 import { won } from '../lib/format'
 import {
   checkedText,
@@ -18,7 +18,7 @@ import {
   type PriceLine,
   type SafetyRecord,
 } from '../lib/products'
-import type { ListStore } from '../lib/store'
+import type { CandidateAlert, ListStore } from '../lib/store'
 import type { Item } from '../lib/types'
 import { change, changeText, dayText, gradeText, pickSeries, sameKey, seriesName, unitOf, whereOf, type MarketBoard, type MarketSeries, type SeriesKey } from '../lib/market'
 import type { MarketStore } from '../lib/marketStore'
@@ -92,6 +92,7 @@ export default function ItemDetail({ item, store, onChangeProduct, onClose, mark
   // P7: 식약처 품목(원재료·영양성분), 대안 계산용 후보
   const [info, setInfo] = useState<ProductInfoView | null | 'loading' | 'failed'>('loading')
   const [cands, setCands] = useState<Candidate[] | null | 'loading'>('loading')
+  const [candAlerts, setCandAlerts] = useState<ReadonlyMap<string, CandidateAlert[]>>(new Map())
   // 캡처로 가격 넣기(P4): 읽는 중 → 읽은 값(고친 뒤 저장)
   const [capture, setCapture] = useState<'idle' | 'reading' | (PriceRead & { qty: number })>('idle')
   const [captureMsg, setCaptureMsg] = useState<string | null>(null)
@@ -137,6 +138,7 @@ export default function ItemDetail({ item, store, onChangeProduct, onClose, mark
   useEffect(() => {
     void loadInfo()
     store.candidates(item.id).then(setCands, () => setCands(null))
+    store.candidateAlerts(item.id).then(setCandAlerts, () => setCandAlerts(new Map()))
   }, [loadInfo, store, item.id])
   const withBusy = (p: Promise<unknown>) => {
     setSrcBusy(true)
@@ -215,11 +217,11 @@ export default function ItemDetail({ item, store, onChangeProduct, onClose, mark
   const split = splitLines(data?.lines ?? [], qty, today)
   const query = data?.product?.name ?? [item.name, item.spec].filter(Boolean).join(' ')
   const lastFailed = data?.check && !data.check.ok ? data.check : null
-  // 대안도 2~3인 가구에 맞는 크기만 견준다(D-014). 고른 상품은 큰 용량이어도 남긴다
+  // 대안도 2~3인 가구에 맞는 크기만 견준다(D-015). 고른 상품은 큰 용량이어도 남긴다. 식약처 기록이 겹치는 후보는 표시를 붙여 뒤로(D-016)
   const chosenId = data?.product?.id
-  const fitRef = referenceSize(item.name, item.spec, item.count)
+  const rule = fitRule(item.name, item.spec, item.count)
   const alts = chosenId && Array.isArray(cands)
-    ? alternatives(cands.filter((c) => c.productId === chosenId || !isBulk(c, fitRef)), chosenId, qty, new Set())
+    ? alternatives(cands.filter((c) => c.productId === chosenId || !isBulk(c, rule)), chosenId, qty, candAlerts)
     : []
 
   return (
@@ -415,8 +417,10 @@ export default function ItemDetail({ item, store, onChangeProduct, onClose, mark
                             <p className="price-where"><span>{a.name}</span></p>
                             <p className="alt-reasons">
                               {a.reasons.map((r) => <span key={r.kind} className="tag">{r.kind === 'cheaper' ? '더 쌈' : '평가가 좋음'}</span>)}
+                              {a.alert && <span className="alert-badge alert-similar">비슷한 제품 기록</span>}
                             </p>
                             {a.reasons.map((r) => <p key={r.kind} className="src-line">{r.text}</p>)}
+                            {a.alert && <p className="src-line">식약처 {a.alert}. 같은 제품인지 확인해 보세요.</p>}
                             <p className="src-line">다나와, {checkedText(a.foundAt)} 확인</p>
                           </div>
                         </li>
@@ -424,7 +428,7 @@ export default function ItemDetail({ item, store, onChangeProduct, onClose, mark
                     </ul>
                   )}
                   {data.product && Array.isArray(cands) && (
-                    <p className="shop-note">숫자는 다나와 후보 값({qty}개 가격·평점·후기 수) 그대로예요. 후보의 회수·부적합 기록은 아직 대조하지 않아요. 바꾸려면 "상품 바꾸기"를 눌러요.</p>
+                    <p className="shop-note">숫자는 다나와 후보 값({qty}개 가격·평점·후기 수) 그대로예요. 후보도 식약처 기록과 이름으로 대조해 겹치면 표시를 붙여요. 바꾸려면 "상품 바꾸기"를 눌러요.</p>
                   )}
                 </div>
               )}

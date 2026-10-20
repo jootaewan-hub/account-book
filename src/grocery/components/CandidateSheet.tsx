@@ -5,7 +5,7 @@ import type { ListStore } from '../lib/store'
 import type { Item } from '../lib/types'
 import { READING_TEXT, type ProductRead } from '../lib/photo'
 import { PhotoPick, ProductReadForm } from './PhotoCapture'
-import { referenceSize, splitCandidates } from '../../../supabase/functions/_shared/fit'
+import { fitRule, splitCandidates } from '../../../supabase/functions/_shared/fit'
 
 const CLOSE_MS = 250
 // 묶음 구성(+, 세트, 구성, ×N)은 단품 아래에 둔다
@@ -108,9 +108,9 @@ export default function CandidateSheet({ item, store, onPicked, onClose }: Props
     )
   }
 
-  // 2~3인 가구 기준(D-014): 품목 규격 × 개수(없으면 기본 크기 표)의 1.5배를 넘는 큰 용량·묶음은 따로 두고, 맞는 후보는 수량 줄도 기준 안의 것만
-  const ref = referenceSize(item.name, item.spec, item.count)
-  const { fit, bulk } = splitCandidates(list ?? [], ref)
+  // 2~3인 가구 기준(D-015): 품목의 완전 대용량 선을 넘는 한 봉지는 따로 두고, 맞는 후보는 수량 줄도 담은 양의 2배까지만
+  const rule = fitRule(item.name, item.spec, item.count)
+  const { fit, bulk } = splitCandidates(list ?? [], rule)
   const sorted = fit.slice().sort((a, b) => Number(BUNDLE.test(a.name)) - Number(BUNDLE.test(b.name)))
   const foundAt = (list ?? [])[0]?.foundAt
 

@@ -33,6 +33,8 @@ const groceryShots = [
   ...each((w, c) => ({ name: `grocery-list-${w}-${c}`, path: G, w, c, full: true })),
   ...each((w, c) => ({ name: `grocery-add-sheet-${w}-${c}`, path: G, w, c, sheet: SHEET_TEXT })),
   ...both(390, (w, c) => ({ name: `grocery-add-sheet-split-${w}-${c}`, path: G, w, c, sheet: SPLIT_TEXT })),
+  // 연달아 빼기(D-017): 알림이 "2개 뺐어요"로 합쳐진다
+  ...both(390, (w, c) => ({ name: `grocery-row-remove-two-${w}-${c}`, path: G, w, c, remove: '삼겹살 600g', removeAlso: '한우 국거리 300g' })),
   { name: 'grocery-add-sheet-long-390-light', path: G, w: 390, c: 'light', sheet: `${LONG_LINE}\n대파` },
   ...both(390, (w, c) => ({ name: `grocery-list-where-${w}-${c}`, path: G, w, c, where: true, full: true })),
   { name: 'grocery-row-remove-open-390-light', path: G, w: 390, c: 'light', openRemove: '삼겹살 600g' },
@@ -341,6 +343,11 @@ try {
         await page.getByRole('button', { name: `${s.remove} 빼기` }).focus()
         await page.keyboard.press('Enter')
         await page.getByRole('button', { name: '되돌리기' }).waitFor()
+      }
+      if (s.removeAlso) {
+        await page.getByRole('button', { name: `${s.removeAlso} 빼기` }).focus()
+        await page.keyboard.press('Enter')
+        await page.getByText('2개 뺐어요.').waitFor()
       }
       await page.waitForTimeout(450)
 

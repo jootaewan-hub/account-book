@@ -1,5 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { groupAlerts, SOURCES, type AlertsResult, type ItemAlertRow } from './alerts'
+import { groupAlerts, SOURCES, type AlertsResult, type FoodSource, type ItemAlertRow } from './alerts'
 import type { Category } from './categories'
 import type { Candidate, ItemDetailData, ItemPrice, ItemSearch, PriceLine, SafetyRecord, SearchResult } from './products'
 import { kstDay } from './products'
@@ -8,7 +8,7 @@ import type { ItemSources, ShopPrice, StoreGood, StoreOption, StorePrice } from 
 import type { OurPurchase } from './ours'
 import { invokePhoto } from './photo'
 import type { C002Row, Nutrition, ProductInfoView } from './foodInfo'
-import type { ListStore , BarcodeRecord } from './store'
+import type { ListStore, BarcodeRecord, CandidateAlert } from './store'
 import type { Membership } from './membership'
 import type { Item } from './types'
 
@@ -143,6 +143,15 @@ export function createSupabaseStore(client: SupabaseClient, me: Membership): Lis
         if (r.products?.name) names.set(r.id, r.products.name)
       }
       return { searches: s, prices: p, productNames: names }
+    },
+    async candidateAlerts(itemId) {
+      const { data, error } = await g().rpc('candidate_alerts', { p_item: itemId })
+      if (error) throw error
+      const out = new Map<string, CandidateAlert[]>()
+      for (const r of (data ?? []) as { product_id: string; source: FoodSource; product_name: string; registered_on: string | null }[]) {
+        out.set(r.product_id, [...(out.get(r.product_id) ?? []), { source: r.source, productName: r.product_name, registeredOn: r.registered_on }])
+      }
+      return out
     },
     async candidates(itemId) {
       const { data, error } = await g()
