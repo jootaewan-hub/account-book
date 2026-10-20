@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { dueDate, endMonthFor, installmentPlan, installmentsLeft, monthlyAmount, nextDue, pendingInputs, subscriptionCandidates, termLeft, termOf } from '../src/lib/recurring'
+import { dueDate, endMonthFor, historyRange, installmentPlan, installmentsLeft, monthlyAmount, nextDue, pastAmounts, pendingInputs, subscriptionCandidates, termLeft, termOf } from '../src/lib/recurring'
 import { categoryBreakdown, monthSeries, OTHER_PLATFORM, pctChange, platformBreakdown, platformOf, scopeSplit, totalOf } from '../src/lib/stats'
 import type { Category, MonthTotal, Recurring, Transaction } from '../src/lib/types'
 
@@ -154,5 +154,22 @@ describe('기간 (끝나는 달이 있는 고정지출·구독)', () => {
     expect(termLeft(r, '2026-10-20')).toBe(6)
     expect(termLeft(r, '2026-10-26')).toBe(5)
     expect(termLeft(r, '2027-03-26')).toBe(0)
+  })
+})
+
+describe('고정 탭이 읽는 내역 기간', () => {
+  it('지난 5개월부터 다음 달 말까지: 납부 마감일로 미리 넣은 이번 달 관리비도 들어온다', () => {
+    expect(historyRange('2026-10-21')).toEqual({ from: '2026-05-01', to: '2026-11-30' })
+    expect(historyRange('2026-12-03')).toEqual({ from: '2026-07-01', to: '2027-01-31' })
+  })
+
+  it('지난 금액은 날짜가 늦은 것부터, 오늘보다 뒤 날짜로 넣은 것도 포함한다', () => {
+    const util = rec({ id: 'u1', kind: 'utility', title: '관리비', amount: null, day_of_month: 26 })
+    const past = pastAmounts(util, [
+      tx({ recurring_id: 'u1', occurred_on: '2026-09-25', amount: 150000 }),
+      tx({ recurring_id: 'u1', occurred_on: '2026-10-26', amount: 167860 }),
+      tx({ recurring_id: 'other', occurred_on: '2026-10-27', amount: 1 }),
+    ])
+    expect(past.map((p) => p.amount)).toEqual([167860, 150000])
   })
 })

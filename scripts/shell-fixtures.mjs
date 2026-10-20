@@ -9,6 +9,7 @@ const kst = new Date(Date.now() + 9 * 3600_000)
 const ym = kst.toISOString().slice(0, 7)
 const day = (d) => `${ym}-${String(Math.min(d, Number(kst.toISOString().slice(8, 10)))).padStart(2, '0')}`
 const ago = (min) => new Date(Date.now() - min * 60_000).toISOString()
+const prevYm = (() => { const [y, m] = ym.split('-').map(Number); return m === 1 ? `${y - 1}-12` : `${y}-${String(m - 1).padStart(2, '0')}` })()
 
 const EXPENSE = ['식비', '외식', '카페', '배달', '장보기', '생활용품', '교통', '통신', '관리비', '구독', '의료', '문화', '기타']
 const categories = [
@@ -32,6 +33,9 @@ const transactions = [
   tx('t5', 11, 17000, '넷플릭스', '구독'),
   tx('t6', 14, 23800, '배달의민족', '배달'),
   tx('t7', 18, 9800, '휴지 30롤', '생활용품', { platform: '쿠팡' }),
+  // 고지서로 넣은 지난달 분 관리비: 고정 탭의 '아파트 관리비'(r3) 이번 달 분으로 연결돼 '지난번 금액'과 합계에 보인다
+  tx('t8', 26, 167860, `관리비 (${Number(prevYm.slice(5))}월분)`, '관리비',
+    { recurring_id: 'r3', recurring_month: `${ym}-01`, source: 'photo', memo: `관리비 고지서 ${Number(prevYm.slice(5))}월분` }),
 ]
 
 // 가짜 Supabase는 조건과 상관없이 표의 행을 그대로 돌려주므로(한 건 조회는 첫 행), 상세를 여는 '비비고 왕교자'를 첫 행에 두고 고른 상품(p1)을 붙인다
@@ -154,4 +158,21 @@ export function fakeSession() {
   const exp = Math.floor(Date.now() / 1000) + 365 * 24 * 3600
   const access_token = `${b64({ alg: 'HS256', typ: 'JWT' })}.${b64({ sub: ME, aud: 'authenticated', role: 'authenticated', exp })}.fake`
   return { access_token, token_type: 'bearer', expires_in: 365 * 24 * 3600, expires_at: exp, refresh_token: 'fake', user: USER }
+}
+
+// 관리비 고지서 읽기 응답(가짜): 지난달 분, 납부 마감은 이번 달 26일. 숫자는 캡처 확인용 예시
+export const BILL = {
+  model: 'claude-sonnet-5-5',
+  bill: {
+    is_bill: true, bill_month: prevYm, due_date: `${ym}-26`, total: 167860, sum_match: true, note: null,
+    charges: [
+      { name: '일반관리비', amount: 54000, prev_month: 53000, last_year: 51000 },
+      { name: '세대전기료', amount: 61000, prev_month: 58000, last_year: null },
+      { name: '난방비', amount: 52860, prev_month: null, last_year: 60000 },
+    ],
+    usages: [
+      { name: '전기', amount: 312, unit: 'kWh', prev_month: 280, last_year: 350 },
+      { name: '수도', amount: 12, unit: 'm³', prev_month: 10, last_year: null },
+    ],
+  },
 }

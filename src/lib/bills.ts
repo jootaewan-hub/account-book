@@ -2,7 +2,7 @@
 // 저장된 지난 고지서가 있으면 그 값을, 없으면 이번 고지서에 적혀 있던 전월·전년 값을 쓴다.
 import { addMonths } from './dates'
 import { pctChange } from './stats'
-import type { BillCharge, BillUsage, Recurring, UtilityBill } from './types'
+import type { BillCharge, BillUsage, Recurring, RecurringInput, Scope, UtilityBill } from './types'
 
 export type Source = 'saved' | 'printed'
 
@@ -73,6 +73,18 @@ export function billTrend(bills: Lines[], ym: string, n = 12): { ym: string; tot
 export function billRecurring(list: Recurring[]): Recurring | null {
   const variable = list.filter((r) => r.active && r.kind === 'utility' && r.amount === null && r.type === 'expense')
   return variable.find((r) => r.title.includes('관리비')) ?? (variable.length === 1 ? variable[0] : null)
+}
+
+/**
+ * 관리비 항목이 아직 없을 때 고지서 지출로 만드는 관리비·공과금 항목.
+ * 금액은 매달 고지서로 넣으니 null, 내는 날과 시작 달은 이번 지출 날짜를 따른다. 제목이 '관리비'라 다음 고지서는 billRecurring이 이 항목을 찾는다.
+ */
+export function utilityItemForBill(expense: { occurred_on: string; category_id: string | null; scope: Scope }): RecurringInput {
+  return {
+    kind: 'utility', type: 'expense', title: '관리비', amount: null, day_of_month: Number(expense.occurred_on.slice(8, 10)), every_months: 1,
+    category_id: expense.category_id, payment_method_id: null, scope: expense.scope, start_month: `${expense.occurred_on.slice(0, 7)}-01`, end_month: null,
+    active: true, memo: null, installment_months: null,
+  }
 }
 
 /** 사용량 숫자: 정수면 쉼표, 소수면 셋째 자리까지 */

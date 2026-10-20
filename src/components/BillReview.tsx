@@ -22,7 +22,7 @@ export function BillReview({ bill, householdId, today, categories, onSaved, onRe
   const [addExpense, setAddExpense] = useState(true)
   const [date, setDate] = useState(bill.due_date && bill.due_date <= addDays(today, 31) ? bill.due_date : today)
   const [history, setHistory] = useState<UtilityBill[]>([])
-  const [recurring, setRecurring] = useState<Recurring[]>([])
+  const [recurring, setRecurring] = useState<Recurring[] | null>(null)
   const [err, setErr] = useState('')
   const [busy, setBusy] = useState(false)
 
@@ -38,7 +38,7 @@ export function BillReview({ bill, householdId, today, categories, onSaved, onRe
     { bill_month: billMonth, total: n, charges: bill.charges, usages: bill.usages },
     history.filter((h) => h.bill_month !== billMonth),
   ), [bill, billMonth, n, history])
-  const rec = billRecurring(recurring)
+  const rec = billRecurring(recurring ?? [])
   const category = rec?.category_id ?? categories.find((c) => c.type === 'expense' && c.name === '관리비')?.id ?? null
   const already = history.find((h) => h.bill_month === billMonth)
   const m = Number(month.slice(5, 7))
@@ -91,7 +91,13 @@ export function BillReview({ bill, householdId, today, categories, onSaved, onRe
           <div className="field" style={{ marginTop: 10 }}>
             <label htmlFor="bill-date">지출 날짜{bill.due_date ? ` (납부 마감 ${bill.due_date})` : ''}</label>
             <input id="bill-date" type="date" className="input date-input" value={date} onChange={(e) => setDate(e.target.value)} />
-            {rec && <span className="tx-meta">고정 탭의 '{rec.title}' {Number(date.slice(5, 7))}월 분으로 넣어요. 입력할 차례 알림이 꺼져요.</span>}
+            {date && recurring && (
+              <span className="tx-meta">
+                {rec
+                  ? `고정 탭의 '${rec.title}' ${Number(date.slice(5, 7))}월 분으로 넣어요. 입력할 차례 알림이 꺼져요.`
+                  : `고정 탭의 관리비·공과금에 '관리비' 항목을 만들어 ${Number(date.slice(5, 7))}월 분으로 넣어요. 다음 달부터 입력할 차례를 알려 드려요.`}
+              </span>
+            )}
           </div>
         )}
       </div>

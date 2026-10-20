@@ -1,5 +1,6 @@
 import { addMonths, monthRange } from './dates'
 import { removeItemImages } from './itemImages'
+import { utilityItemForBill } from './bills'
 import { installmentPlan } from './recurring'
 import { sb } from './supabase'
 import type {
@@ -278,31 +279,45 @@ export async function saveUtilityBill(householdId: string, bill: BillInput, expe
   const existing = check(await sb().from('utility_bills').select('id, transaction_id')
     .eq('household_id', householdId).eq('bill_month', bill.bill_month).maybeSingle()) as { id: string; transaction_id: string | null } | null
   let txId = existing?.transaction_id ?? null
-  if (expense) {
-    const r = expense.recurring
-    const month = `${expense.occurred_on.slice(0, 7)}-01`
-    const fields = {
-      type: 'expense' as const, occurred_on: expense.occurred_on, amount: bill.total, title: expense.title,
-      category_id: expense.category_id, scope: expense.scope,
-      memo: `관리비 고지서 ${Number(bill.bill_month.slice(5, 7))}월분`,
-      ...(r ? { recurring_id: r.id, recurring_month: month } : {}),
+  // 관리비 항목이 아직 없으면 만든다. 그래야 고정 탭의 관리비·공과금에 보이고, 다음 달부터 입력할 차례를 알려 준다
+  const link = expense ? { id: expense.recurring?.id ?? await createUtilityItem(householdId, expense), created: !expense.recurring } : null
+  try {
+    if (expense && link) {
+      const month = `${expense.occurred_on.slice(0, 7)}-01`
+      const fields = {
+        type: 'expense' as const, occurred_on: expense.occurred_on, amount: bill.total, title: expense.title,
+        category_id: expense.category_id, scope: expense.scope,
+        memo: `관리비 고지서 ${Number(bill.bill_month.slice(5, 7))}월분`,
+        recurring_id: link.id, recurring_month: month,
+      }
+      if (!txId) {
+        // 이번 달 관리비를 이미 직접 넣었으면 그 내역을 쓴다
+        const same = check(await sb().from('transactions').select('id').eq('recurring_id', link.id).eq('recurring_month', month).maybeSingle()) as { id: string } | null
+        txId = same?.id ?? null
+      }
+      if (txId) {
+        check(await sb().from('transactions').update(fields).eq('id', txId))
+      } else {
+        const row = check(await sb().from('transactions')
+          .insert({ ...fields, household_id: householdId, source: 'photo' }).select('id').single()) as { id: string }
+        txId = row.id
+      }
     }
-    if (!txId && r) {
-      // 이번 달 관리비를 이미 직접 넣었으면 그 내역을 쓴다
-      const same = check(await sb().from('transactions').select('id').eq('recurring_id', r.id).eq('recurring_month', month).maybeSingle()) as { id: string } | null
-      txId = same?.id ?? null
-    }
-    if (txId) {
-      check(await sb().from('transactions').update(fields).eq('id', txId))
-    } else {
-      const row = check(await sb().from('transactions')
-        .insert({ ...fields, household_id: householdId, source: 'photo' }).select('id').single()) as { id: string }
-      txId = row.id
-    }
+    check(await sb().from('utility_bills').upsert({
+      household_id: householdId, ...bill, transaction_id: txId,
+    }, { onConflict: 'household_id,bill_month' }))
+  } catch (e) {
+    // 지출·고지서를 못 넣었으면 방금 만든 항목도 지워 둘이 어긋나지 않게 한다
+    if (link?.created) await sb().from('recurring').delete().eq('id', link.id)
+    throw e
   }
-  check(await sb().from('utility_bills').upsert({
-    household_id: householdId, ...bill, transaction_id: txId,
-  }, { onConflict: 'household_id,bill_month' }))
+}
+
+/** 고지서 지출을 연결할 관리비 항목(금액을 매달 넣는 관리비·공과금)을 만들고 id를 돌려준다 */
+async function createUtilityItem(householdId: string, expense: BillExpense): Promise<string> {
+  const row = check(await sb().from('recurring').insert({ ...utilityItemForBill(expense), household_id: householdId })
+    .select('id').single()) as { id: string }
+  return row.id
 }
 
 /** 구글 시트 연동 주소의 토큰. rotate면 새로 만들고 이전 주소는 끊긴다 */

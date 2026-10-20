@@ -8,7 +8,7 @@
 import { existsSync, mkdirSync } from 'node:fs'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { chromium } from 'playwright'
-import { fakeSession, RECEIPT, TABLES, USER } from './shell-fixtures.mjs'
+import { BILL, fakeSession, RECEIPT, TABLES, USER } from './shell-fixtures.mjs'
 
 const BASE = process.env.BASE_URL ?? 'http://localhost:5173'
 const OUT = process.env.OUT_DIR ? pathToFileURL(`${process.env.OUT_DIR.replace(/\/$/, '')}/`) : new URL('../screenshots/', import.meta.url)
@@ -118,6 +118,9 @@ const shellShots = [
   ...each((w, c) => ({ name: `shell-grocery-market-${w}-${c}`, path: '/', w, c, shell: true, tab: '장보기', market: true })),
   // 영수증 확인 화면의 '장보기 목록에서 찾은 품목'(D-011 길 ①). 가짜 영수증 응답(RECEIPT)
   ...each((w, c) => ({ name: `shell-smart-grocery-${w}-${c}`, path: '/', w, c, shell: true, tab: '내역', receipt: true })),
+  // 관리비 고지서 확인 화면(D-019): 고정 탭에 관리비 항목이 없으면 '관리비' 항목을 만든다는 안내, 있으면 그 항목에 연결한다는 안내. 가짜 고지서 응답(BILL)
+  ...each((w, c) => ({ name: `shell-bill-review-${w}-${c}`, path: '/', w, c, shell: true, tab: '내역', bill: true, noUtility: true })),
+  ...both(390, (w, c) => ({ name: `shell-bill-review-linked-${w}-${c}`, path: '/', w, c, shell: true, tab: '내역', bill: true })),
 ]
 
 const shots = [...groceryShots, ...shellShots]
@@ -125,7 +128,7 @@ const only = process.argv.slice(2)
 const selected = only.length ? shots.filter((s) => only.some((o) => s.name === o || s.name.startsWith(o))) : shots
 
 /** Supabase로 가는 요청을 모두 가로챈다. 표·rpc는 TABLES, 쓰기는 빈 성공, 인증은 가짜 사용자 */
-async function fakeSupabase(context) {
+async function fakeSupabase(context, s = {}) {
   await context.addInitScript(([key, session]) => localStorage.setItem(key, JSON.stringify(session)), [STORAGE_KEY, fakeSession()])
   await context.route(`${SUPABASE}/**`, async (route) => {
     const req = route.request()
@@ -134,7 +137,11 @@ async function fakeSupabase(context) {
     if (url.pathname.startsWith('/auth/v1/user')) return json(USER)
     if (url.pathname.startsWith('/auth/v1/token')) return json(fakeSession())
     if (url.pathname.startsWith('/auth/v1/logout')) return route.fulfill({ status: 204 })
-    if (url.pathname === '/functions/v1/extract-entries') return json(RECEIPT)
+    if (url.pathname === '/functions/v1/extract-entries') {
+      let body = null
+      try { body = req.postDataJSON() } catch { /* JSON이 아니면 영수증 응답 */ }
+      return json(body?.mode === 'bill' ? BILL : RECEIPT)
+    }
     if (url.pathname.startsWith('/functions/v1/')) return json({ status: 'skipped' })
     if (url.pathname.startsWith('/storage/v1/')) return json([])
     const m = url.pathname.match(/^\/rest\/v1\/(.+)$/)
@@ -148,6 +155,8 @@ async function fakeSupabase(context) {
     if (method !== 'GET' && method !== 'HEAD' && !m[1].startsWith('rpc/')) return json([], method === 'POST' ? 201 : 200)
     if (process.env.DEBUG_SHOTS && !(key in TABLES)) console.log('[no fixture]', key, url.search.slice(0, 120))
     let rows = key in TABLES ? TABLES[key] : []
+    // noUtility: 고정 탭에 관리비·공과금 항목이 없는 가구(고지서가 '관리비' 항목을 만드는 안내를 본다)
+    if (s.noUtility && key === 'public.recurring') rows = rows.filter((r) => r.kind !== 'utility')
     // 같음 조건(id=eq.g5 등)은 적용한다: 한 건 조회(maybeSingle)는 행이 하나여야 하고, 상세는 그 품목·상품의 행만 봐야 한다
     if (Array.isArray(rows)) {
       for (const [k, v] of url.searchParams) {
@@ -187,7 +196,7 @@ try {
         locale: 'ko-KR',
       })
       // 장보기 데모도 실제 서버로 나가는 요청이 없어야 한다. 셸이 아니어도 가로채 둔다
-      await fakeSupabase(context)
+      await fakeSupabase(context, s)
       const page = await context.newPage()
       page.on('pageerror', (e) => problems.push(`${s.name}: ${e.message}`))
       // DEBUG_SHOTS=1이면 콘솔 오류와 가짜 Supabase가 모르는 요청도 적는다(셸 가짜 데이터를 채울 때 쓴다)
@@ -248,6 +257,15 @@ try {
       await page.getByRole('button', { name: /장 분석하기$/ }).click()
       await page.getByText('장보기 목록에서 찾은 품목').waitFor()
       await page.locator('.grocery-match').scrollIntoViewIfNeeded()
+    }
+    if (s.bill) {
+      await page.locator('.fab, .side-record').locator('visible=true').first().click()
+      await page.getByRole('button', { name: '관리비 고지서', exact: true }).click()
+      await page.locator('input[type=file]').setInputFiles({ name: 'b.jpg', mimeType: 'image/jpeg', buffer: TINY_JPEG })
+      await page.getByRole('button', { name: /장 분석하기$/ }).click()
+      await page.locator('#bill-date').waitFor()
+      // 날짜 아래의 안내 문구(항목을 만든다/연결한다)까지 보이게 저장 버튼을 화면에 넣는다
+      await page.getByRole('button', { name: '저장', exact: true }).scrollIntoViewIfNeeded()
     }
     if (s.sheet !== undefined) {
         await page.getByRole('button', { name: '담기', exact: true }).locator('visible=true').first().click()

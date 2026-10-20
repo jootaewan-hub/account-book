@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { checkBill, type Bill } from '../supabase/functions/extract-entries/extract'
-import { billRecurring, billTrend, compareBill, formatUsage } from '../src/lib/bills'
+import { billRecurring, billTrend, compareBill, formatUsage, utilityItemForBill } from '../src/lib/bills'
 import { mergeBatches, type AnalyzeResult } from '../src/lib/smart'
 import type { Recurring, UtilityBill } from '../src/lib/types'
 
@@ -95,5 +95,17 @@ describe('사진 묶음 합치기', () => {
     expect(m.entries.map((e) => [e.platform, e.items[0].image_box?.image])).toEqual([['쿠팡', 2], ['컬리', 6]])
     expect(m.failed).toEqual([{ from: 11, to: 12, message: '잠시 후 다시 시도해 주세요.' }])
     expect(m.model).toBe('claude-sonnet-5-5')
+  })
+})
+
+describe('관리비 항목이 없을 때 고지서로 만드는 반복 항목', () => {
+  it('지출 날짜의 날과 달로 매달 금액을 넣는 관리비·공과금 항목을 만들고, 다음 고지서가 그 항목을 찾는다', () => {
+    const item = utilityItemForBill({ occurred_on: '2026-10-26', category_id: 'cat-util', scope: 'shared' })
+    expect(item).toEqual({
+      kind: 'utility', type: 'expense', title: '관리비', amount: null, day_of_month: 26, every_months: 1,
+      category_id: 'cat-util', payment_method_id: null, scope: 'shared', start_month: '2026-10-01', end_month: null,
+      active: true, memo: null, installment_months: null,
+    })
+    expect(billRecurring([{ ...item, id: 'new', household_id: 'h' }])?.id).toBe('new')
   })
 })

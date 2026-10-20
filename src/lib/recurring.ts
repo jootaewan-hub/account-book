@@ -1,5 +1,5 @@
 // 고정지출·구독·관리비 계산. DB의 generate_recurring과 같은 규칙(31일 → 그 달 마지막 날, 매년은 시작 달 기준)을 쓴다.
-import { addMonths, daysInMonth, ymd, parseYM } from './dates'
+import { addMonths, daysInMonth, monthRange, ymd, parseYM } from './dates'
 import type { Recurring, RecurringKind, Transaction } from './types'
 
 export const KIND_LABEL: Record<RecurringKind, string> = { fixed: '고정지출', subscription: '구독', utility: '관리비·공과금', installment: '할부' }
@@ -44,6 +44,15 @@ export function pendingInputs(list: Recurring[], txs: Transaction[], today: stri
     if (due && due <= today) out.push({ r, due })
   }
   return out
+}
+
+/**
+ * 고정 탭이 읽는 내역 기간: 지난 5개월(구독 찾기)부터 다음 달 말까지.
+ * 관리비 고지서는 납부 마감일(오늘보다 뒤, 다음 달일 수도 있다)로 넣으므로 오늘까지만 읽으면 이번 달 분을 못 본다
+ */
+export function historyRange(today: string): { from: string; to: string } {
+  const ym = today.slice(0, 7)
+  return { from: `${addMonths(ym, -5)}-01`, to: monthRange(addMonths(ym, 1)).end }
 }
 
 /** 같은 반복 항목의 지난 금액들 (최근 것부터) */

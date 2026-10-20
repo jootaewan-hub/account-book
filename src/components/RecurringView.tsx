@@ -3,7 +3,7 @@ import { fetchRange, fetchRecurring, friendlyError, generateRecurring, recordRec
 import { addMonths } from '../lib/dates'
 import { won } from '../lib/format'
 import { SCOPE_LABEL, type Lookup } from '../lib/lookup'
-import { installmentsLeft, KIND_LABEL, monthlyAmount, nextDue, pastAmounts, pendingInputs, subscriptionCandidates, termLeft } from '../lib/recurring'
+import { historyRange, installmentsLeft, KIND_LABEL, monthlyAmount, nextDue, pastAmounts, pendingInputs, subscriptionCandidates, termLeft } from '../lib/recurring'
 import type { Category, Recurring, RecurringKind, Transaction } from '../lib/types'
 import { draftFrom, RecurringSheet, type RecurringDraft } from './RecurringSheet'
 import { RecurringIcon } from './RecurringIcon'
@@ -30,10 +30,8 @@ export function RecurringView({ householdId, today, lookup, categories, onTxChan
 
   const load = useCallback(async () => {
     try {
-      const [l, h] = await Promise.all([
-        fetchRecurring(householdId),
-        fetchRange(householdId, `${addMonths(today.slice(0, 7), -5)}-01`, today),
-      ])
+      const { from, to } = historyRange(today)
+      const [l, h] = await Promise.all([fetchRecurring(householdId), fetchRange(householdId, from, to)])
       setList(l); setHistory(h); setErr('')
     } catch (e) {
       setErr(friendlyError(e))
