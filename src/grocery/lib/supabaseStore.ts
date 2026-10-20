@@ -54,9 +54,13 @@ export function createSupabaseStore(client: SupabaseClient, me: Membership): Lis
   const g = () => client.schema('grocery')
   const table = () => g().from('items')
   type NutritionRowDb = { item_id: string; food_cd: string | null; food_name: string; maker: string | null; nutrition: Nutrition; updated_at: string }
-  const nutritionOf = (r: NutritionRowDb): ItemNutrition => ({
-    foodCd: r.food_cd, foodName: r.food_name, maker: r.maker, nutrition: r.nutrition, updatedAt: r.updated_at, auto: Boolean((r.nutrition as { auto?: unknown }).auto),
-  })
+  const nutritionOf = (r: NutritionRowDb): ItemNutrition => {
+    const j = r.nutrition as { auto?: unknown; matchedBy?: unknown }
+    return {
+      foodCd: r.food_cd, foodName: r.food_name, maker: r.maker, nutrition: r.nutrition, updatedAt: r.updated_at, auto: Boolean(j.auto),
+      matchedBy: j.matchedBy === 'product' || j.matchedBy === 'name' ? j.matchedBy : null,
+    }
+  }
   let goodsCache: StoreGood[] | null = null // 참가격 상품 목록(약 600개)은 한 번만 읽는다
 
   return {

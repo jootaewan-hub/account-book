@@ -409,8 +409,14 @@ export default function ItemDetail({ item, store, onChangeProduct, onClose, mark
                             <div key={r.label} className="nutri-row"><dt>{r.label}</dt><dd className="num">{r.value}</dd></div>
                           ))}
                         </dl>
-                        <p className="src-line">{[nut.maker, nutritionSource(nut.nutrition), nut.auto ? `${checkedText(nut.updatedAt)} 이름으로 자동 맞춤` : `${checkedText(nut.updatedAt)} 고름`].filter(Boolean).join(', ')}</p>
-                        {nut.auto && <p className="read-note">이름으로 자동으로 맞춘 식품이에요. 다른 식품이면 "다른 식품으로 바꾸기"로 고쳐 주세요.</p>}
+                        <p className="src-line">
+                          {[nut.maker, nutritionSource(nut.nutrition), nut.auto ? `${checkedText(nut.updatedAt)} ${nut.matchedBy === 'product' ? '상품명으로' : '이름으로'} 자동 맞춤` : `${checkedText(nut.updatedAt)} 고름`].filter(Boolean).join(', ')}
+                        </p>
+                        {nut.auto && (
+                          <p className="read-note">
+                            {nut.matchedBy === 'product' ? '고른 상품의 이름으로' : '품목 이름으로'} 자동으로 맞춘 식품이에요. 다른 식품이면 "다른 식품으로 바꾸기"로 고쳐 주세요.
+                          </p>
+                        )}
                       </>
                     )}
                   </div>

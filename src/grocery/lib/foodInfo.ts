@@ -5,7 +5,17 @@ import { koFullDay } from './alerts'
 export type { C002Row, Nutrition, NutritionRow }
 
 /** grocery.item_nutrition 한 줄(P9, D-018): 품목 이름·규격에 기억한 식품영양성분DB 식품 */
-export type ItemNutrition = { foodCd: string | null; foodName: string; maker: string | null; nutrition: Nutrition; updatedAt: string; /** 이름으로 자동 맞춘 것(사람이 고르지 않음) */ auto: boolean }
+export type ItemNutrition = {
+  foodCd: string | null
+  foodName: string
+  maker: string | null
+  nutrition: Nutrition
+  updatedAt: string
+  /** 자동으로 맞춘 것(사람이 고르지 않음) */
+  auto: boolean
+  /** 자동 맞춤이 무엇으로 맞췄나: 고른 상품의 이름(product) 또는 품목 이름(name). 예전 기록은 null(이름으로 본다) */
+  matchedBy: 'product' | 'name' | null
+}
 
 /** 목록 줄의 열량: "232kcal/100g". 열량이 없으면 null, 기준량이 없으면 열량만 */
 export function kcalText(n: Nutrition): string | null {

@@ -23,7 +23,7 @@ function deps(over: Partial<FoodInfoDeps> = {}) {
     save: async (hh, _id, info) => {
       log.saved.push({ hh, ...info })
     },
-    allowedItem: async () => ({ householdId: 'hh-1', name: '대파', spec: null }),
+    allowedItem: async () => ({ householdId: 'hh-1', name: '대파', spec: null, productName: null }),
     saveNutrition: async () => {},
     now: () => new Date('2026-10-20T01:00:00Z'),
     ...over,
@@ -158,7 +158,7 @@ describe('food-info: 영양성분 자동 맞춤(nutrition_auto, 사용자 2026-1
   const ITEM = '33333333-3333-4333-8333-333333333333'
   it('품목 이름으로 찾아 가장 잘 맞는 식품을 auto로 저장하고 돌려준다. 후보가 없으면 저장하지 않고 null', async () => {
     const saved: unknown[] = []
-    const { d } = deps({ allowedItem: async () => ({ householdId: 'hh-1', name: '왕교자', spec: null }), saveNutrition: async (itemId, row, auto) => { saved.push({ itemId, foodCd: row.foodCd, auto }) } })
+    const { d } = deps({ allowedItem: async () => ({ householdId: 'hh-1', name: '왕교자', spec: null, productName: null }), saveNutrition: async (itemId, row, auto) => { saved.push({ itemId, foodCd: row.foodCd, auto }) } })
     const res = await handle(post({ itemId: ITEM, action: 'nutrition_auto' }), d)
     expect(res.status).toBe(200)
     expect((await res.json()).nutrition).toMatchObject({ foodCd: 'P000000001', foodName: '왕교자' })
@@ -189,7 +189,7 @@ describe('food-info: 자동 맞춤은 품목대표부터, 이름이 단어로만
     urls.push(url)
     return { header: { resultCode: '00' }, body: { items: url.includes('DB_CLASS_NM=') ? rep : all } }
   }
-  const milk = { allowedItem: async () => ({ householdId: 'hh-1', name: '우유', spec: '900ml' }) }
+  const milk = { allowedItem: async () => ({ householdId: 'hh-1', name: '우유', spec: '900ml', productName: null }) }
   const donut = row('D202', '도넛_제주말차 우유 도넛', '상용제품')
   it('품목대표 "우유_일반"이 있으면 그것을 저장한다(상용제품 도넛보다 먼저)', async () => {
     const saved: unknown[] = []
@@ -230,5 +230,60 @@ describe('food-info: 자동 맞춤은 품목대표부터, 이름이 단어로만
     const c = deps({ ...milk, fetchJson: api([row('G1', '우유_일반', '품목대표')], [donut]), saveNutrition: async (_i, r) => { saved.push(r.foodCd) } })
     expect((await handle(post({ itemId: ITEM, action: 'nutrition_choose', query: '우유', foodCd: 'G1' }), c.d)).status).toBe(200)
     expect(saved).toEqual(['G1'])
+  })
+})
+
+describe('food-info: 상품을 고른 품목은 상품명으로 먼저 찾는다(사용자 2026-10-20 12:39: 된장에 취나물_된장이 맞춰짐, D-018 보충 3)', () => {
+  const ITEM = '33333333-3333-4333-8333-333333333333'
+  const row = (cd: string, name: string, cls: string, maker: string | null = null, grp: string | null = null) => ({ FOOD_CD: cd, FOOD_NM_KR: name, DB_CLASS_NM: cls, MAKER_NM: maker, DB_GRP_NM: grp, AMT_NUM1: '60' })
+  const dish = row('D113-595050000-0001', '취나물_된장', '품목대표', null, '음식')
+  const generic = row('P112-003000900-F001-001', '된장', '품목대표', null, '가공식품')
+  const jang = [row('P112-009000900-0038', '백일된장', '상용제품', '샘표식품(주)영동공장', '가공식품'), row('P112-009000900-0017', '국산콩백일된장', '상용제품', '샘표식품주식회사', '가공식품')]
+  const q = (u: string) => decodeURIComponent(u.split('FOOD_NM_KR=')[1]?.split('&')[0] ?? '')
+  /** 검색어별 응답. 품목대표 호출은 'rep:' 접두어로 따로 둔다 */
+  const api = (table: Record<string, Record<string, unknown>[]>, urls: string[] = []) => async (url: string) => {
+    urls.push(url)
+    const key = (url.includes('DB_CLASS_NM=') ? 'rep:' : '') + q(url)
+    return { header: { resultCode: '00' }, body: { items: table[key] ?? [] } }
+  }
+  const jangItem = { allowedItem: async () => ({ householdId: 'hh-1', name: '된장', spec: null, productName: '샘표 국산콩 100% 백일된장 900g' }) }
+  it('상품명 말을 구체적인 것부터 찾아, 상품 단어가 가장 많이 맞는 식품을 "상품명으로" 저장한다', async () => {
+    const saved: unknown[] = []
+    const urls: string[] = []
+    const { d } = deps({ ...jangItem, fetchJson: api({ '백일된장': jang, '된장': [dish], 'rep:된장': [dish] }, urls), saveNutrition: async (_i, r, auto, by) => { saved.push({ foodCd: r.foodCd, auto, by }) } })
+    const body = await (await handle(post({ itemId: ITEM, action: 'nutrition_auto' }), d)).json()
+    expect(body.nutrition).toMatchObject({ foodCd: 'P112-009000900-0017', foodName: '국산콩백일된장' })
+    expect(body.matchedBy).toBe('product')
+    expect(saved).toEqual([{ foodCd: 'P112-009000900-0017', auto: true, by: 'product' }])
+    expect(urls.map(q).slice(0, 2)).toEqual(['국산콩 백일된장', '백일된장'])
+  })
+  it('상품명으로 못 찾으면 품목 이름 흐름으로 간다. 음식(취나물_된장)은 쓰지 않고 가공식품 일반 "된장"을 쓴다', async () => {
+    const saved: unknown[] = []
+    const { d } = deps({ ...jangItem, fetchJson: api({ '된장': [dish], 'rep:된장': [dish, generic] }), saveNutrition: async (_i, r, _a, by) => { saved.push({ foodCd: r.foodCd, by }) } })
+    const body = await (await handle(post({ itemId: ITEM, action: 'nutrition_auto' }), d)).json()
+    expect(body.nutrition).toMatchObject({ foodCd: 'P112-003000900-F001-001', foodName: '된장' })
+    expect(body.matchedBy).toBe('name')
+    expect(saved).toEqual([{ foodCd: 'P112-003000900-F001-001', by: 'name' }])
+  })
+  it('음식 일반 품목(취나물_된장)만 있으면 자동으로 저장하지 않고 null. 품목대표 호출은 300건을 청한다', async () => {
+    const urls: string[] = []
+    const { d } = deps({ ...jangItem, fetchJson: api({ '된장': [dish], 'rep:된장': [dish] }, urls), saveNutrition: async () => { throw new Error('must not save') } })
+    const body = await (await handle(post({ itemId: ITEM, action: 'nutrition_auto' }), d)).json()
+    expect(body.nutrition).toBeNull()
+    expect(urls.find((u) => u.includes('DB_CLASS_NM='))).toContain('numOfRows=300')
+  })
+  it('이름 검색(검색어 없음)은 상품명 후보를 앞에 두고 합친다. 검색어를 주면 상품명은 쓰지 않는다. 고르기는 상품명 후보도 찾는다', async () => {
+    const { d } = deps({ ...jangItem, fetchJson: api({ '백일된장': jang, '된장': [dish], 'rep:된장': [dish, generic] }) })
+    const body = await (await handle(post({ itemId: ITEM, action: 'nutrition_search' }), d)).json()
+    expect(body.candidates.map((c: { foodCd: string }) => c.foodCd)).toEqual(['P112-009000900-0017', 'P112-009000900-0038', 'P112-003000900-F001-001', 'D113-595050000-0001'])
+    const urls: string[] = []
+    const typed = deps({ ...jangItem, fetchJson: api({ '쌈장': [row('P1', '쌈장', '상용제품')] }, urls) })
+    const b2 = await (await handle(post({ itemId: ITEM, action: 'nutrition_search', query: '쌈장' }), typed.d)).json()
+    expect(b2.candidates.map((c: { foodCd: string }) => c.foodCd)).toEqual(['P1'])
+    expect(urls.map(q)).toEqual(['쌈장', '쌈장'])
+    const saved: (string | null)[] = []
+    const c = deps({ ...jangItem, fetchJson: api({ '백일된장': jang, '된장': [dish], 'rep:된장': [dish] }), saveNutrition: async (_i, r) => { saved.push(r.foodCd) } })
+    expect((await handle(post({ itemId: ITEM, action: 'nutrition_choose', query: '', foodCd: 'P112-009000900-0038' }), c.d)).status).toBe(200)
+    expect(saved).toEqual(['P112-009000900-0038'])
   })
 })

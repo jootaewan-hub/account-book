@@ -165,8 +165,65 @@ export type Nutrition = {
   updatedOn: string | null
 }
 
-/** 응답 한 줄 + 식품코드(FOOD_CD)·품목제조보고번호·구분(DB_CLASS_NM: 품목대표/상용제품)·식품대분류(FOOD_CAT1_NM). 이름 검색 후보로 쓴다 */
-export type NutritionRow = Nutrition & { foodCd: string | null; reportNo: string | null; dbClass: string | null; category: string | null }
+/** 응답 한 줄 + 식품코드(FOOD_CD)·품목제조보고번호·구분(DB_CLASS_NM: 품목대표/상용제품)·식품대분류(FOOD_CAT1_NM)·데이터구분(DB_GRP_NM: 음식/가공식품/원재료성식품). 이름 검색 후보로 쓴다 */
+export type NutritionRow = Nutrition & { foodCd: string | null; reportNo: string | null; dbClass: string | null; category: string | null; group: string | null }
+
+/** 음식(조리된 요리): 데이터구분이 음식이거나, 없으면 식품코드가 D로 시작(식품안전나라 자료: D 음식, P 가공식품, R 원재료성식품).
+ *  일반 품목이라도 "취나물_된장"처럼 재료 이름이 든 음식은 재료 품목에 자동으로 맞추지 않는다(사용자 2026-10-20 12:39) */
+export const isDish = (r: { foodCd: string | null; group: string | null }): boolean =>
+  r.group === '음식' || (r.group === null && (r.foodCd ?? '').toUpperCase().startsWith('D'))
+
+const SIZE_WORD = /^\d+(?:[.,]\d+)?(?:kg|g|mg|ml|l|리터|cc|oz|개|개입|팩|입|병|봉|캔|구|매|롤|장|포|box|박스|p|ea|세트)$/i
+const COUNT_WORD = /^(?:x|×)?\d+(?:개|팩|입|병|봉|캔|구|매|롤|장|포)?$/i
+
+/** 상품명에서 찾을 단어(P9 상품 흐름, D-018 보충 3): 용량·수량·연도·광고 말을 빼고, 상표(첫 단어)와 "1%" 같은 비율은 남긴다 */
+export function productWords(productName: string): string[] {
+  const out: string[] = []
+  for (const w of productName.split(/\s+/)) {
+    const t = w.toLowerCase().replace(/[()[\]{},/]/g, '').trim()
+    if (!t || SIZE_WORD.test(t) || COUNT_WORD.test(t) || AD_WORDS.has(t)) continue
+    if (!out.includes(t)) out.push(t)
+  }
+  return out
+}
+
+/** 상품명으로 식품영양성분DB(FOOD_NM_KR 부분 일치)를 찾을 말, 구체적인 것부터: 상표 뒤 단어 전부(숫자 든 말 제외) → 마지막 두 단어 → 마지막 단어.
+ *  "샘표 국산콩 100% 백일된장 900g" → "국산콩 백일된장", "백일된장". 단어가 하나면 그대로 */
+export function productPhrases(productName: string): string[] {
+  const words = productWords(productName)
+  const rest = (words.length > 1 ? words.slice(1) : words).filter((w) => !/\d/.test(w))
+  const base = rest.length > 0 ? rest : words
+  const phrases = [base.join(' '), base.slice(-2).join(' '), base.slice(-1).join(' ')]
+  return [...new Set(phrases.filter(Boolean))]
+}
+
+/** 상품 단어가 식품 이름에 몇 개 들었나(띄어쓰기·기호 무시)와, 제조사에 상표(첫 단어)가 들었나("샘표"→"샘표식품(주)", "롯데푸드"→"롯데칠성음료") */
+export function productScore(row: { foodName: string | null; maker: string | null }, productName: string): { hits: number; makerHit: boolean } {
+  const words = productWords(productName)
+  const name = squash(row.foodName ?? '')
+  const maker = squash(row.maker ?? '')
+  const hits = words.filter((w) => {
+    const t = squash(w)
+    return t.length > 0 && name.includes(t)
+  }).length
+  const brand = squash(words[0] ?? '')
+  const makerHit = brand.length >= 2 && maker.length >= 2 && (maker.includes(brand) || (brand.length >= 3 && brand.includes(maker.slice(0, 2))))
+  return { hits, makerHit }
+}
+
+/** 상품명 후보 순서: 단어 일치 수 → 제조사 일치 → 짧은 이름 → 응답 순서 */
+export function rankByProduct<T extends { foodName: string | null; maker: string | null }>(rows: readonly T[], productName: string): T[] {
+  return rows
+    .map((r, i) => ({ r, i, ...productScore(r, productName), len: (r.foodName ?? '').length }))
+    .sort((a, b) => b.hits - a.hits || Number(b.makerHit) - Number(a.makerHit) || a.len - b.len || a.i - b.i)
+    .map((x) => x.r)
+}
+
+/** 상품명으로 자동 맞춤에 쓸 만한가: 상품 단어 2개 이상, 또는 1개 + 제조사 일치. "그래놀라" 하나만 맞는 다른 회사 제품은 쓰지 않는다 */
+export function productFit(row: { foodName: string | null; maker: string | null }, productName: string): boolean {
+  const { hits, makerHit } = productScore(row, productName)
+  return hits >= 2 || (hits >= 1 && makerHit)
+}
 
 function nutritionRowOf(it: Record<string, unknown>): NutritionRow {
   return {
@@ -190,6 +247,7 @@ function nutritionRowOf(it: Record<string, unknown>): NutritionRow {
     reportNo: text(it.ITEM_REPORT_NO),
     dbClass: text(it.DB_CLASS_NM),
     category: text(it.FOOD_CAT1_NM),
+    group: text(it.DB_GRP_NM),
   }
 }
 
@@ -211,10 +269,11 @@ export function parseNutritionRows(body: unknown): NutritionRow[] {
 export function parseNutrition(body: unknown): Nutrition | null {
   const [first] = parseNutritionRows(body)
   if (!first) return null
-  const { foodCd: _c, reportNo: _r, dbClass: _d, category: _k, ...n } = first
+  const { foodCd: _c, reportNo: _r, dbClass: _d, category: _k, group: _g, ...n } = first
   void _c
   void _r
   void _d
   void _k
+  void _g
   return n
 }

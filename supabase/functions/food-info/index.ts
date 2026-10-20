@@ -44,16 +44,24 @@ Deno.serve(async (req) => {
       if (error) throw error
     },
     allowedItem: async (itemId) => {
-      const { data, error } = await user.schema('grocery').from('items').select('household_id, name, spec').eq('id', itemId).maybeSingle()
+      const { data, error } = await user.schema('grocery').from('items').select('household_id, name, spec, product_id').eq('id', itemId).maybeSingle()
       if (error) throw error
-      return data ? { householdId: data.household_id, name: data.name, spec: data.spec } : null
+      if (!data) return null
+      let productName: string | null = null
+      if (data.product_id) {
+        // 고른 상품의 이름으로 먼저 찾는다(D-018 보충 3). 상품 표는 가구 구분 없이 읽는다
+        const { data: p, error: pe } = await g().from('products').select('name').eq('id', data.product_id).maybeSingle()
+        if (pe) throw pe
+        productName = p?.name ?? null
+      }
+      return { householdId: data.household_id, name: data.name, spec: data.spec, productName }
     },
-    saveNutrition: async (itemId, row, auto) => {
-      // 자동 맞춤은 고른 사람이 없고 jsonb에 auto 표시를 남긴다(화면이 "이름으로 자동 맞춤"이라고 쓴다)
+    saveNutrition: async (itemId, row, auto, matchedBy) => {
+      // 자동 맞춤은 고른 사람이 없고 jsonb에 auto와 matchedBy(product/name)를 남긴다(화면이 "상품명으로/이름으로 자동 맞춤"이라고 쓴다)
       const { data: me } = auto ? { data: null } : await user.auth.getUser(jwt)
       const { error } = await g().rpc('set_item_nutrition', {
         p_item: itemId, p_food_cd: row.foodCd, p_food_name: (row.foodName ?? '').slice(0, 200) || '이름 없음', p_maker: row.maker?.slice(0, 100) ?? null,
-        p_nutrition: { ...row, auto }, p_chosen_by: auto ? null : (me?.user?.id ?? null),
+        p_nutrition: { ...row, auto, matchedBy: auto ? matchedBy : null }, p_chosen_by: auto ? null : (me?.user?.id ?? null),
       })
       if (error) throw error
     },

@@ -316,7 +316,7 @@ export function createMemoryStore(
       if (!c) throw new Error('not_found')
       const { foodCd: cd, reportNo: _r, ...n } = c
       void _r
-      nutrition.set(itemId, { foodCd: cd, foodName: c.foodName ?? '이름 없음', maker: c.maker, nutrition: n, updatedAt: now(), auto: false })
+      nutrition.set(itemId, { foodCd: cd, foodName: c.foodName ?? '이름 없음', maker: c.maker, nutrition: n, updatedAt: now(), auto: false, matchedBy: null })
     },
     async autoNutrition(itemId) {
       const it = items.find((i) => i.id === itemId)
@@ -324,7 +324,7 @@ export function createMemoryStore(
       if (!it || !c?.foodCd) return null
       const { foodCd: cd, reportNo: _r, ...n } = c
       void _r
-      const row: ItemNutrition = { foodCd: cd, foodName: c.foodName ?? '이름 없음', maker: c.maker, nutrition: n, updatedAt: now(), auto: true }
+      const row: ItemNutrition = { foodCd: cd, foodName: c.foodName ?? '이름 없음', maker: c.maker, nutrition: n, updatedAt: now(), auto: true, matchedBy: 'name' }
       nutrition.set(itemId, row)
       return { ...row, nutrition: { ...row.nutrition } }
     },

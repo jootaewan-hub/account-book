@@ -1,7 +1,9 @@
 // 성분·대안(P7): 식약처 C002(원재료)와 식품영양성분DB(15127578) 주소 만들기·응답 읽기, 상품명에서 찾을 말 고르기, 후보 순서.
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
-import { FoodInfoError, c002Terms, c002Url, nutritionSearchUrl, nutritionTier, nutritionUrl, parseC002, parseNutrition, parseNutritionRows, rankC002, rankNutrition } from '../../supabase/functions/_shared/foodInfo'
+import {
+  FoodInfoError, c002Terms, c002Url, isDish, nutritionSearchUrl, nutritionTier, nutritionUrl, parseC002, parseNutrition, parseNutritionRows, productFit, productPhrases, productWords, rankByProduct, rankC002, rankNutrition,
+} from '../../supabase/functions/_shared/foodInfo'
 
 const read = (f: string) => JSON.parse(readFileSync(new URL(`./fixtures/foodsafety/${f}`, import.meta.url), 'utf8'))
 
@@ -73,7 +75,7 @@ describe('식품영양성분DB 이름 검색(P9, D-018)', () => {
   it('응답 줄마다 식품코드·보고번호를 함께 읽고, 없으면 빈 배열', () => {
     const rows = parseNutritionRows(read('nutrition-sample.json'))
     expect(rows).toHaveLength(1)
-    expect(rows[0]).toMatchObject({ foodCd: 'P000000001', reportNo: '1997040105528', foodName: '왕교자', kcal: 232, basis: '100g', dbClass: '상용제품', category: '즉석식품류' })
+    expect(rows[0]).toMatchObject({ foodCd: 'P000000001', reportNo: '1997040105528', foodName: '왕교자', kcal: 232, basis: '100g', dbClass: '상용제품', category: '즉석식품류', group: '가공식품' })
     expect(parseNutritionRows({ header: { resultCode: '00' }, body: { totalCount: 0, items: [] } })).toEqual([])
   })
 })
@@ -101,5 +103,39 @@ describe('자동 맞춤 단계(사용자 2026-10-20 12:03: "우유"에 도넛_�
   it('같은 단계면 품목대표가 상용제품보다 먼저', () => {
     const rows = [{ foodName: '우유_일반', dbClass: '상용제품' }, { foodName: '우유_일반', dbClass: '품목대표' }]
     expect(rankNutrition(rows, '우유').map((r) => r.dbClass)).toEqual(['품목대표', '상용제품'])
+  })
+})
+
+describe('상품명으로 찾기(사용자 2026-10-20 12:39: 상품을 고른 품목은 그 상품명으로 성분을 찾아 달라, D-018 보충 3)', () => {
+  it('상품명 단어: 용량·수량·연도·광고 말을 빼고 상표(첫 단어)와 %는 남긴다', () => {
+    expect(productWords('샘표 국산콩 100% 백일된장 900g')).toEqual(['샘표', '국산콩', '100%', '백일된장'])
+    expect(productWords('켈로그 크랜베리 아몬드 그래놀라 1.2KG 2개')).toEqual(['켈로그', '크랜베리', '아몬드', '그래놀라'])
+    expect(productWords('당진해나루쌀조합 2026 햅쌀 당진해나루 10kg')).toEqual(['당진해나루쌀조합', '햅쌀', '당진해나루'])
+    expect(productWords('매일유업 매일우유 저지방 1% 900ml')).toEqual(['매일유업', '매일우유', '저지방', '1%'])
+  })
+  it('찾을 말: 상표 뒤 단어 전부(숫자 말 제외) → 마지막 두 단어 → 마지막 단어. 단어가 하나면 그대로', () => {
+    expect(productPhrases('샘표 국산콩 100% 백일된장 900g')).toEqual(['국산콩 백일된장', '백일된장'])
+    expect(productPhrases('매일유업 매일우유 저지방 1% 900ml')).toEqual(['매일우유 저지방', '저지방'])
+    expect(productPhrases('청정원 순창 100% 현미 태양초 찰고추장 2kg')).toEqual(['순창 현미 태양초 찰고추장', '태양초 찰고추장', '찰고추장'])
+    expect(productPhrases('한라식품 참치액 900ml')).toEqual(['참치액'])
+    expect(productPhrases('미림')).toEqual(['미림'])
+  })
+  it('순서: 상품 단어가 이름에 많이 든 것 → 제조사에 상표가 든 것 → 짧은 이름. 자동으로 쓰려면 단어 2개 이상이거나 단어 1개+제조사 일치', () => {
+    const r = (foodName: string, maker: string | null) => ({ foodName, maker })
+    const jang = [r('백일된장', '샘표식품(주)영동공장'), r('국산콩백일된장', '샘표식품주식회사')]
+    expect(rankByProduct(jang, '샘표 국산콩 100% 백일된장 900g').map((x) => x.foodName)).toEqual(['국산콩백일된장', '백일된장'])
+    expect(jang.map((x) => productFit(x, '샘표 국산콩 100% 백일된장 900g'))).toEqual([true, true])
+    const milk = [r('매일우유 저지방 2%', '매일유업㈜ 광주공장'), r('매일우유 저지방', '매일유업㈜ 광주공장'), r('매일우유 저지방 1%', '매일유업㈜평택공장')]
+    expect(rankByProduct(milk, '매일유업 매일우유 저지방 1% 900ml')[0].foodName).toBe('매일우유 저지방 1%')
+    expect(productFit(r('그래놀라', '아무개식품'), '켈로그 크랜베리 아몬드 그래놀라 1.2KG 2개')).toBe(false)
+    expect(productFit(r('크랜베리 아몬드 그래놀라', '농심켈로그(주)'), '켈로그 크랜베리 아몬드 그래놀라 1.2KG 2개')).toBe(true)
+    expect(productFit(r('미림', '롯데칠성음료(주)'), '롯데푸드 맛술 미림 500ml')).toBe(true)
+    expect(productFit(r('미림', '대상(주)'), '롯데푸드 맛술 미림 500ml')).toBe(false)
+  })
+  it('음식(D 코드 또는 데이터구분 음식)은 일반 품목이라도 재료 이름으로 자동 맞추지 않는다', () => {
+    expect(isDish({ foodCd: 'D113-595050000-0001', group: null })).toBe(true)
+    expect(isDish({ foodCd: 'X1', group: '음식' })).toBe(true)
+    expect(isDish({ foodCd: 'P112-003000900-F001-001', group: '가공식품' })).toBe(false)
+    expect(isDish({ foodCd: 'R113-009000000-0000', group: null })).toBe(false)
   })
 })
