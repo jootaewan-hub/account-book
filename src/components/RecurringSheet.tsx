@@ -7,6 +7,7 @@ import { dueDate, endMonthFor, KIND_LABEL, termOf } from '../lib/recurring'
 import { POPULAR } from '../lib/services'
 import type { Category, Recurring, RecurringInput, RecurringKind, Scope, TxType } from '../lib/types'
 import { defaultScope } from './EntrySheet'
+import { RecurringIcon } from './RecurringIcon'
 import { ServiceLogo } from './ServiceLogo'
 import { Sheet } from './Sheet'
 
@@ -157,7 +158,7 @@ export function RecurringSheet({ open, draft, householdId, today, lookup, catego
       <div className="field">
         <label htmlFor="rc-title">이름</label>
         <div className="svc-name-row">
-          {kind === 'subscription' && <ServiceLogo name={title || '?'} size={40} />}
+          {kind === 'subscription' ? <ServiceLogo name={title || '?'} size={40} /> : <RecurringIcon kind={kind} title={title} type={type} size={40} />}
           <input id="rc-title" className="input" value={title} maxLength={60}
             placeholder={kind === 'subscription' ? '예: 넷플릭스' : kind === 'utility' ? '예: 아파트 관리비' : '예: 월세, 보험료'}
             onChange={(e) => setTitle(e.target.value)} />

@@ -457,6 +457,8 @@ input[type="search"].input { -webkit-appearance: none; appearance: none; }
 .svc-logo { display: inline-flex; align-items: center; justify-content: center; flex: none; font-weight: 800; letter-spacing: -0.02em;
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ink) 10%, transparent); overflow: hidden; line-height: 1; }
 .svc-logo.unknown { background: var(--oat); color: var(--ink-2); font-weight: 700; }
+/* 고정 탭의 분류 아이콘 타일(세금·보험·주거·대출·통신·교육·공과금·할부·수입·차·건강·고정). 로고와 같은 크기·모서리 */
+.rc-icon { background: var(--oat); color: var(--ink-2); }
 .svc-picks { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; }
 .svc-pick { display: flex; flex-direction: column; align-items: center; gap: 4px; flex: none; width: 64px; border: 0; background: none; padding: 0; color: var(--ink-2); font-size: 12px; }
 .svc-pick span:last-child { width: 100%; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

@@ -6,6 +6,7 @@ import { SCOPE_LABEL, type Lookup } from '../lib/lookup'
 import { installmentsLeft, KIND_LABEL, monthlyAmount, nextDue, pastAmounts, pendingInputs, subscriptionCandidates, termLeft } from '../lib/recurring'
 import type { Category, Recurring, RecurringKind, Transaction } from '../lib/types'
 import { draftFrom, RecurringSheet, type RecurringDraft } from './RecurringSheet'
+import { RecurringIcon } from './RecurringIcon'
 import { ServiceLogo } from './ServiceLogo'
 
 interface Props {
@@ -105,7 +106,7 @@ export function RecurringView({ householdId, today, lookup, categories, onTxChan
               const left = k === 'installment' ? installmentsLeft(r, today) : termLeft(r, today)
               return (
                 <button key={r.id} className={`rc-row${r.active ? '' : ' off'}`} onClick={() => setSheet(draftFrom(r))}>
-                  {k === 'subscription' && <ServiceLogo name={r.title} size={34} />}
+                  {k === 'subscription' ? <ServiceLogo name={r.title} size={34} /> : <RecurringIcon kind={r.kind} title={r.title} type={r.type} size={34} />}
                   <span className="rc-main">
                     <b>{r.title}</b>
                     <span className="tx-meta">
