@@ -89,6 +89,18 @@ export default function ItemDetail({ item, store, onChangeProduct, onClose, mark
   const [srcFailed, setSrcFailed] = useState(false)
   const [srcBusy, setSrcBusy] = useState(false)
   const [picker, setPicker] = useState<'good' | 'stores' | 'food' | null>(null)
+  // 겹쳐 연 시트를 닫으면 연 버튼으로 포커스를 되돌린다(리뷰 ⑧). 키보드로 열면 그 버튼이 활성 요소다
+  const pickerOpener = useRef<HTMLElement | null>(null)
+  const openPicker = (p: 'good' | 'stores' | 'food') => {
+    pickerOpener.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    setPicker(p)
+  }
+  const closePicker = () => {
+    setPicker(null)
+    const el = pickerOpener.current
+    pickerOpener.current = null
+    if (el) window.setTimeout(() => el.focus({ preventScroll: true }), 0)
+  }
   // P7: 식약처 품목(원재료·영양성분), 대안 계산용 후보
   const [info, setInfo] = useState<ProductInfoView | null | 'loading' | 'failed'>('loading')
   const [cands, setCands] = useState<Candidate[] | null | 'loading'>('loading')
@@ -217,6 +229,8 @@ export default function ItemDetail({ item, store, onChangeProduct, onClose, mark
   const split = splitLines(data?.lines ?? [], qty, today)
   const query = data?.product?.name ?? [item.name, item.spec].filter(Boolean).join(' ')
   const lastFailed = data?.check && !data.check.ok ? data.check : null
+  // 실패 문구 뒤의 시각은 다나와 줄 기준(캡처 줄이 앞에 있을 수 있다, 리뷰 ④)
+  const lastDanawa = data?.lines.find((l) => l.source === 'danawa') ?? null
   // 대안도 2~3인 가구에 맞는 크기만 견준다(D-015). 고른 상품은 큰 용량이어도 남긴다. 식약처 기록이 겹치는 후보는 표시를 붙여 뒤로(D-016)
   const chosenId = data?.product?.id
   const rule = fitRule(item.name, item.spec, item.count)
@@ -319,7 +333,7 @@ export default function ItemDetail({ item, store, onChangeProduct, onClose, mark
                   {!checking && lastFailed && (
                     <p className="cand-state" role="status">
                       다나와 가격을 지금 불러오지 못했어요.
-                      {split.same.length + split.other.length > 0 ? ` ${checkedText(data.lines[0].checkedAt)}에 확인한 값을 보여 드려요.` : ''}
+                      {lastDanawa ? ` ${checkedText(lastDanawa.checkedAt)}에 확인한 값을 보여 드려요.` : split.same.length + split.other.length > 0 ? ' 캡처로 넣은 값만 있어요.' : ''}
                     </p>
                   )}
                   {!data.product && (
@@ -346,7 +360,7 @@ export default function ItemDetail({ item, store, onChangeProduct, onClose, mark
                   {!srcFailed && !sources && <p className="cand-state" role="status">넣은 주소·매장 가격 불러오는 중</p>}
                   {sources && data.product && <ShopLinks shops={sources.shops} busy={srcBusy || checking} onAdd={addLink} onRemove={removeLink} />}
                   {sources && (
-                    <StorePrices store={sources.store} busy={srcBusy} onPickGood={() => setPicker('good')} onUnlink={unlinkGood} onPickStores={() => setPicker('stores')} />
+                    <StorePrices store={sources.store} busy={srcBusy} onPickGood={() => openPicker('good')} onUnlink={unlinkGood} onPickStores={() => openPicker('stores')} />
                   )}
                   <p className="detail-sub">다른 곳에서 보기</p>
                   <div className="detail-links">
@@ -367,14 +381,14 @@ export default function ItemDetail({ item, store, onChangeProduct, onClose, mark
                   {data.product && info === null && (
                     <>
                       <p className="detail-none">식약처 품목제조보고에서 같은 품목을 고르면 원재료와 영양성분을 보여 드려요.</p>
-                      <button type="button" className="btn-secondary detail-link" onClick={() => setPicker('food')}>식약처 품목 찾기</button>
+                      <button type="button" className="btn-secondary detail-link" onClick={() => openPicker('food')}>식약처 품목 찾기</button>
                     </>
                   )}
                   {data.product && typeof info === 'object' && info !== null && (
                     <>
                       <p className="store-good">
                         <span>{info.name}</span>
-                        <button type="button" className="btn-text" onClick={() => setPicker('food')}>다른 품목으로 바꾸기</button>
+                        <button type="button" className="btn-text" onClick={() => openPicker('food')}>다른 품목으로 바꾸기</button>
                       </p>
                       <p className="src-line">{[info.maker, info.kind, info.changedOn ? `${koFullDay(info.changedOn)} 변경` : null, `보고번호 ${info.reportNo}`].filter(Boolean).join(', ')}</p>
                       <p className="read-note">{INGREDIENT_NOTE}</p>
@@ -483,10 +497,10 @@ export default function ItemDetail({ item, store, onChangeProduct, onClose, mark
           itemName={item.name}
           current={sources?.store.good?.goodId ?? null}
           onPick={(goodId) => store.chooseStoreGood(item.id, goodId).then(loadSources)}
-          onClose={() => setPicker(null)}
+          onClose={closePicker}
         />
       )}
-      {picker === 'stores' && <StorePickerSheet store={store} onSaved={loadSources} onClose={() => setPicker(null)} />}
+      {picker === 'stores' && <StorePickerSheet store={store} onSaved={loadSources} onClose={closePicker} />}
       {picker === 'food' && data?.product && (
         <FoodPickerSheet
           store={store}
@@ -494,7 +508,7 @@ export default function ItemDetail({ item, store, onChangeProduct, onClose, mark
           productName={data.product.name}
           current={typeof info === 'object' && info !== null ? info.reportNo : null}
           onDone={() => loadInfo().then(() => {})}
-          onClose={() => setPicker(null)}
+          onClose={closePicker}
         />
       )}
     </div>

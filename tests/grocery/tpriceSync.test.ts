@@ -103,6 +103,15 @@ describe('tprice-sync: 수집', () => {
     expect(log.runs).toEqual([{ source: 'tprice', ok: true, rows: 40, total: 20, error: null }])
   })
 
+  it('성남 판매점이 0개면 가격을 부르지 않고 covered도 묻지 않는다(리뷰 ⑥: 빈 in() 500 방지)', async () => {
+    const a = api({ stores: { status: 200, text: read('stores.xml').replaceAll('020925000', '020100000').replaceAll('020918000', '020100000').replaceAll('020919000', '020100000') } })
+    const { d, log, urls } = deps({}, a)
+    const res = await handle(post(), d)
+    expect(res.status).toBe(200)
+    expect(priceUrls(urls)).toHaveLength(0)
+    expect(log.covered).toEqual([])
+    expect(log.runs[0]).toMatchObject({ ok: true, rows: 0, total: 0 })
+  })
   it('이미 받은 (판매점, 조사일)은 건너뛴다', async () => {
     const { d, urls, log } = deps({ covered: async () => new Set(['7|2026-10-09', '912|2026-10-02']) })
     await handle(post(), d)

@@ -27,7 +27,7 @@ function Meta({ r, members }: { r: OurPurchase; members: readonly Member[] }) {
           {m.who.displayName}
         </span>
       ) : (
-        <span>누군가</span>
+        <span>산 사람 모름</span>
       )}
       <span aria-hidden="true">·</span>
       <span>{m.where}</span>

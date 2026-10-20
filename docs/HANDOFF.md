@@ -83,7 +83,8 @@ npm run screens
 4. 남음(로그인 필요, 사용자가 앱에서) — 컬리·홈플러스·로우차트 주소 각 1개 이상(화면 값 = 페이지 값), 참가격 매장 값 3개(`tprice_prices`와 price.go.kr 대조), 포장 사진 3장·캡처 3장
    (`grocery-photo` 첫 호출 = WIF 교환 확인, D-009; 안 되면 함수 로그의 `wif_exchange_failed`), 바코드 10개(iPhone), C002 후보 3개.
 5. 됨 — 2026-10-20 06:55 KST 사용자 지시로 main에 fast-forward 병합·푸시(= GitHub Pages 배포). 병합 뒤 Actions에서 `tprice-sync`·`price-recheck` 수동 실행(둘 다 200 skipped).
-6. 남음(브랜치 `claude/decisions`, D-016) — 마이그레이션 `grocery_candidate_alerts`(20261028000000)를 `apply_migration`으로 적용한 뒤 main 병합. 함수 배포는 없음. 적용 전에 병합하면 대안 탭이 후보 대조를 못 읽어 표시만 빠진다(오류는 아님).
+6. 됨 — 2026-10-20 10:13 KST `grocery_candidate_alerts` 적용 뒤 main 병합·배포(D-015~D-017).
+7. 남음(브랜치 `claude/review-minors`) — 리뷰에서 미룬 것 고침에 따른 함수 배포: `price-recheck`(오래된 순), `tprice-sync`(빈 판매점 방어), `food-info`(getUser(jwt)). verify_jwt는 그대로. 배포 뒤 main 병합.
 
 ### 사용자 할 일
 

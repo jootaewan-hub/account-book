@@ -16,11 +16,29 @@ function checkDigitOk(d: string): boolean {
   return (10 - (sum % 10)) % 10 === Number(d[d.length - 1])
 }
 
-/** 읽은 글자를 소매 바코드 숫자로: 숫자만 남기고, UPC-A(12자리)는 앞에 0을 붙여 EAN-13으로, 검사 숫자가 틀리면 null */
+/** UPC-E(8자리: 번호 체계 0·1 + 자료 6자리 + 검사 숫자)를 UPC-A 12자리로 펼친다. 모양이 아니면 null */
+function upcEToUpcA(d: string): string | null {
+  if (!/^[01]\d{7}$/.test(d)) return null
+  const [ns, a, b, c, e, f, g, check] = d
+  const body =
+    g === '0' || g === '1' || g === '2' ? `${ns}${a}${b}${g}0000${c}${e}${f}`
+    : g === '3' ? `${ns}${a}${b}${c}00000${e}${f}`
+    : g === '4' ? `${ns}${a}${b}${c}${e}00000${f}`
+    : `${ns}${a}${b}${c}${e}${f}0000${g}`
+  return `${body}${check}`
+}
+
+/** 읽은 글자를 소매 바코드 숫자로: 숫자만 남기고, UPC-A(12자리)는 앞에 0을 붙여 EAN-13으로, 검사 숫자가 틀리면 null.
+ *  8자리는 EAN-8 또는 UPC-E(펼친 UPC-A의 검사 숫자로 확인)로 받는다(리뷰 ③). */
 export function normalizeBarcode(raw: string): string | null {
   const d = raw.replace(/\D/g, '')
   if (d.length === 12) return checkDigitOk(`0${d}`) ? `0${d}` : null
-  if (d.length === 13 || d.length === 8) return checkDigitOk(d) ? d : null
+  if (d.length === 13) return checkDigitOk(d) ? d : null
+  if (d.length === 8) {
+    if (checkDigitOk(d)) return d
+    const upcA = upcEToUpcA(d)
+    return upcA && checkDigitOk(upcA) ? d : null
+  }
   return null
 }
 

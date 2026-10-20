@@ -117,6 +117,11 @@ describe('price-recheck: 다시 확인', () => {
     expect(log.runs[0].error).toMatch(/미룸 \d+건/)
   })
 
+  it('마지막 확인이 오래된 상품부터 본다(확인한 적 없는 상품이 맨 앞, 리뷰 ①)', async () => {
+    const { d, log } = deps({ products: async () => [{ ...P(1), lastOk: '2026-10-19T00:00:00Z' }, { ...P(2), lastOk: null }, { ...P(3), lastOk: '2026-10-18T00:00:00Z' }] })
+    await handle(post(), d)
+    expect(log.saved).toEqual([P(2).id, P(3).id, P(1).id])
+  })
   it('고른 상품이 없으면 바로 done', async () => {
     const { d, log } = deps({ products: async () => [] })
     expect(await (await handle(post(), d)).json()).toEqual({ status: 'done' })

@@ -42,7 +42,7 @@ describe('품목의 기준(fitRule): 한 봉지의 완전 대용량 선과 수�
 })
 
 describe('큰 용량·묶음 가르기', () => {
-  it('사용자 예(2026-10-20): 쌀 10kg·생수 2L×6·우유 1.8L는 보이고, 만두 2kg·된장 14kg·간장 3L는 숨긴다', () => {
+  it('사용자 예(2026-10-20): 쌀 10kg·생수 2L×6·우유 1.8L·간장 3L(보통 크기)는 보이고, 만두 2kg·된장 14kg·간장 13L는 숨긴다', () => {
     expect(isBulk(cand('이천쌀 10kg'), fitRule('쌀', null, 1))).toBe(false)
     expect(isBulk(cand('이천쌀 20kg'), fitRule('쌀', null, 1))).toBe(true)
     expect(isBulk(cand('제주 삼다수 2L x 6'), fitRule('생수', null, 1))).toBe(false)
@@ -55,8 +55,9 @@ describe('큰 용량·묶음 가르기', () => {
     expect(isBulk(cand('CJ제일제당 비비고 왕교자 1.05kg'), fitRule('비비고 왕교자', '1.05kg', 2))).toBe(false)
     expect(isBulk(cand('비비고 왕교자 2kg'), fitRule('만두', '2kg', 1))).toBe(false) // 직접 2kg라고 적으면 보인다
     expect(isBulk(cand('해찬들 된장 14kg'), fitRule('된장', null, 1))).toBe(true)
-    expect(isBulk(cand('샘표 간장 3L'), fitRule('간장', null, 1))).toBe(true)
-    expect(isBulk(cand('샘표 간장 1.8L'), fitRule('간장', null, 1))).toBe(false)
+    expect(isBulk(cand('샘표 간장 3L'), fitRule('간장', null, 1))).toBe(false)
+    expect(isBulk(cand('샘표 간장 13L 업소용'), fitRule('간장', null, 1))).toBe(true)
+    expect(isBulk(cand('샘표 간장 13L'), fitRule('간장', null, 1))).toBe(true)
   })
   it('휴지는 예외, 업소용·대용량·박스는 크기와 상관없이 숨김(예외 품목은 빼고), 표·규격이 없으면 3kg·3L·50개를 넘을 때만', () => {
     expect(isBulk(cand('깨끗한나라 화장지 30롤 x 2'), fitRule('두루마리 휴지', null, 1))).toBe(false)

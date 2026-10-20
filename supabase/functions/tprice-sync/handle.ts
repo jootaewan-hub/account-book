@@ -107,6 +107,8 @@ export async function handle(req: Request, deps: TpriceSyncDeps): Promise<Respon
     fail(reason(e))
     return finish(null)
   }
+  // 성남 판매점이 없으면 받을 가격이 없다(빈 in() 조회로 500이 나지 않게, 리뷰 ⑥)
+  if (stores.length === 0) return finish(0)
   // 2. 상품(전부)
   let goods: TpriceGood[]
   try {

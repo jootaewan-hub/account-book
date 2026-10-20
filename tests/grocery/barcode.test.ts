@@ -15,6 +15,10 @@ describe('normalizeBarcode', () => {
     expect(normalizeBarcode('96385074')).toBe('96385074')
     expect(normalizeBarcode('96385075')).toBeNull()
   })
+  it('UPC-E(8자리)는 UPC-A로 펼친 검사 숫자로도 받는다(리뷰 ③)', () => {
+    expect(normalizeBarcode('04252614')).toBe('04252614') // UPC-E 0-425261-4 = UPC-A 042100005264
+    expect(normalizeBarcode('04252615')).toBeNull()
+  })
   it('길이가 다르거나 비었으면 null', () => {
     expect(normalizeBarcode('')).toBeNull()
     expect(normalizeBarcode('12345')).toBeNull()

@@ -31,6 +31,7 @@ Deno.serve((req) =>
       return (data ?? []).length === 1
     },
     covered: async (entpIds, days) => {
+      if (entpIds.length === 0 || days.length === 0) return new Set<string>()
       const { data, error } = await g().from('tprice_prices').select('entp_id, inspected_on').in('entp_id', entpIds).in('inspected_on', days)
       if (error) throw new Error(`tprice_prices 읽기 실패: ${error.message}`)
       return new Set(((data ?? []) as { entp_id: string; inspected_on: string }[]).map((r) => `${r.entp_id}|${r.inspected_on}`))

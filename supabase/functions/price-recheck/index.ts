@@ -33,7 +33,17 @@ Deno.serve((req) =>
       for (const r of (data ?? []) as unknown as { products: { id: string; source_id: string } | null }[]) {
         if (r.products && !seen.has(r.products.id)) seen.set(r.products.id, { id: r.products.id, sourceId: r.products.source_id })
       }
-      return [...seen.values()]
+      // 최근 30일의 마지막 성공 확인 시각(handle이 오래된 순으로 본다). 30일 넘게 못 본 상품은 null로 맨 앞
+      const ids = [...seen.keys()]
+      const lastOk = new Map<string, string>()
+      if (ids.length > 0) {
+        const since = new Date(Date.now() - 30 * 86400_000).toISOString()
+        const { data: checks, error: e2 } = await g().from('price_checks').select('product_id, checked_at')
+          .eq('source', 'danawa').eq('ok', true).in('product_id', ids).gte('checked_at', since).order('checked_at', { ascending: false })
+        if (e2) throw new Error(`price_checks 읽기 실패: ${e2.message}`)
+        for (const c of (checks ?? []) as { product_id: string; checked_at: string }[]) if (!lastOk.has(c.product_id)) lastOk.set(c.product_id, c.checked_at)
+      }
+      return [...seen.values()].map((p) => ({ ...p, lastOk: lastOk.get(p.id) ?? null }))
     },
     todayOk: async (id) => {
       const { data, error } = await g().from('price_checks').select('id').eq('product_id', id).eq('ok', true).eq('checked_on', kstToday()).limit(1)

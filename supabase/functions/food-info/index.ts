@@ -7,6 +7,7 @@ const g = () => admin.schema('grocery')
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors })
   const user = userClient(req)
+  const jwt = req.headers.get('Authorization')?.replace(/^Bearer\s+/i, '') ?? ''
   const res = await handle(req, {
     foodKey: Deno.env.get('FOODSAFETY_API_KEY'),
     dataKey: Deno.env.get('DATA_GO_KR_SERVICE_KEY'),
@@ -31,7 +32,7 @@ Deno.serve(async (req) => {
       }
     },
     save: async (householdId, productId, info) => {
-      const { data: me } = await user.auth.getUser()
+      const { data: me } = await user.auth.getUser(jwt) // 토큰을 넘겨야 chosen_by가 채워진다(리뷰 ②)
       const { error } = await g().from('product_info').upsert(
         {
           household_id: householdId, product_id: productId, report_no: info.reportNo, name: info.name.slice(0, 200), maker: info.maker?.slice(0, 100) ?? null, kind: info.kind?.slice(0, 60) ?? null,

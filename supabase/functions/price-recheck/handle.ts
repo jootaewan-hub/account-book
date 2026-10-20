@@ -11,8 +11,8 @@ export type RecheckDeps = PriceCheckDeps & {
   recentOk(sinceIso: string): Promise<boolean>
   /** 잠금이 cutoffIso보다 오래됐을 때만 atIso로 바꾸고 true. 동시에 불러도 하나만 true */
   acquire(cutoffIso: string, atIso: string): Promise<boolean>
-  /** 안 산 품목이 고른 상품(가구 상관없이, 같은 상품은 하나) */
-  products(): Promise<{ id: string; sourceId: string }[]>
+  /** 안 산 품목이 고른 상품(가구 상관없이, 같은 상품은 하나). lastOk: 마지막으로 성공한 다나와 확인 시각(없으면 null) */
+  products(): Promise<{ id: string; sourceId: string; lastOk?: string | null }[]>
   /** 오늘(한국 시간) 성공한 다나와 확인이 있는가 */
   todayOk(productId: string): Promise<boolean>
   sleep(ms: number): Promise<void>
@@ -46,7 +46,12 @@ export async function handle(req: Request, deps: RecheckDeps): Promise<Response>
   const gap = deps.gapMs ?? 10_000
   const errors = new Map<string, number>()
   const fail = (kind: string, n = 1) => errors.set(kind, (errors.get(kind) ?? 0) + n)
-  const products = await deps.products()
+  // 마지막 확인이 오래된 상품부터(확인한 적 없는 상품이 맨 앞). 한 실행에 9개쯤이라 뒤쪽이 매일 미뤄지지 않게(리뷰 ①)
+  const products = [...(await deps.products())].sort((a, b) => {
+    const x = a.lastOk ?? ''
+    const y = b.lastOk ?? ''
+    return x < y ? -1 : x > y ? 1 : 0
+  })
   let rows = 0
   let deferred = 0
   let fetched = 0
