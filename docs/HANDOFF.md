@@ -88,7 +88,7 @@ npm run screens
 8. 됨 — 2026-10-20 11:36 KST `grocery_item_nutrition` 적용(Advisors 변화 없음) → `food-info` v3 배포 → main 병합(D-018). 남은 확인: 성분 탭 → 영양성분 찾기 첫 호출로 FOOD_NM_KR 검색 응답 모양 확인(사용자).
 9. 됨 — 2026-10-20 11:53 KST `food-info` v4 배포(verify_jwt true, 무인증 401 확인): 이름 검색 후보를 `rankNutrition`으로 정렬하고 `nutrition_auto`로 성분 탭을 열면 자동 맞춤(D-018 보충). FOOD_NM_KR 검색은 사용자 첫 호출로 응답 모양 확인됨(부분 일치).
 10. 됨 — 2026-10-20 12:17 KST `food-info` v5 배포(verify_jwt true, 무인증 401 확인, D-018 보충 2): 이름 검색을 `DB_CLASS_NM=품목대표`+전체 두 번 불러 합치고 자동 맞춤 문턱(`autoFit`). 남은 것: 우유(900ml)에 저장된 도넛 줄 삭제(`delete from grocery.item_nutrition where name_key = '우유|900ml' and food_cd = 'D202-082000000-0138'`)는 MCP 호출이 취소돼 아직 안 됨 → 사용자 허용 뒤 다시 실행하거나 사용자가 SQL 편집기에서 직접 실행. 지운 뒤 앱에서 우유 성분 탭을 열어 맞춰진 식품 이름과 `DB_CLASS_NM` 필터 동작을 확인.
-11. 배포 필요 — `food-info` v6(브랜치 `claude/nutrition-auto`, D-018 보충 3): 상품을 고른 품목은 상품명으로 먼저 찾고(`matchedBy`), 음식은 재료 이름으로 자동 맞추지 않으며, 품목대표 300건. 파일은 `index.ts`·`handle.ts`·`../_shared/edge.ts`·`../_shared/foodInfo.ts`, verify_jwt true 그대로. 배포 뒤 할 일: 된장에 저장된 취나물_된장 줄 삭제(`delete from grocery.item_nutrition where food_cd = 'D113-595050000-0001'`, 사용자 확인 뒤) → 앱에서 된장·고추장·쌈장·참치액 성분 탭을 열어 "상품명으로 자동 맞춤"이 맞는지 확인.
+11. 됨 — 2026-10-20 12:57 KST `food-info` v6 배포(verify_jwt true, 무인증 401 확인, D-018 보충 3): 상품을 고른 품목은 상품명으로 먼저 찾고(`matchedBy`), 음식은 재료 이름으로 자동 맞추지 않으며, 품목대표 300건. 남은 것: 된장에 저장된 취나물_된장 줄 삭제(`delete from grocery.item_nutrition where food_cd = 'D113-595050000-0001'`)는 MCP 호출이 두 번(12:14 도넛 줄, 12:57 이 줄) 모두 취소돼 아직 안 됨 → 사용자가 Supabase SQL 편집기에서 직접 실행하거나, 앱에서 된장 성분 탭 → "다른 식품으로 바꾸기" → 맨 위 후보(상품명으로 찾은 것)를 고르면 덮어써진다. 그 뒤 고추장·쌈장·참치액·시리얼 성분 탭을 열어 "상품명으로 자동 맞춤"이 맞는지 확인.
 
 ### 사용자 할 일
 
