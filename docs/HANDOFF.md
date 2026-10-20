@@ -86,6 +86,7 @@ npm run screens
 6. 됨 — 2026-10-20 10:13 KST `grocery_candidate_alerts` 적용 뒤 main 병합·배포(D-015~D-017).
 7. 됨 — 2026-10-20 10:22 KST 리뷰에서 미룬 것 고침에 따라 `price-recheck` v2(오래된 순), `tprice-sync` v2(빈 판매점 방어), `food-info` v2(getUser(jwt)) 배포(verify_jwt 그대로) 뒤 main 병합.
 8. 됨 — 2026-10-20 11:36 KST `grocery_item_nutrition` 적용(Advisors 변화 없음) → `food-info` v3 배포 → main 병합(D-018). 남은 확인: 성분 탭 → 영양성분 찾기 첫 호출로 FOOD_NM_KR 검색 응답 모양 확인(사용자).
+9. 됨 — 2026-10-20 11:53 KST `food-info` v4 배포(verify_jwt true, 무인증 401 확인): 이름 검색 후보를 `rankNutrition`으로 정렬하고 `nutrition_auto`로 성분 탭을 열면 자동 맞춤(D-018 보충). FOOD_NM_KR 검색은 사용자 첫 호출로 응답 모양 확인됨(부분 일치).
 
 ### 사용자 할 일
 
