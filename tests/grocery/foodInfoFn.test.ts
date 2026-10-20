@@ -23,6 +23,8 @@ function deps(over: Partial<FoodInfoDeps> = {}) {
     save: async (hh, _id, info) => {
       log.saved.push({ hh, ...info })
     },
+    allowedItem: async () => ({ householdId: 'hh-1', name: '대파', spec: null }),
+    saveNutrition: async () => {},
     now: () => new Date('2026-10-20T01:00:00Z'),
     ...over,
   }
@@ -115,5 +117,39 @@ describe('food-info: choose', () => {
     expect((await handle(post({ productId: PRODUCT, action: 'choose', reportNo: '9' }), none.d)).status).toBe(404)
     const bad = deps({ save: async () => { throw new Error('db') } })
     expect(await (await handle(post({ productId: PRODUCT, action: 'choose', reportNo: '1997040105528' }), bad.d)).json()).toEqual({ status: 'error', reason: 'save_failed' })
+  })
+})
+
+describe('food-info: 영양성분 이름 검색·고르기(P9, D-018)', () => {
+  const ITEM = '33333333-3333-4333-8333-333333333333'
+  const nd = (over: Partial<FoodInfoDeps> = {}) => {
+    const saved: unknown[] = []
+    const { d, log } = deps({ saveNutrition: async (itemId, row) => { saved.push({ itemId, foodCd: row.foodCd, foodName: row.foodName }) }, ...over })
+    return { d, log, saved }
+  }
+  it('품목 이름(또는 준 검색어)으로 FOOD_NM_KR 검색해 후보를 돌려준다', async () => {
+    const { d, log } = nd()
+    const res = await handle(post({ itemId: ITEM, action: 'nutrition_search' }), d)
+    expect(res.status).toBe(200)
+    const body = await res.json()
+    expect(body.term).toBe('대파')
+    expect(body.candidates[0]).toMatchObject({ foodCd: 'P000000001', foodName: '왕교자', kcal: 232 })
+    expect(log.urls[0]).toContain('FOOD_NM_KR=%EB%8C%80%ED%8C%8C')
+    const r2 = await handle(post({ itemId: ITEM, action: 'nutrition_search', query: ' 쪽파 ' }), d)
+    expect((await r2.json()).term).toBe('쪽파')
+  })
+  it('고르기: 같은 검색으로 다시 받아 식품코드가 맞는 줄만 저장한다. 없으면 404', async () => {
+    const { d, saved } = nd()
+    const res = await handle(post({ itemId: ITEM, action: 'nutrition_choose', query: '왕교자', foodCd: 'P000000001' }), d)
+    expect(res.status).toBe(200)
+    expect(saved).toEqual([{ itemId: ITEM, foodCd: 'P000000001', foodName: '왕교자' }])
+    expect((await handle(post({ itemId: ITEM, action: 'nutrition_choose', query: '왕교자', foodCd: 'NOPE' }), d)).status).toBe(404)
+  })
+  it('남의 품목이면 403, itemId·foodCd 모양이 틀리면 400, 공공데이터포털 키가 없으면 500, API 오류는 502', async () => {
+    expect((await handle(post({ itemId: ITEM, action: 'nutrition_search' }), nd({ allowedItem: async () => null }).d)).status).toBe(403)
+    expect((await handle(post({ itemId: 'x', action: 'nutrition_search' }), nd().d)).status).toBe(400)
+    expect((await handle(post({ itemId: ITEM, action: 'nutrition_choose', query: '왕교자' }), nd().d)).status).toBe(400)
+    expect((await handle(post({ itemId: ITEM, action: 'nutrition_search' }), nd({ dataKey: undefined }).d)).status).toBe(500)
+    expect((await handle(post({ itemId: ITEM, action: 'nutrition_search' }), nd({ fetchJson: async () => ({ header: { resultCode: '30', resultMsg: 'KEY' } }) }).d)).status).toBe(502)
   })
 })

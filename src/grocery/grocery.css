@@ -473,6 +473,7 @@
 .grocery .add-tools { margin: 8px 0 0; }
 
 /* P7 성분·대안 */
+.grocery .seg-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 .grocery .seg-5 { grid-template-columns: repeat(5, minmax(0, 1fr)); }
 .grocery .seg-5 button { padding-left: 0; padding-right: 0; }
 .grocery .ingredients-text { margin: 0 0 4px; font-size: 15px; line-height: 1.55; }

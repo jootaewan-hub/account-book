@@ -24,8 +24,8 @@ import { change, changeText, dayText, gradeText, pickSeries, sameKey, seriesName
 import type { MarketStore } from '../lib/marketStore'
 import MarketPanel from './MarketPanel'
 import { ShopLinks, StorePrices } from './SourceBlocks'
-import { FoodPickerSheet, GoodPickerSheet, StorePickerSheet } from './StoreSheets'
-import { INGREDIENT_NOTE, nutritionErrorText, nutritionRows, nutritionSource, type ProductInfoView } from '../lib/foodInfo'
+import { FoodPickerSheet, GoodPickerSheet, NutritionPickerSheet, StorePickerSheet } from './StoreSheets'
+import { INGREDIENT_NOTE, nutritionErrorText, nutritionRows, nutritionSource, type ProductInfoView, type ItemNutrition } from '../lib/foodInfo'
 import { alternatives, betterText } from '../lib/alternatives'
 import type { Candidate } from '../lib/products'
 import type { ItemSources, ShopLink, ShopSource } from '../lib/sources'
@@ -49,6 +49,7 @@ const TABS: { key: Tab; label: string }[] = [
 const FRESH_TABS: { key: Tab; label: string }[] = [
   { key: 'market', label: '시세' },
   { key: 'price', label: '가격' },
+  { key: 'ingredients', label: '성분' },
   { key: 'safety', label: '안전' },
 ]
 
@@ -88,10 +89,10 @@ export default function ItemDetail({ item, store, onChangeProduct, onClose, mark
   const [ours, setOurs] = useState<OurPurchase[] | null>(null)
   const [srcFailed, setSrcFailed] = useState(false)
   const [srcBusy, setSrcBusy] = useState(false)
-  const [picker, setPicker] = useState<'good' | 'stores' | 'food' | null>(null)
+  const [picker, setPicker] = useState<'good' | 'stores' | 'food' | 'nutrition' | null>(null)
   // 겹쳐 연 시트를 닫으면 연 버튼으로 포커스를 되돌린다(리뷰 ⑧). 키보드로 열면 그 버튼이 활성 요소다
   const pickerOpener = useRef<HTMLElement | null>(null)
-  const openPicker = (p: 'good' | 'stores' | 'food') => {
+  const openPicker = (p: 'good' | 'stores' | 'food' | 'nutrition') => {
     pickerOpener.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
     setPicker(p)
   }
@@ -103,6 +104,8 @@ export default function ItemDetail({ item, store, onChangeProduct, onClose, mark
   }
   // P7: 식약처 품목(원재료·영양성분), 대안 계산용 후보
   const [info, setInfo] = useState<ProductInfoView | null | 'loading' | 'failed'>('loading')
+  // P9: 품목 이름·규격에 기억한 식품영양성분DB 식품(신선 품목도)
+  const [nut, setNut] = useState<ItemNutrition | null | 'loading' | 'failed'>('loading')
   const [cands, setCands] = useState<Candidate[] | null | 'loading'>('loading')
   const [candAlerts, setCandAlerts] = useState<ReadonlyMap<string, CandidateAlert[]>>(new Map())
   // 캡처로 가격 넣기(P4): 읽는 중 → 읽은 값(고친 뒤 저장)
@@ -147,8 +150,10 @@ export default function ItemDetail({ item, store, onChangeProduct, onClose, mark
     void loadSources()
   }, [loadSources])
   const loadInfo = useCallback(() => store.productInfo(item.id).then(setInfo, () => setInfo('failed')), [store, item.id])
+  const loadNut = useCallback(() => store.itemNutrition(item.id).then(setNut, () => setNut('failed')), [store, item.id])
   useEffect(() => {
     void loadInfo()
+    void loadNut()
     store.candidates(item.id).then(setCands, () => setCands(null))
     store.candidateAlerts(item.id).then(setCandAlerts, () => setCandAlerts(new Map()))
   }, [loadInfo, store, item.id])
@@ -296,7 +301,7 @@ export default function ItemDetail({ item, store, onChangeProduct, onClose, mark
               </section>
               )}
 
-              <div className={`seg detail-tabs${fresh ? '' : ' seg-5'}`} role="tablist" aria-label="품목 상세">
+              <div className={`seg detail-tabs${fresh ? ' seg-4' : ' seg-5'}`} role="tablist" aria-label="품목 상세">
                 {(fresh ? FRESH_TABS : TABS).map((t) => (
                   <button key={t.key} type="button" role="tab" aria-selected={tab === t.key} aria-pressed={tab === t.key} onClick={() => setTab(t.key)}>
                     {t.label}
@@ -375,7 +380,32 @@ export default function ItemDetail({ item, store, onChangeProduct, onClose, mark
 
               {tab === 'ingredients' && (
                 <div role="tabpanel">
-                  {!data.product && <p className="cand-state">상품을 고르면 식약처 품목의 원재료와 영양성분을 보여 드려요.</p>}
+                  <div className="detail-block">
+                    <p className="detail-sub">열량·영양성분</p>
+                    {nut === 'loading' && <p className="cand-state" role="status">영양성분 불러오는 중</p>}
+                    {nut === 'failed' && <p className="cand-state" role="status">영양성분을 불러오지 못했어요. 잠시 뒤 다시 열어 주세요.</p>}
+                    {nut === null && (
+                      <>
+                        <p className="detail-none">식품영양성분DB에서 이 식품을 고르면 열량과 영양성분을 보여 드려요. 같은 이름·규격으로 담으면 다시 고르지 않아도 돼요.</p>
+                        <button type="button" className="btn-secondary detail-link" onClick={() => openPicker('nutrition')}>영양성분 찾기</button>
+                      </>
+                    )}
+                    {typeof nut === 'object' && nut !== null && (
+                      <>
+                        <p className="store-good">
+                          <span>{nut.foodName}</span>
+                          <button type="button" className="btn-text" onClick={() => openPicker('nutrition')}>다른 식품으로 바꾸기</button>
+                        </p>
+                        <dl className="nutri-table">
+                          {nutritionRows(nut.nutrition).map((r) => (
+                            <div key={r.label} className="nutri-row"><dt>{r.label}</dt><dd className="num">{r.value}</dd></div>
+                          ))}
+                        </dl>
+                        <p className="src-line">{[nut.maker, nutritionSource(nut.nutrition), `${checkedText(nut.updatedAt)} 고름`].filter(Boolean).join(', ')}</p>
+                      </>
+                    )}
+                  </div>
+                  {!fresh && !data.product && <p className="cand-state">상품을 고르면 식약처 품목제조보고의 원재료도 보여 드려요.</p>}
                   {data.product && info === 'loading' && <p className="cand-state" role="status">성분 불러오는 중</p>}
                   {data.product && info === 'failed' && <p className="cand-state" role="status">성분을 불러오지 못했어요. 잠시 뒤 다시 열어 주세요.</p>}
                   {data.product && info === null && (
@@ -501,6 +531,16 @@ export default function ItemDetail({ item, store, onChangeProduct, onClose, mark
         />
       )}
       {picker === 'stores' && <StorePickerSheet store={store} onSaved={loadSources} onClose={closePicker} />}
+      {picker === 'nutrition' && (
+        <NutritionPickerSheet
+          store={store}
+          itemId={item.id}
+          itemName={item.name}
+          current={typeof nut === 'object' && nut !== null ? nut.foodCd : null}
+          onDone={() => loadNut().then(() => {})}
+          onClose={closePicker}
+        />
+      )}
       {picker === 'food' && data?.product && (
         <FoodPickerSheet
           store={store}

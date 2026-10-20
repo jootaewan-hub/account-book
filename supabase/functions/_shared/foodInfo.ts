@@ -99,6 +99,13 @@ export function rankC002(rows: C002Row[], terms: string[]): C002Row[] {
   return [...rows].sort((a, b) => hits(b) - hits(a) || (b.changedOn ?? '').localeCompare(a.changedOn ?? ''))
 }
 
+/** 이름으로 찾기(FOOD_NM_KR): 품목 이름으로 식품을 고르는 P9 흐름. 응답 모양은 보고번호 조회와 같다 */
+export function nutritionSearchUrl(key: string, name: string, rows = 20): string {
+  const k = key.trim()
+  const enc = k.includes('%') ? k : encodeURIComponent(k)
+  return `${NUTRI_BASE}?serviceKey=${enc}&type=json&pageNo=1&numOfRows=${rows}&FOOD_NM_KR=${encodeURIComponent(name)}`
+}
+
 export function nutritionUrl(key: string, reportNo: string): string {
   const k = key.trim()
   const enc = k.includes('%') ? k : encodeURIComponent(k)
@@ -127,18 +134,10 @@ export type Nutrition = {
   updatedOn: string | null
 }
 
-export function parseNutrition(body: unknown): Nutrition | null {
-  if (!body || typeof body !== 'object') throw new FoodInfoError('unreadable', '영양성분 응답을 읽지 못함')
-  const b = body as { header?: { resultCode?: unknown; resultMsg?: unknown }; body?: { items?: unknown } }
-  const code = text(b.header?.resultCode)
-  if (code === null) throw new FoodInfoError('unreadable', '영양성분 응답에 결과 코드가 없음')
-  if (code !== '00') throw new FoodInfoError(code, text(b.header?.resultMsg) ?? '영양성분 오류')
-  const items = b.body?.items
-  const list = (Array.isArray(items) ? items : items && typeof items === 'object' && 'item' in items
-    ? (Array.isArray((items as { item: unknown }).item) ? (items as { item: unknown[] }).item : [(items as { item: unknown }).item])
-    : []) as Record<string, unknown>[]
-  const it = list.find((x) => x && typeof x === 'object')
-  if (!it) return null
+/** 응답 한 줄 + 식품코드(FOOD_CD)·품목제조보고번호. 이름 검색 후보로 쓴다 */
+export type NutritionRow = Nutrition & { foodCd: string | null; reportNo: string | null }
+
+function nutritionRowOf(it: Record<string, unknown>): NutritionRow {
   return {
     basis: text(it.SERVING_SIZE),
     kcal: num(it.AMT_NUM1),
@@ -156,5 +155,31 @@ export function parseNutrition(body: unknown): Nutrition | null {
     foodName: text(it.FOOD_NM_KR),
     maker: text(it.MAKER_NM),
     updatedOn: day(it.UPDATE_DATE) ?? day(it.RESEARCH_YMD),
+    foodCd: text(it.FOOD_CD),
+    reportNo: text(it.ITEM_REPORT_NO),
   }
+}
+
+/** 응답의 모든 줄(items 배열 또는 {item: …}). 결과 코드가 00이 아니면 FoodInfoError */
+export function parseNutritionRows(body: unknown): NutritionRow[] {
+  if (!body || typeof body !== 'object') throw new FoodInfoError('unreadable', '영양성분 응답을 읽지 못함')
+  const b = body as { header?: { resultCode?: unknown; resultMsg?: unknown }; body?: { items?: unknown } }
+  const code = text(b.header?.resultCode)
+  if (code === null) throw new FoodInfoError('unreadable', '영양성분 응답에 결과 코드가 없음')
+  if (code !== '00') throw new FoodInfoError(code, text(b.header?.resultMsg) ?? '영양성분 오류')
+  const items = b.body?.items
+  const list = (Array.isArray(items) ? items : items && typeof items === 'object' && 'item' in items
+    ? (Array.isArray((items as { item: unknown }).item) ? (items as { item: unknown[] }).item : [(items as { item: unknown }).item])
+    : []) as Record<string, unknown>[]
+  return list.filter((x) => x && typeof x === 'object').map(nutritionRowOf)
+}
+
+/** 보고번호 조회의 첫 줄(식품코드·보고번호는 뺀 영양성분). 없으면 null */
+export function parseNutrition(body: unknown): Nutrition | null {
+  const [first] = parseNutritionRows(body)
+  if (!first) return null
+  const { foodCd: _c, reportNo: _r, ...n } = first
+  void _c
+  void _r
+  return n
 }

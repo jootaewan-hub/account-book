@@ -7,7 +7,7 @@ import { SEONGNAM_AREAS } from '../../../supabase/functions/_shared/tprice'
 import type { ItemSources, ShopPrice, StoreGood, StoreOption, StorePrice } from './sources'
 import type { OurPurchase } from './ours'
 import { invokePhoto } from './photo'
-import type { C002Row, Nutrition, ProductInfoView } from './foodInfo'
+import type { C002Row, ItemNutrition, Nutrition, NutritionRow, ProductInfoView } from './foodInfo'
 import type { ListStore, BarcodeRecord, CandidateAlert } from './store'
 import type { Membership } from './membership'
 import type { Item } from './types'
@@ -53,6 +53,8 @@ export function rowToItem(r: Row): Item {
 export function createSupabaseStore(client: SupabaseClient, me: Membership): ListStore {
   const g = () => client.schema('grocery')
   const table = () => g().from('items')
+  type NutritionRowDb = { item_id: string; food_cd: string | null; food_name: string; maker: string | null; nutrition: Nutrition; updated_at: string }
+  const nutritionOf = (r: NutritionRowDb): ItemNutrition => ({ foodCd: r.food_cd, foodName: r.food_name, maker: r.maker, nutrition: r.nutrition, updatedAt: r.updated_at })
   let goodsCache: StoreGood[] | null = null // 참가격 상품 목록(약 600개)은 한 번만 읽는다
 
   return {
@@ -121,15 +123,17 @@ export function createSupabaseStore(client: SupabaseClient, me: Membership): Lis
       return { ...groupAlerts((matches.data ?? []) as ItemAlertRow[]), syncedAt }
     },
     async extras() {
-      const [searches, prices, chosen] = await Promise.all([
+      const [searches, prices, chosen, nutri] = await Promise.all([
         g().from('item_searches').select('item_id, status, candidate_count, updated_at'),
         g().rpc('item_prices'),
         // items → products 관계는 product_id FK와 item_candidates(연결 표) 두 갈래라 FK 이름을 지정한다
         g().from('items').select('id, products!items_product_id_fkey(name)').eq('household_id', me.householdId).not('product_id', 'is', null),
+        g().rpc('item_nutrition_rows'),
       ])
       if (searches.error) throw searches.error
       if (prices.error) throw prices.error
       if (chosen.error) throw chosen.error
+      if (nutri.error) throw nutri.error
       const s = new Map<string, ItemSearch>()
       for (const r of (searches.data ?? []) as SearchRow[]) {
         s.set(r.item_id, { status: r.status, candidateCount: r.candidate_count ?? 0, updatedAt: r.updated_at })
@@ -142,7 +146,9 @@ export function createSupabaseStore(client: SupabaseClient, me: Membership): Lis
       for (const r of (chosen.data ?? []) as unknown as { id: string; products: { name: string } | null }[]) {
         if (r.products?.name) names.set(r.id, r.products.name)
       }
-      return { searches: s, prices: p, productNames: names }
+      const nut = new Map<string, ItemNutrition>()
+      for (const r of (nutri.data ?? []) as NutritionRowDb[]) nut.set(r.item_id, nutritionOf(r))
+      return { searches: s, prices: p, productNames: names, nutrition: nut }
     },
     async candidateAlerts(itemId) {
       const { data, error } = await g().rpc('candidate_alerts', { p_item: itemId })
@@ -304,6 +310,25 @@ export function createSupabaseStore(client: SupabaseClient, me: Membership): Lis
       if (!data) return null
       const r = data as { report_no: string; name: string; maker: string | null; kind: string | null; raw_materials: string | null; changed_on: string | null; nutrition: Nutrition | null; nutrition_error: string | null; updated_at: string }
       return { reportNo: r.report_no, name: r.name, maker: r.maker, kind: r.kind, rawMaterials: r.raw_materials, changedOn: r.changed_on, nutrition: r.nutrition, nutritionError: r.nutrition_error, updatedAt: r.updated_at }
+    },
+    async itemNutrition(itemId) {
+      const { data, error } = await g().rpc('item_nutrition_rows')
+      if (error) throw error
+      const r = ((data ?? []) as NutritionRowDb[]).find((x) => x.item_id === itemId)
+      return r ? nutritionOf(r) : null
+    },
+    async searchNutrition(itemId, query) {
+      const { data, error } = await client.functions.invoke<{ status: string; term: string | null; candidates: NutritionRow[] }>('food-info', {
+        body: { itemId, action: 'nutrition_search', ...(query ? { query } : {}) },
+      })
+      if (error) throw error
+      if (!data || data.status !== 'done') throw new Error('search_failed')
+      return { term: data.term, candidates: data.candidates }
+    },
+    async chooseNutrition(itemId, query, foodCd) {
+      const { data, error } = await client.functions.invoke<{ status: string }>('food-info', { body: { itemId, action: 'nutrition_choose', query, foodCd } })
+      if (error) throw error
+      if (!data || data.status !== 'done') throw new Error('choose_failed')
     },
     async searchFoodInfo(itemId) {
       const it = await table().select('product_id').eq('id', itemId).maybeSingle()

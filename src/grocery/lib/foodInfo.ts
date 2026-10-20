@@ -1,8 +1,18 @@
 // 성분(P7)의 클라이언트 타입과 문구. 값은 식약처 C002·식품영양성분DB에서 온 것 그대로이고, 없으면 "확인 못 함".
-import type { C002Row, Nutrition } from '../../../supabase/functions/_shared/foodInfo'
+import type { C002Row, Nutrition, NutritionRow } from '../../../supabase/functions/_shared/foodInfo'
 import { koFullDay } from './alerts'
 
-export type { C002Row, Nutrition }
+export type { C002Row, Nutrition, NutritionRow }
+
+/** grocery.item_nutrition 한 줄(P9, D-018): 품목 이름·규격에 기억한 식품영양성분DB 식품 */
+export type ItemNutrition = { foodCd: string | null; foodName: string; maker: string | null; nutrition: Nutrition; updatedAt: string }
+
+/** 목록 줄의 열량: "232kcal/100g". 열량이 없으면 null, 기준량이 없으면 열량만 */
+export function kcalText(n: Nutrition): string | null {
+  if (n.kcal === null) return null
+  const kcal = `${n.kcal.toLocaleString('ko-KR')}kcal`
+  return n.basis ? `${kcal}/${n.basis}` : kcal
+}
 
 /** grocery.product_info 한 줄 */
 export type ProductInfoView = {

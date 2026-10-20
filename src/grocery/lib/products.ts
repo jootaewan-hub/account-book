@@ -2,6 +2,7 @@
 // "가장 싼 값"은 오늘(한국 시간) 확인했고 고른 수량과 같은 줄에서만 고른다(설계 4-3, 화면 설계 4절).
 import type { AlertsResult, FoodAlert, FoodSource } from './alerts'
 import type { Category } from './categories'
+import type { ItemNutrition } from './foodInfo'
 import type { Item } from './types'
 import { won } from './format'
 
@@ -43,9 +44,11 @@ export type ItemExtras = {
   searches: ReadonlyMap<string, ItemSearch>
   prices: ReadonlyMap<string, ItemPrice>
   productNames: ReadonlyMap<string, string>
+  /** 품목마다 기억한 식품영양성분DB 식품(P9). 목록 줄의 열량 */
+  nutrition: ReadonlyMap<string, ItemNutrition>
 }
 
-export const EMPTY_EXTRAS: ItemExtras = { searches: new Map(), prices: new Map(), productNames: new Map() }
+export const EMPTY_EXTRAS: ItemExtras = { searches: new Map(), prices: new Map(), productNames: new Map(), nutrition: new Map() }
 
 /** ISO 시각 → 한국 날짜 YYYY-MM-DD */
 export function kstDay(iso: string): string {

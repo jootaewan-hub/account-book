@@ -2,7 +2,7 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import { filterGoods, storeTypeName, type StoreGood, type StoreOption } from '../lib/sources'
 import { koFullDay } from '../lib/alerts'
-import type { C002Row } from '../lib/foodInfo'
+import type { C002Row, NutritionRow } from '../lib/foodInfo'
 import type { ListStore } from '../lib/store'
 
 const CLOSE_MS = 250
@@ -205,6 +205,74 @@ export function FoodPickerSheet({ store, itemId, productName, current, onDone, o
                 <button type="button" className="pick-row" aria-pressed={c.reportNo === current} disabled={busy} onClick={() => pick(c.reportNo)}>
                   <span className="pick-name">{c.name}</span>
                   <span className="pick-meta">{[c.maker, c.kind, c.changedOn ? `${koFullDay(c.changedOn)} 변경` : null, `보고번호 ${c.reportNo}`].filter(Boolean).join(', ')}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+    </Frame>
+  )
+}
+
+type NutritionProps = { store: ListStore; itemId: string; itemName: string; current: string | null; onDone: () => Promise<void>; onClose: () => void }
+
+/** 영양성분 식품 고르기(P9, D-018): 품목 이름으로 식품영양성분DB를 찾아 사람이 고른다. 신선 품목도 된다. 숫자는 응답 값 그대로 */
+export function NutritionPickerSheet({ store, itemId, itemName, current, onDone, onClose }: NutritionProps) {
+  const [query, setQuery] = useState(itemName)
+  const [state, setState] = useState<'loading' | 'failed' | { term: string | null; candidates: NutritionRow[] }>('loading')
+  const [busy, setBusy] = useState(false)
+  const [msg, setMsg] = useState<string | null>(null)
+  const search = (q?: string) => {
+    setState('loading')
+    store.searchNutrition(itemId, q).then(setState, () => setState('failed'))
+  }
+  useEffect(() => {
+    search()
+    // 열릴 때 품목 이름으로 한 번 찾는다
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [store, itemId])
+  const pick = (c: NutritionRow) => {
+    if (busy || !c.foodCd || typeof state !== 'object') return
+    setBusy(true)
+    setMsg(null)
+    store.chooseNutrition(itemId, state.term ?? query, c.foodCd).then(
+      () => onDone().then(onClose, onClose),
+      () => {
+        setBusy(false)
+        setMsg('저장하지 못했어요. 잠시 뒤 다시 해 주세요.')
+      },
+    )
+  }
+  return (
+    <Frame title="영양성분 식품 고르기" onClose={onClose}>
+      <p className="detail-none">식품영양성분DB에서 "{itemName}"에 맞는 식품을 골라 주세요. 이름·제조사·기준량을 보고 판단하세요.</p>
+      <form
+        className="cand-search"
+        onSubmit={(e) => {
+          e.preventDefault()
+          const q = query.replace(/\s+/g, ' ').trim()
+          if (q) search(q)
+        }}
+      >
+        <input className="cand-input" aria-label="영양성분 찾을 이름" value={query} maxLength={60} onChange={(e) => setQuery(e.target.value)} />
+        <button type="submit" className="btn-secondary" disabled={state === 'loading'}>다시 찾기</button>
+      </form>
+      {state === 'loading' && <p className="cand-state" role="status">식품영양성분DB 찾는 중</p>}
+      {state === 'failed' && <p className="cand-state" role="status">식품을 찾지 못했어요. 잠시 뒤 다시 해 주세요.</p>}
+      {msg && <p className="cand-state" role="alert">{msg}</p>}
+      {typeof state === 'object' && state.candidates.length === 0 && <p className="cand-state">{state.term ? `"${state.term}"으로 찾은 식품이 없어요. 이름을 바꿔 다시 찾아 보세요.` : '찾을 말이 없어요.'}</p>}
+      {typeof state === 'object' && state.candidates.length > 0 && (
+        <>
+          <p className="src-line">"{state.term}"으로 찾음, {state.candidates.length}건(식품영양성분DB)</p>
+          <ul className="pick-list">
+            {state.candidates.map((c, i) => (
+              <li key={c.foodCd ?? `row-${i}`}>
+                <button type="button" className="pick-row" aria-pressed={c.foodCd !== null && c.foodCd === current} disabled={busy || !c.foodCd} onClick={() => pick(c)}>
+                  <span className="pick-name">{c.foodName ?? '이름 없음'}</span>
+                  <span className="pick-meta">
+                    {[c.maker, c.basis ? `기준 ${c.basis}` : null, c.kcal !== null ? `${c.kcal.toLocaleString('ko-KR')}kcal` : '열량 확인 못 함'].filter(Boolean).join(', ')}
+                  </span>
                 </button>
               </li>
             ))}

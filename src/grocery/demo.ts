@@ -7,7 +7,7 @@ import { keyOf, type MarketBoard, type MarketSeries, type NearbyPrice, type Seri
 import type { Recalls } from './lib/marketStore'
 import type { ShopPrice, StorePrice } from './lib/sources'
 import type { OurPurchase } from './lib/ours'
-import type { ProductInfoView } from './lib/foodInfo'
+import type { NutritionRow, ProductInfoView } from './lib/foodInfo'
 import { recentFridays } from '../../supabase/functions/_shared/tprice'
 
 const H = 'demo'
@@ -108,6 +108,12 @@ export function demoSeed(): { me: Membership; items: Item[]; alerts: AlertsResul
     },
     nutritionError: null, updatedAt: at,
   }
+  // 영양성분 이름 검색(P9)의 가짜 식품(실제 값이 아님). 식품영양성분DB 모양만 따랐다
+  const nrow = (foodCd: string, foodName: string, kcal: number, maker: string | null, carbs: number, protein: number, fat: number, sodium: number): NutritionRow => ({
+    basis: '100g', kcal, carbs, sugars: null, protein, fat, satFat: null, transFat: null, cholesterol: null, sodium,
+    weight: null, servingRef: null, source: '예시(식품영양성분DB 모양)', foodName, maker, updatedOn: ago(60), foodCd, reportNo: null,
+  })
+  const nutritionCandidates = [nrow('D000000123', '파, 대파, 생것', 30, null, 6.5, 1.5, 0.2, 2), nrow('D000000124', '파, 쪽파, 생것', 25, null, 5.4, 1.4, 0.3, 3), nrow('P000000777', '예시 파김치', 42, '예시식품', 6.1, 2.0, 0.6, 620)]
   const storeRow = (entpId: string, entpName: string, typeCode: string, inspectedOn: string | null, price: number | null, dc = false): StorePrice => ({
     goodId: '1001', goodName: '비비고 왕교자(1.12kg)', entpId, entpName, typeCode, inspectedOn, price, dc, plusOne: false,
   })
@@ -213,6 +219,11 @@ export function demoSeed(): { me: Membership; items: Item[]; alerts: AlertsResul
         { name: '계란', spec: '30구', count: 1 },
         { name: '두부', spec: '300g', count: 2 },
       ],
+    },
+    // 대파(demo-item-4)에 기억한 식품(P9). 목록 줄에 "30kcal/100g", 성분 탭에 표
+    nutrition: {
+      items: { 'demo-item-4': { foodCd: 'D000000123', foodName: '파, 대파, 생것', maker: null, nutrition: nutritionCandidates[0], updatedAt: at } },
+      candidates: nutritionCandidates,
     },
     // 성분(P7)의 가짜 식약처 품목·영양성분(실제 값이 아님). 영양성분DB 모양만 따랐다
     foodInfo: {

@@ -1,7 +1,7 @@
 // 성분·대안(P7): 식약처 C002(원재료)와 식품영양성분DB(15127578) 주소 만들기·응답 읽기, 상품명에서 찾을 말 고르기, 후보 순서.
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
-import { c002Terms, c002Url, FoodInfoError, nutritionUrl, parseC002, parseNutrition, rankC002 } from '../../supabase/functions/_shared/foodInfo'
+import { FoodInfoError, c002Terms, c002Url, nutritionSearchUrl, nutritionUrl, parseC002, parseNutrition, parseNutritionRows, rankC002 } from '../../supabase/functions/_shared/foodInfo'
 
 const read = (f: string) => JSON.parse(readFileSync(new URL(`./fixtures/foodsafety/${f}`, import.meta.url), 'utf8'))
 
@@ -56,5 +56,19 @@ describe('식품영양성분DB', () => {
     })
     expect(parseNutrition({ header: { resultCode: '00' }, body: { totalCount: 0, items: [] } })).toBeNull()
     expect(() => parseNutrition({ header: { resultCode: '30', resultMsg: 'SERVICE_KEY_IS_NOT_REGISTERED_ERROR' } })).toThrow(FoodInfoError)
+  })
+})
+
+describe('식품영양성분DB 이름 검색(P9, D-018)', () => {
+  it('주소: FOOD_NM_KR로 20건, json', () => {
+    expect(nutritionSearchUrl('K+K', '대파')).toBe(
+      'https://apis.data.go.kr/1471000/FoodNtrCpntDbInfo03/getFoodNtrCpntDbInq03?serviceKey=K%2BK&type=json&pageNo=1&numOfRows=20&FOOD_NM_KR=%EB%8C%80%ED%8C%8C',
+    )
+  })
+  it('응답 줄마다 식품코드·보고번호를 함께 읽고, 없으면 빈 배열', () => {
+    const rows = parseNutritionRows(read('nutrition-sample.json'))
+    expect(rows).toHaveLength(1)
+    expect(rows[0]).toMatchObject({ foodCd: 'P000000001', reportNo: '1997040105528', foodName: '왕교자', kcal: 232, basis: '100g' })
+    expect(parseNutritionRows({ header: { resultCode: '00' }, body: { totalCount: 0, items: [] } })).toEqual([])
   })
 })

@@ -43,6 +43,19 @@ Deno.serve(async (req) => {
       )
       if (error) throw error
     },
+    allowedItem: async (itemId) => {
+      const { data, error } = await user.schema('grocery').from('items').select('household_id, name, spec').eq('id', itemId).maybeSingle()
+      if (error) throw error
+      return data ? { householdId: data.household_id, name: data.name, spec: data.spec } : null
+    },
+    saveNutrition: async (itemId, row) => {
+      const { data: me } = await user.auth.getUser(jwt)
+      const { error } = await g().rpc('set_item_nutrition', {
+        p_item: itemId, p_food_cd: row.foodCd, p_food_name: (row.foodName ?? '').slice(0, 200) || '이름 없음', p_maker: row.maker?.slice(0, 100) ?? null,
+        p_nutrition: row, p_chosen_by: me?.user?.id ?? null,
+      })
+      if (error) throw error
+    },
     now: () => new Date(),
   }).catch((e) => {
     console.error('food-info 실패', e instanceof Error ? e.message : String(e))

@@ -507,6 +507,7 @@ export default function ListScreen({ store, me, ledger, market, dev }: Props) {
                         search={extras.searches.get(item.id) ?? null}
                         price={extras.prices.get(item.id) ?? null}
                         productName={extras.productNames.get(item.id) ?? null}
+                        nutrition={extras.nutrition.get(item.id) ?? null}
                         onPick={() => setPickItem(item)}
                         onOpen={() => setDetailItem(item)}
                         fresh={freshOf(item)}

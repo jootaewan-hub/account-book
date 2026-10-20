@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type MouseEvent, type PointerEvent, type R
 import { BADGE } from '../lib/alerts'
 import { checkedText, isFresh, isStale, searchLabel, type ItemPrice, type ItemSearch } from '../lib/products'
 import { sourceLabel } from '../lib/photo'
+import { kcalText, type ItemNutrition } from '../lib/foodInfo'
 import type { AlertLevel, Item, Member } from '../lib/types'
 import { josa, won } from '../lib/format'
 import type { RowQuote } from '../lib/market'
@@ -33,6 +34,8 @@ type Props = {
   onOpen?: () => void
   /** 신선 품목의 시세(D-012). 없으면(시세 저장소 없음) 예전 문구 */
   fresh?: { state: 'loading' | 'none' } | { state: 'ok'; quote: RowQuote }
+  /** 기억한 식품영양성분DB 식품(P9): 둘째 줄에 열량 */
+  nutrition?: ItemNutrition | null
 }
 
 const FRESH_LABEL = { loading: '시세 확인 중', none: '농수산물 시세', ok: '농수산물 시세' } as const
@@ -45,7 +48,7 @@ function whoClass(m: Member): string {
 
 export default function ListRow({
   item, members, showNoCompare, alertLevel, onAlert, open, onOpenChange, onToggle, onRemove, editing = false,
-  search = null, price = null, productName = null, onPick, onOpen, fresh: freshQuote,
+  search = null, price = null, productName = null, onPick, onOpen, fresh: freshQuote, nutrition = null,
 }: Props) {
   const bought = item.boughtAt !== null
   const adder = members.find((m) => m.userId === item.addedBy)
@@ -148,6 +151,8 @@ export default function ListRow({
         : item.productKey === null ? (stale && !fresh ? '후보를 찾지 못했어요(다시 시도)' : searchLabel(search, fresh)) : (productName ?? '상품 고름'),
     )
     if (showNoCompare) second.push('비교 못 함')
+    const kcal = nutrition ? kcalText(nutrition.nutrition) : null
+    if (kcal) second.push(<span className="num" key="kcal">{kcal}</span>)
   }
 
   return (
