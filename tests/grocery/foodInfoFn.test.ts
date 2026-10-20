@@ -124,7 +124,7 @@ describe('food-info: 영양성분 이름 검색·고르기(P9, D-018)', () => {
   const ITEM = '33333333-3333-4333-8333-333333333333'
   const nd = (over: Partial<FoodInfoDeps> = {}) => {
     const saved: unknown[] = []
-    const { d, log } = deps({ saveNutrition: async (itemId, row) => { saved.push({ itemId, foodCd: row.foodCd, foodName: row.foodName }) }, ...over })
+    const { d, log } = deps({ saveNutrition: async (itemId, row, auto) => { saved.push({ itemId, foodCd: row.foodCd, foodName: row.foodName, auto }) }, ...over })
     return { d, log, saved }
   }
   it('품목 이름(또는 준 검색어)으로 FOOD_NM_KR 검색해 후보를 돌려준다', async () => {
@@ -142,7 +142,7 @@ describe('food-info: 영양성분 이름 검색·고르기(P9, D-018)', () => {
     const { d, saved } = nd()
     const res = await handle(post({ itemId: ITEM, action: 'nutrition_choose', query: '왕교자', foodCd: 'P000000001' }), d)
     expect(res.status).toBe(200)
-    expect(saved).toEqual([{ itemId: ITEM, foodCd: 'P000000001', foodName: '왕교자' }])
+    expect(saved).toEqual([{ itemId: ITEM, foodCd: 'P000000001', foodName: '왕교자', auto: false }])
     expect((await handle(post({ itemId: ITEM, action: 'nutrition_choose', query: '왕교자', foodCd: 'NOPE' }), d)).status).toBe(404)
   })
   it('남의 품목이면 403, itemId·foodCd 모양이 틀리면 400, 공공데이터포털 키가 없으면 500, API 오류는 502', async () => {
@@ -151,5 +151,33 @@ describe('food-info: 영양성분 이름 검색·고르기(P9, D-018)', () => {
     expect((await handle(post({ itemId: ITEM, action: 'nutrition_choose', query: '왕교자' }), nd().d)).status).toBe(400)
     expect((await handle(post({ itemId: ITEM, action: 'nutrition_search' }), nd({ dataKey: undefined }).d)).status).toBe(500)
     expect((await handle(post({ itemId: ITEM, action: 'nutrition_search' }), nd({ fetchJson: async () => ({ header: { resultCode: '30', resultMsg: 'KEY' } }) }).d)).status).toBe(502)
+  })
+})
+
+describe('food-info: 영양성분 자동 맞춤(nutrition_auto, 사용자 2026-10-20: 버튼 없이 탭을 열면 나오게)', () => {
+  const ITEM = '33333333-3333-4333-8333-333333333333'
+  it('품목 이름으로 찾아 가장 잘 맞는 식품을 auto로 저장하고 돌려준다. 후보가 없으면 저장하지 않고 null', async () => {
+    const saved: unknown[] = []
+    const { d } = deps({ saveNutrition: async (itemId, row, auto) => { saved.push({ itemId, foodCd: row.foodCd, auto }) } })
+    const res = await handle(post({ itemId: ITEM, action: 'nutrition_auto' }), d)
+    expect(res.status).toBe(200)
+    expect((await res.json()).nutrition).toMatchObject({ foodCd: 'P000000001', foodName: '왕교자' })
+    expect(saved).toEqual([{ itemId: ITEM, foodCd: 'P000000001', auto: true }])
+    const none = deps({ fetchJson: async () => ({ header: { resultCode: '00' }, body: { totalCount: 0, items: [] } }), saveNutrition: async () => { throw new Error('must not save') } })
+    const r2 = await handle(post({ itemId: ITEM, action: 'nutrition_auto' }), none.d)
+    expect(r2.status).toBe(200)
+    expect((await r2.json()).nutrition).toBeNull()
+  })
+  it('이름 검색 결과도 순서를 매겨 돌려준다(이름이 같은 것이 먼저)', async () => {
+    const two = {
+      header: { resultCode: '00' },
+      body: { items: [
+        { FOOD_CD: 'A', FOOD_NM_KR: '대파김치', AMT_NUM1: '40' },
+        { FOOD_CD: 'B', FOOD_NM_KR: '대파', AMT_NUM1: '30' },
+      ] },
+    }
+    const { d } = deps({ fetchJson: async () => two })
+    const body = await (await handle(post({ itemId: ITEM, action: 'nutrition_search' }), d)).json()
+    expect(body.candidates.map((c: { foodCd: string }) => c.foodCd)).toEqual(['B', 'A'])
   })
 })

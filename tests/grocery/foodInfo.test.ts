@@ -1,7 +1,7 @@
 // 성분·대안(P7): 식약처 C002(원재료)와 식품영양성분DB(15127578) 주소 만들기·응답 읽기, 상품명에서 찾을 말 고르기, 후보 순서.
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
-import { FoodInfoError, c002Terms, c002Url, nutritionSearchUrl, nutritionUrl, parseC002, parseNutrition, parseNutritionRows, rankC002 } from '../../supabase/functions/_shared/foodInfo'
+import { FoodInfoError, c002Terms, c002Url, nutritionSearchUrl, nutritionUrl, parseC002, parseNutrition, parseNutritionRows, rankC002, rankNutrition } from '../../supabase/functions/_shared/foodInfo'
 
 const read = (f: string) => JSON.parse(readFileSync(new URL(`./fixtures/foodsafety/${f}`, import.meta.url), 'utf8'))
 
@@ -60,9 +60,9 @@ describe('식품영양성분DB', () => {
 })
 
 describe('식품영양성분DB 이름 검색(P9, D-018)', () => {
-  it('주소: FOOD_NM_KR로 20건, json', () => {
+  it('주소: FOOD_NM_KR로 50건(순서를 매긴 뒤 20건만 보여 준다), json', () => {
     expect(nutritionSearchUrl('K+K', '대파')).toBe(
-      'https://apis.data.go.kr/1471000/FoodNtrCpntDbInfo03/getFoodNtrCpntDbInq03?serviceKey=K%2BK&type=json&pageNo=1&numOfRows=20&FOOD_NM_KR=%EB%8C%80%ED%8C%8C',
+      'https://apis.data.go.kr/1471000/FoodNtrCpntDbInfo03/getFoodNtrCpntDbInq03?serviceKey=K%2BK&type=json&pageNo=1&numOfRows=50&FOOD_NM_KR=%EB%8C%80%ED%8C%8C',
     )
   })
   it('응답 줄마다 식품코드·보고번호를 함께 읽고, 없으면 빈 배열', () => {
@@ -70,5 +70,15 @@ describe('식품영양성분DB 이름 검색(P9, D-018)', () => {
     expect(rows).toHaveLength(1)
     expect(rows[0]).toMatchObject({ foodCd: 'P000000001', reportNo: '1997040105528', foodName: '왕교자', kcal: 232, basis: '100g' })
     expect(parseNutritionRows({ header: { resultCode: '00' }, body: { totalCount: 0, items: [] } })).toEqual([])
+  })
+})
+
+describe('영양성분 후보 순서(사용자 2026-10-20: "우유"에 관련 없는 것이 너무 많이 나옴)', () => {
+  const r = (foodName: string) => ({ foodName })
+  it('이름이 같은 것, "우유, …"처럼 이름으로 시작하는 것, 단어로 들어 있는 것, 그냥 포함된 것 순. 같은 단계면 짧은 이름 먼저', () => {
+    const rows = [r('우유식빵'), r('우유, 전지, 멸균'), r('바나나 우유'), r('우유'), r('딸기우유(가공유)'), r('우유, 저지방')]
+    expect(rankNutrition(rows, '우유').map((x) => x.foodName)).toEqual(['우유', '우유, 저지방', '우유, 전지, 멸균', '바나나 우유', '우유식빵', '딸기우유(가공유)'])
+    expect(rankNutrition([r('파김치'), r('파, 대파, 생것')], ' 대파 ').map((x) => x.foodName)).toEqual(['파, 대파, 생것', '파김치'])
+    expect(rankNutrition(rows, '').map((x) => x.foodName)).toEqual(rows.map((x) => x.foodName))
   })
 })

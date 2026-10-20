@@ -287,7 +287,8 @@ try {
         await page.locator('.pick-row').first().waitFor()
       }
       if (s.nutritionPick) {
-        await page.getByRole('button', { name: '영양성분 찾기' }).click()
+        // 탭을 열면 자동으로 맞추므로 "다른 식품으로 바꾸기"로 시트를 연다
+        await page.getByRole('button', { name: '다른 식품으로 바꾸기' }).click()
         await page.locator('.pick-row').first().waitFor()
       }
       if (s.barcode) {

@@ -75,6 +75,8 @@ export interface ListStore {
   searchNutrition(itemId: string, query?: string): Promise<{ term: string | null; candidates: NutritionRow[] }>
   /** 사람이 고른 식품을 저장(food-info nutrition_choose). query는 그 후보를 찾은 검색어 */
   chooseNutrition(itemId: string, query: string, foodCd: string): Promise<void>
+  /** 성분 탭을 열 때 품목 이름으로 가장 잘 맞는 식품을 자동으로 맞춰 저장(food-info nutrition_auto). 없으면 null */
+  autoNutrition(itemId: string): Promise<ItemNutrition | null>
 }
 
 export type BarcodeRecord = FoodAlert & { barcode: string }
@@ -107,7 +109,7 @@ export type DemoPrices = {
   /** 성분(P7): 상품 id → 식약처 품목, 후보 목록 */
   foodInfo?: { info: Record<string, ProductInfoView>; candidates: C002Row[] }
   /** 품목 id → 기억한 식품, 이름 검색 후보(P9) */
-  nutrition?: { items: Record<string, ItemNutrition>; candidates: NutritionRow[] }
+  nutrition?: { items: Record<string, ItemNutrition>; candidates: NutritionRow[]; candidatesOther?: NutritionRow[] }
 }
 
 const NO_PRICES: DemoPrices = { searches: {}, candidates: {}, products: {}, lines: {} }
@@ -135,6 +137,8 @@ export function createMemoryStore(
   const captured = new Map<string, PriceLine[]>() // 상품 id → 캡처한 가격 줄(P4)
   const foodInfo = new Map<string, ProductInfoView>(Object.entries(demoPrices.foodInfo?.info ?? {}))
   const nutrition = new Map<string, ItemNutrition>(Object.entries(demoPrices.nutrition?.items ?? {}))
+  // 데모 후보: 검색어에 '파'가 들면 파 식품, 아니면 만두 식품(가짜 값)
+  const demoCandidates = (term: string) => (term.includes('파') ? demoPrices.nutrition?.candidates : demoPrices.nutrition?.candidatesOther) ?? demoPrices.nutrition?.candidates ?? []
   const ours = new Map<string, OurPurchase[]>(Object.entries(demoPrices.ours ?? {}).map(([k, v]) => [k, v.map((x) => ({ ...x }))]))
 
   return {
@@ -304,14 +308,25 @@ export function createMemoryStore(
     },
     async searchNutrition(itemId, query) {
       const it = items.find((i) => i.id === itemId)
-      return { term: query?.trim() || it?.name || null, candidates: (demoPrices.nutrition?.candidates ?? []).map((c) => ({ ...c })) }
+      const term = query?.trim() || it?.name || ''
+      return { term: term || null, candidates: demoCandidates(term).map((c) => ({ ...c })) }
     },
-    async chooseNutrition(itemId, _query, foodCd) {
-      const c = (demoPrices.nutrition?.candidates ?? []).find((x) => x.foodCd === foodCd)
+    async chooseNutrition(itemId, query, foodCd) {
+      const c = demoCandidates(query).find((x) => x.foodCd === foodCd)
       if (!c) throw new Error('not_found')
       const { foodCd: cd, reportNo: _r, ...n } = c
       void _r
-      nutrition.set(itemId, { foodCd: cd, foodName: c.foodName ?? '이름 없음', maker: c.maker, nutrition: n, updatedAt: now() })
+      nutrition.set(itemId, { foodCd: cd, foodName: c.foodName ?? '이름 없음', maker: c.maker, nutrition: n, updatedAt: now(), auto: false })
+    },
+    async autoNutrition(itemId) {
+      const it = items.find((i) => i.id === itemId)
+      const c = demoCandidates(it?.name ?? '')[0]
+      if (!it || !c?.foodCd) return null
+      const { foodCd: cd, reportNo: _r, ...n } = c
+      void _r
+      const row: ItemNutrition = { foodCd: cd, foodName: c.foodName ?? '이름 없음', maker: c.maker, nutrition: n, updatedAt: now(), auto: true }
+      nutrition.set(itemId, row)
+      return { ...row, nutrition: { ...row.nutrition } }
     },
     async barcodeAlerts(code) {
       return { records: (demoPrices.barcodes?.[code] ?? []).map((r) => ({ ...r })), syncedAt: demoAlerts.syncedAt }

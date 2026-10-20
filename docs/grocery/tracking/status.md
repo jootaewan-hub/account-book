@@ -10,7 +10,7 @@
 
 - 열량·영양성분 이름 검색(P9, D-018, 2026-10-20, 브랜치 `claude/nutrition-search`): 마이그레이션 `20261029000000_grocery_item_nutrition.sql`(표·`set_item_nutrition`(서비스 롤)·`item_nutrition_rows()`, PGlite 시험), `food-info` 액션 `nutrition_search`·`nutrition_choose`(품목 이름 또는 준 검색어로 FOOD_NM_KR, 같은 검색에서 식품코드를 다시 찾아 저장; 시험 3개), 파서 `parseNutritionRows`(식품코드·보고번호 포함).
   화면: 성분 탭을 신선 품목에도 열고 맨 위에 "열량·영양성분"(영양성분 찾기 → 식품 고르기 시트: 이름 다시 찾기, 이름·제조사·기준량·열량), 목록 줄에 "30kcal/100g". 캡처 grocery-item-detail-ingredients-fresh·grocery-nutrition-picker. 공유 DB 적용·`food-info` 배포는 사용자 확인 뒤.
-  확인 필요: 식품영양성분DB 이름 검색(FOOD_NM_KR)의 실제 응답은 첫 호출에서 본다(명세로만 만듦). 안 되면 성분 탭에 "식품을 찾지 못했어요"가 뜨고 함수 로그에 코드가 남는다.
+  확인됨(2026-10-20 11:40, 사용자 첫 호출): FOOD_NM_KR 이름 검색이 응답한다(부분 일치라 "우유"에 우유식빵 등이 섞임). 같은 날 보충(D-018 보충, 브랜치 `claude/nutrition-auto`): 후보 순서 매기기(`rankNutrition`), 성분 탭을 열면 자동 맞춤(`nutrition_auto`, "이름으로 자동 맞춤" 표시), 50건 받아 20건.
 - 확정한 결정 만들기(D-015~D-017, 2026-10-20 아침, 브랜치 `claude/decisions`): ① 크기 규칙을 품목별 "완전 대용량 선" 표(BULK_LINES 60여 개)로 바꿈(규격 1.5배·표 없으면 2.5배·둘 다 없으면 3kg·3L·50개, 휴지 예외, 수량 줄은 담은 양의 2배). 시험 10개.
   ② 대안 탭 후보 대조: 마이그레이션 `20261028000000_grocery_candidate_alerts.sql`(`grocery.candidate_alerts(p_item)`, PGlite 시험 1개), 표시 "비슷한 제품 기록"과 출처별 건수, 뒤로 정렬(alternatives 시험). 공유 DB 적용은 병합 전 사용자 확인 뒤.
   ③ 빼기 되돌리기 묶음(`src/grocery/lib/undo.ts`, 시험 3개): "N개 뺐어요", 되돌리기는 마지막 묶음부터, 기다리던 빼기는 마지막 빼기 기준으로 다시 5초. 캡처 grocery-row-remove-two.

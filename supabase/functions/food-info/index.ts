@@ -48,11 +48,12 @@ Deno.serve(async (req) => {
       if (error) throw error
       return data ? { householdId: data.household_id, name: data.name, spec: data.spec } : null
     },
-    saveNutrition: async (itemId, row) => {
-      const { data: me } = await user.auth.getUser(jwt)
+    saveNutrition: async (itemId, row, auto) => {
+      // 자동 맞춤은 고른 사람이 없고 jsonb에 auto 표시를 남긴다(화면이 "이름으로 자동 맞춤"이라고 쓴다)
+      const { data: me } = auto ? { data: null } : await user.auth.getUser(jwt)
       const { error } = await g().rpc('set_item_nutrition', {
         p_item: itemId, p_food_cd: row.foodCd, p_food_name: (row.foodName ?? '').slice(0, 200) || '이름 없음', p_maker: row.maker?.slice(0, 100) ?? null,
-        p_nutrition: row, p_chosen_by: me?.user?.id ?? null,
+        p_nutrition: { ...row, auto }, p_chosen_by: auto ? null : (me?.user?.id ?? null),
       })
       if (error) throw error
     },

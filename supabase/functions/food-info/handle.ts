@@ -2,7 +2,7 @@
 // 후보는 사람이 고른다(상품명과 식약처 품목명이 같다는 보장이 없다). 고른 것은 부른 사람의 가구에만 저장한다(다른 가구 화면을 바꾸지 못하게). 숫자는 출처 값 그대로.
 // 식약처 키(FOODSAFETY_API_KEY)와 공공데이터포털 키(DATA_GO_KR_SERVICE_KEY)는 서버에만 있다. 오류 문구에는 코드만 남긴다.
 import {
-  c002ByReportUrl, c002Terms, c002Url, FoodInfoError, nutritionSearchUrl, nutritionUrl, parseC002, parseNutrition, parseNutritionRows, rankC002,
+  c002ByReportUrl, c002Terms, c002Url, FoodInfoError, nutritionSearchUrl, nutritionUrl, parseC002, parseNutrition, parseNutritionRows, rankC002, rankNutrition,
   type C002Row, type Nutrition, type NutritionRow,
 } from '../_shared/foodInfo.ts'
 
@@ -29,8 +29,8 @@ export type FoodInfoDeps = {
   save(householdId: string, productId: string, info: ProductInfo): Promise<void>
   /** 사용자 권한(RLS): 내 가구 품목이면 가구 id·이름·규격, 아니면 null(P9) */
   allowedItem(itemId: string): Promise<{ householdId: string; name: string; spec: string | null } | null>
-  /** 품목(이름·규격 열쇠)에 고른 식품을 저장(grocery.set_item_nutrition, 서비스 롤) */
-  saveNutrition(itemId: string, row: NutritionRow): Promise<void>
+  /** 품목(이름·규격 열쇠)에 고른 식품을 저장(grocery.set_item_nutrition, 서비스 롤). auto면 이름으로 자동 맞춘 것(고른 사람 없음) */
+  saveNutrition(itemId: string, row: NutritionRow, auto: boolean): Promise<void>
   now(): Date
 }
 
@@ -38,7 +38,7 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const MAX_TERMS = 2
 const MAX_CANDIDATES = 20
 const MAX_QUERY = 60
-const ACTIONS = new Set(['search', 'choose', 'nutrition_search', 'nutrition_choose'])
+const ACTIONS = new Set(['search', 'choose', 'nutrition_search', 'nutrition_choose', 'nutrition_auto'])
 
 const json = (status: number, body: unknown) =>
   new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json; charset=utf-8' } })
@@ -54,7 +54,7 @@ export async function handle(req: Request, deps: FoodInfoDeps): Promise<Response
   }
   const action = typeof body?.action === 'string' ? body.action : ''
   if (!ACTIONS.has(action)) return json(400, { error: 'bad_request' })
-  if (action === 'nutrition_search' || action === 'nutrition_choose') return nutritionByName(body, action, deps)
+  if (action === 'nutrition_search' || action === 'nutrition_choose' || action === 'nutrition_auto') return nutritionByName(body, action, deps)
 
   const productId = typeof body?.productId === 'string' ? body.productId : ''
   const reportNo = typeof body?.reportNo === 'string' ? body.reportNo.trim() : ''
@@ -113,6 +113,7 @@ export async function handle(req: Request, deps: FoodInfoDeps): Promise<Response
 }
 
 /** P9(D-018): 품목 이름(또는 준 검색어)으로 식품영양성분DB를 찾고(nutrition_search), 사람이 고른 식품코드를 같은 검색에서 다시 찾아 저장한다(nutrition_choose).
+ *  nutrition_auto는 성분 탭을 열 때 버튼 없이 가장 잘 맞는 식품(rankNutrition 맨 앞)을 자동으로 저장해 돌려준다(사용자 2026-10-20). 후보가 없으면 null.
  *  신선 품목처럼 상품이 없어도 된다. 숫자는 응답 값 그대로 저장한다(화면이 그대로 보여 준다). */
 async function nutritionByName(body: { itemId?: unknown; query?: unknown; foodCd?: unknown }, action: string, deps: FoodInfoDeps): Promise<Response> {
   const itemId = typeof body?.itemId === 'string' ? body.itemId : ''
@@ -132,13 +133,15 @@ async function nutritionByName(body: { itemId?: unknown; query?: unknown; foodCd
   } catch (e) {
     return json(502, { status: 'error', reason: reason(e) })
   }
-  if (action === 'nutrition_search') return json(200, { status: 'done', term, candidates: rows.slice(0, MAX_CANDIDATES) })
-  const row = rows.find((r) => r.foodCd === foodCd)
-  if (!row) return json(404, { error: 'not_found' })
+  const ranked = rankNutrition(rows, term)
+  if (action === 'nutrition_search') return json(200, { status: 'done', term, candidates: ranked.slice(0, MAX_CANDIDATES) })
+  const auto = action === 'nutrition_auto'
+  const row = auto ? ranked.find((r) => r.foodCd !== null) : ranked.find((r) => r.foodCd === foodCd)
+  if (!row) return auto ? json(200, { status: 'done', term, nutrition: null }) : json(404, { error: 'not_found' })
   try {
-    await deps.saveNutrition(itemId, row)
+    await deps.saveNutrition(itemId, row, auto)
   } catch {
     return json(502, { status: 'error', reason: 'save_failed' })
   }
-  return json(200, { status: 'done', nutrition: row })
+  return json(200, { status: 'done', term, nutrition: row })
 }

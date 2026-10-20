@@ -151,6 +151,14 @@ export default function ItemDetail({ item, store, onChangeProduct, onClose, mark
   }, [loadSources])
   const loadInfo = useCallback(() => store.productInfo(item.id).then(setInfo, () => setInfo('failed')), [store, item.id])
   const loadNut = useCallback(() => store.itemNutrition(item.id).then(setNut, () => setNut('failed')), [store, item.id])
+  // 성분 탭을 열었는데 기억한 식품이 없으면 버튼 없이 이름으로 자동 맞춘다(사용자 2026-10-20). 한 번만 시도한다
+  const autoTried = useRef(false)
+  useEffect(() => {
+    if (tab !== 'ingredients' || nut !== null || autoTried.current) return
+    autoTried.current = true
+    setNut('loading')
+    store.autoNutrition(item.id).then(setNut, () => setNut(null))
+  }, [tab, nut, store, item.id])
   useEffect(() => {
     void loadInfo()
     void loadNut()
@@ -382,11 +390,11 @@ export default function ItemDetail({ item, store, onChangeProduct, onClose, mark
                 <div role="tabpanel">
                   <div className="detail-block">
                     <p className="detail-sub">열량·영양성분</p>
-                    {nut === 'loading' && <p className="cand-state" role="status">영양성분 불러오는 중</p>}
+                    {nut === 'loading' && <p className="cand-state" role="status">식품영양성분DB에서 이름으로 맞추는 중</p>}
                     {nut === 'failed' && <p className="cand-state" role="status">영양성분을 불러오지 못했어요. 잠시 뒤 다시 열어 주세요.</p>}
                     {nut === null && (
                       <>
-                        <p className="detail-none">식품영양성분DB에서 이 식품을 고르면 열량과 영양성분을 보여 드려요. 같은 이름·규격으로 담으면 다시 고르지 않아도 돼요.</p>
+                        <p className="detail-none">식품영양성분DB에서 이름으로 맞는 식품을 찾지 못했어요. 다른 이름으로 찾아 고르면 같은 이름·규격으로 담을 때 다시 쓰여요.</p>
                         <button type="button" className="btn-secondary detail-link" onClick={() => openPicker('nutrition')}>영양성분 찾기</button>
                       </>
                     )}
@@ -401,7 +409,8 @@ export default function ItemDetail({ item, store, onChangeProduct, onClose, mark
                             <div key={r.label} className="nutri-row"><dt>{r.label}</dt><dd className="num">{r.value}</dd></div>
                           ))}
                         </dl>
-                        <p className="src-line">{[nut.maker, nutritionSource(nut.nutrition), `${checkedText(nut.updatedAt)} 고름`].filter(Boolean).join(', ')}</p>
+                        <p className="src-line">{[nut.maker, nutritionSource(nut.nutrition), nut.auto ? `${checkedText(nut.updatedAt)} 이름으로 자동 맞춤` : `${checkedText(nut.updatedAt)} 고름`].filter(Boolean).join(', ')}</p>
+                        {nut.auto && <p className="read-note">이름으로 자동으로 맞춘 식품이에요. 다른 식품이면 "다른 식품으로 바꾸기"로 고쳐 주세요.</p>}
                       </>
                     )}
                   </div>

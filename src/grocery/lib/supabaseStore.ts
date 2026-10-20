@@ -54,7 +54,9 @@ export function createSupabaseStore(client: SupabaseClient, me: Membership): Lis
   const g = () => client.schema('grocery')
   const table = () => g().from('items')
   type NutritionRowDb = { item_id: string; food_cd: string | null; food_name: string; maker: string | null; nutrition: Nutrition; updated_at: string }
-  const nutritionOf = (r: NutritionRowDb): ItemNutrition => ({ foodCd: r.food_cd, foodName: r.food_name, maker: r.maker, nutrition: r.nutrition, updatedAt: r.updated_at })
+  const nutritionOf = (r: NutritionRowDb): ItemNutrition => ({
+    foodCd: r.food_cd, foodName: r.food_name, maker: r.maker, nutrition: r.nutrition, updatedAt: r.updated_at, auto: Boolean((r.nutrition as { auto?: unknown }).auto),
+  })
   let goodsCache: StoreGood[] | null = null // 참가격 상품 목록(약 600개)은 한 번만 읽는다
 
   return {
@@ -329,6 +331,13 @@ export function createSupabaseStore(client: SupabaseClient, me: Membership): Lis
       const { data, error } = await client.functions.invoke<{ status: string }>('food-info', { body: { itemId, action: 'nutrition_choose', query, foodCd } })
       if (error) throw error
       if (!data || data.status !== 'done') throw new Error('choose_failed')
+    },
+    async autoNutrition(itemId) {
+      const { data, error } = await client.functions.invoke<{ status: string; nutrition: NutritionRow | null }>('food-info', { body: { itemId, action: 'nutrition_auto' } })
+      if (error) throw error
+      if (!data || data.status !== 'done') throw new Error('auto_failed')
+      if (!data.nutrition) return null
+      return this.itemNutrition(itemId)
     },
     async searchFoodInfo(itemId) {
       const it = await table().select('product_id').eq('id', itemId).maybeSingle()

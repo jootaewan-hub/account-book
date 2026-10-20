@@ -100,10 +100,32 @@ export function rankC002(rows: C002Row[], terms: string[]): C002Row[] {
 }
 
 /** 이름으로 찾기(FOOD_NM_KR): 품목 이름으로 식품을 고르는 P9 흐름. 응답 모양은 보고번호 조회와 같다 */
-export function nutritionSearchUrl(key: string, name: string, rows = 20): string {
+export function nutritionSearchUrl(key: string, name: string, rows = 50): string {
   const k = key.trim()
   const enc = k.includes('%') ? k : encodeURIComponent(k)
   return `${NUTRI_BASE}?serviceKey=${enc}&type=json&pageNo=1&numOfRows=${rows}&FOOD_NM_KR=${encodeURIComponent(name)}`
+}
+
+const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+
+/** 이름 검색 후보 순서(사용자 2026-10-20: "우유"에 관련 없는 것이 너무 많다): 이름이 같은 것 → "우유, 전지…"처럼 이름으로 시작하는 것 →
+ *  "바나나 우유"처럼 단어로 들어 있는 것 → 그냥 포함된 것("우유식빵"). 같은 단계면 짧은 이름이 먼저(더 기본 식품). 자동 맞춤은 맨 앞을 쓴다 */
+export function rankNutrition<T extends { foodName: string | null }>(rows: readonly T[], term: string): T[] {
+  const t = term.replace(/\s+/g, '').toLowerCase()
+  if (!t) return [...rows]
+  const head = new RegExp(`^${escapeRe(t)}(?:$|[\\s,(/])`)
+  const tier = (name: string): number => {
+    const n = name.replace(/\s+/g, '').toLowerCase()
+    if (n === t) return 0
+    if (head.test(name.replace(/\s+/g, '').toLowerCase()) || head.test(name.toLowerCase())) return 1
+    if (name.toLowerCase().split(/[\s,/()]+/).some((seg) => seg === t)) return 2
+    if (n.includes(t)) return 3
+    return 4
+  }
+  return rows
+    .map((r, i) => ({ r, i, k: tier(r.foodName ?? ''), len: (r.foodName ?? '').length }))
+    .sort((a, b) => a.k - b.k || a.len - b.len || a.i - b.i)
+    .map((x) => x.r)
 }
 
 export function nutritionUrl(key: string, reportNo: string): string {
