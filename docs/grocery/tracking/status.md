@@ -11,6 +11,7 @@
 - 열량·영양성분 이름 검색(P9, D-018, 2026-10-20, 브랜치 `claude/nutrition-search`): 마이그레이션 `20261029000000_grocery_item_nutrition.sql`(표·`set_item_nutrition`(서비스 롤)·`item_nutrition_rows()`, PGlite 시험), `food-info` 액션 `nutrition_search`·`nutrition_choose`(품목 이름 또는 준 검색어로 FOOD_NM_KR, 같은 검색에서 식품코드를 다시 찾아 저장; 시험 3개), 파서 `parseNutritionRows`(식품코드·보고번호 포함).
   화면: 성분 탭을 신선 품목에도 열고 맨 위에 "열량·영양성분"(영양성분 찾기 → 식품 고르기 시트: 이름 다시 찾기, 이름·제조사·기준량·열량), 목록 줄에 "30kcal/100g". 캡처 grocery-item-detail-ingredients-fresh·grocery-nutrition-picker. 공유 DB 적용·`food-info` 배포는 사용자 확인 뒤.
   확인됨(2026-10-20 11:40, 사용자 첫 호출): FOOD_NM_KR 이름 검색이 응답한다(부분 일치라 "우유"에 우유식빵 등이 섞임). 같은 날 보충(D-018 보충, 브랜치 `claude/nutrition-auto`): 후보 순서 매기기(`rankNutrition`), 성분 탭을 열면 자동 맞춤(`nutrition_auto`, "이름으로 자동 맞춤" 표시), 50건 받아 20건.
+  보충 2(2026-10-20 12:03, 사용자: "우유"에 도넛이 맞춰짐): `DB_CLASS_NM=품목대표`와 전체를 함께 불러 합치고, 자동 맞춤은 품목대표 단어 포함까지·상용제품은 이름 같음/시작만(`autoFit`), 밑줄 구분자(`nutritionTier`). 시험 7개 추가. `food-info` v5 배포와 main 병합은 사용자 확인 뒤.
 - 확정한 결정 만들기(D-015~D-017, 2026-10-20 아침, 브랜치 `claude/decisions`): ① 크기 규칙을 품목별 "완전 대용량 선" 표(BULK_LINES 60여 개)로 바꿈(규격 1.5배·표 없으면 2.5배·둘 다 없으면 3kg·3L·50개, 휴지 예외, 수량 줄은 담은 양의 2배). 시험 10개.
   ② 대안 탭 후보 대조: 마이그레이션 `20261028000000_grocery_candidate_alerts.sql`(`grocery.candidate_alerts(p_item)`, PGlite 시험 1개), 표시 "비슷한 제품 기록"과 출처별 건수, 뒤로 정렬(alternatives 시험). 공유 DB 적용은 병합 전 사용자 확인 뒤.
   ③ 빼기 되돌리기 묶음(`src/grocery/lib/undo.ts`, 시험 3개): "N개 뺐어요", 되돌리기는 마지막 묶음부터, 기다리던 빼기는 마지막 빼기 기준으로 다시 5초. 캡처 grocery-row-remove-two.
@@ -145,6 +146,7 @@
 
 ## 열린 문제
 
+- 영양성분 자동 맞춤(2026-10-20 12:03): 품목 "우유"에 "도넛_제주말차 우유 도넛"이 자동으로 맞춰졌다(이름만 검색한 50건에 일반 우유가 없음). D-018 보충 2로 품목대표를 따로 받고 상용제품은 이름이 같거나 시작할 때만 자동으로 쓰게 고쳤다. 확인 필요: 배포 뒤 "우유" 성분 탭에서 `DB_CLASS_NM` 필터가 먹는지와 맞춰진 식품 이름. 이미 저장된 도넛 줄(`grocery.item_nutrition`, 우유|900ml)은 지워야 다시 자동 맞춤된다.
 - 배포된 Edge Function 중 두 저장소 어디에도 소스가 없는 `danawa-probe`가 있다(verify_jwt false, 2026-10-19 생성, Supabase `list_edge_functions`로 2026-10-19 확인). 다나와 접근 확인용 임시 함수로 보인다(추측입니다). 지울지는 사용자가 정한다.
 - 첫 수집 때 축산물 서울 지역 행 1,713개가 함께 저장됐다(그 뒤 함수 v2는 전국 행만 저장). 화면은 축산물 범위·띠를 쓰지 않아 영향이 없다. 지워도 된다.
 - 시세 API 확인용 일회용 함수 `market-probe`를 2026-10-19 배포했다가, 확인 뒤 410만 돌려주는 내용(v4)으로 바꿨다. Supabase MCP에는 함수를 지우는 도구가 없어 남아 있다. 대시보드(Edge Functions → market-probe → Delete)에서 지우면 된다. 소스는 저장소에 넣지 않았다.

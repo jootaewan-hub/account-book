@@ -112,6 +112,7 @@ export function demoSeed(): { me: Membership; items: Item[]; alerts: AlertsResul
   const nrow = (foodCd: string, foodName: string, kcal: number, maker: string | null, carbs: number, protein: number, fat: number, sodium: number): NutritionRow => ({
     basis: '100g', kcal, carbs, sugars: null, protein, fat, satFat: null, transFat: null, cholesterol: null, sodium,
     weight: null, servingRef: null, source: '예시(식품영양성분DB 모양)', foodName, maker, updatedOn: ago(60), foodCd, reportNo: null,
+    dbClass: foodCd.startsWith('P') ? '상용제품' : '품목대표', category: null,
   })
   const nutritionCandidates = [nrow('D000000123', '파, 대파, 생것', 30, null, 6.5, 1.5, 0.2, 2), nrow('D000000124', '파, 쪽파, 생것', 25, null, 5.4, 1.4, 0.3, 3), nrow('P000000777', '예시 파김치', 42, '예시식품', 6.1, 2.0, 0.6, 620)]
   const nutritionOther = [nrow('P000000001', '왕교자', 232, '예시식품', 27.9, 9.8, 9.2, 540), nrow('P000000002', '김치왕교자', 210, '예시식품', 25.1, 9.1, 8.0, 610), nrow('P000000003', '왕교자피', 280, '예시제면', 58.0, 8.0, 1.2, 420)]

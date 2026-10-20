@@ -158,7 +158,7 @@ describe('food-info: 영양성분 자동 맞춤(nutrition_auto, 사용자 2026-1
   const ITEM = '33333333-3333-4333-8333-333333333333'
   it('품목 이름으로 찾아 가장 잘 맞는 식품을 auto로 저장하고 돌려준다. 후보가 없으면 저장하지 않고 null', async () => {
     const saved: unknown[] = []
-    const { d } = deps({ saveNutrition: async (itemId, row, auto) => { saved.push({ itemId, foodCd: row.foodCd, auto }) } })
+    const { d } = deps({ allowedItem: async () => ({ householdId: 'hh-1', name: '왕교자', spec: null }), saveNutrition: async (itemId, row, auto) => { saved.push({ itemId, foodCd: row.foodCd, auto }) } })
     const res = await handle(post({ itemId: ITEM, action: 'nutrition_auto' }), d)
     expect(res.status).toBe(200)
     expect((await res.json()).nutrition).toMatchObject({ foodCd: 'P000000001', foodName: '왕교자' })
@@ -179,5 +179,56 @@ describe('food-info: 영양성분 자동 맞춤(nutrition_auto, 사용자 2026-1
     const { d } = deps({ fetchJson: async () => two })
     const body = await (await handle(post({ itemId: ITEM, action: 'nutrition_search' }), d)).json()
     expect(body.candidates.map((c: { foodCd: string }) => c.foodCd)).toEqual(['B', 'A'])
+  })
+})
+
+describe('food-info: 자동 맞춤은 품목대표부터, 이름이 단어로만 든 상용제품은 자동으로 쓰지 않는다(사용자 2026-10-20 12:03: "우유"에 도넛이 맞춰짐, D-018 보충 2)', () => {
+  const ITEM = '33333333-3333-4333-8333-333333333333'
+  const row = (cd: string, name: string, cls: string) => ({ FOOD_CD: cd, FOOD_NM_KR: name, DB_CLASS_NM: cls, AMT_NUM1: '60' })
+  const api = (rep: Record<string, unknown>[], all: Record<string, unknown>[], urls: string[] = []) => async (url: string) => {
+    urls.push(url)
+    return { header: { resultCode: '00' }, body: { items: url.includes('DB_CLASS_NM=') ? rep : all } }
+  }
+  const milk = { allowedItem: async () => ({ householdId: 'hh-1', name: '우유', spec: '900ml' }) }
+  const donut = row('D202', '도넛_제주말차 우유 도넛', '상용제품')
+  it('품목대표 "우유_일반"이 있으면 그것을 저장한다(상용제품 도넛보다 먼저)', async () => {
+    const saved: unknown[] = []
+    const urls: string[] = []
+    const { d } = deps({ ...milk, fetchJson: api([row('G1', '우유_일반', '품목대표')], [donut], urls), saveNutrition: async (_i, r, auto) => { saved.push({ foodCd: r.foodCd, auto }) } })
+    const body = await (await handle(post({ itemId: ITEM, action: 'nutrition_auto' }), d)).json()
+    expect(body.nutrition).toMatchObject({ foodCd: 'G1', foodName: '우유_일반', dbClass: '품목대표' })
+    expect(saved).toEqual([{ foodCd: 'G1', auto: true }])
+    expect(urls.filter((u) => u.includes('DB_CLASS_NM=%ED%92%88%EB%AA%A9%EB%8C%80%ED%91%9C'))).toHaveLength(1)
+    expect(urls).toHaveLength(2)
+  })
+  it('품목대표가 없고 상용제품은 "우유"가 단어로만 들어 있으면(도넛) 저장하지 않고 null', async () => {
+    const { d } = deps({ ...milk, fetchJson: api([], [donut]), saveNutrition: async () => { throw new Error('must not save') } })
+    const body = await (await handle(post({ itemId: ITEM, action: 'nutrition_auto' }), d)).json()
+    expect(body).toEqual({ status: 'done', term: '우유', nutrition: null })
+  })
+  it('품목대표가 없어도 상용제품 이름이 같거나 이름으로 시작하면 저장한다', async () => {
+    const saved: (string | null)[] = []
+    const { d } = deps({ ...milk, fetchJson: api([], [donut, row('S1', '우유(멸균)', '상용제품')]), saveNutrition: async (_i, r) => { saved.push(r.foodCd) } })
+    expect((await (await handle(post({ itemId: ITEM, action: 'nutrition_auto' }), d)).json()).nutrition.foodCd).toBe('S1')
+    expect(saved).toEqual(['S1'])
+  })
+  it('품목대표 호출이 실패해도 전체 검색으로 이어 간다', async () => {
+    const { d } = deps({
+      ...milk,
+      fetchJson: async (url) => {
+        if (url.includes('DB_CLASS_NM=')) throw new TypeError('fetch failed')
+        return { header: { resultCode: '00' }, body: { items: [row('S0', '우유', '상용제품')] } }
+      },
+    })
+    expect((await (await handle(post({ itemId: ITEM, action: 'nutrition_auto' }), d)).json()).nutrition.foodCd).toBe('S0')
+  })
+  it('이름 검색·고르기도 품목대표와 전체를 합쳐(식품코드로 중복 제거) 순서를 매긴다', async () => {
+    const { d } = deps({ ...milk, fetchJson: api([row('G1', '우유_일반', '품목대표')], [donut, row('G1', '우유_일반', '품목대표')]) })
+    const body = await (await handle(post({ itemId: ITEM, action: 'nutrition_search' }), d)).json()
+    expect(body.candidates.map((c: { foodCd: string }) => c.foodCd)).toEqual(['G1', 'D202'])
+    const saved: (string | null)[] = []
+    const c = deps({ ...milk, fetchJson: api([row('G1', '우유_일반', '품목대표')], [donut]), saveNutrition: async (_i, r) => { saved.push(r.foodCd) } })
+    expect((await handle(post({ itemId: ITEM, action: 'nutrition_choose', query: '우유', foodCd: 'G1' }), c.d)).status).toBe(200)
+    expect(saved).toEqual(['G1'])
   })
 })

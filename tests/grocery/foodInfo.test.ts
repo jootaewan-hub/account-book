@@ -1,7 +1,7 @@
 // 성분·대안(P7): 식약처 C002(원재료)와 식품영양성분DB(15127578) 주소 만들기·응답 읽기, 상품명에서 찾을 말 고르기, 후보 순서.
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
-import { FoodInfoError, c002Terms, c002Url, nutritionSearchUrl, nutritionUrl, parseC002, parseNutrition, parseNutritionRows, rankC002, rankNutrition } from '../../supabase/functions/_shared/foodInfo'
+import { FoodInfoError, c002Terms, c002Url, nutritionSearchUrl, nutritionTier, nutritionUrl, parseC002, parseNutrition, parseNutritionRows, rankC002, rankNutrition } from '../../supabase/functions/_shared/foodInfo'
 
 const read = (f: string) => JSON.parse(readFileSync(new URL(`./fixtures/foodsafety/${f}`, import.meta.url), 'utf8'))
 
@@ -65,10 +65,15 @@ describe('식품영양성분DB 이름 검색(P9, D-018)', () => {
       'https://apis.data.go.kr/1471000/FoodNtrCpntDbInfo03/getFoodNtrCpntDbInq03?serviceKey=K%2BK&type=json&pageNo=1&numOfRows=50&FOOD_NM_KR=%EB%8C%80%ED%8C%8C',
     )
   })
+  it('품목대표(일반 식품)만 찾기: DB_CLASS_NM을 붙인다(D-018 보충 2)', () => {
+    expect(nutritionSearchUrl('K+K', '우유', 50, '품목대표')).toBe(
+      'https://apis.data.go.kr/1471000/FoodNtrCpntDbInfo03/getFoodNtrCpntDbInq03?serviceKey=K%2BK&type=json&pageNo=1&numOfRows=50&FOOD_NM_KR=%EC%9A%B0%EC%9C%A0&DB_CLASS_NM=%ED%92%88%EB%AA%A9%EB%8C%80%ED%91%9C',
+    )
+  })
   it('응답 줄마다 식품코드·보고번호를 함께 읽고, 없으면 빈 배열', () => {
     const rows = parseNutritionRows(read('nutrition-sample.json'))
     expect(rows).toHaveLength(1)
-    expect(rows[0]).toMatchObject({ foodCd: 'P000000001', reportNo: '1997040105528', foodName: '왕교자', kcal: 232, basis: '100g' })
+    expect(rows[0]).toMatchObject({ foodCd: 'P000000001', reportNo: '1997040105528', foodName: '왕교자', kcal: 232, basis: '100g', dbClass: '상용제품', category: '즉석식품류' })
     expect(parseNutritionRows({ header: { resultCode: '00' }, body: { totalCount: 0, items: [] } })).toEqual([])
   })
 })
@@ -80,5 +85,21 @@ describe('영양성분 후보 순서(사용자 2026-10-20: "우유"에 관련 �
     expect(rankNutrition(rows, '우유').map((x) => x.foodName)).toEqual(['우유', '우유, 저지방', '우유, 전지, 멸균', '바나나 우유', '우유식빵', '딸기우유(가공유)'])
     expect(rankNutrition([r('파김치'), r('파, 대파, 생것')], ' 대파 ').map((x) => x.foodName)).toEqual(['파, 대파, 생것', '파김치'])
     expect(rankNutrition(rows, '').map((x) => x.foodName)).toEqual(rows.map((x) => x.foodName))
+  })
+})
+
+describe('자동 맞춤 단계(사용자 2026-10-20 12:03: "우유"에 도넛_제주말차 우유 도넛이 맞춰짐, D-018 보충 2)', () => {
+  it('"우유_일반"처럼 밑줄 뒤에 세부 이름이 오는 것도 이름으로 시작하는 것(1). 단어로만 든 것(2)과 그냥 포함(3), 무관(4)', () => {
+    expect(nutritionTier('우유', '우유')).toBe(0)
+    expect(nutritionTier('우유_일반', '우유')).toBe(1)
+    expect(nutritionTier('우유, 저지방', '우유')).toBe(1)
+    expect(nutritionTier('우유(멸균)', ' 우유 ')).toBe(1)
+    expect(nutritionTier('도넛_제주말차 우유 도넛', '우유')).toBe(2)
+    expect(nutritionTier('우유식빵', '우유')).toBe(3)
+    expect(nutritionTier('왕교자', '우유')).toBe(4)
+  })
+  it('같은 단계면 품목대표가 상용제품보다 먼저', () => {
+    const rows = [{ foodName: '우유_일반', dbClass: '상용제품' }, { foodName: '우유_일반', dbClass: '품목대표' }]
+    expect(rankNutrition(rows, '우유').map((r) => r.dbClass)).toEqual(['품목대표', '상용제품'])
   })
 })

@@ -2,7 +2,7 @@
 // 후보는 사람이 고른다(상품명과 식약처 품목명이 같다는 보장이 없다). 고른 것은 부른 사람의 가구에만 저장한다(다른 가구 화면을 바꾸지 못하게). 숫자는 출처 값 그대로.
 // 식약처 키(FOODSAFETY_API_KEY)와 공공데이터포털 키(DATA_GO_KR_SERVICE_KEY)는 서버에만 있다. 오류 문구에는 코드만 남긴다.
 import {
-  c002ByReportUrl, c002Terms, c002Url, FoodInfoError, nutritionSearchUrl, nutritionUrl, parseC002, parseNutrition, parseNutritionRows, rankC002, rankNutrition,
+  c002ByReportUrl, c002Terms, c002Url, FoodInfoError, nutritionSearchUrl, nutritionTier, nutritionUrl, parseC002, parseNutrition, parseNutritionRows, rankC002, rankNutrition, REPRESENTATIVE,
   type C002Row, type Nutrition, type NutritionRow,
 } from '../_shared/foodInfo.ts'
 
@@ -112,8 +112,29 @@ export async function handle(req: Request, deps: FoodInfoDeps): Promise<Response
   return json(200, { status: 'done', info })
 }
 
+/** 품목대표(일반 식품)와 전체 검색을 함께 불러 식품코드로 중복을 없애고 순서를 매긴다(D-018 보충 2). 이름만으로 찾으면 "우유"에 상용제품 50건이 먼저 와
+ *  일반 "우유"가 묻히므로 DB_CLASS_NM=품목대표를 따로 부른다. 그 호출이 실패하면(필터가 안 먹는 경우 포함) 전체 검색만 쓴다 */
+async function searchNutrition(deps: FoodInfoDeps, dataKey: string, term: string): Promise<NutritionRow[]> {
+  const [rep, all] = await Promise.all([
+    deps.fetchJson(nutritionSearchUrl(dataKey, term, 50, REPRESENTATIVE)).then(parseNutritionRows).catch(() => [] as NutritionRow[]),
+    deps.fetchJson(nutritionSearchUrl(dataKey, term)).then(parseNutritionRows),
+  ])
+  const seen = new Set<string>()
+  const merged = [...rep, ...all].filter((r) => {
+    const k = r.foodCd ?? `${r.foodName}|${r.maker}`
+    if (seen.has(k)) return false
+    seen.add(k)
+    return true
+  })
+  return rankNutrition(merged, term)
+}
+
+/** 자동 맞춤에 쓸 만한가: 품목대표는 이름이 단어로 든 것(2)까지, 상용제품은 이름이 같거나 이름으로 시작하는 것(1)까지.
+ *  "우유"에 "도넛_제주말차 우유 도넛"(상용제품, 2)이 붙지 않게(사용자 2026-10-20 12:03). 맞는 것이 없으면 저장하지 않고 화면이 "찾지 못했어요"를 낸다 */
+const autoFit = (r: NutritionRow, term: string) => r.foodCd !== null && nutritionTier(r.foodName ?? '', term) <= (r.dbClass === REPRESENTATIVE ? 2 : 1)
+
 /** P9(D-018): 품목 이름(또는 준 검색어)으로 식품영양성분DB를 찾고(nutrition_search), 사람이 고른 식품코드를 같은 검색에서 다시 찾아 저장한다(nutrition_choose).
- *  nutrition_auto는 성분 탭을 열 때 버튼 없이 가장 잘 맞는 식품(rankNutrition 맨 앞)을 자동으로 저장해 돌려준다(사용자 2026-10-20). 후보가 없으면 null.
+ *  nutrition_auto는 성분 탭을 열 때 버튼 없이 가장 잘 맞는 식품(순서 맨 앞부터 autoFit에 맞는 것)을 자동으로 저장해 돌려준다(사용자 2026-10-20). 맞는 것이 없으면 null.
  *  신선 품목처럼 상품이 없어도 된다. 숫자는 응답 값 그대로 저장한다(화면이 그대로 보여 준다). */
 async function nutritionByName(body: { itemId?: unknown; query?: unknown; foodCd?: unknown }, action: string, deps: FoodInfoDeps): Promise<Response> {
   const itemId = typeof body?.itemId === 'string' ? body.itemId : ''
@@ -127,16 +148,15 @@ async function nutritionByName(body: { itemId?: unknown; query?: unknown; foodCd
   if (!item) return json(403, { error: 'forbidden' })
   const term = query || item.name.replace(/\s+/g, ' ').trim()
   if (!term) return json(200, { status: 'done', term: null, candidates: [] })
-  let rows: NutritionRow[]
+  let ranked: NutritionRow[]
   try {
-    rows = parseNutritionRows(await deps.fetchJson(nutritionSearchUrl(dataKey, term)))
+    ranked = await searchNutrition(deps, dataKey, term)
   } catch (e) {
     return json(502, { status: 'error', reason: reason(e) })
   }
-  const ranked = rankNutrition(rows, term)
   if (action === 'nutrition_search') return json(200, { status: 'done', term, candidates: ranked.slice(0, MAX_CANDIDATES) })
   const auto = action === 'nutrition_auto'
-  const row = auto ? ranked.find((r) => r.foodCd !== null) : ranked.find((r) => r.foodCd === foodCd)
+  const row = auto ? ranked.find((r) => autoFit(r, term)) : ranked.find((r) => r.foodCd === foodCd)
   if (!row) return auto ? json(200, { status: 'done', term, nutrition: null }) : json(404, { error: 'not_found' })
   try {
     await deps.saveNutrition(itemId, row, auto)

@@ -99,32 +99,41 @@ export function rankC002(rows: C002Row[], terms: string[]): C002Row[] {
   return [...rows].sort((a, b) => hits(b) - hits(a) || (b.changedOn ?? '').localeCompare(a.changedOn ?? ''))
 }
 
-/** 이름으로 찾기(FOOD_NM_KR): 품목 이름으로 식품을 고르는 P9 흐름. 응답 모양은 보고번호 조회와 같다 */
-export function nutritionSearchUrl(key: string, name: string, rows = 50): string {
+/** 이름으로 찾기(FOOD_NM_KR): 품목 이름으로 식품을 고르는 P9 흐름. dbClass('품목대표' 또는 '상용제품')를 주면 DB_CLASS_NM으로 좁힌다(명세의 요청 변수, 예시값 '품목대표'). 응답 모양은 보고번호 조회와 같다 */
+export function nutritionSearchUrl(key: string, name: string, rows = 50, dbClass?: string): string {
   const k = key.trim()
   const enc = k.includes('%') ? k : encodeURIComponent(k)
-  return `${NUTRI_BASE}?serviceKey=${enc}&type=json&pageNo=1&numOfRows=${rows}&FOOD_NM_KR=${encodeURIComponent(name)}`
+  const cls = dbClass ? `&DB_CLASS_NM=${encodeURIComponent(dbClass)}` : ''
+  return `${NUTRI_BASE}?serviceKey=${enc}&type=json&pageNo=1&numOfRows=${rows}&FOOD_NM_KR=${encodeURIComponent(name)}${cls}`
 }
 
-const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+/** 식품영양성분DB의 구분(DB_CLASS_NM) 중 일반 식품("우유_일반"처럼 상표 없는 대표 품목). 나머지는 '상용제품' */
+export const REPRESENTATIVE = '품목대표'
 
-/** 이름 검색 후보 순서(사용자 2026-10-20: "우유"에 관련 없는 것이 너무 많다): 이름이 같은 것 → "우유, 전지…"처럼 이름으로 시작하는 것 →
- *  "바나나 우유"처럼 단어로 들어 있는 것 → 그냥 포함된 것("우유식빵"). 같은 단계면 짧은 이름이 먼저(더 기본 식품). 자동 맞춤은 맨 앞을 쓴다 */
-export function rankNutrition<T extends { foodName: string | null }>(rows: readonly T[], term: string): T[] {
+const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+const SEG = /[\s,/()_]+/
+
+/** 이름 일치 단계(작을수록 잘 맞음): 0 같음, 1 이름으로 시작("우유, 저지방"·"우유_일반"·"우유(멸균)"), 2 단어로 들어 있음("도넛_제주말차 우유 도넛"),
+ *  3 그냥 포함("우유식빵"), 4 무관. 통합 DB의 이름은 "대표명_세부명"(명세 예시 "국밥_돼지머리")이라 밑줄도 구분자로 본다(사용자 2026-10-20 12:03) */
+export function nutritionTier(name: string, term: string): number {
   const t = term.replace(/\s+/g, '').toLowerCase()
-  if (!t) return [...rows]
-  const head = new RegExp(`^${escapeRe(t)}(?:$|[\\s,(/])`)
-  const tier = (name: string): number => {
-    const n = name.replace(/\s+/g, '').toLowerCase()
-    if (n === t) return 0
-    if (head.test(name.replace(/\s+/g, '').toLowerCase()) || head.test(name.toLowerCase())) return 1
-    if (name.toLowerCase().split(/[\s,/()]+/).some((seg) => seg === t)) return 2
-    if (n.includes(t)) return 3
-    return 4
-  }
+  if (!t) return 4
+  const n = name.replace(/\s+/g, '').toLowerCase()
+  if (n === t) return 0
+  const head = new RegExp(`^${escapeRe(t)}(?:$|[\\s,(/_])`)
+  if (head.test(n) || head.test(name.toLowerCase())) return 1
+  if (name.toLowerCase().split(SEG).some((seg) => seg === t)) return 2
+  if (n.includes(t)) return 3
+  return 4
+}
+
+/** 이름 검색 후보 순서(사용자 2026-10-20: "우유"에 관련 없는 것이 너무 많다): 일치 단계(nutritionTier) → 같은 단계면 품목대표가 상용제품보다 먼저 →
+ *  짧은 이름이 먼저(더 기본 식품) → 응답 순서. 자동 맞춤은 맨 앞부터 autoFit(handle.ts)에 맞는 것을 쓴다 */
+export function rankNutrition<T extends { foodName: string | null; dbClass?: string | null }>(rows: readonly T[], term: string): T[] {
+  if (!term.replace(/\s+/g, '')) return [...rows]
   return rows
-    .map((r, i) => ({ r, i, k: tier(r.foodName ?? ''), len: (r.foodName ?? '').length }))
-    .sort((a, b) => a.k - b.k || a.len - b.len || a.i - b.i)
+    .map((r, i) => ({ r, i, k: nutritionTier(r.foodName ?? '', term), rep: r.dbClass === REPRESENTATIVE ? 0 : 1, len: (r.foodName ?? '').length }))
+    .sort((a, b) => a.k - b.k || a.rep - b.rep || a.len - b.len || a.i - b.i)
     .map((x) => x.r)
 }
 
@@ -156,8 +165,8 @@ export type Nutrition = {
   updatedOn: string | null
 }
 
-/** 응답 한 줄 + 식품코드(FOOD_CD)·품목제조보고번호. 이름 검색 후보로 쓴다 */
-export type NutritionRow = Nutrition & { foodCd: string | null; reportNo: string | null }
+/** 응답 한 줄 + 식품코드(FOOD_CD)·품목제조보고번호·구분(DB_CLASS_NM: 품목대표/상용제품)·식품대분류(FOOD_CAT1_NM). 이름 검색 후보로 쓴다 */
+export type NutritionRow = Nutrition & { foodCd: string | null; reportNo: string | null; dbClass: string | null; category: string | null }
 
 function nutritionRowOf(it: Record<string, unknown>): NutritionRow {
   return {
@@ -179,6 +188,8 @@ function nutritionRowOf(it: Record<string, unknown>): NutritionRow {
     updatedOn: day(it.UPDATE_DATE) ?? day(it.RESEARCH_YMD),
     foodCd: text(it.FOOD_CD),
     reportNo: text(it.ITEM_REPORT_NO),
+    dbClass: text(it.DB_CLASS_NM),
+    category: text(it.FOOD_CAT1_NM),
   }
 }
 
@@ -200,8 +211,10 @@ export function parseNutritionRows(body: unknown): NutritionRow[] {
 export function parseNutrition(body: unknown): Nutrition | null {
   const [first] = parseNutritionRows(body)
   if (!first) return null
-  const { foodCd: _c, reportNo: _r, ...n } = first
+  const { foodCd: _c, reportNo: _r, dbClass: _d, category: _k, ...n } = first
   void _c
   void _r
+  void _d
+  void _k
   return n
 }
