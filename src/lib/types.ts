@@ -62,6 +62,24 @@ export interface Transaction {
   platform: string | null
   /** 품목 (영수증·쇼핑 주문). 목록 화면에서 불러온 경우에만 있음 */
   items?: TxItem[]
+  /** 주유 기록(주유소 영수증). 목록 화면에서 불러온 경우에만 있고, 주유 내역이 아니면 null */
+  fuel?: TxFuel | null
+}
+
+/** 내역에 붙은 주유 값(영수증에 적힌 값 그대로) */
+export interface TxFuel {
+  liters: number
+  price_per_liter: number
+  fuel_type: string | null
+}
+
+/** 주유 기록 한 줄: public.fuel_fills에 내역의 날짜·금액·가게 이름을 붙인 것 */
+export interface FuelFill extends TxFuel {
+  id: string
+  transaction_id: string
+  occurred_on: string
+  amount: number
+  title: string
 }
 
 export interface TxItem {

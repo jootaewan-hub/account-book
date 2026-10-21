@@ -1,13 +1,23 @@
 // 문자·사진 분석 결과를 저장할 수 있는 초안으로 바꾸고, Edge Function을 부른다.
 import type { CheckedBill, CheckedEntry } from '../../supabase/functions/extract-entries/extract'
-import { canSplitInstallment, createInstallment } from './api'
+import { canSplitInstallment, createInstallment, insertFuelFill } from './api'
 import { suggestCategory, VAGUE_CATEGORIES } from './categorize'
 import { uploadItemImage } from './itemImages'
 import { DELIVERY_PLATFORMS, normalizePlatform, platformOf } from './platform'
 import { sb } from './supabase'
-import type { Category, PaymentMethod, Scope, Transaction, TxType } from './types'
+import type { Category, PaymentMethod, Scope, Transaction, TxFuel, TxType } from './types'
 
 export type { CheckedBill, CheckedEntry }
+
+/** 초안의 주유 값. 확인 화면에서 고칠 수 있고, 리터·단가가 비어 있으면 저장하지 않는다 */
+export type DraftFuel = { liters: number | null; price_per_liter: number | null; fuel_type: string | null }
+
+/** 리터와 단가가 둘 다 있어야 주유 기록을 저장한다 (유종은 없어도 된다) */
+export function fuelComplete(f: DraftFuel | null | undefined): f is TxFuel {
+  return !!f && typeof f.liters === 'number' && f.liters > 0 && typeof f.price_per_liter === 'number' && f.price_per_liter > 0
+}
+
+const FUEL_CATEGORY = '차량·주유'
 
 export interface DraftItem {
   name: string
@@ -49,6 +59,8 @@ export interface Draft {
   splitInstallment: boolean
   /** 확인이 필요한 점 */
   warnings: string[]
+  /** 주유소 영수증이면 유종·주유량·리터당 단가. 아니면 null */
+  fuel: DraftFuel | null
 }
 
 export interface AnalyzeResult {
@@ -249,20 +261,25 @@ export function entryDrafts(e: CheckedEntry, i: number, ctx: DraftContext, split
     shared.push(`${match.issuer ?? '같은 끝자리'} 카드가 여러 장이라 고르지 못했어요. 결제수단을 골라 주세요.`)
   }
   if (e.price_fixes) shared.push(...e.price_fixes)
+  if (e.fuel_note) shared.push(e.fuel_note)
   if (e.items_match === false) shared.push(`품목 합계 ${itemsSum(e.items).toLocaleString()}원이 결제 금액 ${e.amount.toLocaleString()}원과 달라요.`)
   if (e.is_cancellation) shared.push('승인 취소 문자예요. 원래 내역을 찾아 지워 주세요.')
   const platform = draftPlatform(e)
   const items: DraftItem[] = e.items.map((it, j) => ({ ...it, src: `${i}:${j}` }))
+  // 주유 내역의 분류는 '차량·주유'(있으면). 주유 값은 그룹의 첫 초안에만 싣는다(주유는 상품 줄이 없어 나뉘지 않는다)
+  const fuel = e.fuel ?? null
+  const fuelCategory = fuel ? ctx.categories.find((c) => c.type === 'expense' && c.name === FUEL_CATEGORY && !c.archived)?.id ?? null : null
 
   const make = (key: string, title: string, amount: number, category: string | null, its: DraftItem[], memo: string | null): Draft => {
     const dup = sameTransaction({ date, amount, type: e.type }, ctx.existing)
     return {
       key, include: !e.is_cancellation && !dup, type: e.type, date, time: e.time, title, platform, amount,
-      category_id: pickCategory([category, e.category], [title, ...its.map((it) => it.name), e.merchant ?? '', platform ?? ''].join(' '), e.type, ctx.categories),
+      category_id: fuelCategory ?? pickCategory([category, e.category], [title, ...its.map((it) => it.name), e.merchant ?? '', platform ?? ''].join(' '), e.type, ctx.categories),
       payment_method_id: method?.id ?? remembered ?? (match.method === null && match.reason !== 'none' ? null : ctx.fallbackMethodId),
       scope: ctx.fallbackScope, memo, items: its,
       installment: e.type === 'expense' ? e.installment_months ?? null : null, splitInstallment: true,
       warnings: dup ? [`같은 날 같은 금액 내역이 이미 있어요${dup.title ? ` (${dup.title})` : ''}.`] : [],
+      fuel: null,
     }
   }
 
@@ -282,6 +299,7 @@ export function entryDrafts(e: CheckedEntry, i: number, ctx: DraftContext, split
     ]
   }
   out[0].warnings.unshift(...shared)
+  out[0].fuel = fuel
   return out
 }
 
@@ -398,9 +416,10 @@ export async function analyzeImages(
 /**
  * 초안 하나를 저장한다. 할부를 나눠 넣으면 첫 회차만 이 날짜의 내역으로 넣고,
  * 남은 회차는 반복 항목(할부)으로 등록해 날짜가 되면 자동으로 들어가게 한다.
- * installment: 할부 나눠 넣기였는지, txId: 만든 내역 id(장보기 품목을 연결할 때 쓴다, D-011).
+ * installment: 할부 나눠 넣기였는지, txId: 만든 내역 id(장보기 품목을 연결할 때 쓴다, D-011),
+ * fuelSaved: 주유 기록을 넣었는지(주유가 아니거나 리터·단가가 비어 있으면 null, 넣기에 실패하면 false — 내역은 그대로 둔다).
  */
-export async function saveDraft(householdId: string, d: Draft, source: 'text' | 'photo'): Promise<{ installment: boolean; txId: string }> {
+export async function saveDraft(householdId: string, d: Draft, source: 'text' | 'photo'): Promise<{ installment: boolean; txId: string; fuelSaved: boolean | null }> {
   const months = d.type === 'expense' ? d.installment : null
   const title = d.title.trim().slice(0, 60)
   const plan = months && d.splitInstallment && canSplitInstallment(d.amount, months)
@@ -431,5 +450,11 @@ export async function saveDraft(householdId: string, d: Draft, source: 'text' | 
     if (recurringId) await sb().from('recurring').delete().eq('id', recurringId)
     throw new Error(error.message)
   }
-  return { installment: plan !== null, txId: data as string }
+  const txId = data as string
+  let fuelSaved: boolean | null = null
+  if (fuelComplete(d.fuel)) {
+    fuelSaved = await insertFuelFill(householdId, txId, { liters: d.fuel.liters, price_per_liter: d.fuel.price_per_liter, fuel_type: d.fuel.fuel_type?.trim().slice(0, 20) || null })
+      .then(() => true, () => false)
+  }
+  return { installment: plan !== null, txId, fuelSaved }
 }

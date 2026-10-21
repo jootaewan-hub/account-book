@@ -4,31 +4,43 @@ import { utilityItemForBill } from './bills'
 import { installmentPlan } from './recurring'
 import { sb } from './supabase'
 import type {
-  Anniversary, AnniversaryInput, CalEvent, EventInput, BillCharge, BillUsage, Category, Household, Member, MonthTotal, PaymentMethod, Recurring, RecurringInput,
-  Scope, Spouse, Transaction, TxInput, UtilityBill,
+  Anniversary, AnniversaryInput, CalEvent, EventInput, BillCharge, BillUsage, Category, FuelFill, Household, Member, MonthTotal, PaymentMethod, Recurring, RecurringInput,
+  Scope, Spouse, Transaction, TxFuel, TxInput, UtilityBill,
 } from './types'
 
 const TX_COLUMNS =
   'id, household_id, type, occurred_on, amount, title, memo, category_id, payment_method_id, scope, source, created_by, created_at, recurring_id, recurring_month, platform'
-const TX_WITH_ITEMS =
-  `${TX_COLUMNS}, transaction_items(id, name, quantity, unit_price, amount, pack_size, pack_unit, image_path, sort)`
+const ITEM_COLUMNS = 'id, name, quantity, unit_price, amount, pack_size, pack_unit, image_path, sort'
+// 주유 기록(fuel_fills)은 내역 하나에 하나라 함께 읽는다
+const TX_WITH_ITEMS = `${TX_COLUMNS}, transaction_items(${ITEM_COLUMNS}), fuel_fills(liters, price_per_liter, fuel_type)`
+// 품목 줄이 있는 내역만 (장보기 비교용 과거 기록)
+const TX_WITH_ITEMS_ONLY = `${TX_COLUMNS}, transaction_items!inner(${ITEM_COLUMNS}), fuel_fills(liters, price_per_liter, fuel_type)`
 
 type Num = number | string
-type TxRowWithItems = Omit<Transaction, 'items'> & {
+type FuelRow = { liters: Num; price_per_liter: Num; fuel_type: string | null }
+type TxRowWithItems = Omit<Transaction, 'items' | 'fuel'> & {
   transaction_items?: {
     id: string; name: string; quantity: Num; unit_price: Num | null; amount: Num
     pack_size: Num | null; pack_unit: string | null; image_path: string | null; sort: number
   }[]
+  /** PostgREST는 1:1 임베드를 객체 또는 한 줄짜리 배열로 준다 */
+  fuel_fills?: FuelRow | FuelRow[] | null
 }
 
 const numOrNull = (v: Num | null) => (v === null ? null : Number(v))
 
+function fuelOf(raw: TxRowWithItems['fuel_fills']): TxFuel | null {
+  const f = Array.isArray(raw) ? raw[0] : raw
+  if (!f) return null
+  return { liters: Number(f.liters), price_per_liter: Number(f.price_per_liter), fuel_type: f.fuel_type ?? null }
+}
+
 function withItems(r: TxRowWithItems): Transaction {
-  const { transaction_items: raw, ...t } = r
+  const { transaction_items: raw, fuel_fills: fuelRaw, ...t } = r
   const items = (raw ?? []).map((i) => ({
     ...i, quantity: Number(i.quantity), unit_price: numOrNull(i.unit_price), amount: Number(i.amount), pack_size: numOrNull(i.pack_size),
   })).sort((a, b) => a.sort - b.sort)
-  return { ...t, amount: Number(t.amount), items }
+  return { ...t, amount: Number(t.amount), items, fuel: fuelOf(fuelRaw) }
 }
 
 function check<T>(res: { data: T | null; error: { message: string } | null }): T {
@@ -318,6 +330,39 @@ async function createUtilityItem(householdId: string, expense: BillExpense): Pro
   const row = check(await sb().from('recurring').insert({ ...utilityItemForBill(expense), household_id: householdId })
     .select('id').single()) as { id: string }
   return row.id
+}
+
+const FUEL_COLUMNS = 'id, transaction_id, liters, price_per_liter, fuel_type, transactions(occurred_on, amount, title)'
+const FUEL_LIMIT = 200
+
+/** 주유 기록(최근 날짜 먼저, 200건). 날짜·금액·가게 이름은 내역에서 읽는다 */
+export async function fetchFuelFills(householdId: string): Promise<FuelFill[]> {
+  type Row = { id: string; transaction_id: string; liters: Num; price_per_liter: Num; fuel_type: string | null
+    transactions: { occurred_on: string; amount: Num; title: string } | { occurred_on: string; amount: Num; title: string }[] | null }
+  const rows = check(await sb().from('fuel_fills').select(FUEL_COLUMNS).eq('household_id', householdId)
+    .order('created_at', { ascending: false }).limit(FUEL_LIMIT)) as unknown as Row[]
+  return rows.flatMap((r) => {
+    const t = Array.isArray(r.transactions) ? r.transactions[0] : r.transactions
+    if (!t) return []
+    return [{ id: r.id, transaction_id: r.transaction_id, liters: Number(r.liters), price_per_liter: Number(r.price_per_liter), fuel_type: r.fuel_type ?? null,
+      occurred_on: t.occurred_on, amount: Number(t.amount), title: t.title }]
+  }).sort((a, b) => (a.occurred_on < b.occurred_on ? 1 : a.occurred_on > b.occurred_on ? -1 : 0))
+}
+
+/** 내역에 주유 기록을 붙인다 (영수증에 적힌 리터·단가만) */
+export async function insertFuelFill(householdId: string, transactionId: string, f: TxFuel): Promise<void> {
+  check(await sb().from('fuel_fills').insert({ household_id: householdId, transaction_id: transactionId, liters: f.liters, price_per_liter: f.price_per_liter, fuel_type: f.fuel_type }))
+}
+
+const HISTORY_LIMIT = 1000
+
+/** 품목 줄이 있는 지출 내역(장보기 비교용 과거 기록). from 이후, 최근 날짜부터 1,000건 */
+export async function fetchItemHistory(householdId: string, from: string): Promise<Transaction[]> {
+  const rows = check(
+    await sb().from('transactions').select(TX_WITH_ITEMS_ONLY).eq('household_id', householdId).eq('type', 'expense')
+      .gte('occurred_on', from).order('occurred_on', { ascending: false }).order('created_at', { ascending: false }).limit(HISTORY_LIMIT),
+  ) as unknown as TxRowWithItems[]
+  return rows.map(withItems)
 }
 
 /** 구글 시트 연동 주소의 토큰. rotate면 새로 만들고 이전 주소는 끊긴다 */
