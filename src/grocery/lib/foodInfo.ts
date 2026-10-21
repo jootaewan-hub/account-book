@@ -1,8 +1,9 @@
-// 성분(P7)의 클라이언트 타입과 문구. 값은 식약처 C002·식품영양성분DB에서 온 것 그대로이고, 없으면 "확인 못 함".
-import type { C002Row, Nutrition, NutritionRow } from '../../../supabase/functions/_shared/foodInfo'
+// 성분(P7·P9·D-020)의 클라이언트 타입과 문구. 값은 식약처 품목제조보고(C002·C006·C003)·식품영양성분DB에서 온 것 그대로이고, 없으면 "확인 못 함".
+import { SOURCE_NAME, type IngredientOrigin, type IngredientRow, type IngredientSource, type Nutrition, type NutritionRow } from '../../../supabase/functions/_shared/foodInfo'
 import { koFullDay } from './alerts'
 
-export type { C002Row, Nutrition, NutritionRow }
+export type { IngredientOrigin, IngredientRow, IngredientSource, Nutrition, NutritionRow }
+export { SOURCE_NAME }
 
 /** grocery.item_nutrition 한 줄(P9, D-018): 품목 이름·규격에 기억한 식품영양성분DB 식품 */
 export type ItemNutrition = {
@@ -24,17 +25,28 @@ export function kcalText(n: Nutrition): string | null {
   return n.basis ? `${kcal}/${n.basis}` : kcal
 }
 
-/** grocery.product_info 한 줄 */
-export type ProductInfoView = {
+/** grocery.item_ingredients 한 줄(D-020): 품목 이름·규격에 기억한 식약처 품목제조보고 원재료 */
+export type ItemIngredients = {
+  /** 원재료를 받은 목록: C002 식품, C006 축산물, C003 건강기능식품 */
+  origin: IngredientOrigin
   reportNo: string
   name: string
   maker: string | null
   kind: string | null
   rawMaterials: string | null
   changedOn: string | null
-  nutrition: Nutrition | null
-  nutritionError: string | null
+  shelfLife: string | null
+  health: IngredientRow['health']
   updatedAt: string
+  /** 고른 상품의 이름으로 자동으로 맞춘 것(사람이 고르지 않음) */
+  auto: boolean
+}
+
+/** 원재료 출처 줄 */
+export const ORIGIN_LINE: Record<IngredientOrigin, string> = {
+  C002: '식품안전나라 식품 품목제조보고 원재료(C002)',
+  C006: '식품안전나라 축산물 품목제조보고 원재료(C006)',
+  C003: '식품안전나라 건강기능식품 품목제조신고 원재료(C003)',
 }
 
 export const INGREDIENT_NOTE = '식약처 품목제조보고의 식품유형·원재료라 포장지 표시와 다를 수 있어요. 같은 품목인지 보고번호·업체로 확인해 주세요.'
@@ -64,16 +76,3 @@ export function nutritionSource(n: Nutrition): string {
   return parts.join(', ')
 }
 
-/** 영양성분을 못 받은 이유 문구 */
-export function nutritionErrorText(code: string | null): string {
-  switch (code) {
-    case 'missing_api_key':
-      return '식품영양성분DB 키가 아직 없어 영양성분은 확인 못 함'
-    case 'not_found':
-      return '식품영양성분DB에 이 품목(보고번호)이 없어 영양성분 확인 못 함'
-    case null:
-      return '영양성분 확인 못 함'
-    default:
-      return `영양성분을 지금 불러오지 못했어요(${code})`
-  }
-}

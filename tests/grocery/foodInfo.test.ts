@@ -1,46 +1,92 @@
-// 성분·대안(P7): 식약처 C002(원재료)와 식품영양성분DB(15127578) 주소 만들기·응답 읽기, 상품명에서 찾을 말 고르기, 후보 순서.
+// 성분(P7·D-020): 식약처 품목제조보고 원재료(식품 C002, 축산물 I1310→C006, 건강기능식품 C003)와 식품영양성분DB(15127578) 주소 만들기·응답 읽기, 찾을 말 고르기, 후보 순서.
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import {
-  FoodInfoError, c002Terms, c002Url, isDish, nutritionSearchUrl, nutritionTier, nutritionUrl, parseC002, parseNutrition, parseNutritionRows, productFit, productPhrases, productWords, rankByProduct, rankC002, rankNutrition,
+  FoodInfoError, ingredientFit, ingredientTerms, isDish, nutritionSearchUrl, nutritionTier, nutritionUrl, originOf, parseNutrition, parseNutritionRows, parseReport, productFit, productPhrases, productWords,
+  rankByProduct, rankIngredients, rankNutrition, reportByNoUrl, reportSearchUrl, type IngredientRow,
 } from '../../supabase/functions/_shared/foodInfo'
 
 const read = (f: string) => JSON.parse(readFileSync(new URL(`./fixtures/foodsafety/${f}`, import.meta.url), 'utf8'))
 
-describe('C002 원재료', () => {
-  it('주소: https, 키는 경로에, 이름 검색은 PRDLST_NM=, 1~20건', () => {
-    expect(c002Url('KEY', '왕교자')).toBe('https://openapi.foodsafetykorea.go.kr/api/KEY/C002/json/1/20/PRDLST_NM=%EC%99%95%EA%B5%90%EC%9E%90')
-    expect(c002Url('KEY', '왕교자', 21, 40)).toBe('https://openapi.foodsafetykorea.go.kr/api/KEY/C002/json/21/40/PRDLST_NM=%EC%99%95%EA%B5%90%EC%9E%90')
+describe('식약처 품목제조보고 원재료: 식품 C002, 축산물 I1310→C006, 건강기능식품 C003 (D-020)', () => {
+  it('주소: https, 키는 경로에, 이름 검색은 PRDLST_NM=, 1~20건. 보고번호 조회는 5건(C006은 원재료마다 줄이 나뉠 수 있어 20건)', () => {
+    expect(reportSearchUrl('KEY', 'C002', '왕교자')).toBe('https://openapi.foodsafetykorea.go.kr/api/KEY/C002/json/1/20/PRDLST_NM=%EC%99%95%EA%B5%90%EC%9E%90')
+    expect(reportSearchUrl('KEY', 'I1310', '우유', 21, 40)).toBe('https://openapi.foodsafetykorea.go.kr/api/KEY/I1310/json/21/40/PRDLST_NM=%EC%9A%B0%EC%9C%A0')
+    expect(reportByNoUrl('KEY', 'C002', '1997040105528')).toBe('https://openapi.foodsafetykorea.go.kr/api/KEY/C002/json/1/5/PRDLST_REPORT_NO=1997040105528')
+    expect(reportByNoUrl('KEY', 'C006', '199900307705')).toBe('https://openapi.foodsafetykorea.go.kr/api/KEY/C006/json/1/20/PRDLST_REPORT_NO=199900307705')
+    expect(originOf('I1310')).toBe('C006')
+    expect([originOf('C002'), originOf('C003')]).toEqual(['C002', 'C003'])
   })
-  it('응답: 품목제조보고번호·이름·업체·원재료·변경일·유형을 읽는다', () => {
-    const r = parseC002(read('C002-sample.json'))
+  it('C002 응답: 품목제조보고번호·이름·업체·원재료·변경일·유형을 읽는다(sample 키 실제 응답)', () => {
+    const r = parseReport(read('C002-sample.json'), 'C002')
     expect(r.total).toBe(1081610) // total_count는 범위와 상관없이 전체 건수(sample 응답 그대로)
     expect(r.rows).toHaveLength(3)
     expect(r.rows[0]).toEqual({
-      reportNo: '1997040105528', name: '가시오가피 냉면', maker: '주식회사 금성에프앤비', rawMaterials: '밀가루, 정제수, 타피오카전분, 가시오갈피분말, 알카리제, 정제염',
-      kind: '숙면', changedOn: '2023-06-10',
+      source: 'C002', reportNo: '1997040105528', name: '가시오가피 냉면', maker: '주식회사 금성에프앤비', kind: '숙면',
+      rawMaterials: '밀가루, 정제수, 타피오카전분, 가시오갈피분말, 알카리제, 정제염', changedOn: '2023-06-10', shelfLife: null, health: null,
     })
   })
-  it('INFO-200(자료 없음)은 빈 결과, 다른 오류 코드는 FoodInfoError', () => {
-    expect(parseC002({ C002: { RESULT: { CODE: 'INFO-200', MSG: '해당하는 데이터가 없습니다.' } } })).toEqual({ total: 0, rows: [] })
-    expect(() => parseC002({ RESULT: { CODE: 'ERROR-300', MSG: '필수 값이 누락' } })).toThrow(FoodInfoError)
-    expect(() => parseC002('<html>')).toThrow(FoodInfoError)
+  it('I1310 응답(축산물 품목제조보고): 원재료는 없고(null) 유형·소비기한을 읽는다. 이름 검색이 된다(2026-10-21 sample 실제 응답)', () => {
+    const r = parseReport(read('I1310-name.json'), 'I1310')
+    expect(r.rows).toHaveLength(3)
+    expect(r.rows[2]).toMatchObject({ source: 'I1310', reportNo: '19930448001225', name: '16곡 꿀 선식 우유', maker: '연세대학교 연세유업', kind: '가공유', rawMaterials: null, shelfLife: '제조일로부터 6개월(실온보관)', health: null })
+    expect(r.rows[0].changedOn).toMatch(/^\d{4}-\d{2}-\d{2}$/)
+  })
+  it('C006 응답(축산물 원재료, 보고번호로만 조회): 같은 보고번호의 원재료 줄을 번호 순으로 합친다. 찾은 목록은 I1310으로 둔다', () => {
+    const r = parseReport(read('C006-byno.json'), 'C006')
+    expect(r.rows).toEqual([{ source: 'I1310', reportNo: '199900307705', name: '닭꼬치', maker: '노벨유통', kind: '포장육', rawMaterials: '닭고기', changedOn: '2015-11-02', shelfLife: null, health: null }])
+    const split = { C006: { RESULT: { CODE: 'INFO-000' }, row: [
+      { PRDLST_REPORT_NO: '1', PRDLST_NM: '소시지', BSSH_NM: 'a', PRDLST_DCNM: '소시지', RAWMTRL_ORDNO: '2', RAWMTRL_NM: '정제소금', CHNG_DT: '20240101' },
+      { PRDLST_REPORT_NO: '1', PRDLST_NM: '소시지', BSSH_NM: 'a', PRDLST_DCNM: '소시지', RAWMTRL_ORDNO: '1', RAWMTRL_NM: '돼지고기', CHNG_DT: '20240101' },
+      { PRDLST_REPORT_NO: '1', PRDLST_NM: '소시지', BSSH_NM: 'a', PRDLST_DCNM: '소시지', RAWMTRL_ORDNO: '1', RAWMTRL_NM: '돼지고기', CHNG_DT: '20240101' },
+    ] } }
+    expect(parseReport(split, 'C006').rows.map((x) => x.rawMaterials)).toEqual(['돼지고기, 정제소금'])
+  })
+  it('C003 응답(건강기능식품): 원재료와 함께 기능성·섭취 방법·주의사항·소비기한·형태를 읽는다(sample 실제 응답)', () => {
+    const r = parseReport(read('C003-name.json'), 'C003')
+    expect(r.rows).toHaveLength(2)
+    expect(r.rows[0]).toMatchObject({ source: 'C003', reportNo: '202000047849', name: '키텐셜 그로우업 딸기우유맛', maker: '(주)서울에프엔비', kind: '액상', shelfLife: '제조일로부터 15개월', changedOn: '2025-06-17' })
+    expect(r.rows[0].rawMaterials).toMatch(/^산화아연/)
+    expect(r.rows[0].health?.function).toContain('키성장')
+    expect(r.rows[0].health?.intake).toContain('1일 1회')
+    expect(r.rows[0].health?.caution).toContain('임산부')
+  })
+  it('INFO-200(자료 없음)은 빈 결과, 다른 오류 코드는 FoodInfoError, 응답이 JSON 객체가 아니어도 FoodInfoError', () => {
+    expect(parseReport({ C002: { RESULT: { CODE: 'INFO-200', MSG: '해당하는 데이터가 없습니다.' } } }, 'C002')).toEqual({ total: 0, rows: [] })
+    expect(() => parseReport({ RESULT: { CODE: 'ERROR-300', MSG: '필수 값이 누락' } }, 'I1310')).toThrow(FoodInfoError)
+    let code = ''
+    try {
+      parseReport({ I1310: { RESULT: { CODE: 'INFO-110', MSG: '활용신청 없음' } } }, 'I1310')
+    } catch (e) {
+      code = (e as FoodInfoError).code
+    }
+    expect(code).toBe('INFO-110')
+    expect(() => parseReport('<html>', 'C003')).toThrow(FoodInfoError)
   })
 })
 
-describe('찾을 말 고르기·후보 순서', () => {
-  it('상품명에서 수량·단위·광고 말을 빼고, 브랜드처럼 보이는 첫 말보다 뒤의 말을 먼저 쓴다', () => {
-    expect(c002Terms('CJ제일제당 비비고 왕교자 1.05kg (3개)')).toEqual(['왕교자', '비비고', 'cj제일제당'])
-    expect(c002Terms('농심 신라면 120g*5입')).toEqual(['신라면', '농심'])
-    expect(c002Terms('')).toEqual([])
+describe('원재료 찾을 말·후보 순서·자동 맞춤(D-020)', () => {
+  const row = (name: string, maker: string | null = null, p: Partial<IngredientRow> = {}): IngredientRow => ({
+    source: 'C002', reportNo: name, name, maker, kind: null, rawMaterials: null, changedOn: null, shelfLife: null, health: null, ...p,
   })
-  it('후보는 상품명 단어가 많이 맞는 것부터, 같으면 변경일이 늦은 것부터', () => {
-    const rows = [
-      { reportNo: '1', name: '왕교자 만두피', maker: 'a', rawMaterials: null, kind: null, changedOn: '2024-01-01' },
-      { reportNo: '2', name: '비비고 왕교자', maker: 'b', rawMaterials: null, kind: null, changedOn: '2023-01-01' },
-      { reportNo: '3', name: '비비고 왕교자', maker: 'c', rawMaterials: null, kind: null, changedOn: '2025-01-01' },
-    ]
-    expect(rankC002(rows, ['왕교자', '비비고', 'cj제일제당']).map((r) => r.reportNo)).toEqual(['3', '2', '1'])
+  it('준 검색어가 있으면 그것만, 아니면 고른 상품명의 구절(구체적인 것부터) 뒤에 품목 이름. 겹치면 하나만', () => {
+    expect(ingredientTerms({ query: ' 백일 된장 ', productName: '샘표 국산콩 100% 백일된장 900g', itemName: '된장' })).toEqual(['백일 된장'])
+    expect(ingredientTerms({ productName: '샘표 국산콩 100% 백일된장 900g', itemName: '된장' })).toEqual(['국산콩 백일된장', '백일된장', '된장'])
+    expect(ingredientTerms({ productName: '서울우유 1L', itemName: '서울 우유' })).toEqual(['서울우유'])
+    expect(ingredientTerms({ productName: null, itemName: '고추장' })).toEqual(['고추장'])
+    expect(ingredientTerms({ itemName: '  ' })).toEqual([])
+  })
+  it('상품명이 있으면 상품 단어가 많이 든 것(같으면 업체 일치)부터, 없으면 이름 일치 단계 → 짧은 이름 → 응답 순서', () => {
+    const rows = [row('된장찌개용 된장', '대상'), row('백일된장', '샘표식품(주)'), row('국산콩 백일된장', '샘표식품주식회사'), row('된장', '해찬들')]
+    expect(rankIngredients(rows, '샘표 국산콩 100% 백일된장 900g', '백일된장').map((r) => r.name)).toEqual(['국산콩 백일된장', '백일된장', '된장', '된장찌개용 된장']) // 단어 일치 수 → 업체 일치 → 짧은 이름
+    const named = [row('우유식빵'), row('딸기우유(가공유)'), row('우유'), row('우유, 저지방')]
+    expect(rankIngredients(named, null, '우유').map((r) => r.name)).toEqual(['우유', '우유, 저지방', '우유식빵', '딸기우유(가공유)'])
+  })
+  it('자동 맞춤은 상품 단어 2개 이상, 또는 1개 + 업체 일치일 때만', () => {
+    expect(ingredientFit(row('백일된장', '샘표식품(주)'), '샘표 국산콩 100% 백일된장 900g')).toBe(true)
+    expect(ingredientFit(row('국산콩 백일된장', '다른회사'), '샘표 국산콩 100% 백일된장 900g')).toBe(true)
+    expect(ingredientFit(row('된장', '해찬들'), '샘표 국산콩 100% 백일된장 900g')).toBe(false)
+    expect(ingredientFit(row('취나물 된장', '샘표식품(주)'), '샘표 국산콩 100% 백일된장 900g')).toBe(false)
   })
 })
 

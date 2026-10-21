@@ -1,6 +1,6 @@
-// 성분·대안(P7, 화면 설계 5절): 식약처 C002(식품 원재료·품목제조보고)와 식품영양성분DB(공공데이터포털 15127578)를 읽는다.
+// 성분(P7, 화면 설계 5절; D-020): 식약처 품목제조보고 원재료(식품 C002, 축산물 I1310→C006, 건강기능식품 C003)와 식품영양성분DB(공공데이터포털 15127578)를 읽는다.
 // Deno(Edge Function)와 Node(Vitest)가 함께 import하므로 런타임 전용 API를 쓰지 않는다. 키는 URL에만 들어가고 오류 문구에 넣지 않는다.
-// 확인한 사실: C002는 `sample` 키 실제 응답(tests/grocery/fixtures/foodsafety/C002-sample.json)으로 항목 이름을 확인했다.
+// 확인한 사실: C002·I1310·C006·C003은 `sample` 키 실제 응답(tests/grocery/fixtures/foodsafety/*.json)으로 항목 이름을 확인했다.
 // 확인 필요: 영양성분DB는 명세(swagger)의 항목 이름으로만 만들었다(키 활용신청 뒤 실제 호출로 확인, 응답의 items 모양이 배열인지 {item: …}인지 둘 다 읽는다).
 
 export class FoodInfoError extends Error {
@@ -13,28 +13,47 @@ export class FoodInfoError extends Error {
   }
 }
 
-const C002_BASE = 'https://openapi.foodsafetykorea.go.kr/api'
+const FOOD_BASE = 'https://openapi.foodsafetykorea.go.kr/api'
 const NUTRI_BASE = 'https://apis.data.go.kr/1471000/FoodNtrCpntDbInfo03/getFoodNtrCpntDbInq03'
 
-export function c002Url(key: string, name: string, start = 1, end = 20): string {
-  return `${C002_BASE}/${encodeURIComponent(key)}/C002/json/${start}/${end}/PRDLST_NM=${encodeURIComponent(name)}`
+/** 원재료를 이름으로 찾는 식약처 목록(D-020): 식품 품목제조보고 원재료(C002), 축산물 품목제조보고(I1310: 원재료는 C006에서 보고번호로 받는다), 건강기능식품 품목제조신고 원재료(C003).
+ *  C006은 PRDLST_NM 조회를 받지 않는다(2026-10-21 sample 키 실제 응답: "지원하지 않는 요청인자", 쓸 수 있는 것은 PRDLST_REPORT_NO·CHNG_DT·PRMS_DT·LCNS_NO). */
+export type IngredientSource = 'C002' | 'I1310' | 'C003'
+/** 원재료를 받은 목록(저장하는 origin): 축산물은 C006 */
+export type IngredientOrigin = 'C002' | 'C006' | 'C003'
+export const INGREDIENT_SOURCES: readonly IngredientSource[] = ['C002', 'I1310', 'C003']
+export const SOURCE_NAME: Record<IngredientSource | IngredientOrigin, string> = { C002: '식품', I1310: '축산물', C006: '축산물', C003: '건강기능식품' }
+/** 그 목록에서 원재료를 받는 서비스 */
+export const originOf = (s: IngredientSource): IngredientOrigin => (s === 'I1310' ? 'C006' : s)
+const familyOf = (s: IngredientSource | 'C006'): IngredientSource => (s === 'C006' ? 'I1310' : s)
+
+/** 이름(PRDLST_NM 부분 일치)으로 찾기, start~end번째 줄 */
+export function reportSearchUrl(key: string, service: IngredientSource, name: string, start = 1, end = 20): string {
+  return `${FOOD_BASE}/${encodeURIComponent(key)}/${service}/json/${start}/${end}/PRDLST_NM=${encodeURIComponent(name)}`
 }
 
-/** 품목제조보고번호로 한 건(같은 번호가 여러 줄이면 앞 5줄) */
-export function c002ByReportUrl(key: string, reportNo: string): string {
-  return `${C002_BASE}/${encodeURIComponent(key)}/C002/json/1/5/PRDLST_REPORT_NO=${encodeURIComponent(reportNo)}`
+/** 품목제조보고번호로 한 건(같은 번호가 여러 줄이면 앞 5줄). C006은 원재료마다 줄이 나뉠 수 있어 20줄 */
+export function reportByNoUrl(key: string, service: IngredientSource | 'C006', reportNo: string): string {
+  return `${FOOD_BASE}/${encodeURIComponent(key)}/${service}/json/1/${service === 'C006' ? 20 : 5}/PRDLST_REPORT_NO=${encodeURIComponent(reportNo)}`
 }
 
-export type C002Row = {
+export type IngredientRow = {
+  /** 어느 목록에서 찾았나(C006으로 받은 줄은 I1310) */
+  source: IngredientSource
   /** 품목제조보고번호 */
   reportNo: string
   name: string
   maker: string | null
-  rawMaterials: string | null
-  /** 식품유형(PRDLST_DCNM) */
+  /** 식품유형(PRDLST_DCNM). 건강기능식품은 제품 형태(PRDT_SHAP_CD_NM) */
   kind: string | null
-  /** 변경일(CHNG_DT) YYYY-MM-DD */
+  /** 원재료(RAWMTRL_NM). I1310 줄은 null(고르면 C006에서 받는다) */
+  rawMaterials: string | null
+  /** 변경일(CHNG_DT, 없으면 LAST_UPDT_DTM·PRMS_DT) YYYY-MM-DD */
   changedOn: string | null
+  /** 소비기한(POG_DAYCNT): I1310·C003에만 있다 */
+  shelfLife: string | null
+  /** 건강기능식품(C003): 주된 기능성·섭취 방법·섭취 시 주의사항 */
+  health: { function: string | null; intake: string | null; caution: string | null } | null
 }
 
 const text = (v: unknown): string | null => {
@@ -57,47 +76,75 @@ const num = (v: unknown): number | null => {
 
 type Envelope = { RESULT?: { CODE?: string; MSG?: string }; total_count?: unknown; row?: unknown }
 
-export function parseC002(body: unknown): { total: number; rows: C002Row[] } {
-  if (!body || typeof body !== 'object') throw new FoodInfoError('unreadable', 'C002 응답을 읽지 못함')
+/** 식약처 품목제조보고 응답(봉투 키는 서비스 이름). INFO-200은 자료 없음, 다른 코드(INFO-110 활용신청 없음 등)는 FoodInfoError */
+export function parseReport(body: unknown, service: IngredientSource | 'C006'): { total: number; rows: IngredientRow[] } {
+  if (!body || typeof body !== 'object') throw new FoodInfoError('unreadable', `${service} 응답을 읽지 못함`)
   const b = body as Record<string, unknown>
-  const svc = ((b.C002 && typeof b.C002 === 'object' ? b.C002 : b) as Envelope) ?? {}
+  const svc = ((b[service] && typeof b[service] === 'object' ? b[service] : b) as Envelope) ?? {}
   const code = svc.RESULT?.CODE ?? 'NO-RESULT'
   if (code === 'INFO-200') return { total: 0, rows: [] }
-  if (code !== 'INFO-000') throw new FoodInfoError(code, svc.RESULT?.MSG ?? 'C002 오류')
-  const rows: C002Row[] = []
-  for (const r of (Array.isArray(svc.row) ? svc.row : []) as Record<string, unknown>[]) {
+  if (code !== 'INFO-000') throw new FoodInfoError(code, svc.RESULT?.MSG ?? `${service} 오류`)
+  const raw = (Array.isArray(svc.row) ? svc.row : []) as Record<string, unknown>[]
+  const rows: IngredientRow[] = []
+  for (const r of service === 'C006' ? mergeC006(raw) : raw) {
     const reportNo = text(r.PRDLST_REPORT_NO)
     const name = text(r.PRDLST_NM)
     if (!reportNo || !name) continue
-    rows.push({ reportNo, name, maker: text(r.BSSH_NM), rawMaterials: text(r.RAWMTRL_NM), kind: text(r.PRDLST_DCNM), changedOn: day(r.CHNG_DT) })
+    rows.push({
+      source: familyOf(service),
+      reportNo,
+      name,
+      maker: text(r.BSSH_NM),
+      kind: service === 'C003' ? text(r.PRDT_SHAP_CD_NM) : text(r.PRDLST_DCNM),
+      rawMaterials: service === 'I1310' ? null : text(r.RAWMTRL_NM),
+      changedOn: day(r.CHNG_DT) ?? day(r.LAST_UPDT_DTM) ?? day(r.PRMS_DT),
+      shelfLife: text(r.POG_DAYCNT),
+      health: service === 'C003' ? { function: text(r.PRIMARY_FNCLTY), intake: text(r.NTK_MTHD), caution: text(r.IFTKN_ATNT_MATR_CN) } : null,
+    })
   }
   const total = num(svc.total_count)
   return { total: total !== null && total >= 0 ? Math.trunc(total) : rows.length, rows }
 }
 
-const AD_WORDS = new Set(['무료배송', '당일배송', '특가', '행사', '기획', '증정', '세트', '묶음', '정품', '최저가', '할인', '대용량'])
-
-/** 상품명에서 찾을 말: 수량·단위·광고 말을 빼고, 뒤의 말(상품 이름)부터 앞의 말(브랜드·회사) 순으로 */
-export function c002Terms(productName: string): string[] {
-  const out: string[] = []
-  for (const w of productName.split(/\s+/)) {
-    const t = w.toLowerCase().replace(/[^가-힣a-z0-9.]/g, '').replace(/\./g, '')
-    if (t.length < 2 || /^\d/.test(t) || AD_WORDS.has(t)) continue
-    if (!out.includes(t)) out.push(t)
+/** C006은 같은 보고번호의 원재료가 여러 줄로 올 수 있다(RAWMTRL_ORDNO). 번호 순으로 합쳐 한 줄로 만든다(같은 이름은 한 번만) */
+function mergeC006(raw: Record<string, unknown>[]): Record<string, unknown>[] {
+  const byNo = new Map<string, { row: Record<string, unknown>; parts: { ord: number; name: string }[] }>()
+  for (const r of raw) {
+    const no = text(r.PRDLST_REPORT_NO)
+    if (!no) continue
+    const e = byNo.get(no) ?? { row: r, parts: [] }
+    const name = text(r.RAWMTRL_NM)
+    if (name && !e.parts.some((x) => x.name === name)) e.parts.push({ ord: num(r.RAWMTRL_ORDNO) ?? e.parts.length + 1, name })
+    byNo.set(no, e)
   }
-  return out.reverse()
+  return [...byNo.values()].map(({ row, parts }) => ({ ...row, RAWMTRL_NM: parts.sort((a, b) => a.ord - b.ord).map((x) => x.name).join(', ') }))
 }
 
+const AD_WORDS = new Set(['무료배송', '당일배송', '특가', '행사', '기획', '증정', '세트', '묶음', '정품', '최저가', '할인', '대용량'])
 const squash = (s: string) => s.toLowerCase().replace(/[^가-힣a-z0-9]/g, '')
 
-/** 후보 순서: 상품명 단어가 많이 맞는 것부터, 같으면 변경일이 늦은 것부터 */
-export function rankC002(rows: C002Row[], terms: string[]): C002Row[] {
-  const hits = (r: C002Row) => {
-    const n = squash(r.name)
-    return terms.filter((t) => n.includes(t)).length
+/** 원재료 찾을 말(D-020): 준 검색어가 있으면 그것만, 아니면 고른 상품명의 구절(구체적인 것부터, productPhrases) 뒤에 품목 이름. 겹치면 하나만 */
+export function ingredientTerms(o: { query?: string | null; productName?: string | null; itemName: string }): string[] {
+  const q = (o.query ?? '').replace(/\s+/g, ' ').trim()
+  if (q) return [q]
+  const out: string[] = []
+  for (const t of [...(o.productName ? productPhrases(o.productName) : []), o.itemName.replace(/\s+/g, ' ').trim()]) {
+    if (t && !out.some((x) => squash(x) === squash(t))) out.push(t)
   }
-  return [...rows].sort((a, b) => hits(b) - hits(a) || (b.changedOn ?? '').localeCompare(a.changedOn ?? ''))
+  return out
 }
+
+/** 원재료 후보 순서: 상품명이 있으면 상품 단어가 많이 든 것부터(rankByProduct), 아니면 이름 일치 단계(nutritionTier) → 짧은 이름 → 응답 순서 */
+export function rankIngredients(rows: readonly IngredientRow[], productName: string | null, term: string): IngredientRow[] {
+  if (productName) return rankByProduct(rows.map((r) => ({ r, foodName: r.name, maker: r.maker })), productName).map((x) => x.r)
+  return rows
+    .map((r, i) => ({ r, i, k: nutritionTier(r.name, term), len: r.name.length }))
+    .sort((a, b) => a.k - b.k || a.len - b.len || a.i - b.i)
+    .map((x) => x.r)
+}
+
+/** 상품명으로 원재료 자동 맞춤에 쓸 만한가(productFit과 같은 규칙): 상품 단어 2개 이상, 또는 1개 + 업체 일치 */
+export const ingredientFit = (row: IngredientRow, productName: string): boolean => productFit({ foodName: row.name, maker: row.maker }, productName)
 
 /** 이름으로 찾기(FOOD_NM_KR): 품목 이름으로 식품을 고르는 P9 흐름. dbClass('품목대표' 또는 '상용제품')를 주면 DB_CLASS_NM으로 좁힌다(명세의 요청 변수, 예시값 '품목대표'). 응답 모양은 보고번호 조회와 같다 */
 export function nutritionSearchUrl(key: string, name: string, rows = 50, dbClass?: string): string {

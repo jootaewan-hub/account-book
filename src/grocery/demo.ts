@@ -7,7 +7,7 @@ import { keyOf, type MarketBoard, type MarketSeries, type NearbyPrice, type Seri
 import type { Recalls } from './lib/marketStore'
 import type { ShopPrice, StorePrice } from './lib/sources'
 import type { OurPurchase } from './lib/ours'
-import type { NutritionRow, ProductInfoView } from './lib/foodInfo'
+import type { IngredientRow, ItemIngredients, NutritionRow } from './lib/foodInfo'
 import { recentFridays } from '../../supabase/functions/_shared/tprice'
 
 const H = 'demo'
@@ -99,14 +99,21 @@ export function demoSeed(): { me: Membership; items: Item[]; alerts: AlertsResul
     kind, transactionId: `tx-${id}`, transactionItemId: id, occurredOn: on, platform, place, createdBy: by, name, quantity, unitPrice, amount,
     packSize: pack?.[0] ?? null, packUnit: pack?.[1] ?? null,
   })
-  const foodInfoDemo: ProductInfoView = {
-    reportNo: '1997040105528', name: '예시 왕교자', maker: '예시식품', kind: '만두',
-    rawMaterials: '밀가루(미국산), 돼지고기(국산), 양배추, 대파, 두부, 당면, 부추, 정제소금, 설탕, 참기름(예시)', changedOn: ago(30),
-    nutrition: {
-      basis: '100g', kcal: 232, carbs: 27.9, sugars: 2.1, protein: 9.8, fat: 9.2, satFat: 3.1, transFat: 0, cholesterol: 12, sodium: 540,
-      weight: 1050, servingRef: 100, source: '예시(식품영양성분DB 모양)', foodName: '예시 왕교자', maker: '예시식품', updatedOn: ago(60),
-    },
-    nutritionError: null, updatedAt: at,
+  // 원재료(D-020)의 가짜 식약처 품목제조보고(실제 값이 아님). 응답 모양만 따랐다
+  const irow = (source: IngredientRow['source'], reportNo: string, name: string, maker: string, kind: string, rawMaterials: string | null, p: Partial<IngredientRow> = {}): IngredientRow => ({
+    source, reportNo, name, maker, kind, rawMaterials, changedOn: ago(200), shelfLife: null, health: null, ...p,
+  })
+  const ingredientCandidates: IngredientRow[] = [
+    irow('C002', '1997040105528', '예시 왕교자', '예시식품', '만두', '밀가루(미국산), 돼지고기(국산), 양배추, 대파, 두부, 당면, 부추, 정제소금, 설탕, 참기름(예시)', { changedOn: ago(30) }),
+    irow('C002', '2001011234567', '예시 고기왕만두', '예시푸드', '만두', '밀가루, 돼지고기, 양파, 부추(예시)'),
+    irow('I1310', '2015030099999', '예시 왕교자 만두(축산물)', '예시축산', '양념육', null, { shelfLife: '제조일로부터 12개월(냉동)', changedOn: ago(400) }),
+    irow('C003', '2020000478490', '예시 키즈 칼슘 만두맛', '예시헬스', '액상', '탄산칼슘, 비타민D3, 정제수(예시)', {
+      shelfLife: '제조일로부터 15개월', health: { function: '뼈와 치아 형성에 필요(예시)', intake: '1일 1회, 1회 1팩(예시)', caution: '특정 원료에 알레르기가 있으면 섭취를 피할 것(예시)' },
+    }),
+  ]
+  const ingredientsDemo: ItemIngredients = {
+    origin: 'C002', reportNo: '1997040105528', name: '예시 왕교자', maker: '예시식품', kind: '만두',
+    rawMaterials: '밀가루(미국산), 돼지고기(국산), 양배추, 대파, 두부, 당면, 부추, 정제소금, 설탕, 참기름(예시)', changedOn: ago(30), shelfLife: null, health: null, updatedAt: at, auto: true,
   }
   // 영양성분 이름 검색(P9)의 가짜 식품(실제 값이 아님). 식품영양성분DB 모양만 따랐다
   const nrow = (foodCd: string, foodName: string, kcal: number, maker: string | null, carbs: number, protein: number, fat: number, sodium: number): NutritionRow => ({
@@ -228,15 +235,8 @@ export function demoSeed(): { me: Membership; items: Item[]; alerts: AlertsResul
       candidates: nutritionCandidates,
       candidatesOther: nutritionOther,
     },
-    // 성분(P7)의 가짜 식약처 품목·영양성분(실제 값이 아님). 영양성분DB 모양만 따랐다
-    foodInfo: {
-      info: { 'demo-p-1': foodInfoDemo },
-      candidates: [
-        { reportNo: '1997040105528', name: '예시 왕교자', maker: '예시식품', kind: '만두', rawMaterials: '밀가루(미국산), 돼지고기(국산), 양배추, 대파, 두부, 당면, 부추, 정제소금, 설탕, 참기름(예시)', changedOn: ago(30) },
-        { reportNo: '2001011234567', name: '예시 고기왕만두', maker: '예시푸드', kind: '만두', rawMaterials: '밀가루, 돼지고기, 양파, 부추(예시)', changedOn: ago(200) },
-        { reportNo: '2015030099999', name: '예시 왕교자피', maker: '예시제면', kind: '만두피', rawMaterials: '밀가루, 정제수, 정제소금(예시)', changedOn: ago(400) },
-      ],
-    },
+    // 원재료(D-020): 비비고 왕교자(demo-item-3)에 상품명으로 자동 맞춘 품목, 고르기 시트의 후보(식품·축산물·건강기능식품 섞어서)
+    ingredients: { items: { 'demo-item-3': ingredientsDemo }, candidates: ingredientCandidates },
     // 바코드 대조의 가짜 기록(실제 식약처 기록이 아님). 8801007001234는 GS1 검사 숫자가 맞는 보기 값
     barcodes: {
       '8801007001234': [

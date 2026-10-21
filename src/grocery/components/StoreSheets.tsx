@@ -2,7 +2,7 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import { filterGoods, storeTypeName, type StoreGood, type StoreOption } from '../lib/sources'
 import { koFullDay } from '../lib/alerts'
-import type { C002Row, NutritionRow } from '../lib/foodInfo'
+import { SOURCE_NAME, type IngredientRow, type IngredientSource, type NutritionRow } from '../lib/foodInfo'
 import type { ListStore } from '../lib/store'
 
 const CLOSE_MS = 250
@@ -167,21 +167,30 @@ export function StorePickerSheet({ store, onSaved, onClose }: StoresProps) {
   )
 }
 
-type FoodProps = { store: ListStore; itemId: string; productName: string; current: string | null; onDone: () => Promise<void>; onClose: () => void }
+type IngredientsProps = { store: ListStore; itemId: string; itemName: string; productName: string | null; current: string | null; onDone: () => Promise<void>; onClose: () => void }
+type IngredientsState = 'loading' | 'failed' | { term: string | null; candidates: IngredientRow[]; failed: { source: IngredientSource; reason: string }[] }
 
-/** 식약처 품목(C002) 고르기(P7): 상품명으로 찾은 후보 중 같은 품목을 사람이 고른다. 이름·업체·식품유형·변경일을 보고 판단한다 */
-export function FoodPickerSheet({ store, itemId, productName, current, onDone, onClose }: FoodProps) {
-  const [state, setState] = useState<'loading' | 'failed' | { term: string | null; candidates: C002Row[] }>('loading')
+/** 식약처 품목제조보고 고르기(D-020): 고른 상품명(구절, 구체적인 것부터) 또는 품목 이름으로 식품(C002)·축산물(I1310)·건강기능식품(C003) 목록을 찾아 사람이 고른다.
+ *  이름·업체·식품유형·소비기한·변경일을 보고 판단한다. 검색어를 바꿔 다시 찾을 수 있다 */
+export function IngredientsPickerSheet({ store, itemId, itemName, productName, current, onDone, onClose }: IngredientsProps) {
+  const [query, setQuery] = useState(productName ?? itemName)
+  const [state, setState] = useState<IngredientsState>('loading')
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState<string | null>(null)
+  const search = (q?: string) => {
+    setState('loading')
+    store.searchIngredients(itemId, q).then(setState, () => setState('failed'))
+  }
   useEffect(() => {
-    store.searchFoodInfo(itemId).then(setState, () => setState('failed'))
+    search()
+    // 열릴 때는 검색어 없이 한 번 찾는다(서버가 상품명 구절 → 품목 이름 순으로 찾는다)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [store, itemId])
-  const pick = (reportNo: string) => {
+  const pick = (c: IngredientRow) => {
     if (busy) return
     setBusy(true)
     setMsg(null)
-    store.chooseFoodInfo(itemId, reportNo).then(
+    store.chooseIngredients(itemId, c.source, c.reportNo).then(
       () => onDone().then(onClose, onClose),
       () => {
         setBusy(false)
@@ -191,20 +200,40 @@ export function FoodPickerSheet({ store, itemId, productName, current, onDone, o
   }
   return (
     <Frame title="식약처 품목 고르기" onClose={onClose}>
-      <p className="detail-none">고른 상품 "{productName}"과 같은 품목을 식약처 품목제조보고에서 골라 주세요. 이름·업체·용량을 포장과 견줘 보세요.</p>
-      {state === 'loading' && <p className="cand-state" role="status">식약처 품목 찾는 중</p>}
+      <p className="detail-none">
+        {productName ? `고른 상품 "${productName}"과` : `"${itemName}"과`} 같은 품목을 식약처 품목제조보고(식품·축산물·건강기능식품)에서 골라 주세요. 이름·업체·용량을 포장과 견줘 보세요.
+      </p>
+      <form
+        className="cand-search"
+        onSubmit={(e) => {
+          e.preventDefault()
+          const q = query.replace(/\s+/g, ' ').trim()
+          if (q) search(q)
+        }}
+      >
+        <input className="cand-input" aria-label="식약처 품목 찾을 이름" value={query} maxLength={60} onChange={(e) => setQuery(e.target.value)} />
+        <button type="submit" className="btn-secondary" disabled={state === 'loading'}>다시 찾기</button>
+      </form>
+      {state === 'loading' && <p className="cand-state" role="status">식약처 품목제조보고 찾는 중</p>}
       {state === 'failed' && <p className="cand-state" role="status">식약처 품목을 찾지 못했어요. 잠시 뒤 다시 해 주세요.</p>}
       {msg && <p className="cand-state" role="alert">{msg}</p>}
-      {typeof state === 'object' && state.candidates.length === 0 && <p className="cand-state">{state.term ? `"${state.term}"으로 찾은 식약처 품목이 없어요.` : '찾을 말이 없어요.'}</p>}
+      {typeof state === 'object' && state.failed.length > 0 && (
+        <p className="cand-state">{state.failed.map((f) => `${SOURCE_NAME[f.source]} 목록(${f.source})은 확인 못 함(${f.reason})`).join(', ')}</p>
+      )}
+      {typeof state === 'object' && state.candidates.length === 0 && (
+        <p className="cand-state">{state.term ? `"${state.term}"으로 찾은 식약처 품목이 없어요. 이름을 바꿔 다시 찾아 보세요.` : '찾을 말이 없어요.'}</p>
+      )}
       {typeof state === 'object' && state.candidates.length > 0 && (
         <>
-          <p className="src-line">"{state.term}"으로 찾음, {state.candidates.length}건(식품안전나라 C002)</p>
+          <p className="src-line">"{state.term}"으로 찾음, {state.candidates.length}건(식품안전나라 품목제조보고)</p>
           <ul className="pick-list">
             {state.candidates.map((c) => (
-              <li key={c.reportNo}>
-                <button type="button" className="pick-row" aria-pressed={c.reportNo === current} disabled={busy} onClick={() => pick(c.reportNo)}>
+              <li key={`${c.source}-${c.reportNo}`}>
+                <button type="button" className="pick-row" aria-pressed={c.reportNo === current} disabled={busy} onClick={() => pick(c)}>
                   <span className="pick-name">{c.name}</span>
-                  <span className="pick-meta">{[c.maker, c.kind, c.changedOn ? `${koFullDay(c.changedOn)} 변경` : null, `보고번호 ${c.reportNo}`].filter(Boolean).join(', ')}</span>
+                  <span className="pick-meta">
+                    {[SOURCE_NAME[c.source], c.maker, c.kind, c.shelfLife ? `소비기한 ${c.shelfLife}` : null, c.changedOn ? `${koFullDay(c.changedOn)} 변경` : null, `보고번호 ${c.reportNo}`].filter(Boolean).join(', ')}
+                  </span>
                 </button>
               </li>
             ))}

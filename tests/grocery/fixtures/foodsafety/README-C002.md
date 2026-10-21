@@ -1,2 +1,4 @@
 - `C002-sample.json`: 식품안전나라 C002(원재료) `sample` 키 실제 응답(2026-10-19, 3건). 항목 이름·값 모두 실제.
 - `nutrition-sample.json`: 식품영양성분DB(공공데이터포털 15127578, `getFoodNtrCpntDbInq03`, type=json) 명세의 항목 이름으로 만든 사본. **값은 시험용 보기 값**이며 실제 호출로 응답 모양을 확인하지 않았다(키 활용신청 필요).
+- `C002-name.json`·`I1310-name.json`·`C003-name.json`: 식품안전나라 C002·I1310·C003 `sample` 키 실제 응답(2026-10-21, `PRDLST_NM=우유`, 2~3건). 항목 이름·값 모두 실제.
+- `C006-byno.json`: C006 `sample` 키 실제 응답(2026-10-21, `PRDLST_REPORT_NO=199900307705`, 1건). C006은 `PRDLST_NM`을 받지 않는다(응답 MSG로 확인).

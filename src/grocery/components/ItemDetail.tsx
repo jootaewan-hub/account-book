@@ -24,8 +24,8 @@ import { change, changeText, dayText, gradeText, pickSeries, sameKey, seriesName
 import type { MarketStore } from '../lib/marketStore'
 import MarketPanel from './MarketPanel'
 import { ShopLinks, StorePrices } from './SourceBlocks'
-import { FoodPickerSheet, GoodPickerSheet, NutritionPickerSheet, StorePickerSheet } from './StoreSheets'
-import { INGREDIENT_NOTE, nutritionErrorText, nutritionRows, nutritionSource, type ProductInfoView, type ItemNutrition } from '../lib/foodInfo'
+import { GoodPickerSheet, IngredientsPickerSheet, NutritionPickerSheet, StorePickerSheet } from './StoreSheets'
+import { INGREDIENT_NOTE, nutritionRows, nutritionSource, ORIGIN_LINE, type ItemIngredients, type ItemNutrition } from '../lib/foodInfo'
 import { alternatives, betterText } from '../lib/alternatives'
 import type { Candidate } from '../lib/products'
 import type { ItemSources, ShopLink, ShopSource } from '../lib/sources'
@@ -102,8 +102,8 @@ export default function ItemDetail({ item, store, onChangeProduct, onClose, mark
     pickerOpener.current = null
     if (el) window.setTimeout(() => el.focus({ preventScroll: true }), 0)
   }
-  // P7: 식약처 품목(원재료·영양성분), 대안 계산용 후보
-  const [info, setInfo] = useState<ProductInfoView | null | 'loading' | 'failed'>('loading')
+  // P7·D-020: 식약처 품목제조보고 원재료(품목 이름·규격에 기억), 대안 계산용 후보
+  const [ing, setIng] = useState<ItemIngredients | null | 'loading' | 'failed'>('loading')
   // P9: 품목 이름·규격에 기억한 식품영양성분DB 식품(신선 품목도)
   const [nut, setNut] = useState<ItemNutrition | null | 'loading' | 'failed'>('loading')
   const [cands, setCands] = useState<Candidate[] | null | 'loading'>('loading')
@@ -149,7 +149,7 @@ export default function ItemDetail({ item, store, onChangeProduct, onClose, mark
   useEffect(() => {
     void loadSources()
   }, [loadSources])
-  const loadInfo = useCallback(() => store.productInfo(item.id).then(setInfo, () => setInfo('failed')), [store, item.id])
+  const loadIng = useCallback(() => store.itemIngredients(item.id).then(setIng, () => setIng('failed')), [store, item.id])
   const loadNut = useCallback(() => store.itemNutrition(item.id).then(setNut, () => setNut('failed')), [store, item.id])
   // 성분 탭을 열었는데 기억한 식품이 없으면 버튼 없이 이름으로 자동 맞춘다(사용자 2026-10-20). 한 번만 시도한다
   const autoTried = useRef(false)
@@ -159,12 +159,20 @@ export default function ItemDetail({ item, store, onChangeProduct, onClose, mark
     setNut('loading')
     store.autoNutrition(item.id).then(setNut, () => setNut(null))
   }, [tab, nut, store, item.id])
+  // 원재료도 성분 탭을 열면 고른 상품명으로 자동으로 맞춘다(D-020). 상품이 없는 품목은 이름만으로 맞추지 않고 사람이 고른다. 한 번만 시도한다
+  const ingTried = useRef(false)
   useEffect(() => {
-    void loadInfo()
+    if (tab !== 'ingredients' || ing !== null || ingTried.current || !data?.product) return
+    ingTried.current = true
+    setIng('loading')
+    store.autoIngredients(item.id).then(setIng, () => setIng(null))
+  }, [tab, ing, data, store, item.id])
+  useEffect(() => {
+    void loadIng()
     void loadNut()
     store.candidates(item.id).then(setCands, () => setCands(null))
     store.candidateAlerts(item.id).then(setCandAlerts, () => setCandAlerts(new Map()))
-  }, [loadInfo, store, item.id])
+  }, [loadIng, store, item.id])
   const withBusy = (p: Promise<unknown>) => {
     setSrcBusy(true)
     return p.finally(() => setSrcBusy(false))
@@ -420,44 +428,45 @@ export default function ItemDetail({ item, store, onChangeProduct, onClose, mark
                       </>
                     )}
                   </div>
-                  {!fresh && !data.product && <p className="cand-state">상품을 고르면 식약처 품목제조보고의 원재료도 보여 드려요.</p>}
-                  {data.product && info === 'loading' && <p className="cand-state" role="status">성분 불러오는 중</p>}
-                  {data.product && info === 'failed' && <p className="cand-state" role="status">성분을 불러오지 못했어요. 잠시 뒤 다시 열어 주세요.</p>}
-                  {data.product && info === null && (
-                    <>
-                      <p className="detail-none">식약처 품목제조보고에서 같은 품목을 고르면 원재료와 영양성분을 보여 드려요.</p>
-                      <button type="button" className="btn-secondary detail-link" onClick={() => openPicker('food')}>식약처 품목 찾기</button>
-                    </>
-                  )}
-                  {data.product && typeof info === 'object' && info !== null && (
-                    <>
-                      <p className="store-good">
-                        <span>{info.name}</span>
-                        <button type="button" className="btn-text" onClick={() => openPicker('food')}>다른 품목으로 바꾸기</button>
-                      </p>
-                      <p className="src-line">{[info.maker, info.kind, info.changedOn ? `${koFullDay(info.changedOn)} 변경` : null, `보고번호 ${info.reportNo}`].filter(Boolean).join(', ')}</p>
-                      <p className="read-note">{INGREDIENT_NOTE}</p>
-                      <div className="detail-block">
-                        <p className="detail-sub">원재료</p>
-                        <p className="ingredients-text">{info.rawMaterials ?? '확인 못 함'}</p>
-                        <p className="src-line">식품안전나라 식품 원재료(C002), {checkedText(info.updatedAt)} 받음</p>
-                      </div>
-                      <div className="detail-block">
-                        <p className="detail-sub">영양성분</p>
-                        {info.nutrition ? (
-                          <>
-                            <dl className="nutri-table">
-                              {nutritionRows(info.nutrition).map((r) => (
-                                <div key={r.label} className="nutri-row"><dt>{r.label}</dt><dd className="num">{r.value}</dd></div>
+                  {!fresh && (
+                    <div className="detail-block">
+                      <p className="detail-sub">원재료</p>
+                      {ing === 'loading' && <p className="cand-state" role="status">{data.product ? '식약처 품목제조보고에서 상품명으로 맞추는 중' : '원재료 불러오는 중'}</p>}
+                      {ing === 'failed' && <p className="cand-state" role="status">원재료를 불러오지 못했어요. 잠시 뒤 다시 열어 주세요.</p>}
+                      {ing === null && (
+                        <>
+                          <p className="detail-none">
+                            {data.product
+                              ? '식약처 품목제조보고에서 상품명으로 맞는 품목을 찾지 못했어요. 직접 찾아 고르면 같은 이름·규격으로 담을 때 다시 쓰여요.'
+                              : '식약처 품목제조보고(식품·축산물·건강기능식품)에서 같은 품목을 고르면 원재료를 보여 드려요. 상품을 고르면 상품명으로 자동으로 맞춰요.'}
+                          </p>
+                          <button type="button" className="btn-secondary detail-link" onClick={() => openPicker('food')}>식약처 품목 찾기</button>
+                        </>
+                      )}
+                      {typeof ing === 'object' && ing !== null && (
+                        <>
+                          <p className="store-good">
+                            <span>{ing.name}</span>
+                            <button type="button" className="btn-text" onClick={() => openPicker('food')}>다른 품목으로 바꾸기</button>
+                          </p>
+                          <p className="src-line">
+                            {[ing.maker, ing.kind, ing.shelfLife ? `소비기한 ${ing.shelfLife}` : null, ing.changedOn ? `${koFullDay(ing.changedOn)} 변경` : null, `보고번호 ${ing.reportNo}`].filter(Boolean).join(', ')}
+                          </p>
+                          <p className="ingredients-text">{ing.rawMaterials ?? '확인 못 함'}</p>
+                          {ing.health &&
+                            ([['기능성', ing.health.function], ['섭취 방법', ing.health.intake], ['주의사항', ing.health.caution]] as const)
+                              .filter(([, v]) => v)
+                              .map(([k, v]) => (
+                                <p key={k} className="ingredients-text"><b>{k}</b> {v}</p>
                               ))}
-                            </dl>
-                            <p className="src-line">{nutritionSource(info.nutrition)}</p>
-                          </>
-                        ) : (
-                          <p className="detail-none">{nutritionErrorText(info.nutritionError)}</p>
-                        )}
-                      </div>
-                    </>
+                          <p className="src-line">{ORIGIN_LINE[ing.origin]}, {ing.auto ? `${checkedText(ing.updatedAt)} 상품명으로 자동 맞춤` : `${checkedText(ing.updatedAt)} 고름`}</p>
+                          <p className="read-note">
+                            {ing.auto ? '고른 상품의 이름으로 자동으로 맞춘 품목이에요. 다른 품목이면 "다른 품목으로 바꾸기"로 고쳐 주세요. ' : ''}
+                            {INGREDIENT_NOTE}
+                          </p>
+                        </>
+                      )}
+                    </div>
                   )}
                 </div>
               )}
@@ -556,13 +565,14 @@ export default function ItemDetail({ item, store, onChangeProduct, onClose, mark
           onClose={closePicker}
         />
       )}
-      {picker === 'food' && data?.product && (
-        <FoodPickerSheet
+      {picker === 'food' && data && (
+        <IngredientsPickerSheet
           store={store}
           itemId={item.id}
-          productName={data.product.name}
-          current={typeof info === 'object' && info !== null ? info.reportNo : null}
-          onDone={() => loadInfo().then(() => {})}
+          itemName={item.name}
+          productName={data.product?.name ?? null}
+          current={typeof ing === 'object' && ing !== null ? ing.reportNo : null}
+          onDone={() => loadIng().then(() => {})}
           onClose={closePicker}
         />
       )}

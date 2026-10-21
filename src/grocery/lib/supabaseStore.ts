@@ -7,7 +7,7 @@ import { SEONGNAM_AREAS } from '../../../supabase/functions/_shared/tprice'
 import type { ItemSources, ShopPrice, StoreGood, StoreOption, StorePrice } from './sources'
 import type { OurPurchase } from './ours'
 import { invokePhoto } from './photo'
-import type { C002Row, ItemNutrition, Nutrition, NutritionRow, ProductInfoView } from './foodInfo'
+import type { IngredientRow, IngredientSource, ItemIngredients, ItemNutrition, Nutrition, NutritionRow } from './foodInfo'
 import type { ListStore, BarcodeRecord, CandidateAlert } from './store'
 import type { Membership } from './membership'
 import type { Item } from './types'
@@ -54,6 +54,19 @@ export function createSupabaseStore(client: SupabaseClient, me: Membership): Lis
   const g = () => client.schema('grocery')
   const table = () => g().from('items')
   type NutritionRowDb = { item_id: string; food_cd: string | null; food_name: string; maker: string | null; nutrition: Nutrition; updated_at: string }
+  type IngredientsRowDb = {
+    item_id: string; origin: ItemIngredients['origin']; report_no: string; name: string; maker: string | null; kind: string | null; raw_materials: string | null
+    changed_on: string | null; details: { shelfLife?: unknown; health?: unknown; auto?: unknown } | null; updated_at: string
+  }
+  const ingredientsOf = (r: IngredientsRowDb): ItemIngredients => {
+    const d = r.details ?? {}
+    const h = d.health && typeof d.health === 'object' ? (d.health as { function?: unknown; intake?: unknown; caution?: unknown }) : null
+    const str = (v: unknown) => (typeof v === 'string' && v ? v : null)
+    return {
+      origin: r.origin, reportNo: r.report_no, name: r.name, maker: r.maker, kind: r.kind, rawMaterials: r.raw_materials, changedOn: r.changed_on,
+      shelfLife: str(d.shelfLife), health: h ? { function: str(h.function), intake: str(h.intake), caution: str(h.caution) } : null, updatedAt: r.updated_at, auto: Boolean(d.auto),
+    }
+  }
   const nutritionOf = (r: NutritionRowDb): ItemNutrition => {
     const j = r.nutrition as { auto?: unknown; matchedBy?: unknown }
     return {
@@ -306,16 +319,31 @@ export function createSupabaseStore(client: SupabaseClient, me: Membership): Lis
     readPhoto(job, image) {
       return invokePhoto(client, { job, image })
     },
-    async productInfo(itemId): Promise<ProductInfoView | null> {
-      const it = await table().select('product_id').eq('id', itemId).maybeSingle()
-      if (it.error) throw it.error
-      if (!it.data?.product_id) return null
-      const { data, error } = await g().from('product_info').select('report_no, name, maker, kind, raw_materials, changed_on, nutrition, nutrition_error, updated_at')
-        .eq('household_id', me.householdId).eq('product_id', it.data.product_id).maybeSingle()
+    async itemIngredients(itemId) {
+      const { data, error } = await g().rpc('item_ingredients_rows')
       if (error) throw error
-      if (!data) return null
-      const r = data as { report_no: string; name: string; maker: string | null; kind: string | null; raw_materials: string | null; changed_on: string | null; nutrition: Nutrition | null; nutrition_error: string | null; updated_at: string }
-      return { reportNo: r.report_no, name: r.name, maker: r.maker, kind: r.kind, rawMaterials: r.raw_materials, changedOn: r.changed_on, nutrition: r.nutrition, nutritionError: r.nutrition_error, updatedAt: r.updated_at }
+      const r = ((data ?? []) as IngredientsRowDb[]).find((x) => x.item_id === itemId)
+      return r ? ingredientsOf(r) : null
+    },
+    async searchIngredients(itemId, query) {
+      const { data, error } = await client.functions.invoke<{ status: string; term: string | null; candidates: IngredientRow[]; failed: { source: IngredientSource; reason: string }[] }>('food-info', {
+        body: { itemId, action: 'ingredients_search', ...(query ? { query } : {}) },
+      })
+      if (error) throw error
+      if (!data || data.status !== 'done') throw new Error('search_failed')
+      return { term: data.term, candidates: data.candidates, failed: data.failed ?? [] }
+    },
+    async chooseIngredients(itemId, source, reportNo) {
+      const { data, error } = await client.functions.invoke<{ status: string }>('food-info', { body: { itemId, action: 'ingredients_choose', source, reportNo } })
+      if (error) throw error
+      if (!data || data.status !== 'done') throw new Error('choose_failed')
+    },
+    async autoIngredients(itemId) {
+      const { data, error } = await client.functions.invoke<{ status: string; ingredients: unknown | null }>('food-info', { body: { itemId, action: 'ingredients_auto' } })
+      if (error) throw error
+      if (!data || data.status !== 'done') throw new Error('auto_failed')
+      if (!data.ingredients) return null
+      return this.itemIngredients(itemId)
     },
     async itemNutrition(itemId) {
       const { data, error } = await g().rpc('item_nutrition_rows')
@@ -342,23 +370,6 @@ export function createSupabaseStore(client: SupabaseClient, me: Membership): Lis
       if (!data || data.status !== 'done') throw new Error('auto_failed')
       if (!data.nutrition) return null
       return this.itemNutrition(itemId)
-    },
-    async searchFoodInfo(itemId) {
-      const it = await table().select('product_id').eq('id', itemId).maybeSingle()
-      if (it.error) throw it.error
-      if (!it.data?.product_id) throw new Error('no_product')
-      const { data, error } = await client.functions.invoke<{ status: string; term: string | null; candidates: C002Row[] }>('food-info', { body: { productId: it.data.product_id, action: 'search' } })
-      if (error) throw error
-      if (!data || data.status !== 'done') throw new Error('search_failed')
-      return { term: data.term, candidates: data.candidates }
-    },
-    async chooseFoodInfo(itemId, reportNo) {
-      const it = await table().select('product_id').eq('id', itemId).maybeSingle()
-      if (it.error) throw it.error
-      if (!it.data?.product_id) throw new Error('no_product')
-      const { data, error } = await client.functions.invoke<{ status: string }>('food-info', { body: { productId: it.data.product_id, action: 'choose', reportNo } })
-      if (error) throw error
-      if (!data || data.status !== 'done') throw new Error('choose_failed')
     },
     async barcodeAlerts(code) {
       const [rows, syncedAt] = await Promise.all([

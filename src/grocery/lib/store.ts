@@ -16,7 +16,7 @@ import {
 import type { ItemSources, ShopLink, ShopPrice, ShopSource, StoreGood, StoreOption, StorePrice } from './sources'
 import type { OurPurchase } from './ours'
 import type { CapturedQuoteInput, ListItem, PhotoImage, PhotoJob, PhotoResult, PriceRead, ProductRead } from './photo'
-import type { C002Row, ItemNutrition, NutritionRow, ProductInfoView } from './foodInfo'
+import type { IngredientRow, IngredientSource, ItemIngredients, ItemNutrition, NutritionRow } from './foodInfo'
 import { productQuery } from '../../../supabase/functions/grocery-photo/photo'
 
 export interface ListStore {
@@ -63,12 +63,14 @@ export interface ListStore {
   addCapturedQuote(itemId: string, q: CapturedQuoteInput): Promise<void>
   /** 바코드가 같은 식약처 기록(P6, 화면 설계 8-2 "기록 있음")과 서비스별 확인 시각 */
   barcodeAlerts(code: string): Promise<{ records: BarcodeRecord[]; syncedAt: AlertsResult['syncedAt'] }>
-  /** 성분(P7): 고른 상품에 붙인 식약처 품목(원재료·영양성분). 없으면 null */
-  productInfo(itemId: string): Promise<ProductInfoView | null>
-  /** 식약처 품목 후보 찾기(food-info search) */
-  searchFoodInfo(itemId: string): Promise<{ term: string | null; candidates: C002Row[] }>
-  /** 사람이 고른 품목을 저장(food-info choose) */
-  chooseFoodInfo(itemId: string, reportNo: string): Promise<void>
+  /** 원재료(D-020): 품목 이름·규격에 기억한 식약처 품목제조보고 원재료. 없으면 null */
+  itemIngredients(itemId: string): Promise<ItemIngredients | null>
+  /** 식약처 품목제조보고(식품·축산물·건강기능식품)를 찾는다(food-info ingredients_search). query가 없으면 고른 상품명 구절 → 품목 이름. failed는 확인 못 한 목록 */
+  searchIngredients(itemId: string, query?: string): Promise<{ term: string | null; candidates: IngredientRow[]; failed: { source: IngredientSource; reason: string }[] }>
+  /** 사람이 고른 품목을 저장(food-info ingredients_choose) */
+  chooseIngredients(itemId: string, source: IngredientSource, reportNo: string): Promise<void>
+  /** 성분 탭을 열 때 고른 상품명으로 맞는 품목을 자동으로 저장(food-info ingredients_auto). 상품이 없거나 맞는 것이 없으면 null */
+  autoIngredients(itemId: string): Promise<ItemIngredients | null>
   /** 영양성분(P9, D-018): 품목 이름·규격에 기억한 식품영양성분DB 식품. 없으면 null */
   itemNutrition(itemId: string): Promise<ItemNutrition | null>
   /** 식품영양성분DB를 이름으로 찾는다(food-info nutrition_search). query가 없으면 품목 이름 */
@@ -106,8 +108,8 @@ export type DemoPrices = {
   photo?: { product: ProductRead; price: PriceRead & { qty: number }; list?: ListItem[] }
   /** 바코드 → 식약처 기록(P6) */
   barcodes?: Record<string, BarcodeRecord[]>
-  /** 성분(P7): 상품 id → 식약처 품목, 후보 목록 */
-  foodInfo?: { info: Record<string, ProductInfoView>; candidates: C002Row[] }
+  /** 원재료(D-020): 품목 id → 기억한 품목제조보고, 후보 목록 */
+  ingredients?: { items: Record<string, ItemIngredients>; candidates: IngredientRow[] }
   /** 품목 id → 기억한 식품, 이름 검색 후보(P9) */
   nutrition?: { items: Record<string, ItemNutrition>; candidates: NutritionRow[]; candidatesOther?: NutritionRow[] }
 }
@@ -135,8 +137,13 @@ export function createMemoryStore(
   }
   let chosenStores: string[] = []
   const captured = new Map<string, PriceLine[]>() // 상품 id → 캡처한 가격 줄(P4)
-  const foodInfo = new Map<string, ProductInfoView>(Object.entries(demoPrices.foodInfo?.info ?? {}))
+  const ingredients = new Map<string, ItemIngredients>(Object.entries(demoPrices.ingredients?.items ?? {}))
   const nutrition = new Map<string, ItemNutrition>(Object.entries(demoPrices.nutrition?.items ?? {}))
+  // 데모 후보를 기억한 원재료 모양으로(축산물 I1310 줄은 C006에서 받은 것으로 본다)
+  const fromRow = (c: IngredientRow): Omit<ItemIngredients, 'updatedAt' | 'auto'> => ({
+    origin: c.source === 'I1310' ? 'C006' : c.source, reportNo: c.reportNo, name: c.name, maker: c.maker, kind: c.kind, rawMaterials: c.rawMaterials,
+    changedOn: c.changedOn, shelfLife: c.shelfLife, health: c.health,
+  })
   // 데모 후보: 검색어에 '파'가 들면 파 식품, 아니면 만두 식품(가짜 값)
   const demoCandidates = (term: string) => (term.includes('파') ? demoPrices.nutrition?.candidates : demoPrices.nutrition?.candidatesOther) ?? demoPrices.nutrition?.candidates ?? []
   const ours = new Map<string, OurPurchase[]>(Object.entries(demoPrices.ours ?? {}).map(([k, v]) => [k, v.map((x) => ({ ...x }))]))
@@ -284,23 +291,27 @@ export function createMemoryStore(
       if (job === 'list') return { job: 'list', items: (demoPrices.photo.list ?? []).map((x) => ({ ...x })), note: null }
       return { job: 'price', price: demoPrices.photo.price }
     },
-    async productInfo(itemId) {
-      const it = items.find((i) => i.id === itemId)
-      return it?.productKey ? (foodInfo.get(it.productKey) ?? null) : null
+    async itemIngredients(itemId) {
+      const r = ingredients.get(itemId)
+      return r ? { ...r } : null
     },
-    async searchFoodInfo() {
-      return { term: '왕교자', candidates: (demoPrices.foodInfo?.candidates ?? []).map((c) => ({ ...c })) }
-    },
-    async chooseFoodInfo(itemId, reportNo) {
+    async searchIngredients(itemId, query) {
       const it = items.find((i) => i.id === itemId)
-      if (!it?.productKey) throw new Error('no_product')
-      const c = (demoPrices.foodInfo?.candidates ?? []).find((x) => x.reportNo === reportNo)
+      const term = query?.trim() || it?.name || ''
+      return { term: term || null, candidates: (demoPrices.ingredients?.candidates ?? []).map((c) => ({ ...c })), failed: [] }
+    },
+    async chooseIngredients(itemId, source, reportNo) {
+      const c = (demoPrices.ingredients?.candidates ?? []).find((x) => x.source === source && x.reportNo === reportNo)
       if (!c) throw new Error('not_found')
-      const prev = foodInfo.get(it.productKey)
-      foodInfo.set(it.productKey, {
-        reportNo: c.reportNo, name: c.name, maker: c.maker, kind: c.kind, rawMaterials: c.rawMaterials, changedOn: c.changedOn,
-        nutrition: prev?.reportNo === c.reportNo ? prev.nutrition : null, nutritionError: prev?.reportNo === c.reportNo ? prev.nutritionError : 'not_found', updatedAt: now(),
-      })
+      ingredients.set(itemId, { ...fromRow(c), updatedAt: now(), auto: false })
+    },
+    async autoIngredients(itemId) {
+      const it = items.find((i) => i.id === itemId)
+      const c = (demoPrices.ingredients?.candidates ?? [])[0]
+      if (!it?.productKey || !c) return null
+      const row: ItemIngredients = { ...fromRow(c), updatedAt: now(), auto: true }
+      ingredients.set(itemId, row)
+      return { ...row }
     },
     async itemNutrition(itemId) {
       const n = nutrition.get(itemId)
