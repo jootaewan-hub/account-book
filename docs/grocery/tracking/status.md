@@ -10,7 +10,7 @@
 
 - 주유 영수증 분석과 이번 장보기 살펴보기(D-021·D-022, 2026-10-21 저녁, 브랜치 `claude/fuel-and-grocery-compare`, 설계 `docs/superpowers/specs/2026-10-21-fuel-and-grocery-compare-design.md`, 계획 `docs/superpowers/plans/2026-10-21-fuel-and-grocery-compare.md`):
   마이그레이션 `20261031000000_fuel_fills.sql`(public, PGlite 시험), `extract-entries`의 `fuel` 스키마·`checkFuel`·원단위 절사 규칙·`preferRetry`, `src/lib/fuel.ts`(지난번 대비·달별·간격·추이), `FuelCard`(통계)·확인 화면 주유 칸·내역 행 표시, `src/lib/shopCompare.ts`(이름 맞추기·용량당 값·최근 구매·장보기 묶음)와 `ShopCompareCard`.
-  시험 64개 파일 865개 통과, 캡처 shell-smart-fuel·shell-stats-fuel·shell-smart-compare(390·1280, 라이트·다크) 확인. **공유 DB 적용(`fuel_fills`)·`extract-entries` 배포·main 병합은 사용자 확인 대기**(설계 7절).
+  시험 64개 파일 865개 통과, 캡처 shell-smart-fuel·shell-stats-fuel·shell-smart-compare(390·1280, 라이트·다크) 확인. 공유 DB 적용(`fuel_fills`)·`extract-entries` v14 배포·main 병합은 2026-10-21 21:30 사용자 지시로 끝냈다(`docs/HANDOFF.md` 5절 14번). 남은 확인(사용자): 주유 영수증 1장·장보기 영수증 1장으로 실제 값 대조.
   오늘 장보기 기록 판단은 설계 1-2절: 구조·금액·연결은 맞고, 상품 이름 오독 10줄쯤(긴 영수증을 Haiku가 읽음)·가맹점 "뉴코아아탑점"(확인 필요)·10-14 영수증(식비, 상품별)과 10-21 영수증(장보기, 한 건)의 모양 차이·"쿠팡 3,080원"(품목 0줄, 확인 필요). 데이터는 고치지 않았다.
 
 - 원재료를 제품명으로 찾기(D-020, 2026-10-21, 브랜치 `claude/ingredients-by-name`): 마이그레이션 `20261030000000_grocery_item_ingredients.sql`(표·`set_item_ingredients`(서비스 롤)·`item_ingredients_rows()`, PGlite 시험 `ingredientsDb.test.ts`),

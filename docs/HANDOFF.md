@@ -93,7 +93,7 @@ npm run screens
     남은 확인(사용자): 된장·고추장·우유 성분 탭의 "원재료"가 상품명으로 맞춰지는지. 고르기 시트에 "축산물 목록(I1310)은 확인 못 함(INFO-110)" 같은 줄이 뜨면 식품안전나라에서 I1310·C006·C003 활용신청.
 13. 됨 — 2026-10-21 10:58 KST `food-info` v8 배포(verify_jwt true, 무인증 POST 401 확인; D-020 보충·보충 2: 식품유형 검색, 상표+낱말 단계, 띄어쓴 구절 안 씀; DB 변경 없음) → main 병합·푸시. 남은 확인(사용자): 된장·고추장·우유·버터·치즈·과자 성분 탭을 열어 자동 맞춤과 고르기 후보. 운영 로그 404 세 건(2026-10-21 01:00 UTC)은 원인 미확인 → 다시 나면 `query_logs`로 보기.
 
-14. 대기 — 2026-10-21 저녁 D-021·D-022(브랜치 `claude/fuel-and-grocery-compare`, 설계·계획은 `docs/superpowers/specs|plans/2026-10-21-fuel-and-grocery-compare*`): ① MCP `apply_migration`(`fuel_fills`, public 표·RLS) → Advisors 확인 → ② `extract-entries` 배포(verify_jwt true 그대로; `fuel` 스키마·절사 규칙·다시 읽기 선택) → ③ main 병합·푸시. **순서를 지켜야 한다**: 새 번들은 내역을 읽을 때 `fuel_fills` 임베드를 요구하므로 마이그레이션 없이 main을 먼저 푸시하면 내역 목록이 빈 화면이 된다(마이그레이션이 실패하면 main 푸시를 하지 않는다). 그 뒤 사용자가 주유 영수증 1장·장보기 영수증 1장으로 확인(주유 칸 값이 영수증과 같은지, 통계 주유 묶음, 살펴보기 묶음의 지난번 값이 가계부 기록과 같은지).
+14. 됨 — 2026-10-21 21:30 KST D-021·D-022(브랜치 `claude/fuel-and-grocery-compare`, 설계·계획은 `docs/superpowers/specs|plans/2026-10-21-fuel-and-grocery-compare*`): ① MCP `apply_migration`(`fuel_fills`) 적용 — RLS 켜짐·정책 `fuel_fills_all`·anon 권한 없음·제약 8개 확인, 보안 점검은 전과 같은 항목뿐, 성능 점검 새 항목은 복합 FK `(transaction_id, household_id)` 색인 없음 INFO(utility_bills와 같은 모양) ② `extract-entries` v14 배포(verify_jwt true, import map deno.json, 무인증 POST 401 확인, 배포 소스에 `FuelSchema`·`preferRetry`·withFuel 있음) ③ main 병합·푸시(아래 커밋). **순서를 지켜야 한다**: 새 번들은 내역을 읽을 때 `fuel_fills` 임베드를 요구하므로 마이그레이션 없이 main을 먼저 푸시하면 내역 목록이 빈 화면이 된다(마이그레이션이 실패하면 main 푸시를 하지 않는다). 그 뒤 사용자가 주유 영수증 1장·장보기 영수증 1장으로 확인(주유 칸 값이 영수증과 같은지, 통계 주유 묶음, 살펴보기 묶음의 지난번 값이 가계부 기록과 같은지).
 
 ### 사용자 할 일
 
