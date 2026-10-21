@@ -4,7 +4,7 @@
 // 식약처 키(FOODSAFETY_API_KEY)와 공공데이터포털 키(DATA_GO_KR_SERVICE_KEY)는 서버에만 있다. 오류 문구에는 코드만 남긴다.
 import {
   FoodInfoError, INGREDIENT_SOURCES, ingredientFit, ingredientTerms, isDish, nutritionSearchUrl, nutritionTier, originOf, parseNutritionRows, parseReport, productFit, productPhrases,
-  rankByProduct, rankIngredients, rankNutrition, REPRESENTATIVE, reportByNoUrl, reportSearchUrl,
+  rankByProduct, rankIngredients, rankNutrition, REPRESENTATIVE, reportByNoUrl, reportSearchUrl, reportTypeUrl,
   type IngredientOrigin, type IngredientRow, type IngredientSource, type NutritionRow,
 } from '../_shared/foodInfo.ts'
 
@@ -73,25 +73,47 @@ const toInfo = (r: IngredientRow, origin: IngredientOrigin): IngredientInfo => (
   origin, reportNo: r.reportNo, name: r.name, maker: r.maker, kind: r.kind, rawMaterials: r.rawMaterials, changedOn: r.changedOn, shelfLife: r.shelfLife, health: r.health,
 })
 
-/** 찾을 말을 차례로, 세 목록을 한꺼번에 부른다. 실패한 목록(활용신청 없음 INFO-110·네트워크)은 적어 두고 다음 말에서 다시 부르지 않는다. 처음 후보가 나온 말에서 멈춘다 */
-async function searchLists(deps: FoodInfoDeps, key: string, terms: string[]): Promise<{ term: string | null; rows: IngredientRow[]; failed: Failed[] }> {
+/** 같은 목록·보고번호는 하나만(이름 검색과 식품유형 검색이 겹친다) */
+const dedupeRows = (rows: readonly IngredientRow[]): IngredientRow[] => {
+  const seen = new Set<string>()
+  return rows.filter((r) => {
+    const k = `${r.source}|${r.reportNo}`
+    if (seen.has(k)) return false
+    seen.add(k)
+    return true
+  })
+}
+
+/** 찾을 말을 차례로, 세 목록을 한꺼번에 부른다. typeTerms에 든 말(품목 이름·검색어)은 C002·I1310에서 식품유형(PRDLST_DCNM)으로도 함께 찾는다(D-020 보충:
+ *  "버터"는 이름 검색 앞 20건이 소금빵·쿠키뿐이지만 식품유형 "버터"는 실제 버터다). 실패한 목록(활용신청 없음 INFO-110·네트워크)은 적어 두고
+ *  다음 말에서 다시 부르지 않는다(식품유형 검색만 실패하면 그냥 비운다). 처음 후보가 나온 말에서 멈춘다 */
+async function searchLists(
+  deps: FoodInfoDeps, key: string, terms: string[], typeTerms: ReadonlySet<string> = new Set(),
+): Promise<{ term: string | null; rows: IngredientRow[]; failed: Failed[] }> {
   const failed: Failed[] = []
   const dead = new Set<IngredientSource>()
   for (const term of terms.slice(0, MAX_TERMS)) {
     const live = INGREDIENT_SOURCES.filter((s) => !dead.has(s))
     if (live.length === 0) break
+    const calls = live.flatMap((source) => {
+      const list = [{ source, url: reportSearchUrl(key, source, term), byName: true }]
+      if (typeTerms.has(term) && source !== 'C003') list.push({ source, url: reportTypeUrl(key, source, term), byName: false })
+      return list
+    })
     const results = await Promise.all(
-      live.map(async (source) => {
+      calls.map(async ({ source, url, byName }) => {
         try {
-          return parseReport(await deps.fetchJson(reportSearchUrl(key, source, term)), source).rows
+          return parseReport(await deps.fetchJson(url), source).rows
         } catch (e) {
-          dead.add(source)
-          failed.push({ source, reason: reason(e) })
+          if (byName) {
+            dead.add(source)
+            failed.push({ source, reason: reason(e) })
+          }
           return [] as IngredientRow[]
         }
       }),
     )
-    const rows = results.flat()
+    const rows = dedupeRows(results.flat())
     if (rows.length > 0) return { term, rows, failed }
   }
   return { term: terms[0] ?? null, rows: [], failed }
@@ -165,10 +187,10 @@ async function ingredients(body: Body, action: string, deps: FoodInfoDeps): Prom
     return json(200, { status: 'done', term, ingredients: info })
   }
 
-  // ingredients_search: 준 검색어가 있으면 그것만, 아니면 상품명 구절 뒤에 품목 이름
+  // ingredients_search: 준 검색어가 있으면 그것만, 아니면 상품명 구절 뒤에 품목 이름. 검색어·품목 이름은 식품유형으로도 찾는다(상품명 구절은 식품유형이 아니다)
   const terms = ingredientTerms({ query, productName, itemName: item.name })
   if (terms.length === 0) return json(200, { status: 'done', term: null, candidates: [], failed: [] })
-  const { term, rows, failed } = await searchLists(deps, key, terms)
+  const { term, rows, failed } = await searchLists(deps, key, terms, new Set([query || item.name.replace(/\s+/g, ' ').trim()]))
   if (rows.length === 0 && failed.length === INGREDIENT_SOURCES.length) return json(502, { status: 'error', reason: failed[0].reason })
   const ranked = rankIngredients(rows, query ? null : productName, term ?? '')
   return json(200, { status: 'done', term, candidates: ranked.slice(0, MAX_CANDIDATES), failed })

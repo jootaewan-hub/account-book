@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import {
   FoodInfoError, ingredientFit, ingredientTerms, isDish, nutritionSearchUrl, nutritionTier, nutritionUrl, originOf, parseNutrition, parseNutritionRows, parseReport, productFit, productPhrases, productWords,
-  rankByProduct, rankIngredients, rankNutrition, reportByNoUrl, reportSearchUrl, type IngredientRow,
+  kindTier, rankByProduct, rankIngredients, rankNutrition, reportByNoUrl, reportSearchUrl, reportTypeUrl, type IngredientRow,
 } from '../../supabase/functions/_shared/foodInfo'
 
 const read = (f: string) => JSON.parse(readFileSync(new URL(`./fixtures/foodsafety/${f}`, import.meta.url), 'utf8'))
@@ -75,6 +75,22 @@ describe('원재료 찾을 말·후보 순서·자동 맞춤(D-020)', () => {
     expect(ingredientTerms({ productName: '서울우유 1L', itemName: '서울 우유' })).toEqual(['서울우유'])
     expect(ingredientTerms({ productName: null, itemName: '고추장' })).toEqual(['고추장'])
     expect(ingredientTerms({ itemName: '  ' })).toEqual([])
+  })
+  it('식품유형으로 찾는 주소(C002·I1310만, PRDLST_DCNM=)와 식품유형 일치 단계', () => {
+    expect(reportTypeUrl('KEY', 'I1310', '버터')).toBe('https://openapi.foodsafetykorea.go.kr/api/KEY/I1310/json/1/20/PRDLST_DCNM=%EB%B2%84%ED%84%B0')
+    expect(reportTypeUrl('KEY', 'C002', '된장', 1, 30)).toBe('https://openapi.foodsafetykorea.go.kr/api/KEY/C002/json/1/30/PRDLST_DCNM=%EB%90%9C%EC%9E%A5')
+    expect([kindTier('버터', '버터'), kindTier('가공버터', '버터'), kindTier('버터유', '버터'), kindTier('땅콩버터', '버터'), kindTier('빵류', '버터'), kindTier(null, '버터')]).toEqual([0, 1, 1, 1, 4, 4])
+  })
+  it('상품이 없을 때(버터, 2026-10-21 사용자: 화장품·쿠키가 뜸): 식품유형이 그 말인 것 → 식품유형에 든 것 → 이름 일치 단계 → 짧은 이름', () => {
+    const rows = [
+      row('(냉)아바론버터소금빵', '비씨2000', { kind: '빵류' }),
+      row('허니버터 쿠키', '예시', { kind: '과자' }),
+      row('AF 가공버터', '롯데웰푸드', { source: 'I1310', kind: '가공버터' }),
+      row('100% 땅콩버터 스무스', '대륙식품', { kind: '땅콩버터' }),
+      row('임실무염버터', '임실치즈', { source: 'I1310', kind: '버터' }),
+      row('서울우유 버터', '서울우유', { source: 'I1310', kind: '버터' }),
+    ]
+    expect(rankIngredients(rows, null, '버터').map((r) => r.name)).toEqual(['서울우유 버터', '임실무염버터', 'AF 가공버터', '100% 땅콩버터 스무스', '허니버터 쿠키', '(냉)아바론버터소금빵'])
   })
   it('상품명이 있으면 상품 단어가 많이 든 것(같으면 업체 일치)부터, 없으면 이름 일치 단계 → 짧은 이름 → 응답 순서', () => {
     const rows = [row('된장찌개용 된장', '대상'), row('백일된장', '샘표식품(주)'), row('국산콩 백일된장', '샘표식품주식회사'), row('된장', '해찬들')]

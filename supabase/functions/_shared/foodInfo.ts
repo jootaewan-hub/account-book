@@ -37,6 +37,12 @@ export function reportByNoUrl(key: string, service: IngredientSource | 'C006', r
   return `${FOOD_BASE}/${encodeURIComponent(key)}/${service}/json/1/${service === 'C006' ? 20 : 5}/PRDLST_REPORT_NO=${encodeURIComponent(reportNo)}`
 }
 
+/** 식품유형(PRDLST_DCNM 부분 일치)으로 찾기: C002·I1310만 받는다(C003은 식품유형 항목이 없다). 이름 검색은 결과가 이름 순이라 "버터" 같은 흔한 말은 앞 20건이
+ *  "(냉)…버터소금빵"·"AF 가공버터"처럼 기호·영문으로 시작하는 것뿐인데, 식품유형이 "버터"인 줄은 실제 버터다(2026-10-21 sample 키 실제 호출로 확인, D-020 보충) */
+export function reportTypeUrl(key: string, service: 'C002' | 'I1310', type: string, start = 1, end = 20): string {
+  return `${FOOD_BASE}/${encodeURIComponent(key)}/${service}/json/${start}/${end}/PRDLST_DCNM=${encodeURIComponent(type)}`
+}
+
 export type IngredientRow = {
   /** 어느 목록에서 찾았나(C006으로 받은 줄은 I1310) */
   source: IngredientSource
@@ -134,12 +140,23 @@ export function ingredientTerms(o: { query?: string | null; productName?: string
   return out
 }
 
-/** 원재료 후보 순서: 상품명이 있으면 상품 단어가 많이 든 것부터(rankByProduct), 아니면 이름 일치 단계(nutritionTier) → 짧은 이름 → 응답 순서 */
+/** 식품유형 일치 단계: 0 같음("버터"), 1 식품유형에 든 것("가공버터"·"버터유"·"땅콩버터"·"유당분해우유"), 4 무관 */
+export function kindTier(kind: string | null, term: string): number {
+  const t = squash(term)
+  const k = squash(kind ?? '')
+  if (!t || !k) return 4
+  if (k === t) return 0
+  return k.includes(t) ? 1 : 4
+}
+
+/** 원재료 후보 순서: 상품명이 있으면 상품 단어가 많이 든 것부터(rankByProduct).
+ *  없으면(품목 이름·검색어) 식품유형 일치 단계(kindTier) → 이름 일치 단계(nutritionTier) → 짧은 이름 → 응답 순서.
+ *  "버터"에 식품유형 버터·가공버터가 먼저 오고, 이름에만 든 소금빵·쿠키는 뒤로(사용자 2026-10-21: 화장품·쿠키가 뜸) */
 export function rankIngredients(rows: readonly IngredientRow[], productName: string | null, term: string): IngredientRow[] {
   if (productName) return rankByProduct(rows.map((r) => ({ r, foodName: r.name, maker: r.maker })), productName).map((x) => x.r)
   return rows
-    .map((r, i) => ({ r, i, k: nutritionTier(r.name, term), len: r.name.length }))
-    .sort((a, b) => a.k - b.k || a.len - b.len || a.i - b.i)
+    .map((r, i) => ({ r, i, kk: kindTier(r.kind, term), k: nutritionTier(r.name, term), len: r.name.length }))
+    .sort((a, b) => a.kk - b.kk || a.k - b.k || a.len - b.len || a.i - b.i)
     .map((x) => x.r)
 }
 
