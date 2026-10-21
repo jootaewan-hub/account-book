@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { friendlyError } from '../lib/api'
 import { suggestCategory } from '../lib/categorize'
 import { won } from '../lib/format'
+import { fuelText } from '../lib/fuel'
 import { isSaveShortcut, isTextField, keypadKey, pressKey, saveKeyLabel } from '../lib/keypad'
 import { SCOPE_LABEL, SCOPES, type Lookup } from '../lib/lookup'
 import { normalizePlatform } from '../lib/platform'
@@ -241,6 +242,12 @@ export function EntrySheet({ open, editing, defaultDate, lookup, categories, usa
             <div className="field">
               <span className="lbl">품목 {editing.items.length}개</span>
               <ItemList items={editing.items} />
+            </div>
+          )}
+          {editing?.fuel && (
+            <div className="field">
+              <span className="lbl">주유</span>
+              <p className="tx-meta fuel-readonly num">{fuelText(editing.fuel)}. 리터·단가를 고치려면 이 내역을 지우고 영수증을 다시 찍어요.</p>
             </div>
           )}
           <p className="err" role="alert">{err}</p>

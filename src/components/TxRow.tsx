@@ -1,4 +1,5 @@
 import { won } from '../lib/format'
+import { fuelText } from '../lib/fuel'
 import { SCOPE_LABEL, type Lookup } from '../lib/lookup'
 import type { Scope, Transaction } from '../lib/types'
 import { useItemImages } from '../hooks/useItemImages'
@@ -18,7 +19,8 @@ export function TxRow({ t, lookup, onClick }: { t: Transaction; lookup: Lookup; 
   const items = t.items?.length ?? 0
   // 상품 하나짜리 내역은 이름이 곧 상품명이라 품목 수 대신 수량 × 개당 가격을 보여 준다
   const one = items === 1 && t.items![0].quantity !== 1 ? qtyPriceLabel(t.items![0]) : null
-  const meta = [cat, items > 1 ? `품목 ${items}개` : null, one, t.created_by !== lookup.me ? `${lookup.personLabel(t.created_by)} 입력` : null]
+  // 주유 내역은 품목 대신 '휘발유 35.2L, 1,652원/L'
+  const meta = [cat, t.fuel ? fuelText(t.fuel) : null, items > 1 ? `품목 ${items}개` : null, one, t.created_by !== lookup.me ? `${lookup.personLabel(t.created_by)} 입력` : null]
     .filter(Boolean).join(', ')
   const lead = thumb || logo
   // 할부 회차 (저장할 때·자동 입력할 때 메모 앞에 "할부 2/3회"로 적는다). 태그로 보여 주므로 메모 글에서는 뺀다

@@ -8,6 +8,7 @@ import { SCOPE_LABEL, SCOPES, type Lookup } from '../lib/lookup'
 import { categoryBreakdown, monthSeries, OTHER_PLATFORM, pctChange, platformBreakdown, scopeSplit, type MonthPoint } from '../lib/stats'
 import type { Category, Household, MonthTotal, Transaction } from '../lib/types'
 import { BillCard } from './BillCard'
+import { FuelCard } from './FuelCard'
 
 interface Props {
   household: Household
@@ -21,6 +22,8 @@ interface Props {
   billsVersion: number
   /** 관리비 고지서 넣기 */
   onBill: () => void
+  /** 주유 영수증 넣기 (영수증 사진 입력) */
+  onFuel: () => void
   /** 분류·플랫폼의 내역을 내역 탭에서 보기 */
   onCategory: (id: string | null, name: string) => void
   onPlatform: (name: string, kind: 'platform' | 'merchant' | 'other') => void
@@ -28,7 +31,7 @@ interface Props {
 
 const man = (n: number) => (n >= 10_000 ? `${Math.round(n / 10_000).toLocaleString('ko-KR')}만` : won(n))
 
-export function StatsView({ household, ym, today, cur, prev, lookup, categories, billsVersion, onBill, onCategory, onPlatform }: Props) {
+export function StatsView({ household, ym, today, cur, prev, lookup, categories, billsVersion, onBill, onFuel, onCategory, onPlatform }: Props) {
   const [totals, setTotals] = useState<MonthTotal[] | null>(null)
   const [lastYear, setLastYear] = useState<Transaction[]>([])
   // 분류 추이용 지난 넉 달 (지난달·이번 달은 이미 받은 것을 쓴다)
@@ -217,6 +220,7 @@ export function StatsView({ household, ym, today, cur, prev, lookup, categories,
       </div>
 
       <BillCard householdId={household.id} reloadKey={billsVersion} onAdd={onBill} />
+      <FuelCard householdId={household.id} version={billsVersion} txs={cur} ym={ym} onAdd={onFuel} />
     </section>
   )
 }

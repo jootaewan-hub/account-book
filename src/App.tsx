@@ -244,6 +244,7 @@ function Ledger({ household, meta, userId, email }: {
         {tab === 'stats' && (
           <StatsView household={household} ym={ym} today={today} cur={cur} prev={prev} lookup={lookup}
             categories={meta.categories} billsVersion={billsVersion} onBill={() => setSmart({ open: true, mode: 'bill' })}
+            onFuel={() => setSmart({ open: true, mode: 'photo' })}
             onCategory={(id, name) => { setListFocus({ kind: 'category', id, name }); setTab('list') }}
             onPlatform={(name, kind) => { setListFocus(kind === 'merchant' ? { kind: 'merchant', name } : { kind: 'platform', name }); setTab('list') }} />
         )}

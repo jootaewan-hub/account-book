@@ -8,7 +8,7 @@
 import { existsSync, mkdirSync } from 'node:fs'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { chromium } from 'playwright'
-import { BILL, fakeSession, RECEIPT, TABLES, USER } from './shell-fixtures.mjs'
+import { BILL, fakeSession, FUEL_RECEIPT, RECEIPT, TABLES, USER } from './shell-fixtures.mjs'
 
 const BASE = process.env.BASE_URL ?? 'http://localhost:5173'
 const OUT = process.env.OUT_DIR ? pathToFileURL(`${process.env.OUT_DIR.replace(/\/$/, '')}/`) : new URL('../screenshots/', import.meta.url)
@@ -124,6 +124,10 @@ const shellShots = [
   ...each((w, c) => ({ name: `shell-grocery-market-${w}-${c}`, path: '/', w, c, shell: true, tab: '장보기', market: true })),
   // 영수증 확인 화면의 '장보기 목록에서 찾은 품목'(D-011 길 ①). 가짜 영수증 응답(RECEIPT)
   ...each((w, c) => ({ name: `shell-smart-grocery-${w}-${c}`, path: '/', w, c, shell: true, tab: '내역', receipt: true })),
+  // 통계 탭 주유 묶음(설계 2026-10-21): 리터당 가격·지난번 대비·추이 그래프·달별. 가짜 주유 기록 3건
+  ...each((w, c) => ({ name: `shell-stats-fuel-${w}-${c}`, path: '/', w, c, shell: true, tab: '통계', scroll: '.fuel-card' })),
+  // 주유소 영수증 확인 화면(설계 2026-10-21): 유종·주유량·리터당 칸과 지난 주유 대비. 가짜 응답(FUEL_RECEIPT)
+  ...each((w, c) => ({ name: `shell-smart-fuel-${w}-${c}`, path: '/', w, c, shell: true, tab: '내역', receipt: true, fuel: true })),
   // 관리비 고지서 확인 화면(D-019): 고정 탭에 관리비 항목이 없으면 '관리비' 항목을 만든다는 안내, 있으면 그 항목에 연결한다는 안내. 가짜 고지서 응답(BILL)
   ...each((w, c) => ({ name: `shell-bill-review-${w}-${c}`, path: '/', w, c, shell: true, tab: '내역', bill: true, noUtility: true })),
   ...both(390, (w, c) => ({ name: `shell-bill-review-linked-${w}-${c}`, path: '/', w, c, shell: true, tab: '내역', bill: true })),
@@ -146,7 +150,7 @@ async function fakeSupabase(context, s = {}) {
     if (url.pathname === '/functions/v1/extract-entries') {
       let body = null
       try { body = req.postDataJSON() } catch { /* JSON이 아니면 영수증 응답 */ }
-      return json(body?.mode === 'bill' ? BILL : RECEIPT)
+      return json(body?.mode === 'bill' ? BILL : s.fuel ? FUEL_RECEIPT : RECEIPT)
     }
     if (url.pathname.startsWith('/functions/v1/')) return json({ status: 'skipped' })
     if (url.pathname.startsWith('/storage/v1/')) return json([])
@@ -261,8 +265,13 @@ try {
       const jpeg = Buffer.from('/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRofHh0aHBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/wAALCAABAAEBAREA/8QAFAABAAAAAAAAAAAAAAAAAAAACf/EABQQAQAAAAAAAAAAAAAAAAAAAAD/2gAIAQEAAD8AKp//2Q==', 'base64')
       await page.locator('input[type=file]').setInputFiles({ name: 'r.jpg', mimeType: 'image/jpeg', buffer: jpeg })
       await page.getByRole('button', { name: /장 분석하기$/ }).click()
-      await page.getByText('장보기 목록에서 찾은 품목').waitFor()
-      await page.locator('.grocery-match').scrollIntoViewIfNeeded()
+      if (s.fuel) {
+        await page.getByText('리터당(원)').waitFor()
+        await page.locator('.fuel-block').scrollIntoViewIfNeeded()
+      } else {
+        await page.getByText('장보기 목록에서 찾은 품목').waitFor()
+        await page.locator('.grocery-match').scrollIntoViewIfNeeded()
+      }
     }
     if (s.bill) {
       await page.locator('.fab, .side-record').locator('visible=true').first().click()

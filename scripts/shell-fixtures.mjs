@@ -10,13 +10,22 @@ const ym = kst.toISOString().slice(0, 7)
 const day = (d) => `${ym}-${String(Math.min(d, Number(kst.toISOString().slice(8, 10)))).padStart(2, '0')}`
 const ago = (min) => new Date(Date.now() - min * 60_000).toISOString()
 const prevYm = (() => { const [y, m] = ym.split('-').map(Number); return m === 1 ? `${y - 1}-12` : `${y}-${String(m - 1).padStart(2, '0')}` })()
+/** n일 전 날짜(한국 시간). 영수증 비교·주유 추이처럼 '며칠 전'이 뜻을 갖는 장면에 쓴다 */
+const daysAgo = (n) => new Date(kst.getTime() - n * 86_400_000).toISOString().slice(0, 10)
 
-const EXPENSE = ['식비', '외식', '카페', '배달', '장보기', '생활용품', '교통', '통신', '관리비', '구독', '의료', '문화', '기타']
+const EXPENSE = ['식비', '외식', '카페', '배달', '장보기', '생활용품', '교통', '차량·주유', '통신', '관리비', '구독', '의료', '문화', '기타']
 const categories = [
   ...EXPENSE.map((name, i) => ({ id: `c${i}`, household_id: HH, type: 'expense', name, sort: i + 1, archived: false })),
   ...['월급', '부수입', '기타'].map((name, i) => ({ id: `i${i}`, household_id: HH, type: 'income', name, sort: i + 1, archived: false })),
 ]
 const cat = (name, type = 'expense') => categories.find((c) => c.name === name && c.type === type).id
+
+/** 주유 기록(통계 주유 묶음·영수증 확인 화면의 지난 주유 비교). 날짜는 오늘 기준 며칠 전 */
+const FUEL = [
+  { id: 't20', occurred_on: daysAgo(3), amount: 58150, title: 'GS칼텍스 분당주유소', liters: 35.2, price_per_liter: 1652, fuel_type: '휘발유' },
+  { id: 't21', occurred_on: daysAgo(19), amount: 48870, title: 'SK에너지 야탑주유소', liters: 30, price_per_liter: 1629, fuel_type: '휘발유' },
+  { id: 't22', occurred_on: daysAgo(46), amount: 46740, title: 'GS칼텍스 분당주유소', liters: 28.5, price_per_liter: 1640, fuel_type: '휘발유' },
+]
 
 const tx = (id, d, amount, title, category, extra = {}) => ({
   id, household_id: HH, type: 'expense', occurred_on: day(d), amount, title, memo: null, category_id: cat(category),
@@ -36,6 +45,18 @@ const transactions = [
   // 고지서로 넣은 지난달 분 관리비: 고정 탭의 '아파트 관리비'(r3) 이번 달 분으로 연결돼 '지난번 금액'과 합계에 보인다
   tx('t8', 26, 167860, `관리비 (${Number(prevYm.slice(5))}월분)`, '관리비',
     { recurring_id: 'r3', recurring_month: `${ym}-01`, source: 'photo', memo: `관리비 고지서 ${Number(prevYm.slice(5))}월분` }),
+  // 주유 세 번(통계 주유 묶음·내역 행의 '휘발유 35.2L, 1,652원/L'). 숫자는 캡처 확인용 예시
+  ...FUEL.map((f) => tx(f.id, 1, f.amount, f.title, '차량·주유', { occurred_on: f.occurred_on, source: 'photo', fuel_fills: { liters: f.liters, price_per_liter: f.price_per_liter, fuel_type: f.fuel_type } })),
+  // 지난 장보기 두 번(영수증 확인 화면의 '이번 장보기 살펴보기'): 우유는 그때 더 쌌고, 두부는 사흘 전에도 샀다
+  tx('t30', 1, 19080, '이마트 분당점', '장보기', { occurred_on: daysAgo(7), source: 'photo', transaction_items: [
+    { id: 'i30a', name: '서울우유 900ml', quantity: 2, unit_price: 2400, amount: 4800, pack_size: 900, pack_unit: 'ml', image_path: null, sort: 1 },
+    { id: 'i30b', name: '국산 대파 1단', quantity: 1, unit_price: 3500, amount: 3500, pack_size: null, pack_unit: null, image_path: null, sort: 2 },
+    { id: 'i30c', name: '계란 30구', quantity: 1, unit_price: 7980, amount: 7980, pack_size: 30, pack_unit: '구', image_path: null, sort: 3 },
+    { id: 'i30d', name: '부침두부 300g', quantity: 1, unit_price: 2800, amount: 2800, pack_size: 300, pack_unit: 'g', image_path: null, sort: 4 },
+  ] }),
+  tx('t31', 1, 2800, '이마트 분당점', '장보기', { occurred_on: daysAgo(3), source: 'photo', transaction_items: [
+    { id: 'i31a', name: '부침두부 300g', quantity: 1, unit_price: 2800, amount: 2800, pack_size: 300, pack_unit: 'g', image_path: null, sort: 1 },
+  ] }),
 ]
 
 // 가짜 Supabase는 조건과 상관없이 표의 행을 그대로 돌려주므로(한 건 조회는 첫 행), 상세를 여는 '비비고 왕교자'를 첫 행에 두고 고른 상품(p1)을 붙인다
@@ -95,6 +116,8 @@ export const TABLES = {
       end_month: '2027-01-01', generated_through: null, active: true, memo: null, installment_months: 6, created_by: ME, created_at: ago(50), updated_at: ago(50) },
   ],
   'public.utility_bills': [],
+  'public.fuel_fills': FUEL.map((f, i) => ({ id: `f${i}`, household_id: HH, transaction_id: f.id, liters: f.liters, price_per_liter: f.price_per_liter, fuel_type: f.fuel_type,
+    created_by: ME, created_at: ago(60), transactions: { occurred_on: f.occurred_on, amount: f.amount, title: f.title } })),
   'public.rpc/generate_recurring': 0,
   'public.rpc/monthly_totals': [],
   'public.rpc/export_token': null,
@@ -136,14 +159,25 @@ export const RECEIPT = {
   model: 'claude-haiku-5-5',
   note: null,
   entries: [{
-    date: day(19), time: '18:20', merchant: '이마트 분당점', platform: null, amount: 15800, is_income: false, is_cancellation: false,
-    card_last4: null, payment_hint: null, installment_months: null, category: '장보기', type: 'expense', items_match: true,
+    date: daysAgo(0), time: '18:20', merchant: '이마트 분당점', platform: null, amount: 15800, is_income: false, is_cancellation: false,
+    card_last4: null, payment_hint: null, installment_months: null, category: '장보기', type: 'expense', items_match: true, fuel: null,
     items: [
       { name: '국산 대파 1단', is_product: true, quantity: 1, unit_price: 3000, amount: 3000, pack_size: null, pack_unit: null, category: '장보기', image_box: null },
       { name: '서울우유 900ml', is_product: true, quantity: 2, unit_price: 2500, amount: 5000, pack_size: 900, pack_unit: 'ml', category: '장보기', image_box: null },
       { name: '농심 신라면 5입', is_product: true, quantity: 1, unit_price: 5000, amount: 5000, pack_size: 5, pack_unit: '입', category: '장보기', image_box: null },
       { name: '부침두부 300g', is_product: true, quantity: 1, unit_price: 2800, amount: 2800, pack_size: 300, pack_unit: 'g', category: '장보기', image_box: null },
     ],
+  }],
+}
+
+/** 주유소 영수증 가짜 응답(영수증 확인 화면의 주유 칸). 리터·단가는 캡처 확인용 예시 */
+export const FUEL_RECEIPT = {
+  model: 'claude-haiku-5-5',
+  note: null,
+  entries: [{
+    date: daysAgo(0), time: '08:12', merchant: 'GS칼텍스 분당주유소', platform: null, amount: 59990, is_income: false, is_cancellation: false,
+    card_last4: null, payment_hint: null, installment_months: null, category: '차량·주유', type: 'expense', items_match: null, items: [],
+    fuel: { liters: 35.6, price_per_liter: 1685, fuel_type: '휘발유' },
   }],
 }
 

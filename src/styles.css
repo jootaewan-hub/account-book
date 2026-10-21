@@ -453,6 +453,33 @@ input[type="search"].input { -webkit-appearance: none; appearance: none; }
 .bt-bar.on i { opacity: 1; }
 .bt-bar span { font-size: 10.5px; color: var(--ink-2); }
 
+/* 주유 묶음(통계)과 영수증 확인 화면의 주유 칸 */
+.fuel-card { display: flex; flex-direction: column; gap: 6px; }
+.fuel-card .section-title { margin-bottom: 4px; }
+.fuel-big { margin: 0; font-size: 22px; font-weight: 800; letter-spacing: -.02em; line-height: 1.2; }
+.fuel-big small { font-size: 14px; font-weight: 700; letter-spacing: 0; margin-left: 3px; color: var(--ink-2); }
+.fuel-line { margin: 0; font-size: 14px; }
+.fuel-up { color: var(--clay); font-weight: 700; }
+.fuel-down { color: var(--indigo); font-weight: 700; }
+.fuel-chart { width: 100%; height: auto; max-height: 200px; display: block; margin: 6px auto 0; }
+.fuel-chart .grid { stroke: var(--oat-deep); stroke-width: 1; }
+.fuel-chart .line { fill: none; stroke: var(--sage); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.fuel-chart .dot { fill: var(--sage); }
+.fuel-chart .dot.other { fill: var(--canvas); stroke: var(--ink-2); stroke-width: 1.5; }
+.fuel-chart .val { fill: var(--ink-2); font-size: 11px; font-family: var(--font-ui); font-variant-numeric: tabular-nums; }
+.fuel-chart .val.strong { fill: var(--ink); font-weight: 700; }
+.fuel-chart .axis { fill: var(--ink-2); font-size: 10px; font-family: var(--font-ui); }
+.fuel-months { display: flex; flex-direction: column; gap: 4px; margin-top: 4px; font-size: 14px; }
+.fuel-months p { margin: 0; display: flex; gap: 10px; }
+.fuel-months .k { color: var(--ink-2); font-weight: 600; min-width: 3.2em; }
+.fuel-recent summary { font-size: 13px; }
+.fuel-list { list-style: none; margin: 6px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; font-size: 14px; }
+.fuel-block { gap: 6px; }
+.fuel-fields { display: grid; grid-template-columns: 1.2fr 1fr 1fr; gap: 8px; }
+.fuel-fields .field { gap: 4px; }
+.fuel-fields label { font-size: 13px; }
+.fuel-readonly { margin: 0; }
+
 /* 구독 서비스 로고 */
 .svc-logo { display: inline-flex; align-items: center; justify-content: center; flex: none; font-weight: 800; letter-spacing: -0.02em;
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ink) 10%, transparent); overflow: hidden; line-height: 1; }

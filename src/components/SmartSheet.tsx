@@ -1,16 +1,18 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { linkGroceryItems, loadReceiptGroceryItems, type ReceiptGroceryItem } from '../grocery/lib/ledgerLink'
 import { linksByTx, matchReceipt, receiptLines } from '../grocery/lib/purchase'
-import { friendlyError, generateRecurring } from '../lib/api'
+import { fetchFuelFills, friendlyError, generateRecurring } from '../lib/api'
 import { won } from '../lib/format'
+import { fuelDelta, fuelKind } from '../lib/fuel'
 import { cropImage, fileToJpeg, type PreparedImage } from '../lib/image'
 import { SCOPE_LABEL, SCOPES, type Lookup } from '../lib/lookup'
 import {
-  analyze, analyzeBill, analyzeImages, BATCH_SIZE, canSplit, entryDrafts, isProductLine, itemsSum, markRepeats, modelLabel, saveDraft, SmartError,
-  type AnalyzeResult, type CheckedBill, type CheckedEntry, type Draft, type DraftContext,
+  analyze, analyzeBill, analyzeImages, BATCH_SIZE, canSplit, entryDrafts, fuelComplete, isProductLine, itemsSum, markRepeats, modelLabel, saveDraft, SmartError,
+  type AnalyzeResult, type CheckedBill, type CheckedEntry, type Draft, type DraftContext, type DraftFuel,
 } from '../lib/smart'
 import { BillReview } from './BillReview'
-import type { Category, Transaction, TxType } from '../lib/types'
+import { FuelDelta } from './FuelCard'
+import type { Category, FuelFill, Transaction, TxType } from '../lib/types'
 import { defaultScope } from './EntrySheet'
 import { GroceryMatchCard } from './GroceryMatchCard'
 import { InstallmentPicker } from './InstallmentPicker'
@@ -82,6 +84,15 @@ export function SmartSheet({ open, mode, today, householdId, lookup, categories,
     loadReceiptGroceryItems(householdId).then((g) => { if (alive) setGrocery(g) }, () => { if (alive) setGrocery([]) })
     return () => { alive = false }
   }, [open, stage, withGrocery, householdId])
+  // 주유 영수증이면 지난 주유 기록을 읽어 리터당 가격을 견준다(못 읽어도 입력은 그대로)
+  const [fills, setFills] = useState<FuelFill[]>([])
+  const hasFuel = drafts.some((d) => d.fuel)
+  useEffect(() => {
+    if (!open || stage !== 'review' || !hasFuel) return
+    let alive = true
+    fetchFuelFills(householdId).then((f) => { if (alive) setFills(f) }, () => { if (alive) setFills([]) })
+    return () => { alive = false }
+  }, [open, stage, hasFuel, householdId])
   // 관리비 고지서는 한 장의 여러 부분이라 한 번에 보낸다
   const maxPhotos = mode === 'bill' ? BATCH_SIZE : MAX_PHOTOS
   const fileRef = useRef<HTMLInputElement>(null)
@@ -98,7 +109,7 @@ export function SmartSheet({ open, mode, today, householdId, lookup, categories,
     reqRef.current++
     dropPhotos()
     setStage('input'); setText(''); setDrafts([]); setGroups([]); setNote(null); setModel(null); setErr(''); setBusy(false); setPreparing(false); setProgress(''); setBill(null)
-    setGrocery([])
+    setGrocery([]); setFills([])
     setImages((prev) => { prev.forEach((i) => URL.revokeObjectURL(i.preview)); return [] })
   }, [open, mode])
 
@@ -226,12 +237,16 @@ export function SmartSheet({ open, mode, today, householdId, lookup, categories,
     setBusy(true); setErr('')
     let saved = 0
     let installments = 0
+    let fuelSaved = 0
+    let fuelFailed = false
     const txOf = new Map<string, string>()
     try {
       for (const d of chosen) {
         const r = await saveDraft(householdId, d, mode === 'text' ? 'text' : 'photo')
         txOf.set(d.key, r.txId)
         if (r.installment) installments++
+        if (r.fuelSaved === true) fuelSaved++
+        if (r.fuelSaved === false) fuelFailed = true
         saved++
         patch(d.key, { include: false })
       }
@@ -244,7 +259,8 @@ export function SmartSheet({ open, mode, today, householdId, lookup, categories,
         try { linked += await linkGroceryItems(tx, links) } catch { linkFailed = true }
       }
       const parts = [installments ? `${saved}건 저장했어요. 할부 남은 회차는 고정 탭의 할부에 넣었어요` : null,
-        linked ? `장보기 품목 ${linked}개를 연결했어요` : null, linkFailed ? '장보기 연결은 하지 못했어요' : null].filter(Boolean)
+        linked ? `장보기 품목 ${linked}개를 연결했어요` : null, linkFailed ? '장보기 연결은 하지 못했어요' : null,
+        fuelSaved ? `주유 기록 ${fuelSaved}건을 넣었어요` : null, fuelFailed ? '주유 기록은 저장하지 못했어요' : null].filter(Boolean)
       await onSaved(saved, chosen[chosen.length - 1].date,
         parts.length ? (installments ? parts.join('. ') : [`${saved}건 저장했어요`, ...parts].join('. ')) : undefined)
     } catch (e) {
@@ -344,7 +360,7 @@ export function SmartSheet({ open, mode, today, householdId, lookup, categories,
                 </label>
               )}
               {drafts.filter((d) => groupOf(d) === g.index).map((d) => (
-                <DraftCard key={d.key} d={d} categories={categories} onChange={(p) => patch(d.key, p)} />
+                <DraftCard key={d.key} d={d} categories={categories} fills={fills} onChange={(p) => patch(d.key, p)} />
               ))}
             </div>
           ))}
@@ -371,9 +387,11 @@ export function SmartSheet({ open, mode, today, householdId, lookup, categories,
   )
 }
 
-function DraftCard({ d, categories, onChange }: {
+function DraftCard({ d, categories, fills, onChange }: {
   d: Draft
   categories: Category[]
+  /** 지난 주유 기록 (주유 초안의 리터당 가격 비교용) */
+  fills: FuelFill[]
   onChange: (p: Partial<Draft>) => void
 }) {
   const sum = itemsSum(d.items)
@@ -420,6 +438,7 @@ function DraftCard({ d, categories, onChange }: {
           })} />
       )}
       {d.memo && <p className="tx-meta">{d.memo}</p>}
+      {d.fuel && <FuelFields fuel={d.fuel} amount={d.amount} date={d.date} fills={fills} onChange={(fuel) => onChange({ fuel })} />}
       <div className="field">
         <span className="lbl">분류</span>
         <div className="chips">
@@ -455,6 +474,69 @@ function DraftCard({ d, categories, onChange }: {
           {d.items.some((it) => it.photo) && <span className="tx-meta">사진이 잘못 잘렸으면 사진을 눌러 빼세요.</span>}
         </div>
       )}
+    </div>
+  )
+}
+
+/** 주유 초안의 유종·주유량·리터당 단가 칸. 리터와 단가가 둘 다 있어야 주유 기록이 저장된다 */
+function FuelFields({ fuel, amount, date, fills, onChange }: {
+  fuel: DraftFuel
+  amount: number
+  date: string
+  fills: FuelFill[]
+  onChange: (fuel: DraftFuel) => void
+}) {
+  // 소수를 치는 동안 '35.'이 '35'로 되돌아가지 않게 글자를 따로 둔다
+  const [litersText, setLitersText] = useState(fuel.liters === null ? '' : String(fuel.liters))
+  const complete = fuelComplete(fuel)
+  const product = complete ? Math.round(fuel.liters * fuel.price_per_liter) : null
+  const gap = product !== null ? product - amount : 0
+  // 지난 주유 대비: 이 초안을 가장 최근 주유로 두고 같은 유종의 지난 기록과 견준다
+  const delta = complete
+    ? fuelDelta([{ id: 'draft', transaction_id: 'draft', liters: fuel.liters, price_per_liter: fuel.price_per_liter, fuel_type: fuel.fuel_type, occurred_on: date, amount, title: '' },
+        ...fills.filter((f) => f.occurred_on <= date)]) // 같은 날은 들어온 순서라 초안이 먼저다
+    : null
+  const sameKind = fills.some((f) => fuelKind(f.fuel_type) === fuelKind(fuel.fuel_type))
+  return (
+    <div className="field fuel-block">
+      <span className="lbl">주유</span>
+      <div className="fuel-fields">
+        <div className="field">
+          <label htmlFor="fuel-type">유종</label>
+          <input id="fuel-type" className="input" value={fuel.fuel_type ?? ''} maxLength={20} placeholder="휘발유"
+            onChange={(e) => onChange({ ...fuel, fuel_type: e.target.value || null })} />
+        </div>
+        <div className="field">
+          <label htmlFor="fuel-liters">주유량(L)</label>
+          <input id="fuel-liters" className="input num" inputMode="decimal" value={litersText} placeholder="35.2"
+            onChange={(e) => {
+              const t = e.target.value.replace(/[^\d.]/g, '').replace(/^(\d*\.\d{0,3}).*$/, '$1').slice(0, 8)
+              setLitersText(t)
+              const n = Number(t)
+              onChange({ ...fuel, liters: t && Number.isFinite(n) && n > 0 && n < 500 ? Math.round(n * 1000) / 1000 : null })
+            }} />
+        </div>
+        <div className="field">
+          <label htmlFor="fuel-ppl">리터당(원)</label>
+          <input id="fuel-ppl" className="input num" inputMode="numeric" value={fuel.price_per_liter === null ? '' : String(fuel.price_per_liter)} placeholder="1,652"
+            onChange={(e) => {
+              const n = Number(e.target.value.replace(/\D/g, '').slice(0, 6))
+              onChange({ ...fuel, price_per_liter: n > 100 && n < 100000 ? n : null })
+            }} />
+        </div>
+      </div>
+      {product !== null ? (
+        <p className="tx-meta num">단가 × 주유량 = {won(product)}원{Math.abs(gap) > amount * 0.01 ? `, 결제 금액과 ${won(Math.abs(gap))}원 달라요` : ''}</p>
+      ) : (
+        <p className="tx-meta">리터와 단가를 모두 적어야 주유 기록이 저장돼요. 비워 두면 내역만 저장해요.</p>
+      )}
+      {delta && delta.prev && delta.diff !== null && (
+        <p className="tx-meta num">
+          {`지난 주유(${Number(delta.prev.occurred_on.slice(5, 7))}월 ${Number(delta.prev.occurred_on.slice(8, 10))}일${delta.prev.fuel_type ? `, ${delta.prev.fuel_type}` : ''}) ${won(delta.prev.price_per_liter)}원/L보다 `}
+          <FuelDelta diff={delta.diff} pct={delta.pct} />
+        </p>
+      )}
+      {delta && !delta.prev && fills.length > 0 && !sameKind && <p className="tx-meta">같은 유종의 지난 주유 기록이 없어요.</p>}
     </div>
   )
 }
