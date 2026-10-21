@@ -139,7 +139,7 @@ async function extract(client: Anthropic, model: string, input: Input, categorie
   if (!res.parsed_output) throw new Error(`no_parsed_output (stop_reason=${res.stop_reason})`)
   // 실제로 응답한 모델 (요청한 이름과 다르면 로그로 알 수 있게)
   console.log('extract_ok', model, '->', res.model, res.usage.input_tokens, res.usage.output_tokens)
-  return { refused: false as const, result: res.parsed_output, entries: checkEntries(res.parsed_output, sizes), usage: res.usage, model: res.model }
+  return { refused: false as const, result: res.parsed_output, entries: checkEntries(res.parsed_output, sizes, input.kind === 'image'), usage: res.usage, model: res.model }
 }
 
 function imageBlocks(images: Img[]): Anthropic.ContentBlockParam[] {
@@ -213,7 +213,7 @@ Deno.serve(async (req) => {
     // 품목 합계가 결제 금액과 안 맞으면 더 큰 모델로 한 번 더 읽는다. 둘 다 안 맞아도(원단위 절사 등) 큰 모델 결과를 쓴다
     if (!out.refused && hasItemMismatch(out.entries) && RETRY_MODEL !== first) {
       const second = await extract(client, RETRY_MODEL, input, categories)
-      if (!second.refused) out = { ...second, entries: preferRetry(out.entries, second.entries) }
+      if (!second.refused && preferRetry(out.entries, second.entries) === second.entries) out = second
     }
     if (out.refused) return fail('refused', '이 내용은 읽을 수 없어요. 직접 입력해 주세요.', 422)
     const entries: CheckedEntry[] = out.entries

@@ -48,6 +48,9 @@ export type PastLine = {
   amount: number
   packSize: number | null
   packUnit: string | null
+  /** 미리 계산한 정규화 이름과 단어(맞추기를 빠르게) */
+  norm: string
+  tokens: string[]
 }
 
 /** 상품 줄인가: 금액이 있고 배송비·봉투 줄이 아닌 것(지난 기록에는 is_product가 없다) */
@@ -60,7 +63,8 @@ export function pastLines(txs: Transaction[]): PastLine[] {
     if (t.type !== 'expense') continue
     for (const it of t.items ?? []) {
       if (it.amount <= 0 || !isProductName(it.name)) continue
-      out.push({ txId: t.id, date: t.occurred_on, place: t.platform || t.title, name: it.name, quantity: it.quantity, unitPrice: it.unit_price, amount: it.amount, packSize: it.pack_size, packUnit: it.pack_unit })
+      out.push({ txId: t.id, date: t.occurred_on, place: t.platform || t.title, name: it.name, quantity: it.quantity, unitPrice: it.unit_price, amount: it.amount,
+        packSize: it.pack_size, packUnit: it.pack_unit, norm: normName(it.name), tokens: nameTokens(it.name) })
     }
   }
   return out.sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0))
@@ -71,15 +75,14 @@ export type PastMatch = { grade: MatchGrade; line: PastLine; all: PastLine[] }
 
 const MIN_CONTAIN = 4
 
-function sameProduct(a: string, b: string): boolean {
-  const na = normName(a), nb = normName(b)
+function sameProduct(na: string, ta: ReadonlySet<string>, p: PastLine): boolean {
+  const nb = p.norm
   if (!na || !nb) return false
   const short = na.length <= nb.length ? na : nb
   const long = short === na ? nb : na
   if (short.length >= MIN_CONTAIN && long.includes(short)) return true
-  const ta = new Set(nameTokens(a))
   let hits = 0
-  for (const t of new Set(nameTokens(b))) if (ta.has(t)) hits++
+  for (const t of new Set(p.tokens)) if (ta.has(t)) hits++
   return hits >= 2
 }
 
@@ -88,11 +91,13 @@ function sameProduct(a: string, b: string): boolean {
  * line은 가장 최근 것, all은 같은 등급으로 맞은 줄 전부(최근순).
  */
 export function matchPast(line: CompareLine, past: PastLine[]): PastMatch | null {
-  const product = past.filter((p) => sameProduct(line.name, p.name))
+  const na = normName(line.name)
+  const ta = new Set(nameTokens(line.name))
+  const product = past.filter((p) => sameProduct(na, ta, p))
   if (product.length) return { grade: 'product', line: product[0], all: product }
   const g = line.groceryName ? normName(line.groceryName) : ''
   if (!g) return null
-  const kind = past.filter((p) => normName(p.name).includes(g))
+  const kind = past.filter((p) => p.norm.includes(g))
   return kind.length ? { grade: 'kind', line: kind[0], all: kind } : null
 }
 

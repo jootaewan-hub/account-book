@@ -4,11 +4,11 @@ import { linksByTx, matchReceipt, receiptLines } from '../grocery/lib/purchase'
 import { fetchFuelFills, fetchItemHistory, friendlyError, generateRecurring } from '../lib/api'
 import { won } from '../lib/format'
 import { fuelDelta, fuelKind } from '../lib/fuel'
-import { compareTrip, GROCERY_CATEGORY_NAMES, isGroceryEntry, type CompareLine } from '../lib/shopCompare'
+import { compareTrip, GROCERY_CATEGORY_NAMES, isGroceryEntry, type CompareLine, type CompareResult } from '../lib/shopCompare'
 import { cropImage, fileToJpeg, type PreparedImage } from '../lib/image'
 import { SCOPE_LABEL, SCOPES, type Lookup } from '../lib/lookup'
 import {
-  analyze, analyzeBill, analyzeImages, BATCH_SIZE, canSplit, entryDrafts, fuelComplete, isProductLine, itemsSum, markRepeats, modelLabel, saveDraft, SmartError,
+  analyze, analyzeBill, analyzeImages, BATCH_SIZE, canSplit, entryDrafts, fuelComplete, isProductLine, itemsSum, markRepeats, modelLabel, parseLiters, parsePricePerLiter, saveDraft, SmartError,
   type AnalyzeResult, type CheckedBill, type CheckedEntry, type Draft, type DraftContext, type DraftFuel,
 } from '../lib/smart'
 import { BillReview } from './BillReview'
@@ -115,20 +115,25 @@ export function SmartSheet({ open, mode, today, householdId, lookup, categories,
     for (const [id, key] of [...picks, ...linkedMatches]) { const g = grocery.find((x) => x.id === id); if (g) m.set(key, g.name) }
     return m
   }, [picks, linkedMatches, grocery])
-  /** 한 묶음(영수증 한 장)의 상품 줄을 비교용으로. 저장할 초안의 줄만 */
-  const compareLines = (index: number): CompareLine[] =>
-    drafts.filter((d) => groupOf(d) === index && d.include && d.type === 'expense').flatMap((d) => {
-      const products = d.items.map((it, j) => ({ it, j })).filter(({ it }) => isProductLine(it))
-      return products.map(({ it, j }) => {
-        const key = `${d.key}:${j}`
-        return { key, name: it.name, quantity: it.quantity, unitPrice: it.unit_price, amount: products.length === 1 ? d.amount : it.amount,
-          packSize: it.pack_size, packUnit: it.pack_unit, groceryName: groceryNameOf.get(key) ?? null }
-      })
-    })
-  const groceryGroup = (g: Group, lines: CompareLine[]) => {
-    const names = drafts.filter((d) => groupOf(d) === g.index).map((d) => categories.find((c) => c.id === d.category_id)?.name ?? null)
-    return isGroceryEntry(names.find((n) => n !== null && GROCERY_CATEGORY_NAMES.has(n)) ?? names[0] ?? null, lines)
-  }
+  // 묶음(영수증 한 장)마다 살펴보기 결과. 글자를 칠 때마다 다시 계산하지 않게 초안·기록·연결이 바뀔 때만 계산한다
+  const compareByGroup = useMemo(() => {
+    const out = new Map<number, CompareResult>()
+    for (const g of groups) {
+      const mine = drafts.filter((d) => groupOf(d) === g.index)
+      // 비교 금액은 저장되는 품목 줄 금액(it.amount)과 같은 기준이다(나눈 초안의 d.amount는 할인을 뺀 값이라 지난 기록과 어긋난다)
+      const lines: CompareLine[] = mine.filter((d) => d.include && d.type === 'expense').flatMap((d) =>
+        d.items.map((it, j) => ({ it, j })).filter(({ it }) => isProductLine(it)).map(({ it, j }) => {
+          const key = `${d.key}:${j}`
+          return { key, name: it.name, quantity: it.quantity, unitPrice: it.unit_price, amount: it.amount,
+            packSize: it.pack_size, packUnit: it.pack_unit, groceryName: groceryNameOf.get(key) ?? null }
+        }))
+      if (!lines.length) continue
+      const names = mine.map((d) => categories.find((c) => c.id === d.category_id)?.name ?? null)
+      if (!isGroceryEntry(names.find((n) => n !== null && GROCERY_CATEGORY_NAMES.has(n)) ?? names[0] ?? null, lines)) continue
+      out.set(g.index, compareTrip(lines, history.rows, g.entry.date ?? today, g.entry.amount, groceryCategoryIds))
+    }
+    return out
+  }, [groups, drafts, history.rows, groceryNameOf, groceryCategoryIds, categories, today])
   // 관리비 고지서는 한 장의 여러 부분이라 한 번에 보낸다
   const maxPhotos = mode === 'bill' ? BATCH_SIZE : MAX_PHOTOS
   const fileRef = useRef<HTMLInputElement>(null)
@@ -395,14 +400,13 @@ export function SmartSheet({ open, mode, today, householdId, lookup, categories,
                   </span>
                 </label>
               )}
+              {/* 분석을 다시 하면 초안 key('0', '0-1')가 같아도 카드를 새로 만든다(주유 칸의 입력 글자 같은 카드 안 상태가 남지 않게) */}
               {drafts.filter((d) => groupOf(d) === g.index).map((d) => (
-                <DraftCard key={d.key} d={d} categories={categories} fills={fills} onChange={(p) => patch(d.key, p)} />
+                <DraftCard key={`${reqRef.current}:${d.key}`} d={d} categories={categories} fills={fills} onChange={(p) => patch(d.key, p)} />
               ))}
-              {withGrocery && (() => {
-                const lines = compareLines(g.index)
-                if (!lines.length || !groceryGroup(g, lines)) return null
-                return <ShopCompareCard result={compareTrip(lines, history.rows, g.entry.date ?? today, g.entry.amount, groceryCategoryIds)} loading={history.loading} error={history.error} />
-              })()}
+              {withGrocery && compareByGroup.has(g.index) && (
+                <ShopCompareCard result={compareByGroup.get(g.index)!} loading={history.loading} error={history.error} />
+              )}
             </div>
           ))}
           {withGrocery && (suggested.size > 0 || linkedMatches.size > 0) && (
@@ -527,8 +531,9 @@ function FuelFields({ fuel, amount, date, fills, onChange }: {
   fills: FuelFill[]
   onChange: (fuel: DraftFuel) => void
 }) {
-  // 소수를 치는 동안 '35.'이 '35'로 되돌아가지 않게 글자를 따로 둔다
+  // 치는 동안 글자가 값 검사에 지워지지 않게('35.'이 '35'로, '16'이 ''로) 칸의 글자는 따로 둔다. 값은 검사에 통과한 것만 초안에 올린다
   const [litersText, setLitersText] = useState(fuel.liters === null ? '' : String(fuel.liters))
+  const [pplText, setPplText] = useState(fuel.price_per_liter === null ? '' : String(fuel.price_per_liter))
   const complete = fuelComplete(fuel)
   const product = complete ? Math.round(fuel.liters * fuel.price_per_liter) : null
   const gap = product !== null ? product - amount : 0
@@ -537,7 +542,7 @@ function FuelFields({ fuel, amount, date, fills, onChange }: {
     ? fuelDelta([{ id: 'draft', transaction_id: 'draft', liters: fuel.liters, price_per_liter: fuel.price_per_liter, fuel_type: fuel.fuel_type, occurred_on: date, amount, title: '' },
         ...fills.filter((f) => f.occurred_on <= date)]) // 같은 날은 들어온 순서라 초안이 먼저다
     : null
-  const sameKind = fills.some((f) => fuelKind(f.fuel_type) === fuelKind(fuel.fuel_type))
+  const sameKind = fills.some((f) => f.occurred_on <= date && fuelKind(f.fuel_type) === fuelKind(fuel.fuel_type))
   return (
     <div className="field fuel-block">
       <span className="lbl">주유</span>
@@ -553,16 +558,16 @@ function FuelFields({ fuel, amount, date, fills, onChange }: {
             onChange={(e) => {
               const t = e.target.value.replace(/[^\d.]/g, '').replace(/^(\d*\.\d{0,3}).*$/, '$1').slice(0, 8)
               setLitersText(t)
-              const n = Number(t)
-              onChange({ ...fuel, liters: t && Number.isFinite(n) && n > 0 && n < 500 ? Math.round(n * 1000) / 1000 : null })
+              onChange({ ...fuel, liters: parseLiters(t) })
             }} />
         </div>
         <div className="field">
           <label htmlFor="fuel-ppl">리터당(원)</label>
-          <input id="fuel-ppl" className="input num" inputMode="numeric" value={fuel.price_per_liter === null ? '' : String(fuel.price_per_liter)} placeholder="1,652"
+          <input id="fuel-ppl" className="input num" inputMode="numeric" value={pplText} placeholder="1652"
             onChange={(e) => {
-              const n = Number(e.target.value.replace(/\D/g, '').slice(0, 6))
-              onChange({ ...fuel, price_per_liter: n > 100 && n < 100000 ? n : null })
+              const t = e.target.value.replace(/\D/g, '').slice(0, 6)
+              setPplText(t)
+              onChange({ ...fuel, price_per_liter: parsePricePerLiter(t) })
             }} />
         </div>
       </div>

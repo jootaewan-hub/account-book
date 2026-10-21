@@ -273,8 +273,8 @@ function fixUnitPrices(items: Item[]): Item[] {
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
 const TIME_RE = /^\d{2}:\d{2}$/
 
-/** 모델 출력을 저장 가능한 형태로 정리하고 품목 합계를 검사한다 */
-export function checkEntries(result: ExtractResult, images: ImageSize[] = []): CheckedEntry[] {
+/** 모델 출력을 저장 가능한 형태로 정리하고 품목 합계를 검사한다. withFuel이 false(문자 입력)면 주유 값은 버린다(주유는 영수증 사진에서만 읽는다) */
+export function checkEntries(result: ExtractResult, images: ImageSize[] = [], withFuel = true): CheckedEntry[] {
   return result.entries
     .map((e) => {
       const amount = Math.round(Math.abs(e.amount))
@@ -293,7 +293,7 @@ export function checkEntries(result: ExtractResult, images: ImageSize[] = []): C
       const fixed = fixLineTotals(items, amount)
       const sum = fixed.items.reduce((s, it) => s + it.amount, 0)
       const date = e.date && DATE_RE.test(e.date) && !Number.isNaN(Date.parse(e.date)) ? e.date : null
-      const fuel = checkFuel(e.fuel, amount)
+      const fuel = withFuel ? checkFuel(e.fuel, amount) : { fuel: null, note: null }
       return {
         ...e,
         type: e.is_income ? 'income' as const : 'expense' as const,

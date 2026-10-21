@@ -128,3 +128,27 @@ describe('주유 계산', () => {
     expect(fuelText({ liters: 35.2, price_per_liter: 1652, fuel_type: null })).toBe('35.2L, 1,652원/L')
   })
 })
+
+import { parseLiters, parsePricePerLiter } from '../src/lib/smart'
+
+describe('주유 칸 글자 → 값 (치는 동안 글자는 남고 값만 검사한다)', () => {
+  it('리터당 단가는 100 초과 정수만, 치는 중인 "1"·"16"은 null', () => {
+    expect(parsePricePerLiter('1')).toBeNull()
+    expect(parsePricePerLiter('16')).toBeNull()
+    expect(parsePricePerLiter('1652')).toBe(1652)
+    expect(parsePricePerLiter('1,652')).toBe(1652)
+    expect(parsePricePerLiter('')).toBeNull()
+  })
+  it('주유량은 0 초과 500 미만, 소수 셋째 자리까지', () => {
+    expect(parseLiters('35.')).toBe(35)
+    expect(parseLiters('35.2004')).toBe(35.2)
+    expect(parseLiters('0')).toBeNull()
+    expect(parseLiters('')).toBeNull()
+    expect(parseLiters('600')).toBeNull()
+  })
+  it('문자 입력(withFuel=false)에서는 주유 값을 버린다', () => {
+    const [e] = checkEntries({ note: null, entries: [entry({ fuel: { liters: 30, price_per_liter: 1652, fuel_type: '휘발유' } })] }, [], false)
+    expect(e.fuel).toBeNull()
+    expect('fuel_note' in e).toBe(false)
+  })
+})

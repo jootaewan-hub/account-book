@@ -60,19 +60,20 @@ export function ShopCompareCard({ result, loading, error }: { result: CompareRes
       {error && <p className="cmp-note">지난 기록을 불러오지 못했어요. 저장에는 영향이 없어요.</p>}
       {nothingPast && !r.listUsed && <p className="cmp-note">다음 장보기부터 지난번과 견줘 드려요.</p>}
 
-      {r.pricier.length > 0 && (
+      {/* 기록을 읽는 동안은 묶음을 내지 않는다(전부 '처음 사는 것'으로 보였다가 바뀌지 않게) */}
+      {!loading && r.pricier.length > 0 && (
         <>
           <p className="cmp-sub">지난번보다 비싸진 것 <span className="muted num">{r.pricier.length}</span></p>
           {list('pricier', r.pricier, priceRow)}
         </>
       )}
-      {r.cheaper.length > 0 && (
+      {!loading && r.cheaper.length > 0 && (
         <>
           <p className="cmp-sub">지난번보다 싸진 것 <span className="muted num">{r.cheaper.length}</span></p>
           {list('cheaper', r.cheaper, priceRow)}
         </>
       )}
-      {r.recent.length > 0 && (
+      {!loading && r.recent.length > 0 && (
         <>
           <p className="cmp-sub">최근에 또 산 것 <span className="muted num">{r.recent.length}</span></p>
           {list('recent', r.recent, (v) => {
@@ -86,19 +87,19 @@ export function ShopCompareCard({ result, loading, error }: { result: CompareRes
           })}
         </>
       )}
-      {r.offList.length > 0 && (
+      {!loading && r.offList.length > 0 && (
         <>
           <p className="cmp-sub">장보기 목록에 없던 것 <span className="muted num">{r.offList.length}</span></p>
           <p className="cmp-names">{r.offList.map((v) => v.name).join(', ')}</p>
         </>
       )}
-      {r.duplicates.length > 0 && (
+      {!loading && r.duplicates.length > 0 && (
         <>
           <p className="cmp-sub">같은 것이 두 줄 <span className="muted num">{r.duplicates.length}</span></p>
           <p className="cmp-names">{r.duplicates.map((v) => v.name).join(', ')}</p>
         </>
       )}
-      {r.first.length > 0 && !nothingPast && (
+      {!loading && r.first.length > 0 && !nothingPast && (
         <details className="table-view cmp-first">
           <summary>처음 사는 것 {r.first.length}</summary>
           <p className="cmp-names">{r.first.map((v) => v.name).join(', ')}</p>

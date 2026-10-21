@@ -19,6 +19,18 @@ export function fuelComplete(f: DraftFuel | null | undefined): f is TxFuel {
 
 const FUEL_CATEGORY = '차량·주유'
 
+/** 주유량 칸의 글자 → 리터. 0 초과 500 미만, 소수 셋째 자리까지. 아니면 null(칸의 글자는 그대로 둔다) */
+export function parseLiters(text: string): number | null {
+  const n = Number(text)
+  return text.trim() !== '' && Number.isFinite(n) && n > 0 && n < 500 ? Math.round(n * 1000) / 1000 : null
+}
+
+/** 리터당 단가 칸의 글자 → 원. 100 초과 10만 원 미만 정수. 아니면 null(칸의 글자는 그대로 둔다) */
+export function parsePricePerLiter(text: string): number | null {
+  const n = Number(text.replace(/\D/g, ''))
+  return Number.isInteger(n) && n > 100 && n < 100_000 ? n : null
+}
+
 export interface DraftItem {
   name: string
   /** 상품이면 true, 배송비·할인 줄이면 false */
