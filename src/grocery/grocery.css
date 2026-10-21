@@ -96,7 +96,7 @@
   min-height: 44px; border: 0; border-radius: 10px; background: transparent; color: var(--ink-2);
   font-size: 15px; font-weight: 600; cursor: pointer;
 }
-.grocery .seg button[aria-pressed="true"] { background: var(--ink); color: var(--on-primary); }
+.grocery .seg button[aria-pressed="true"], .grocery .seg button[aria-selected="true"] { background: var(--ink); color: var(--on-primary); }
 .grocery .group { margin-top: 24px; }
 .grocery .group-title { display: flex; align-items: baseline; gap: 8px; margin: 0 0 8px; font-size: 17px; font-weight: 700; }
 .grocery .group-count { font-size: 13px; font-weight: 500; color: var(--ink-2); }
@@ -121,6 +121,9 @@
 .grocery .check[aria-pressed="true"] .check-mark { background: var(--ink); border-color: var(--ink); }
 .grocery .row-main { flex: 1; min-width: 0; padding: 4px 0; }
 .grocery .row-name { font-size: 16px; font-weight: 600; line-height: 1.4; }
+/* 이름은 버튼이라 키보드(Tab → Enter)로도 상세를 열 수 있다. 모양은 글줄 그대로 */
+.grocery button.row-name { display: block; width: 100%; margin: 0; padding: 0; border: 0; background: none; color: inherit; text-align: left; font: inherit; font-weight: 600; cursor: pointer; }
+.grocery button.row-name:disabled { cursor: default; }
 .grocery .row-spec, .grocery .row-count { font-weight: 500; color: var(--ink-2); }
 .grocery .row-meta { margin-top: 2px; font-size: 13px; font-weight: 500; color: var(--ink-2); line-height: 1.4; }
 .grocery .who { display: inline-flex; align-items: center; gap: 4px; }
@@ -226,7 +229,7 @@
 @keyframes dialog-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
 @keyframes dialog-out { from { opacity: 1; transform: none; } to { opacity: 0; transform: translateY(8px); } }
 @media (hover: hover) and (pointer: fine) {
-  .grocery .seg button:not([aria-pressed="true"]):hover { color: var(--ink); }
+  .grocery .seg button:not([aria-pressed="true"]):not([aria-selected="true"]):hover { color: var(--ink); }
   .grocery .btn-text:hover { color: var(--ink); }
   .grocery .btn-secondary:hover { background: var(--oat-deep); }
   .grocery .check:hover .check-mark { border-color: var(--ink-2); }

@@ -457,22 +457,22 @@ function DraftCard({ d, categories, fills, onChange }: {
         ))}
       </div>
       <div className="field">
-        <label>내용</label>
-        <input className="input" value={d.title} maxLength={60} onChange={(e) => onChange({ title: e.target.value })} />
+        <label htmlFor={`d-${d.key}-title`}>내용</label>
+        <input id={`d-${d.key}-title`} className="input" value={d.title} maxLength={60} onChange={(e) => onChange({ title: e.target.value })} />
       </div>
       <div className="field">
-        <label>플랫폼</label>
-        <PlatformInput value={d.platform ?? ''} onChange={(v) => onChange({ platform: v })} />
+        <label htmlFor={`d-${d.key}-platform`}>플랫폼</label>
+        <PlatformInput id={`d-${d.key}-platform`} value={d.platform ?? ''} onChange={(v) => onChange({ platform: v })} />
       </div>
       <div className="row2">
         <div className="field">
-          <label>금액</label>
-          <input className="input num" inputMode="numeric" value={d.amount ? String(d.amount) : ''}
+          <label htmlFor={`d-${d.key}-amount`}>금액</label>
+          <input id={`d-${d.key}-amount`} className="input num" inputMode="numeric" value={d.amount ? String(d.amount) : ''}
             onChange={(e) => onChange({ amount: Number(e.target.value.replace(/\D/g, '').slice(0, 10)) || 0 })} />
         </div>
         <div className="field">
-          <label>날짜</label>
-          <input type="date" className="input date-input" value={d.date} onChange={(e) => onChange({ date: e.target.value })} />
+          <label htmlFor={`d-${d.key}-date`}>날짜</label>
+          <input id={`d-${d.key}-date`} type="date" className="input date-input" value={d.date} onChange={(e) => onChange({ date: e.target.value })} />
         </div>
       </div>
       {d.type === 'expense' && (

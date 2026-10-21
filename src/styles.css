@@ -303,6 +303,10 @@ select.input { padding: 9px 10px; }
 .manual-head h3 { margin: 0; font-size: 17px; font-weight: 700; }
 .manual-head .seg:where(:not(.grocery *)) { width: 132px; }
 .role-card { display: flex; flex-direction: column; gap: 10px; }
+/* 한 화면이 그리다 멈췄을 때(ErrorBoundary) */
+.error-card { display: flex; flex-direction: column; gap: 8px; }
+.error-card .lead { font-size: 14px; }
+.error-actions { display: flex; gap: 8px; flex-wrap: wrap; }
 
 /* 문자·사진 입력 */
 .smart-text { min-height: 150px; resize: vertical; line-height: 1.5; font-size: 16px; }

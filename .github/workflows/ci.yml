@@ -1,0 +1,43 @@
+name: 검사 (브랜치·PR)
+
+# main이 아닌 브랜치에 푸시하거나 PR을 열면 타입 검사·린트·시험·빌드를 돈다. 배포는 하지 않는다(배포는 deploy.yml, main만).
+on:
+  push:
+    branches-ignore: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build
+        env:
+          BASE_PATH: /${{ github.event.repository.name }}/
+          VITE_SUPABASE_URL: https://kifdfpbwiebfgvdumqjf.supabase.co
+          VITE_SUPABASE_PUBLISHABLE_KEY: sb_publishable_bQ2BOXHX_7-_l_tvVrel6A_-2atkMYK
+      # 묶음 크기가 늘어나는지 눈에 보이게 적어 둔다(실패시키지는 않는다)
+      - name: 빌드 결과 크기
+        run: |
+          echo '### 빌드 결과 (gzip)' >> "$GITHUB_STEP_SUMMARY"
+          echo '| 파일 | 크기 |' >> "$GITHUB_STEP_SUMMARY"
+          echo '|---|---|' >> "$GITHUB_STEP_SUMMARY"
+          for f in dist/assets/*.js dist/assets/*.css; do
+            printf '| %s | %s KB |\n' "$(basename "$f")" "$(( $(gzip -c "$f" | wc -c) / 1024 ))" >> "$GITHUB_STEP_SUMMARY"
+          done

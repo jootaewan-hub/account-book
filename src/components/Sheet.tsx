@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type PointerEvent, type ReactNode } from 'react'
-import { lockScroll } from '../lib/scrollLock'
+import { useFocusTrap, useScrollLock } from '../lib/dialog'
 import { Close } from './Icons'
 
 interface Props {
@@ -21,6 +21,7 @@ const WIDE_SCREEN = '(min-width: 960px)'
 /**
  * 바닥 시트. 열 때 400ms로 올라오고 닫을 때 250ms로 내려간다. 손잡이 줄을 끌어 내려 닫을 수 있다(닫기 버튼도 항상 있다).
  * 넓은 화면에서는 가운데 창으로 열리고, 닫기 버튼·Esc·바깥 누르기로 닫는다.
+ * 키보드·포커스·스크롤 잠금 규칙은 lib/dialog.ts(장보기 시트와 같다).
  */
 export function Sheet({ open, title, onClose, wide = false, children }: Props) {
   const [mounted, setMounted] = useState(open)
@@ -42,22 +43,9 @@ export function Sheet({ open, title, onClose, wide = false, children }: Props) {
   }, [open])
 
   // 화면에 있는 동안(닫히는 중 포함) 뒤 화면 스크롤을 잠근다. 겹쳐 열린 시트와 잠금 수를 함께 센다
-  useEffect(() => {
-    if (!mounted) return
-    return lockScroll()
-  }, [mounted])
-
-  // Esc는 열려 있는 시트만 받는다. 닫히는 중인 시트까지 받으면 겹쳐 열린 새 시트가 함께 닫힌다
-  useEffect(() => {
-    if (!open) return
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
-    document.addEventListener('keydown', onKey)
-    return () => document.removeEventListener('keydown', onKey)
-  }, [open, onClose])
-
-  useEffect(() => {
-    if (open && on) sheetRef.current?.focus({ preventScroll: true })
-  }, [open, on])
+  useScrollLock(mounted)
+  // 열려 있는 시트만 Esc·Tab을 받는다. 닫히는 중인 시트까지 받으면 겹쳐 열린 새 시트가 함께 닫힌다
+  useFocusTrap(sheetRef, open && on, { onEscape: onClose })
 
   function onDown(e: PointerEvent<HTMLDivElement>) {
     if (drag.current || !open || (e.target as HTMLElement).closest('button') || window.matchMedia(WIDE_SCREEN).matches) return
@@ -93,7 +81,7 @@ export function Sheet({ open, title, onClose, wide = false, children }: Props) {
   const closing = !open
   return (
     <>
-      <div ref={scrimRef} className={`scrim${on ? ' on' : ''}${closing ? ' closing' : ''}`} onClick={onClose} />
+      <div ref={scrimRef} className={`scrim${on ? ' on' : ''}${closing ? ' closing' : ''}`} onClick={onClose} aria-hidden="true" />
       <div ref={sheetRef} tabIndex={-1} className={`sheet${wide ? ' wide' : ''}${on ? ' on' : ''}${closing ? ' closing' : ''}`} role="dialog" aria-modal="true" aria-label={title}>
         <div className="sheet-grab" onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp}>
           <div className="grab" />

@@ -1,4 +1,5 @@
-import { useEffect, useId, useMemo, useRef, useState } from 'react'
+import { useId, useMemo, useRef, useState } from 'react'
+import { useClosing, useFocusTrap, useScrollLock } from '../../lib/dialog'
 import type { ListStore } from '../lib/store'
 import { READING_TEXT } from '../lib/photo'
 import { listText } from '../../../supabase/functions/grocery-photo/photo'
@@ -25,52 +26,15 @@ export default function AddSheet({ onAdd, onClose, initialText = '', store, onBa
   const [readMsg, setReadMsg] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [closing, setClosing] = useState(false)
   const parsed = useMemo(() => parseLines(text), [text])
   const area = useRef<HTMLTextAreaElement>(null)
   const sheet = useRef<HTMLDivElement>(null)
-  const closeTimer = useRef<number | undefined>(undefined)
   const titleId = useId()
   const hintId = useId()
-
-  const close = () => {
-    if (closing) return
-    setClosing(true)
-    const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
-    closeTimer.current = window.setTimeout(onClose, reduce ? 0 : CLOSE_MS)
-  }
-
-  useEffect(() => {
-    area.current?.focus({ preventScroll: true })
-    const prev = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
-    return () => {
-      document.body.style.overflow = prev
-      window.clearTimeout(closeTimer.current)
-    }
-  }, [])
-
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && !e.isComposing) close()
-      // 창 안에서만 Tab이 돌게 한다
-      if (e.key === 'Tab' && sheet.current) {
-        const els = [...sheet.current.querySelectorAll<HTMLElement>('button:not(:disabled), textarea')]
-        if (els.length === 0) return
-        const first = els[0]
-        const last = els[els.length - 1]
-        if (e.shiftKey && document.activeElement === first) {
-          e.preventDefault()
-          last.focus()
-        } else if (!e.shiftKey && document.activeElement === last) {
-          e.preventDefault()
-          first.focus()
-        }
-      }
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  })
+  // 닫기 움직임·Esc·Tab 순환·스크롤 잠금·포커스 복귀는 공통 규칙(lib/dialog.ts). 처음 포커스는 글 칸
+  const { closing, close } = useClosing(onClose, CLOSE_MS)
+  useScrollLock(true)
+  useFocusTrap(sheet, !closing, { onEscape: close, initialFocus: area })
 
   async function submit() {
     if (parsed.length === 0 || busy || closing) return
@@ -90,7 +54,7 @@ export default function AddSheet({ onAdd, onClose, initialText = '', store, onBa
   return (
     <div className={`sheet-layer${closing ? ' is-closing' : ''}`}>
       <div className="sheet-backdrop" onClick={close} aria-hidden="true" />
-      <div className="sheet" ref={sheet} role="dialog" aria-modal="true" aria-labelledby={titleId}>
+      <div className="sheet" ref={sheet} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby={titleId}>
         <div className="sheet-head">
           <h2 id={titleId}>담기</h2>
           <button type="button" className="btn-text" onClick={close}>닫기</button>

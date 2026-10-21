@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useId, useRef, useState, type FormEvent } from 'react'
+import { useClosing, useFocusTrap, useScrollLock } from '../../lib/dialog'
 import { won } from '../lib/format'
 import { checkedText, type Candidate } from '../lib/products'
 import type { ListStore } from '../lib/store'
@@ -21,7 +22,6 @@ type Props = {
 
 // 처음 한 번 상품을 직접 고르는 시트. 후보는 다나와 검색 결과 그대로이고, 같은 상품도 수량마다 따로 고른다.
 export default function CandidateSheet({ item, store, onPicked, onClose }: Props) {
-  const [closing, setClosing] = useState(false)
   const [list, setList] = useState<Candidate[] | null>(null)
   const [failed, setFailed] = useState(false)
   const [searching, setSearching] = useState(false)
@@ -33,15 +33,10 @@ export default function CandidateSheet({ item, store, onPicked, onClose }: Props
   const [showBulk, setShowBulk] = useState(false)
   const sheet = useRef<HTMLDivElement>(null)
   const closeBtn = useRef<HTMLButtonElement>(null)
-  const closeTimer = useRef<number | undefined>(undefined)
   const titleId = useId()
-
-  const close = () => {
-    if (closing) return
-    setClosing(true)
-    const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
-    closeTimer.current = window.setTimeout(onClose, reduce ? 0 : CLOSE_MS)
-  }
+  const { closing, close } = useClosing(onClose, CLOSE_MS)
+  useScrollLock(true)
+  useFocusTrap(sheet, !closing, { onEscape: close, initialFocus: closeBtn })
 
   const load = useCallback(() => {
     setFailed(false)
@@ -50,33 +45,6 @@ export default function CandidateSheet({ item, store, onPicked, onClose }: Props
   }, [store, item.id])
 
   useEffect(load, [load])
-
-  useEffect(() => {
-    closeBtn.current?.focus({ preventScroll: true })
-    const prev = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
-    return () => {
-      document.body.style.overflow = prev
-      window.clearTimeout(closeTimer.current)
-    }
-  }, [])
-
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && !e.isComposing) close()
-      if (e.key === 'Tab' && sheet.current) {
-        // 시트 안에서만 돈다
-        const f = [...sheet.current.querySelectorAll<HTMLElement>('button:not([disabled]), input')]
-        if (f.length === 0) return
-        const i = f.indexOf(document.activeElement as HTMLElement)
-        const next = e.shiftKey ? (i <= 0 ? f.length - 1 : i - 1) : i === f.length - 1 ? 0 : i + 1
-        e.preventDefault()
-        f[next].focus()
-      }
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  })
 
   const runSearch = (q: string) => {
     if (!q || searching) return
@@ -147,7 +115,7 @@ export default function CandidateSheet({ item, store, onPicked, onClose }: Props
   return (
     <div className={`sheet-layer${closing ? ' is-closing' : ''}`}>
       <div className="sheet-backdrop" onClick={close} aria-hidden="true" />
-      <div className="sheet" ref={sheet} role="dialog" aria-modal="true" aria-labelledby={titleId}>
+      <div className="sheet" ref={sheet} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby={titleId}>
         <div className="sheet-head">
           <h2 id={titleId}>{item.name} — 어떤 상품인가요?</h2>
           <button type="button" className="btn-text" ref={closeBtn} onClick={close}>닫기</button>

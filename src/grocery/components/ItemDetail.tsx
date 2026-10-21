@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react'
+import { useClosing, useFocusTrap, useScrollLock } from '../../lib/dialog'
 import { checkedRange, koDay, koFullDay, SOURCE_NAME, SOURCES } from '../lib/alerts'
 import { danawaProductUrl } from '../../../supabase/functions/_shared/danawa'
 import { fitRule, isBulk } from '../../../supabase/functions/_shared/fit'
@@ -67,7 +68,6 @@ type Props = {
 // 품목 상세: 요약 네 칸과 가격·안전·평가 탭. 숫자마다 출처와 확인 시각을 붙인다(화면 설계 4·5절).
 export default function ItemDetail({ item, store, onChangeProduct, onClose, market, members = [] }: Props) {
   const fresh = isFresh(item.category) && Boolean(market)
-  const [closing, setClosing] = useState(false)
   const [tab, setTab] = useState<Tab>(fresh ? 'market' : 'price')
   const matched = fresh ? matchMarket(item.name, item.spec) : null
   const series = market?.board ? pickSeries(market.board.series, matched) : null
@@ -89,19 +89,10 @@ export default function ItemDetail({ item, store, onChangeProduct, onClose, mark
   const [ours, setOurs] = useState<OurPurchase[] | null>(null)
   const [srcFailed, setSrcFailed] = useState(false)
   const [srcBusy, setSrcBusy] = useState(false)
+  // 겹쳐 연 고르기 시트. 닫히면 연 버튼으로 포커스가 돌아오는 것은 시트 공통 규칙(lib/dialog.ts)이 한다
   const [picker, setPicker] = useState<'good' | 'stores' | 'food' | 'nutrition' | null>(null)
-  // 겹쳐 연 시트를 닫으면 연 버튼으로 포커스를 되돌린다(리뷰 ⑧). 키보드로 열면 그 버튼이 활성 요소다
-  const pickerOpener = useRef<HTMLElement | null>(null)
-  const openPicker = (p: 'good' | 'stores' | 'food' | 'nutrition') => {
-    pickerOpener.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
-    setPicker(p)
-  }
-  const closePicker = () => {
-    setPicker(null)
-    const el = pickerOpener.current
-    pickerOpener.current = null
-    if (el) window.setTimeout(() => el.focus({ preventScroll: true }), 0)
-  }
+  const openPicker = (p: 'good' | 'stores' | 'food' | 'nutrition') => setPicker(p)
+  const closePicker = () => setPicker(null)
   // P7·D-020: 식약처 품목제조보고 원재료(품목 이름·규격에 기억), 대안 계산용 후보
   const [ing, setIng] = useState<ItemIngredients | null | 'loading' | 'failed'>('loading')
   // P9: 품목 이름·규격에 기억한 식품영양성분DB 식품(신선 품목도)
@@ -113,16 +104,12 @@ export default function ItemDetail({ item, store, onChangeProduct, onClose, mark
   const [captureMsg, setCaptureMsg] = useState<string | null>(null)
   const sheet = useRef<HTMLDivElement>(null)
   const closeBtn = useRef<HTMLButtonElement>(null)
-  const closeTimer = useRef<number | undefined>(undefined)
   const asked = useRef(false)
   const titleId = useId()
-
-  const close = () => {
-    if (closing) return
-    setClosing(true)
-    const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
-    closeTimer.current = window.setTimeout(onClose, reduce ? 0 : CLOSE_MS)
-  }
+  // 닫기 움직임·Esc·Tab 순환·스크롤 잠금. 위에 고르기 시트가 열리면 그 시트가 키를 받고 이 시트는 쉰다
+  const { closing, close } = useClosing(onClose, CLOSE_MS)
+  useScrollLock(true)
+  useFocusTrap(sheet, !closing, { onEscape: close, initialFocus: closeBtn })
 
   const load = useCallback(() => {
     setFailed(false)
@@ -218,33 +205,6 @@ export default function ItemDetail({ item, store, onChangeProduct, onClose, mark
     })
   }, [load, store, item.id])
 
-  useEffect(() => {
-    closeBtn.current?.focus({ preventScroll: true })
-    const prev = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
-    return () => {
-      document.body.style.overflow = prev
-      window.clearTimeout(closeTimer.current)
-    }
-  }, [])
-
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (picker) return // 겹쳐 연 고르기 시트가 처리한다
-      if (e.key === 'Escape' && !e.isComposing) close()
-      if (e.key === 'Tab' && sheet.current) {
-        const f = [...sheet.current.querySelectorAll<HTMLElement>('button:not([disabled]), a[href], input')]
-        if (f.length === 0) return
-        const i = f.indexOf(document.activeElement as HTMLElement)
-        const next = e.shiftKey ? (i <= 0 ? f.length - 1 : i - 1) : i === f.length - 1 ? 0 : i + 1
-        e.preventDefault()
-        f[next].focus()
-      }
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  })
-
   const today = kstDay(new Date().toISOString())
   const qty = item.productQty ?? 1
   const split = splitLines(data?.lines ?? [], qty, today)
@@ -262,7 +222,7 @@ export default function ItemDetail({ item, store, onChangeProduct, onClose, mark
   return (
     <div className={`sheet-layer${closing ? ' is-closing' : ''}`}>
       <div className="sheet-backdrop" onClick={close} aria-hidden="true" />
-      <div className="sheet detail" ref={sheet} role="dialog" aria-modal="true" aria-labelledby={titleId}>
+      <div className="sheet detail" ref={sheet} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby={titleId}>
         <div className="sheet-head">
           <h2 id={titleId}>{item.name}{item.spec ? ` ${item.spec}` : ''}</h2>
           <button type="button" className="btn-text" ref={closeBtn} onClick={close}>닫기</button>
@@ -319,7 +279,7 @@ export default function ItemDetail({ item, store, onChangeProduct, onClose, mark
 
               <div className={`seg detail-tabs${fresh ? ' seg-4' : ' seg-5'}`} role="tablist" aria-label="품목 상세">
                 {(fresh ? FRESH_TABS : TABS).map((t) => (
-                  <button key={t.key} type="button" role="tab" aria-selected={tab === t.key} aria-pressed={tab === t.key} onClick={() => setTab(t.key)}>
+                  <button key={t.key} type="button" role="tab" aria-selected={tab === t.key} onClick={() => setTab(t.key)}>
                     {t.label}
                   </button>
                 ))}

@@ -1,4 +1,5 @@
-import { useEffect, useId, useMemo, useRef, useState } from 'react'
+import { useId, useMemo, useRef, useState } from 'react'
+import { useClosing, useFocusTrap, useScrollLock } from '../../lib/dialog'
 import type { Category as LedgerCategory, Scope } from '../../lib/types'
 import { kstDay } from '../lib/products'
 import { buildEntries, itemLabel, ledgerCategoryFor, type PurchaseEntry, type PurchaseInput } from '../lib/purchase'
@@ -43,50 +44,16 @@ export default function RecordSheet({ items, categories, onSave, onClose }: Prop
   )
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [closing, setClosing] = useState(false)
   const sheet = useRef<HTMLDivElement>(null)
-  const closeTimer = useRef<number | undefined>(undefined)
   const titleId = useId()
   const usable = categories.filter((c) => c.type === 'expense' && !c.archived)
 
   const sum = mode === 'total' ? total : chosen.reduce<number | null>((s, i) => (s === null || !amounts[i.id] ? null : s + (amounts[i.id] as number)), 0)
 
-  const close = () => {
-    if (closing) return
-    setClosing(true)
-    const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
-    closeTimer.current = window.setTimeout(onClose, reduce ? 0 : CLOSE_MS)
-  }
-
-  useEffect(() => {
-    const prev = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
-    return () => {
-      document.body.style.overflow = prev
-      window.clearTimeout(closeTimer.current)
-    }
-  }, [])
-
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && !e.isComposing) close()
-      if (e.key === 'Tab' && sheet.current) {
-        const els = [...sheet.current.querySelectorAll<HTMLElement>('button:not(:disabled), input, select')]
-        if (els.length === 0) return
-        const first = els[0]
-        const last = els[els.length - 1]
-        if (e.shiftKey && document.activeElement === first) {
-          e.preventDefault()
-          last.focus()
-        } else if (!e.shiftKey && document.activeElement === last) {
-          e.preventDefault()
-          first.focus()
-        }
-      }
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  })
+  // 처음 포커스는 시트 자체(아래 칸이 여러 개라 특정 칸을 고르지 않는다)
+  const { closing, close } = useClosing(onClose, CLOSE_MS)
+  useScrollLock(true)
+  useFocusTrap(sheet, !closing, { onEscape: close })
 
   const togglePick = (id: string) =>
     setPicked((p) => {
@@ -122,7 +89,7 @@ export default function RecordSheet({ items, categories, onSave, onClose }: Prop
   return (
     <div className={`sheet-layer${closing ? ' is-closing' : ''}`}>
       <div className="sheet-backdrop" onClick={close} aria-hidden="true" />
-      <div className="sheet" ref={sheet} role="dialog" aria-modal="true" aria-labelledby={titleId}>
+      <div className="sheet" ref={sheet} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby={titleId}>
         <div className="sheet-head">
           <h2 id={titleId}>가계부에 넣기</h2>
           <button type="button" className="btn-text" onClick={close}>닫기</button>

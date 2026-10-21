@@ -160,6 +160,8 @@ export default function ListRow({
       className={`row${bought ? ' is-bought' : ''}${open && !editing ? ' is-open' : ''}${dx !== null ? ' is-swiping' : ''}${editing ? ' is-editing' : ''}`}
       data-row-id={item.id}
     >
+      {/* 끌어서 "빼기"를 열고, 누르면 상세를 연다. 키보드는 안쪽 이름 버튼(Enter)의 click이 여기로 올라온다 */}
+      {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions */}
       <div
         className={`row-body${dx !== null ? ' is-dragging' : ''}`}
         style={{ transform: offset ? `translateX(${offset}px)` : undefined }}
@@ -190,11 +192,11 @@ export default function ListRow({
           </span>
         </button>
         <div className="row-main">
-          <p className="row-name">
+          <button type="button" className="row-name" aria-label={editing ? undefined : `${label} 상세`} disabled={editing}>
             {item.name}
             {item.spec && <span className="row-spec num"> {item.spec}</span>}
             {item.count > 1 && <span className="row-count num"> ×{item.count}</span>}
-          </p>
+          </button>
           {alertLevel && (
             <button
               type="button"

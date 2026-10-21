@@ -1,6 +1,7 @@
 // 바코드로 상품 보기(P6, 화면 설계 7·8-2절): 카메라(또는 사진)로 소매 바코드를 읽고, 먼저 식약처 기록의 바코드와 대조한다(일치하면 "기록 있음").
 // 그다음 다나와 검색(새 창)과 담기(이름 읽기 또는 직접 적기)를 둔다. 목록에 담지 않고도 볼 수 있다.
 import { useCallback, useEffect, useId, useRef, useState } from 'react'
+import { useClosing, useFocusTrap, useScrollLock } from '../../lib/dialog'
 import { checkedRange, koFullDay, SOURCE_NAME, type AlertsResult } from '../lib/alerts'
 import { danawaBarcodeUrl, getDetector, normalizeBarcode, pickRetail } from '../lib/barcode'
 import { READING_TEXT } from '../lib/photo'
@@ -24,7 +25,6 @@ type Props = {
 }
 
 export default function BarcodeSheet({ store, initialCode, onAddText, onClose }: Props) {
-  const [closing, setClosing] = useState(false)
   const [stage, setStage] = useState<Stage>(initialCode ? 'checking' : 'camera')
   const [msg, setMsg] = useState<string | null>(null)
   const [name, setName] = useState('')
@@ -34,7 +34,6 @@ export default function BarcodeSheet({ store, initialCode, onAddText, onClose }:
   const timer = useRef<number | undefined>(undefined)
   const sheet = useRef<HTMLDivElement>(null)
   const closeBtn = useRef<HTMLButtonElement>(null)
-  const closeTimer = useRef<number | undefined>(undefined)
   const titleId = useId()
 
   const stopCamera = useCallback(() => {
@@ -43,13 +42,15 @@ export default function BarcodeSheet({ store, initialCode, onAddText, onClose }:
     stream.current = null
   }, [])
 
+  // 닫을 때 카메라를 먼저 끈다. 닫기 움직임·Esc·Tab·스크롤 잠금은 공통 규칙(lib/dialog.ts)
+  const { closing, close: finishClose } = useClosing(onClose, CLOSE_MS)
   const close = () => {
     if (closing) return
-    setClosing(true)
     stopCamera()
-    const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
-    closeTimer.current = window.setTimeout(onClose, reduce ? 0 : CLOSE_MS)
+    finishClose()
   }
+  useScrollLock(true)
+  useFocusTrap(sheet, !closing, { onEscape: close, initialFocus: closeBtn })
 
   const lookup = useCallback(
     (code: string) => {
@@ -110,32 +111,6 @@ export default function BarcodeSheet({ store, initialCode, onAddText, onClose }:
     }
   }, [stage, lookup, stopCamera])
 
-  useEffect(() => {
-    closeBtn.current?.focus({ preventScroll: true })
-    const prev = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
-    return () => {
-      document.body.style.overflow = prev
-      window.clearTimeout(closeTimer.current)
-    }
-  }, [])
-
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && !e.isComposing) close()
-      if (e.key === 'Tab' && sheet.current) {
-        const f = [...sheet.current.querySelectorAll<HTMLElement>('button:not([disabled]), a[href], input:not([type=file])')]
-        if (f.length === 0) return
-        const i = f.indexOf(document.activeElement as HTMLElement)
-        const next = e.shiftKey ? (i <= 0 ? f.length - 1 : i - 1) : i === f.length - 1 ? 0 : i + 1
-        e.preventDefault()
-        f[next].focus()
-      }
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  })
-
   // 사진 한 장에서 읽기(카메라를 못 열거나 손으로 고른 사진)
   const readFromImage = async (img: { blob: Blob }) => {
     setStage('reading')
@@ -187,7 +162,7 @@ export default function BarcodeSheet({ store, initialCode, onAddText, onClose }:
   return (
     <div className={`sheet-layer${closing ? ' is-closing' : ''}`}>
       <div className="sheet-backdrop" onClick={close} aria-hidden="true" />
-      <div className="sheet" ref={sheet} role="dialog" aria-modal="true" aria-labelledby={titleId}>
+      <div className="sheet" ref={sheet} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby={titleId}>
         <div className="sheet-head">
           <h2 id={titleId}>바코드로 상품 보기</h2>
           <button type="button" className="btn-text" ref={closeBtn} onClick={close}>닫기</button>

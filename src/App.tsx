@@ -1,8 +1,8 @@
 import type { Session } from '@supabase/supabase-js'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { CalendarView } from './components/CalendarView'
 import { EntrySheet } from './components/EntrySheet'
-import { ExportCard } from './components/ExportCard'
+import { ErrorBoundary } from './components/ErrorBoundary'
 import { CalendarIcon, CartIcon, ChartIcon, ChevronLeft, ChevronRight, GearIcon, ListIcon, Plus, RepeatIcon } from './components/Icons'
 import { ListView, type ListFocus } from './components/ListView'
 import { Soft, Toast } from './components/Motion'
@@ -10,11 +10,7 @@ import { PlanSheet, type PlanTarget } from './components/PlanSheet'
 import { PlatformDatalist } from './components/PlatformInput'
 import { Login, NewPassword } from './components/Login'
 import { Onboarding } from './components/Onboarding'
-import { RecurringView } from './components/RecurringView'
-import { SettingsView } from './components/SettingsView'
-import { SmartSheet, type SmartMode } from './components/SmartSheet'
-import { StatsView } from './components/StatsView'
-import { GroceryTab } from './grocery/GroceryTab'
+import type { SmartMode } from './components/SmartSheet'
 import { useLedgerMeta, useLiveUpdates, useMonthEvents, useMonthTransactions } from './hooks/useLedger'
 import { deleteTransaction, friendlyError, generateRecurring, insertInstallmentPurchase, insertTransaction, updateSpouseRole, updateTransaction } from './lib/api'
 import { addMonths, parseYM, todayLocal } from './lib/dates'
@@ -22,6 +18,23 @@ import { makeLookup, SCOPE_LABEL } from './lib/lookup'
 import { onUpdateReady, updateReady } from './lib/pwa'
 import { isConfigured, sb } from './lib/supabase'
 import type { Household, Spouse, Transaction, TxInput } from './lib/types'
+
+// 처음 여는 달력·내역 밖의 화면은 따로 묶어(코드 분할) 눌렀을 때 불러온다. 첫 화면이 빨리 뜨고, 새 버전도 바뀐 묶음만 받는다.
+// 장보기(화면·저장소·CSS)와 스마트 입력(모델 결과 다듬기·사진 자르기·장보기 비교)이 가장 크다.
+const GroceryTab = lazy(() => import('./grocery/GroceryTab').then((m) => ({ default: m.GroceryTab })))
+const StatsView = lazy(() => import('./components/StatsView').then((m) => ({ default: m.StatsView })))
+const RecurringView = lazy(() => import('./components/RecurringView').then((m) => ({ default: m.RecurringView })))
+const SettingsView = lazy(() => import('./components/SettingsView').then((m) => ({ default: m.SettingsView })))
+const ExportCard = lazy(() => import('./components/ExportCard').then((m) => ({ default: m.ExportCard })))
+const SmartSheet = lazy(() => import('./components/SmartSheet').then((m) => ({ default: m.SmartSheet })))
+
+/** 첫 화면이 뜬 뒤 쉬는 틈에 나머지 묶음을 미리 받아 둔다(탭을 누를 때 기다리지 않게) */
+function prefetchChunks() {
+  void Promise.allSettled([
+    import('./grocery/GroceryTab'), import('./components/StatsView'), import('./components/SmartSheet'),
+    import('./components/RecurringView'), import('./components/SettingsView'), import('./components/ExportCard'),
+  ])
+}
 
 export default function App() {
   if (!isConfigured) return <SetupNeeded />
@@ -83,6 +96,17 @@ function initialTab(): Tab {
   return new URLSearchParams(window.location.search).get('tab') === 'grocery' ? 'grocery' : 'cal'
 }
 
+const TITLE: Record<Tab, string> = { cal: '우리집', list: '내역', grocery: '장보기', stats: '통계', fixed: '고정 지출', settings: '설정' }
+
+/** 따로 받는 화면이 오는 동안의 자리. 한 화면이 그리다 멈추면 그 자리에만 오류를 보이고, 다른 탭으로 옮기면(key) 풀린다 */
+function Screen({ name, children }: { name: string; children: ReactNode }) {
+  return (
+    <ErrorBoundary key={name} name={name}>
+      <Suspense fallback={<p className="lead">불러오는 중…</p>}>{children}</Suspense>
+    </ErrorBoundary>
+  )
+}
+
 function Ledger({ household, meta, userId, email }: {
   household: Household
   meta: ReturnType<typeof useLedgerMeta>
@@ -98,6 +122,10 @@ function Ledger({ household, meta, userId, email }: {
   const openSettings = () => { if (tab !== 'settings') setBeforeSettings(tab); setTab('settings') }
   const [sheet, setSheet] = useState<{ open: boolean; editing: Transaction | null }>({ open: false, editing: null })
   const [smart, setSmart] = useState<{ open: boolean; mode: SmartMode }>({ open: false, mode: 'text' })
+  // 스마트 입력 시트는 처음 열 때 불러오고, 그 뒤로는 닫히는 움직임을 위해 화면에 남겨 둔다
+  const [smartMounted, setSmartMounted] = useState(false)
+  const openSmart = (mode: SmartMode) => { setSmartMounted(true); setSmart({ open: true, mode }) }
+  const closeSmart = () => setSmart((s) => ({ ...s, open: false }))
   // 관리비 고지서를 저장하면 통계 탭의 관리비 분석을 다시 불러온다
   const [billsVersion, setBillsVersion] = useState(0)
   const [toastMsg, setToastMsg] = useState('')
@@ -116,6 +144,12 @@ function Ledger({ household, meta, userId, email }: {
     return () => document.removeEventListener('visibilitychange', onVisible)
   }, [])
 
+  // 첫 화면이 자리 잡은 뒤 나머지 화면 묶음을 미리 받는다
+  useEffect(() => {
+    const t = window.setTimeout(prefetchChunks, 1500)
+    return () => window.clearTimeout(t)
+  }, [])
+
   // 같은 문장이 연달아 와도 앞 토스트의 타이머가 뒤 토스트를 지우지 않도록 번호를 매긴다
   const toastSeq = useRef(0)
   const toast = useCallback((msg: string) => {
@@ -126,7 +160,7 @@ function Ledger({ household, meta, userId, email }: {
 
   // 날짜가 지난 고정지출·구독을 자동으로 넣는다 (앱을 열 때, 날짜가 바뀌었을 때)
   const reloadRef = useRef(reload)
-  reloadRef.current = reload
+  useEffect(() => { reloadRef.current = reload }, [reload])
   useEffect(() => {
     let alive = true
     generateRecurring(household.id, today)
@@ -144,7 +178,7 @@ function Ledger({ household, meta, userId, email }: {
     return m
   }, [txs])
 
-  const activeCats = meta.categories.filter((c) => !c.archived)
+  const activeCats = useMemo(() => meta.categories.filter((c) => !c.archived), [meta.categories])
 
   function goMonth(n: number) {
     const next = addMonths(ym, n)
@@ -167,7 +201,7 @@ function Ledger({ household, meta, userId, email }: {
   }
 
   async function smartSaved(count: number, lastDate: string, msg?: string) {
-    setSmart((s) => ({ ...s, open: false }))
+    closeSmart()
     setYm(lastDate.slice(0, 7))
     setSel(lastDate)
     await reload()
@@ -184,7 +218,6 @@ function Ledger({ household, meta, userId, email }: {
 
   const { y, m } = parseYM(ym)
   const showMonth = tab === 'cal' || tab === 'list' || tab === 'stats'
-  const TITLE: Record<Tab, string> = { cal: '우리집', list: '내역', grocery: '장보기', stats: '통계', fixed: '고정 지출', settings: '설정' }
 
   return (
     // 넓은 화면에서는 아래 탭이 왼쪽 세로 메뉴가 된다 (styles.css 넓은 화면)
@@ -234,31 +267,43 @@ function Ledger({ household, meta, userId, email }: {
           </div>
         )}
         {tab === 'cal' && (
-          <CalendarView ym={ym} today={today} sel={sel} cur={cur} prev={prev} lookup={lookup} annivs={meta.anniversaries} events={events}
-            onSelect={setSel} onPlan={setPlan} onJump={(d) => { setYm(d.slice(0, 7)); setSel(d) }} onEdit={(t) => setSheet({ open: true, editing: t })} />
+          <Screen name="달력">
+            <CalendarView ym={ym} today={today} sel={sel} cur={cur} prev={prev} lookup={lookup} annivs={meta.anniversaries} events={events}
+              onSelect={setSel} onPlan={setPlan} onJump={(d) => { setYm(d.slice(0, 7)); setSel(d) }} onEdit={(t) => setSheet({ open: true, editing: t })} />
+          </Screen>
         )}
         {tab === 'list' && (
-          <ListView cur={cur} lookup={lookup} focus={listFocus} onClearFocus={() => setListFocus(null)} onEdit={(t) => setSheet({ open: true, editing: t })} />
+          <Screen name="내역">
+            <ListView cur={cur} lookup={lookup} focus={listFocus} onClearFocus={() => setListFocus(null)} onEdit={(t) => setSheet({ open: true, editing: t })} />
+          </Screen>
         )}
-        {tab === 'grocery' && <GroceryTab userId={userId} members={meta.members} categories={meta.categories} onRecorded={() => void reload()} />}
+        {tab === 'grocery' && (
+          <Screen name="장보기">
+            <GroceryTab userId={userId} members={meta.members} categories={meta.categories} onRecorded={() => void reload()} />
+          </Screen>
+        )}
         {tab === 'stats' && (
-          <StatsView household={household} ym={ym} today={today} cur={cur} prev={prev} lookup={lookup}
-            categories={meta.categories} billsVersion={billsVersion} onBill={() => setSmart({ open: true, mode: 'bill' })}
-            onFuel={() => setSmart({ open: true, mode: 'photo' })}
-            onCategory={(id, name) => { setListFocus({ kind: 'category', id, name }); setTab('list') }}
-            onPlatform={(name, kind) => { setListFocus(kind === 'merchant' ? { kind: 'merchant', name } : { kind: 'platform', name }); setTab('list') }} />
+          <Screen name="통계">
+            <StatsView household={household} ym={ym} today={today} cur={cur} prev={prev} lookup={lookup}
+              categories={meta.categories} billsVersion={billsVersion} onBill={() => openSmart('bill')}
+              onFuel={() => openSmart('photo')}
+              onCategory={(id, name) => { setListFocus({ kind: 'category', id, name }); setTab('list') }}
+              onPlatform={(name, kind) => { setListFocus(kind === 'merchant' ? { kind: 'merchant', name } : { kind: 'platform', name }); setTab('list') }} />
+          </Screen>
         )}
         {tab === 'fixed' && (
-          <RecurringView householdId={household.id} today={today} lookup={lookup}
-            categories={activeCats} onTxChanged={reload} toast={toast} />
+          <Screen name="고정 지출">
+            <RecurringView householdId={household.id} today={today} lookup={lookup}
+              categories={activeCats} onTxChanged={reload} toast={toast} />
+          </Screen>
         )}
         {tab === 'settings' && (
-          <>
+          <Screen name="설정">
             <SettingsView household={household} categories={meta.categories} annivs={meta.anniversaries} today={today}
               lookup={lookup} email={email} onChanged={meta.reload} toast={toast} />
             <div style={{ height: 16 }} />
             <ExportCard householdId={household.id} today={today} lookup={lookup} toast={toast} />
-          </>
+          </Screen>
         )}
       </main>
 
@@ -280,15 +325,23 @@ function Ledger({ household, meta, userId, email }: {
         </div>
       </nav>
 
-      <EntrySheet open={sheet.open} editing={sheet.editing} defaultDate={sel.startsWith(ym) ? sel : today}
-        lookup={lookup} categories={activeCats} usage={usage}
-        onSave={save} onDelete={remove} onClose={() => setSheet({ open: false, editing: null })}
-        onSmart={(mode) => { setSheet({ open: false, editing: null }); setSmart({ open: true, mode }) }} />
+      <ErrorBoundary name="기록하기">
+        <EntrySheet open={sheet.open} editing={sheet.editing} defaultDate={sel.startsWith(ym) ? sel : today}
+          lookup={lookup} categories={activeCats} usage={usage}
+          onSave={save} onDelete={remove} onClose={() => setSheet({ open: false, editing: null })}
+          onSmart={(mode) => { setSheet({ open: false, editing: null }); openSmart(mode) }} />
+      </ErrorBoundary>
 
-      <SmartSheet open={smart.open} mode={smart.mode} today={today} householdId={household.id}
-        lookup={lookup} categories={activeCats} existing={txs}
-        onSaved={smartSaved} onClose={() => setSmart((s) => ({ ...s, open: false }))}
-        onManual={() => { setSmart((s) => ({ ...s, open: false })); setSheet({ open: true, editing: null }) }} />
+      {smartMounted && (
+        <ErrorBoundary name="스마트 입력">
+          <Suspense fallback={null}>
+            <SmartSheet open={smart.open} mode={smart.mode} today={today} householdId={household.id}
+              lookup={lookup} categories={activeCats} existing={txs}
+              onSaved={smartSaved} onClose={closeSmart}
+              onManual={() => { closeSmart(); setSheet({ open: true, editing: null }) }} />
+          </Suspense>
+        </ErrorBoundary>
+      )}
 
       <PlanSheet target={plan} householdId={household.id} today={today} onEventsChanged={reloadEvents}
         onAnnivsChanged={meta.reload} onClose={() => setPlan(null)} toast={toast} />

@@ -1,5 +1,6 @@
-// 참가격 상품 고르기·자주 가는 매장 고르기 시트(P3). 품목 상세 위에 겹쳐 열린다(Escape·Tab은 이 시트가 처리하고 상세는 쉰다).
+// 참가격 상품 고르기·자주 가는 매장 고르기 시트(P3). 품목 상세 위에 겹쳐 열린다(Escape·Tab은 맨 위 시트만 받는다, lib/dialog.ts).
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
+import { useClosing, useFocusTrap, useScrollLock } from '../../lib/dialog'
 import { filterGoods, storeTypeName, type StoreGood, type StoreOption } from '../lib/sources'
 import { koFullDay } from '../lib/alerts'
 import { SOURCE_NAME, type IngredientRow, type IngredientSource, type NutritionRow } from '../lib/foodInfo'
@@ -8,40 +9,16 @@ import type { ListStore } from '../lib/store'
 const CLOSE_MS = 250
 
 function Frame({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
-  const [closing, setClosing] = useState(false)
   const sheet = useRef<HTMLDivElement>(null)
   const closeBtn = useRef<HTMLButtonElement>(null)
-  const closeTimer = useRef<number | undefined>(undefined)
   const titleId = useId()
-  const close = () => {
-    if (closing) return
-    setClosing(true)
-    const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
-    closeTimer.current = window.setTimeout(onClose, reduce ? 0 : CLOSE_MS)
-  }
-  useEffect(() => {
-    closeBtn.current?.focus({ preventScroll: true })
-    return () => window.clearTimeout(closeTimer.current)
-  }, [])
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && !e.isComposing) close()
-      if (e.key === 'Tab' && sheet.current) {
-        const f = [...sheet.current.querySelectorAll<HTMLElement>('button:not([disabled]), input')]
-        if (f.length === 0) return
-        const i = f.indexOf(document.activeElement as HTMLElement)
-        const next = e.shiftKey ? (i <= 0 ? f.length - 1 : i - 1) : i === f.length - 1 ? 0 : i + 1
-        e.preventDefault()
-        f[next].focus()
-      }
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  })
+  const { closing, close } = useClosing(onClose, CLOSE_MS)
+  useScrollLock(true)
+  useFocusTrap(sheet, !closing, { onEscape: close, initialFocus: closeBtn })
   return (
     <div className={`sheet-layer sheet-nested${closing ? ' is-closing' : ''}`}>
       <div className="sheet-backdrop" onClick={close} aria-hidden="true" />
-      <div className="sheet" ref={sheet} role="dialog" aria-modal="true" aria-labelledby={titleId}>
+      <div className="sheet" ref={sheet} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby={titleId}>
         <div className="sheet-head">
           <h2 id={titleId}>{title}</h2>
           <button type="button" className="btn-text" ref={closeBtn} onClick={close}>닫기</button>
