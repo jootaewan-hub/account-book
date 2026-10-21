@@ -80,7 +80,7 @@ export function ShopCompareCard({ result, loading, error }: { result: CompareRes
             return (
               <>
                 <span className="cmp-name">{v.name}</span>
-                <span className="cmp-ref num">{rc.days === 0 ? '오늘' : `${rc.days}일 전`}({md(rc.ref.date)})에도 샀어요 — {refText(rc.ref, v.name, `${won(rc.ref.amount)}원`)}</span>
+                <span className="cmp-ref num">{rc.days === 0 ? '오늘' : `${rc.days}일 전`}({md(rc.ref.date)})에도 샀어요 — {[rc.ref.place, `${won(rc.ref.amount)}원`, rc.ref.name.replace(/\s+/g, '') === v.name.replace(/\s+/g, '') ? null : rc.ref.name].filter(Boolean).join(', ')}</span>
               </>
             )
           })}

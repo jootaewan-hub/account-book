@@ -142,9 +142,9 @@ describe('주유 영수증 읽기 (checkFuel)', () => {
 **Interfaces:**
 - Consumes: Task 2의 `CheckedEntry.fuel`·`fuel_note`.
 - Produces:
-  - `types.ts`: `interface FuelFill { id: string; transaction_id: string; liters: number; price_per_liter: number; fuel_type: string | null; occurred_on: string; amount: number; title: string }`
+  - `types.ts`: `interface FuelFill { id: string; transaction_id: string; liters: number; price_per_liter: number; fuel_type: string | null; occurred_on: string; amount: number; title: string }`, `interface TxFuel { liters: number; price_per_liter: number; fuel_type: string | null }`, `Transaction.fuel?: TxFuel | null`(목록을 읽을 때 `fuel_fills` 임베드, 없으면 null)
   - `smart.ts`: `type DraftFuel = { liters: number | null; price_per_liter: number | null; fuel_type: string | null }`, `Draft.fuel: DraftFuel | null`, `fuelComplete(f: DraftFuel | null): f is { liters: number; price_per_liter: number; fuel_type: string | null }`, `saveDraft(...)` 반환 `{ installment: boolean; txId: string; fuelSaved: boolean | null }`(주유 없으면 null, 넣기 실패면 false).
-  - `api.ts`: `fetchFuelFills(householdId: string): Promise<FuelFill[]>`(최근순, 200개), `insertFuelFill(householdId: string, transactionId: string, f: { liters: number; price_per_liter: number; fuel_type: string | null }): Promise<void>`, `fetchItemHistory(householdId: string, from: string): Promise<Transaction[]>`(품목 줄이 있는 지출만, `transaction_items!inner`, 날짜 오름차순).
+  - `api.ts`: `fetchFuelFills(householdId: string): Promise<FuelFill[]>`(최근순, 200개), `insertFuelFill(householdId: string, transactionId: string, f: { liters: number; price_per_liter: number; fuel_type: string | null }): Promise<void>`, `fetchItemHistory(householdId: string, from: string): Promise<Transaction[]>`(품목 줄이 있는 지출만, `transaction_items!inner`, 최근 날짜부터 1,000건). `TX_WITH_ITEMS`에 `fuel_fills(liters, price_per_liter, fuel_type)`를 더해 `withItems`가 `fuel`을 채운다(셸 가짜 응답처럼 칸이 없으면 null).
 
 - [ ] **Step 1: 시험** — `tests/fuel.test.ts`에:
 
@@ -188,7 +188,9 @@ describe('주유 초안', () => {
 - Consumes: `FuelFill`.
 - Produces:
   - `sortFills(fills: FuelFill[]): FuelFill[]` — 최근 날짜 먼저(같은 날은 입력 순서 유지).
-  - `fuelDelta(fills: FuelFill[]): { latest: FuelFill; prev: FuelFill | null; diff: number | null; pct: number | null } | null` — prev는 latest보다 앞선 같은 유종(둘 다 null이면 같다) 중 가장 최근. 없으면 null.
+  - `fuelKind(t: string | null): string | null` — 고급 → `고급휘발유`, 휘발유·가솔린 → `휘발유`, 경유·디젤 → `경유`, lpg → `LPG`, 그 밖은 trim 그대로, null은 null.
+  - `fuelDelta(fills: FuelFill[]): { latest: FuelFill; prev: FuelFill | null; diff: number | null; pct: number | null } | null` — prev는 latest보다 앞선 같은 `fuelKind`(둘 다 null이면 같다) 중 가장 최근. 없으면 null.
+  - `fuelText(f: TxFuel): string` — `휘발유 35.2L, 1,652원/L`(유종 없으면 생략). 내역 행(`TxRow` 보조 줄)과 수정 시트(`EntrySheet`, 품목 줄 자리에 읽기 전용 한 줄)에 쓴다.
   - `fuelMonth(fills: FuelFill[], ym: string): { ym: string; count: number; liters: number; amount: number }`
   - `fuelInterval(fills: FuelFill[], n = 6): number | null` — 최근 n번의 이웃 날짜 간격 평균(일, 반올림). 2번 미만이면 null.
   - `fuelTrend(fills: FuelFill[], n = 12): FuelFill[]` — 최근 n번을 오래된 것부터.
@@ -236,7 +238,7 @@ describe('주유 계산', () => {
 
 - [ ] **Step 1: FuelCard** — 설계 3-1 "통계 탭 주유 묶음" 그대로. 그래프는 `<svg className="fuel-chart" viewBox="0 0 360 140">`에 리터당 가격 선(`polyline`)과 점, 첫·마지막·최저·최고 값을 `text`로 직접(최저·최고가 첫·마지막과 같으면 한 번만), x축은 날짜 `M/D`(최대 6개만 고르게). 유종이 섞이면 최근 유종만 선으로 그리고 다른 유종은 선 없이 점. 빈 상태·오류 문구. 버튼 "주유 영수증 넣기"(`ghost full-btn`).
 - [ ] **Step 2: DraftCard 주유 칸** — `d.fuel`이 있을 때 분류 칩 위에 `.fuel-fields`: 유종(`input`, maxLength 20), 주유량 L(`inputMode="decimal"`), 리터당 원(`inputMode="numeric"`), 아래 `tx-meta`로 "단가 × 주유량 = N원"(둘 다 있을 때) 또는 "리터와 단가를 모두 적어야 주유 기록이 저장돼요. 비워 두면 내역만 저장해요." 지난 주유(prop `lastFill: FuelFill | null`)가 있고 유종이 같으면 "지난 주유(10월 2일) 1,629원/L보다 ▲ 23원" (`fuelDelta([{…현재 값…}, lastFill])` 재사용: 현재 값을 임시 `FuelFill`로 만들어 넘긴다). `SmartSheet`는 review 단계에 들어갈 때 `withGrocery`와 같은 `useEffect`에서 `fetchFuelFills`를 부르되 `drafts.some(d => d.fuel)`일 때만.
-- [ ] **Step 3: saveAll 안내** — `fuelSaved === false`가 하나라도 있으면 parts에 "주유 기록은 저장하지 못했어요", 주유를 저장했으면 "주유 기록 N건을 넣었어요".
+- [ ] **Step 3: saveAll 안내와 저장 뒤 보기** — `fuelSaved === false`가 하나라도 있으면 parts에 "주유 기록은 저장하지 못했어요", 주유를 저장했으면 "주유 기록 N건을 넣었어요". `TxRow`의 meta에 `t.fuel`이 있으면 `fuelText(t.fuel)`를 품목 수 자리에, `EntrySheet`는 `editing.fuel`이 있으면 품목 줄 자리에 "주유 — 휘발유 35.2L, 1,652원/L (고치려면 내역을 지우고 다시 찍어요)" 한 줄. `FuelCard`의 다시 읽기 열쇠는 `[billsVersion, cur]`(저장 뒤 실시간 이벤트가 `fuel_fills` 삽입보다 먼저 와도 `billsVersion`이 뒤에 오른다).
 - [ ] **Step 4: CSS** — `.fuel-fields`(세 칸 `grid-template-columns: 1.2fr 1fr 1fr; gap: 8px`), `.fuel-big`(amount-lg 34/800), `.fuel-delta.up { color: var(--clay) } .down { color: var(--indigo) }`, `.fuel-chart`(선 `stroke: var(--sage)`, 점 `fill: var(--sage)`, 글자 11px은 숫자만), `.fuel-list`(줄마다 `grid 1fr auto`, 13px 이상).
 - [ ] **Step 5: 가짜 데이터·장면** — `shell-fixtures.mjs`: `EXPENSE`에 `'차량·주유'` 추가, `daysAgo(n)` 도우미, 주유 내역 3건(`t20`~`t22`, 제목 'GS칼텍스 분당주유소'·'SK에너지 야탑주유소', 금액 58150·48870·46740)과 `'public.fuel_fills'`: 같은 3건(`transactions: { occurred_on, amount, title }` 포함, liters 35.2·30·28.5, ppl 1652·1629·1640, 휘발유). `FUEL_RECEIPT`(merchant 'GS칼텍스 분당주유소', amount 58150, items [], fuel { 35.2, 1652, '휘발유' }, category '차량·주유', date daysAgo(0)) 내보내기. `screenshots.mjs`: `fakeSupabase`에서 `s.fuel`이면 `FUEL_RECEIPT`; 장면 `shell-smart-fuel-{390,1280}-{light,dark}`(receipt 흐름 뒤 `getByText('리터당')` 대기, `.fuel-fields` 스크롤), 통계는 기존 `shell-stats-*`(full)에 묶음이 들어간다.
 - [ ] **Step 6: 캡처·확인** — 개발 서버(5188) 띄우고 `BASE_URL=http://localhost:5188 npm run screens -- shell-smart-fuel shell-stats` → 8+8장을 Read로 보고 가로 스크롤·겹침·글자 크기·다크 대비를 고친다. `npx tsc --noEmit && npm test` PASS.
@@ -259,10 +261,11 @@ describe('주유 계산', () => {
   - `matchPast(line: CompareLine, past: PastLine[]): { grade: 'product' | 'kind'; line: PastLine; all: PastLine[] } | null` — 설계 3-2 ①: (a) 정규화 이름 같음/포함(짧은 쪽 4자 이상) 또는 (b) 토큰 2개 이상 겹침 → `product`; 없으면 (c) `groceryName`의 정규화 글자가 지난 이름에 포함 → `kind`. `all`은 같은 등급으로 맞은 지난 줄 전부(최근순), `line`은 그 첫째.
   - `unitOf(l: { quantity, unitPrice, amount, packSize, packUnit }): { base: string; price: number } | null` — 용량이 있으면 `perUnit`(100g·100ml·1개), 없으면 `{ base: '1개', price: unitPrice ?? amount / quantity }`.
   - `restockDays(name: string, groceryName: string | null): number` — 설계 3-2 ③ 표(`RESTOCK_DAYS`), 기본 7.
-  - `trips(txs: Transaction[]): { date: string; place: string; count: number; total: number }[]` — 같은 날짜·`created_at` 5분 안에 이어지는 내역 묶음, 상품 줄 합 3개 이상, 최근 날짜 먼저.
+  - `trips(txs: Transaction[], groceryCategoryIds: ReadonlySet<string>): { date: string; place: string; count: number; total: number }[]` — 같은 날짜·`created_at` 5분 안에 이어지는 내역 묶음, 상품 줄 합 3개 이상, 내역 하나라도 분류가 `groceryCategoryIds`에 듦, 최근 날짜 먼저.
   - `type LineVerdict = { key: string; name: string; match: ReturnType<typeof matchPast>; price: { now: number; prev: number; base: string; diff: number; pct: number | null; ref: PastLine } | null; recent: { ref: PastLine; days: number; limit: number } | null; offList: boolean; duplicate: boolean }`
   - `type CompareResult = { count: number; total: number; prevTrip: { date: string; place: string; count: number; total: number } | null; pricier: LineVerdict[]; cheaper: LineVerdict[]; recent: LineVerdict[]; offList: LineVerdict[]; duplicates: LineVerdict[]; first: LineVerdict[]; listUsed: boolean }`
-  - `compareTrip(lines: CompareLine[], history: Transaction[], date: string, total: number): CompareResult` — `listUsed = lines.some(l => l.groceryName)`; `offList`는 listUsed일 때만; `price`는 두 `unitOf`의 base가 같을 때만(등급 `kind`는 base가 '1개'가 아닐 때만); `recent`는 `days = date − ref.date`가 `limit`보다 작을 때(limit: `all`이 2개 이상이면 그 날짜 간격 중앙값의 절반(올림, 최소 1), 아니면 `restockDays`); `prevTrip`은 `trips(history)` 중 `date`보다 앞선 첫째; `pricier`·`cheaper`는 `diff` 절댓값 큰 순, `diff === 0`은 둘 다 아님.
+  - `isGroceryEntry(categoryName: string | null, lines: CompareLine[]): boolean` — 분류 이름이 `장보기`·`식비`이거나 `lines.some(l => l.groceryName)`.
+  - `compareTrip(lines: CompareLine[], history: Transaction[], date: string, total: number, groceryCategoryIds: ReadonlySet<string>): CompareResult` — `trips`는 내역 하나라도 `category_id`가 `groceryCategoryIds`에 든 묶음만(인자로 받는다: `trips(txs, groceryCategoryIds)`); `pastLines`는 분류와 상관없이 전부. `listUsed = lines.some(l => l.groceryName)`; `offList`는 listUsed일 때만; `price`는 두 `unitOf`의 base가 같을 때만(등급 `kind`는 base가 '1개'가 아닐 때만); `recent`는 `days = date − ref.date`가 `limit`보다 작을 때(limit: `all`이 2개 이상이면 그 날짜 간격 중앙값의 절반(올림, 최소 1), 아니면 `restockDays`); `prevTrip`은 `trips(history)` 중 `date`보다 앞선 첫째; `pricier`·`cheaper`는 `diff` 절댓값 큰 순, `diff === 0`은 둘 다 아님.
 
 - [ ] **Step 1: 시험** — `tests/shop-compare.test.ts`(도우미 `tx(id, date, title, items, createdAt?)`, `line(name, amount, p?)`):
 
@@ -301,9 +304,10 @@ describe('값 비교와 최근 구매', () => {
 })
 describe('장보기 묶음과 목록', () => {
   it('상품별로 나눈 영수증도 같은 시각이면 한 번의 장보기', () => {
-    const t = [...Array(4)].map((_, i) => tx(`s${i}`, '2026-10-14', `상품${i}`, [{ name: `상품${i}`, amount: 1000 }], `2026-10-20T08:00:3${i}Z`))
-    expect(trips(t)).toEqual([{ date: '2026-10-14', place: '장보기', count: 4, total: 4000 }])
-    expect(trips([tx('a', '2026-10-14', '이마트', [{ name: 'x', amount: 1 }])])).toEqual([]) // 상품 3개 미만
+    const t = [...Array(4)].map((_, i) => tx(`s${i}`, '2026-10-14', `상품${i}`, [{ name: `상품${i}`, amount: 1000 }], `2026-10-20T08:00:3${i}Z`, 'food'))
+    expect(trips(t, new Set(['food']))).toEqual([{ date: '2026-10-14', place: '장보기', count: 4, total: 4000 }])
+    expect(trips(t, new Set(['other']))).toEqual([]) // 장보기·식비가 아닌 묶음(쿠팡 가전 주문)은 지난 장보기가 아니다
+    expect(trips([tx('a', '2026-10-14', '이마트', [{ name: 'x', amount: 1 }], undefined, 'food')], new Set(['food']))).toEqual([]) // 상품 3개 미만
   })
   it('목록에 없던 것은 목록을 쓴 영수증에서만, 같은 것이 두 줄', () => {
     const lines = [line('삼겹살', 10000, { groceryName: '삼겹살' }), line('삼겹살', 9000), line('포카칩', 1590)]
@@ -332,7 +336,7 @@ describe('장보기 묶음과 목록', () => {
 - Consumes: Task 6 `compareTrip`·`CompareResult`, Task 3 `fetchItemHistory`, 기존 `receiptLines`·`picks`·`grocery`.
 - Produces: `ShopCompareCard({ result: CompareResult; loading: boolean; error: string | null })`.
 
-- [ ] **Step 1: SmartSheet** — review 단계·`withGrocery`일 때 `fetchItemHistory(householdId, 365일 전)`를 `historyState: { rows: Transaction[]; loading: boolean; error: string | null }`로. 그룹마다 `useMemo`: `lines`를 그 그룹의 초안(`groupOf(d) === g.index`)으로 좁히고 `CompareLine`으로 바꾸며(`groceryName`은 `picks`에 그 줄 key가 있으면 그 장보기 품목 이름, 없으면 `suggested`도 본다), `compareTrip(lines, rows, g.entry.date ?? today, g.entry.amount)`. 상품 줄이 하나도 없는 그룹(카드 문자·주유)에는 카드를 두지 않는다. 카드는 그 그룹의 `.draft-group` 안 초안 카드들 뒤.
+- [ ] **Step 1: SmartSheet** — review 단계·`withGrocery`일 때 `fetchItemHistory(householdId, 365일 전)`를 `historyState: { rows: Transaction[]; loading: boolean; error: string | null }`로. 그룹마다 `useMemo`: `lines`를 그 그룹의 초안(`groupOf(d) === g.index`)으로 좁히고 `CompareLine`으로 바꾸며(`groceryName`은 `picks`에 그 줄 key가 있으면 그 장보기 품목 이름, 없으면 `suggested`도 본다), `compareTrip(lines, rows, g.entry.date ?? today, g.entry.amount, groceryCategoryIds)`(`categories`에서 이름이 `장보기`·`식비`인 id). 카드는 `isGroceryEntry(그 그룹 첫 초안의 분류 이름, lines)`일 때만, 그 그룹의 `.draft-group` 안 초안 카드들 뒤.
 - [ ] **Step 2: ShopCompareCard** — 설계 3-2 화면 그대로. 항목마다 5줄 + "N개 더 보기"(`link-btn`), 등락은 `cmp-up`(`clay`)·`cmp-down`(`indigo`), 비율은 괄호. 지난 기록이 전혀 없으면(`history` 비어 있음) 한 문장 + 목록에 없던 것만. `loading`이면 "지난 장보기 기록 읽는 중", `error`면 "지난 기록을 불러오지 못했어요. 저장에는 영향이 없어요." 맨 아래 `tx-meta`: "최근 1년 가계부 기록과 견줬어요. 상품 이름이 비슷한 것끼리 맞춘 거라 다른 상품일 수 있어요."
 - [ ] **Step 3: CSS** — `.cmp-card`(`.card` 위에 `display:flex; flex-direction:column; gap:10px`), `.cmp-head`(15px), `.cmp-sub`(`section-title` 14px 700 + 개수 `muted`), `.cmp-row`(`grid minmax(0,1fr) auto`, 이름 2줄 말줄임), `.cmp-ref`(13px `ink-2`), `.cmp-up/.cmp-down`.
 - [ ] **Step 4: 가짜 데이터·장면** — `shell-fixtures.mjs`의 `transactions`에 지난 장보기 두 번: `t30`(daysAgo(7), '이마트 분당점', 품목 '서울우유 900ml' 2개 4,800(900ml), '국산 대파 1단' 3,500, '계란 30구' 7,980(30구), '부침두부 300g' 2,800(300g)), `t31`(daysAgo(3), '이마트 분당점', '부침두부 300g' 2,800). `RECEIPT`의 date를 `daysAgo(0)`으로. 장면 `shell-smart-compare-{390,1280}-{light,dark}`: receipt 흐름 뒤 `getByText('이번 장보기 살펴보기')` 대기, `.cmp-card` 스크롤.

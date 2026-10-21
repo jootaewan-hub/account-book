@@ -8,6 +8,11 @@
 
 ## 된 것 (2026-10-19, 통합 1단계)
 
+- 주유 영수증 분석과 이번 장보기 살펴보기(D-021·D-022, 2026-10-21 저녁, 브랜치 `claude/fuel-and-grocery-compare`, 설계 `docs/superpowers/specs/2026-10-21-fuel-and-grocery-compare-design.md`, 계획 `docs/superpowers/plans/2026-10-21-fuel-and-grocery-compare.md`):
+  마이그레이션 `20261031000000_fuel_fills.sql`(public, PGlite 시험), `extract-entries`의 `fuel` 스키마·`checkFuel`·원단위 절사 규칙·`preferRetry`, `src/lib/fuel.ts`(지난번 대비·달별·간격·추이), `FuelCard`(통계)·확인 화면 주유 칸·내역 행 표시, `src/lib/shopCompare.ts`(이름 맞추기·용량당 값·최근 구매·장보기 묶음)와 `ShopCompareCard`.
+  시험 64개 파일 865개 통과, 캡처 shell-smart-fuel·shell-stats-fuel·shell-smart-compare(390·1280, 라이트·다크) 확인. **공유 DB 적용(`fuel_fills`)·`extract-entries` 배포·main 병합은 사용자 확인 대기**(설계 7절).
+  오늘 장보기 기록 판단은 설계 1-2절: 구조·금액·연결은 맞고, 상품 이름 오독 10줄쯤(긴 영수증을 Haiku가 읽음)·가맹점 "뉴코아아탑점"(확인 필요)·10-14 영수증(식비, 상품별)과 10-21 영수증(장보기, 한 건)의 모양 차이·"쿠팡 3,080원"(품목 0줄, 확인 필요). 데이터는 고치지 않았다.
+
 - 원재료를 제품명으로 찾기(D-020, 2026-10-21, 브랜치 `claude/ingredients-by-name`): 마이그레이션 `20261030000000_grocery_item_ingredients.sql`(표·`set_item_ingredients`(서비스 롤)·`item_ingredients_rows()`, PGlite 시험 `ingredientsDb.test.ts`),
   `_shared/foodInfo.ts`에 세 목록 파서(`parseReport`: C002·I1310·C006·C003, C006은 보고번호로 합침)·`ingredientTerms`·`rankIngredients`·`ingredientFit`, `food-info` 액션 `ingredients_search`·`ingredients_auto`·`ingredients_choose`(옛 `search`·`choose`는 뺌; 시험 13개).
   화면: 성분 탭 "원재료" 칸을 상품 유무와 상관없이(신선 제외) 보여 주고, 상품이 있으면 탭을 열 때 상품명으로 자동 맞춤, 없으면 "식약처 품목 찾기"(검색어 입력, 식품·축산물·건강기능식품 표시, 확인 못 한 목록 안내). 캡처 grocery-item-detail-ingredients·grocery-food-picker·grocery-ingredients-picker-noproduct.
@@ -152,6 +157,11 @@
 - Supabase 프로젝트: 가계부 프로젝트를 공유하므로 새로 만들지 않는다(D-003).
 
 ## 열린 문제
+
+- (2026-10-21) 긴 종이 영수증(30줄 넘음)은 Haiku가 상품 이름을 많이 틀린다(뉴코아 영수증 32줄 중 10줄쯤: 복음자리→볼음자리, 동원→통원, 켈로그→첼로그, 자연별곡→지연빌곡 등). 합계가 안 맞을 때만 Sonnet으로 다시 읽고, 이제 둘 다 안 맞아도 Sonnet 결과를 쓴다(D-021). 그래도 틀리면 줄 수가 많은 영수증은 처음부터 Sonnet으로 읽을지 정한다(비용은 사진당 몇 배). 이름이 틀리면 "이번 장보기 살펴보기"가 같은 상품을 못 찾는다.
+- (2026-10-21) 같은 종류의 장보기가 다른 분류·모양으로 들어간다: 10월 14일 영수증은 상품마다 내역(분류 식비), 10월 21일은 한 내역(분류 장보기). 가게 이름은 나눈 내역에 남지 않는다. 살펴보기는 created_at 묶음으로 둘 다 "한 번의 장보기"로 보지만, 통계의 분류별 지출은 식비·장보기로 갈린다. 영수증을 나눌 때 가게 이름을 메모나 플랫폼 칸에 남길지, 분류 제안을 '장보기'로 통일할지 정한다.
+- (2026-10-21) `RESTOCK_DAYS`(src/lib/shopCompare.ts)의 종류별 날수는 추측값이다. "최근에 또 산 것"이 엉뚱하게 뜨거나 안 뜨면 그 품목의 줄을 고친다.
+- (2026-10-21) 주유 기록은 저장 뒤 고칠 수 없다(내역을 지우고 다시 찍는다). 오독(352L 같은 값)이 자주 보이면 수정 시트에 세 칸을 두고 `fuel_fills`를 update한다.
 
 - 영양성분 자동 맞춤(2026-10-20 12:03·12:39): "우유"에 "도넛_제주말차 우유 도넛", v5 뒤에도 "된장"에 "취나물_된장"이 자동으로 맞춰졌다. D-018 보충 2·3으로 고쳤다(품목대표 따로, 상품명 우선, 음식 제외, 300건). 우유는 사용자가 "우유"(R113)를 직접 골라 해결. 확인 필요(v6 배포 뒤): 된장 성분 탭이 "국산콩백일된장"으로 맞춰지는지, `numOfRows=300`이 먹는지. 된장에 저장된 취나물_된장 줄(`grocery.item_nutrition`, 된장|)은 지워야 다시 자동 맞춤된다(12:14 삭제 호출은 취소됨, 사용자 허용 필요).
 - 배포된 Edge Function 중 두 저장소 어디에도 소스가 없는 `danawa-probe`가 있다(verify_jwt false, 2026-10-19 생성, Supabase `list_edge_functions`로 2026-10-19 확인). 다나와 접근 확인용 임시 함수로 보인다(추측입니다). 지울지는 사용자가 정한다.
