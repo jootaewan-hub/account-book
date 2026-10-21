@@ -6,7 +6,7 @@ import type { Category, PaymentMethod, Transaction } from '../src/lib/types'
 
 const entry = (p: Partial<Entry>): Entry => ({
   date: '2026-10-13', time: '18:42', merchant: '이마트24', amount: 12400, is_income: false, is_cancellation: false,
-  card_last4: null, payment_hint: null, installment_months: null, category: null, items: [], platform: null, ...p,
+  card_last4: null, payment_hint: null, installment_months: null, category: null, items: [], platform: null, fuel: null, ...p,
 })
 
 describe('모델 출력 정리 (checkEntries)', () => {

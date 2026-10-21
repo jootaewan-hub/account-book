@@ -28,6 +28,13 @@ export const ItemSchema = z.object({
   image_box: BoxSchema.nullable().describe('이 상품의 사진(썸네일) 위치, 이미지 픽셀 좌표. 상품 사진이 없으면 null'),
 })
 
+/** 주유소 영수증에서 읽는 값 (설계 2026-10-21 fuel-and-grocery-compare 3-1). 보이지 않는 값은 null */
+export const FuelSchema = z.object({
+  liters: z.number().nullable().describe('주유량(리터, 소수 셋째 자리까지). 보이지 않으면 null'),
+  price_per_liter: z.number().nullable().describe('리터당 단가(원). 보이지 않으면 null'),
+  fuel_type: z.string().nullable().describe('유종: 휘발유·경유·고급휘발유·LPG 등 영수증 표기 그대로. 보이지 않으면 null'),
+})
+
 export const EntrySchema = z.object({
   date: z.string().nullable().describe('YYYY-MM-DD. 알 수 없으면 null'),
   time: z.string().nullable().describe('HH:MM 24시간. 알 수 없으면 null'),
@@ -41,6 +48,7 @@ export const EntrySchema = z.object({
   installment_months: z.number().nullable().describe('할부 개월 수 (예: "03개월", "3개월 할부" → 3). 일시불이거나 보이지 않으면 null'),
   category: z.string().nullable().describe('주어진 분류 목록 중 하나. 애매하면 null'),
   items: z.array(ItemSchema).describe('영수증·주문내역의 품목. 품목이 없으면 빈 배열'),
+  fuel: FuelSchema.nullable().describe('주유소 영수증이면 유종·주유량·리터당 단가. 주유가 아니면 null'),
 })
 
 export const ResultSchema = z.object({
@@ -79,6 +87,8 @@ export const SYSTEM_PROMPT = `당신은 한국 가정의 가계부 입력을 돕
   · pack_size와 pack_unit은 상품명·옵션에 적힌 용량·개수로 상품 1개(수량 1)에 든 총량을 계산해 넣습니다. 여러 개 묶음이면 곱합니다(예: "100매 x 10팩" → 1000, 매 / "2L x 6병" → 12000, ml / "500g x 2개" → 1000, g / "30구" → 30, 구). kg은 g으로, L는 ml로 바꿉니다. 셈 단위는 가장 작은 소비 단위를 씁니다(팩·박스보다 매·개·구). 용량이 적혀 있지 않으면 null입니다.
   · 최종 결제 금액이 보이면 amount는 그 값이고, 안 보이면 품목 금액의 합입니다. 취소·반품된 상품은 넣지 않습니다.
 - 영수증 품목도 is_product를 같은 기준으로 넣고, 용량이 품목명에 적혀 있으면 pack_size·pack_unit을 넣습니다.
+- 영수증의 원단위 절사(끝전 버림)·끝전 할인·봉투값도 줄로 넣습니다. 절사·할인은 음수 금액이고 is_product는 false, 봉투는 상품(true)입니다. 상품 줄과 이 줄들을 모두 더하면 결제 금액과 같아야 합니다.
+- 주유소(주유) 영수증이면 fuel에 유종(휘발유·경유·고급휘발유·LPG 등 영수증 표기 그대로), 주유량(리터, 소수 셋째 자리까지), 리터당 단가(원)를 적습니다. 단가 × 주유량이 결제 금액과 거의 같아야 합니다. 보이지 않는 값은 null이고, 주유 영수증의 items는 빈 배열입니다. 분류 목록에 '차량·주유'가 있으면 category는 그것입니다. 주유가 아니면 fuel은 null입니다.
 - image_box는 그 상품의 사진(썸네일)이 있는 이미지 번호와 영역을 픽셀 좌표(왼쪽, 위, 오른쪽, 아래)로 넣습니다. 좌표는 각 이미지의 왼쪽 위가 (0,0)이고 크기는 사용자가 알려 준 값입니다. 상품 사진이 없거나 영수증이면 null입니다.
 - 거래 내역이 없으면 entries를 빈 배열로 하고 note에 이유를 적습니다.`
 
@@ -148,12 +158,53 @@ export function checkPack(size: number | null, unit: string | null): { pack_size
   return none
 }
 
+export type Fuel = z.infer<typeof FuelSchema>
+
+/** 정리한 주유 값. 셋 다 영수증에 적힌 값만 쓰고, 빠진 값은 계산해 채우지 않는다(화면에서 적는다) */
+export interface CheckedFuel {
+  liters: number | null
+  price_per_liter: number | null
+  fuel_type: string | null
+}
+
+const MAX_LITERS = 500
+const MAX_PRICE_PER_LITER = 100_000
+
+/**
+ * 모델이 읽은 주유 값을 정리한다. 리터는 0 초과 500 미만(소수 셋째 자리), 단가는 100 초과 10만 원 미만 정수, 유종은 20자.
+ * 리터와 단가가 둘 다 있는데 곱이 결제 금액과 1% 넘게 다르면 확인 문장을 돌려준다. 셋 다 없으면 fuel은 null.
+ */
+export function checkFuel(fuel: Fuel | null | undefined, amount: number): { fuel: CheckedFuel | null; note: string | null } {
+  if (!fuel) return { fuel: null, note: null }
+  const liters = Number.isFinite(fuel.liters) && fuel.liters! > 0 && fuel.liters! < MAX_LITERS ? Math.round(fuel.liters! * 1000) / 1000 : null
+  const ppl = Number.isFinite(fuel.price_per_liter) ? Math.round(fuel.price_per_liter!) : null
+  const price = ppl !== null && ppl > 100 && ppl < MAX_PRICE_PER_LITER ? ppl : null
+  const type = fuel.fuel_type?.trim().slice(0, 20) || null
+  if (liters === null && price === null && type === null) return { fuel: null, note: null }
+  let note: string | null = null
+  if (liters !== null && price !== null) {
+    const product = Math.round(liters * price)
+    const gap = Math.abs(product - amount)
+    if (gap > amount * 0.01) note = `단가 × 주유량이 ${won(product)}원이라 결제 금액 ${won(amount)}원과 ${won(gap)}원 달라요. 영수증을 확인해 주세요.`
+  }
+  return { fuel: { liters, price_per_liter: price, fuel_type: type }, note }
+}
+
 export interface CheckedEntry extends Entry {
   type: 'expense' | 'income'
   /** 품목이 있을 때 품목 합계가 결제 금액과 같은지 (품목이 없으면 null) */
   items_match: boolean | null
   /** 결제 금액에 맞춰 상품 줄 금액을 고친 경우 사용자에게 보일 안내 */
   price_fixes?: string[]
+  /** 주유소 영수증이면 정리한 주유 값, 아니면 null */
+  fuel: CheckedFuel | null
+  /** 단가 × 주유량이 결제 금액과 다를 때의 확인 문장 */
+  fuel_note?: string
+}
+
+/** 품목 합계가 안 맞아 더 큰 모델로 다시 읽었을 때: 다시 읽은 결과가 비어 있지 않으면 그것을 쓴다(둘 다 안 맞아도 큰 모델이 이름을 덜 틀린다) */
+export function preferRetry(first: CheckedEntry[], second: CheckedEntry[]): CheckedEntry[] {
+  return second.length ? second : first
 }
 
 type Item = Entry['items'][number]
@@ -242,6 +293,7 @@ export function checkEntries(result: ExtractResult, images: ImageSize[] = []): C
       const fixed = fixLineTotals(items, amount)
       const sum = fixed.items.reduce((s, it) => s + it.amount, 0)
       const date = e.date && DATE_RE.test(e.date) && !Number.isNaN(Date.parse(e.date)) ? e.date : null
+      const fuel = checkFuel(e.fuel, amount)
       return {
         ...e,
         type: e.is_income ? 'income' as const : 'expense' as const,
@@ -256,6 +308,8 @@ export function checkEntries(result: ExtractResult, images: ImageSize[] = []): C
         items: sum === amount ? fixUnitPrices(fixed.items) : fixed.items,
         items_match: items.length ? sum === amount : null,
         ...(fixed.fixes.length ? { price_fixes: fixed.fixes } : {}),
+        fuel: fuel.fuel,
+        ...(fuel.note ? { fuel_note: fuel.note } : {}),
       }
     })
     .filter((e) => e.amount > 0)

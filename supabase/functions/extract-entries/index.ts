@@ -10,7 +10,7 @@ import { WorkloadIdentityError } from '@anthropic-ai/sdk/lib/credentials/types'
 import { createClient } from '@supabase/supabase-js'
 import {
   BILL_PROMPT, BillSchema, buildBillText, buildUserText, checkBill, checkEntries, hasItemMismatch, IMAGE_MEDIA_TYPES,
-  MAX_IMAGE_BASE64_CHARS, MAX_IMAGES, MAX_TEXT_CHARS, MAX_TOTAL_IMAGE_CHARS, ResultSchema, SYSTEM_PROMPT, type CheckedEntry,
+  MAX_IMAGE_BASE64_CHARS, MAX_IMAGES, MAX_TEXT_CHARS, MAX_TOTAL_IMAGE_CHARS, preferRetry, ResultSchema, SYSTEM_PROMPT, type CheckedEntry,
   type ImageSize,
 } from './extract.ts'
 import { WIF } from './wif-config.ts'
@@ -210,10 +210,10 @@ Deno.serve(async (req) => {
     }
     const first = input.kind === 'image' && input.mode === 'shop' ? SHOP_MODEL : PRIMARY_MODEL
     let out = await extract(client, first, input, categories)
-    // 품목 합계가 결제 금액과 안 맞으면 더 큰 모델로 한 번 더 읽는다
+    // 품목 합계가 결제 금액과 안 맞으면 더 큰 모델로 한 번 더 읽는다. 둘 다 안 맞아도(원단위 절사 등) 큰 모델 결과를 쓴다
     if (!out.refused && hasItemMismatch(out.entries) && RETRY_MODEL !== first) {
       const second = await extract(client, RETRY_MODEL, input, categories)
-      if (!second.refused && !hasItemMismatch(second.entries)) out = second
+      if (!second.refused) out = { ...second, entries: preferRetry(out.entries, second.entries) }
     }
     if (out.refused) return fail('refused', '이 내용은 읽을 수 없어요. 직접 입력해 주세요.', 422)
     const entries: CheckedEntry[] = out.entries

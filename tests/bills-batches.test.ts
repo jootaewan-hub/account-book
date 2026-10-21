@@ -84,7 +84,7 @@ describe('사진 묶음 합치기', () => {
     note: null, model: 'claude-sonnet-5-5',
     entries: [{
       date: '2026-10-15', time: null, merchant, platform: merchant, amount: 1000, is_income: false, is_cancellation: false, card_last4: null,
-      payment_hint: null, installment_months: null, category: null, type: 'expense', items_match: true,
+      payment_hint: null, installment_months: null, category: null, type: 'expense', items_match: true, fuel: null,
       items: [{ name: 'x', is_product: true, quantity: 1, unit_price: 1000, amount: 1000, pack_size: null, pack_unit: null, category: null,
         image_box: { image, left: 0, top: 0, right: 50, bottom: 50 } }],
     }],
