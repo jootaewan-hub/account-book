@@ -4,6 +4,7 @@ import { addMonths } from '../lib/dates'
 import { won } from '../lib/format'
 import { fillLine, fuelDelta, fuelInterval, fuelKind, fuelMonth, fuelTrend, litersText } from '../lib/fuel'
 import type { FuelFill, Transaction } from '../lib/types'
+import { PriceDelta } from './PriceDelta'
 
 const md = (date: string) => `${Number(date.slice(5, 7))}월 ${Number(date.slice(8, 10))}일`
 
@@ -52,7 +53,7 @@ export function FuelCard({ householdId, version, txs, ym, onAdd }: {
             {delta.prev && delta.diff !== null ? (
               <>
                 <span>지난 주유보다 </span>
-                <FuelDelta diff={delta.diff} pct={delta.pct} />
+                <PriceDelta diff={delta.diff} pct={delta.pct} />
                 <span className="muted num"> ({md(delta.prev.occurred_on)} {won(delta.prev.price_per_liter)}원/L)</span>
               </>
             ) : (
@@ -79,15 +80,6 @@ export function FuelCard({ householdId, version, txs, ym, onAdd }: {
   )
 }
 
-/** ▲ 23원 (+1.4%). 오름은 흙빛, 내림은 쪽빛, 같으면 글자만(D-012 시세 등락 규칙) */
-export function FuelDelta({ diff, pct }: { diff: number; pct: number | null }) {
-  if (diff === 0) return <span className="muted">같아요</span>
-  return (
-    <span className={`num ${diff > 0 ? 'fuel-up' : 'fuel-down'}`}>
-      {diff > 0 ? '▲' : '▼'} {won(Math.abs(diff))}원{pct !== null && ` (${diff > 0 ? '+' : ''}${pct}%)`}
-    </span>
-  )
-}
 
 /** 리터당 가격 선 그래프. 가장 최근 유종만 선으로 잇고 다른 유종은 점만. 첫 값·마지막 값·최저·최고를 글자로 직접 쓴다 */
 function FuelChart({ points }: { points: FuelFill[] }) {

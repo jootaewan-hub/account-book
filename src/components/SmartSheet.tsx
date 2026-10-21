@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { linkGroceryItems, loadReceiptGroceryItems, type ReceiptGroceryItem } from '../grocery/lib/ledgerLink'
 import { linksByTx, matchReceipt, receiptLines } from '../grocery/lib/purchase'
-import { fetchFuelFills, friendlyError, generateRecurring } from '../lib/api'
+import { fetchFuelFills, fetchItemHistory, friendlyError, generateRecurring } from '../lib/api'
 import { won } from '../lib/format'
 import { fuelDelta, fuelKind } from '../lib/fuel'
+import { compareTrip, GROCERY_CATEGORY_NAMES, isGroceryEntry, type CompareLine } from '../lib/shopCompare'
 import { cropImage, fileToJpeg, type PreparedImage } from '../lib/image'
 import { SCOPE_LABEL, SCOPES, type Lookup } from '../lib/lookup'
 import {
@@ -11,7 +12,8 @@ import {
   type AnalyzeResult, type CheckedBill, type CheckedEntry, type Draft, type DraftContext, type DraftFuel,
 } from '../lib/smart'
 import { BillReview } from './BillReview'
-import { FuelDelta } from './FuelCard'
+import { PriceDelta } from './PriceDelta'
+import { ShopCompareCard } from './ShopCompareCard'
 import type { Category, FuelFill, Transaction, TxType } from '../lib/types'
 import { defaultScope } from './EntrySheet'
 import { GroceryMatchCard } from './GroceryMatchCard'
@@ -93,6 +95,40 @@ export function SmartSheet({ open, mode, today, householdId, lookup, categories,
     fetchFuelFills(householdId).then((f) => { if (alive) setFills(f) }, () => { if (alive) setFills([]) })
     return () => { alive = false }
   }, [open, stage, hasFuel, householdId])
+  // 이번 장보기 살펴보기(설계 2026-10-21 3-2): 최근 1년 품목 줄을 읽어 화면에서 견준다. 못 읽어도 입력·저장은 그대로
+  const [history, setHistory] = useState<{ rows: Transaction[]; loading: boolean; error: string | null }>({ rows: [], loading: false, error: null })
+  useEffect(() => {
+    if (!open || stage !== 'review' || !withGrocery) return
+    let alive = true
+    setHistory({ rows: [], loading: true, error: null })
+    const from = new Date(Date.parse(`${today}T00:00:00`) - 365 * 86_400_000)
+    const fromText = `${from.getFullYear()}-${String(from.getMonth() + 1).padStart(2, '0')}-${String(from.getDate()).padStart(2, '0')}`
+    fetchItemHistory(householdId, fromText)
+      .then((rows) => { if (alive) setHistory({ rows, loading: false, error: null }) })
+      .catch((e) => { if (alive) setHistory({ rows: [], loading: false, error: friendlyError(e) }) })
+    return () => { alive = false }
+  }, [open, stage, withGrocery, householdId, today])
+  const groceryCategoryIds = useMemo(() => new Set(categories.filter((c) => c.type === 'expense' && GROCERY_CATEGORY_NAMES.has(c.name)).map((c) => c.id)), [categories])
+  // 상품 줄 key → 맞춰진 장보기 품목 이름(체크한 것과 이미 넣은 품목의 같은 이름)
+  const groceryNameOf = useMemo(() => {
+    const m = new Map<string, string>()
+    for (const [id, key] of [...picks, ...linkedMatches]) { const g = grocery.find((x) => x.id === id); if (g) m.set(key, g.name) }
+    return m
+  }, [picks, linkedMatches, grocery])
+  /** 한 묶음(영수증 한 장)의 상품 줄을 비교용으로. 저장할 초안의 줄만 */
+  const compareLines = (index: number): CompareLine[] =>
+    drafts.filter((d) => groupOf(d) === index && d.include && d.type === 'expense').flatMap((d) => {
+      const products = d.items.map((it, j) => ({ it, j })).filter(({ it }) => isProductLine(it))
+      return products.map(({ it, j }) => {
+        const key = `${d.key}:${j}`
+        return { key, name: it.name, quantity: it.quantity, unitPrice: it.unit_price, amount: products.length === 1 ? d.amount : it.amount,
+          packSize: it.pack_size, packUnit: it.pack_unit, groceryName: groceryNameOf.get(key) ?? null }
+      })
+    })
+  const groceryGroup = (g: Group, lines: CompareLine[]) => {
+    const names = drafts.filter((d) => groupOf(d) === g.index).map((d) => categories.find((c) => c.id === d.category_id)?.name ?? null)
+    return isGroceryEntry(names.find((n) => n !== null && GROCERY_CATEGORY_NAMES.has(n)) ?? names[0] ?? null, lines)
+  }
   // 관리비 고지서는 한 장의 여러 부분이라 한 번에 보낸다
   const maxPhotos = mode === 'bill' ? BATCH_SIZE : MAX_PHOTOS
   const fileRef = useRef<HTMLInputElement>(null)
@@ -109,7 +145,7 @@ export function SmartSheet({ open, mode, today, householdId, lookup, categories,
     reqRef.current++
     dropPhotos()
     setStage('input'); setText(''); setDrafts([]); setGroups([]); setNote(null); setModel(null); setErr(''); setBusy(false); setPreparing(false); setProgress(''); setBill(null)
-    setGrocery([]); setFills([])
+    setGrocery([]); setFills([]); setHistory({ rows: [], loading: false, error: null })
     setImages((prev) => { prev.forEach((i) => URL.revokeObjectURL(i.preview)); return [] })
   }, [open, mode])
 
@@ -362,6 +398,11 @@ export function SmartSheet({ open, mode, today, householdId, lookup, categories,
               {drafts.filter((d) => groupOf(d) === g.index).map((d) => (
                 <DraftCard key={d.key} d={d} categories={categories} fills={fills} onChange={(p) => patch(d.key, p)} />
               ))}
+              {withGrocery && (() => {
+                const lines = compareLines(g.index)
+                if (!lines.length || !groceryGroup(g, lines)) return null
+                return <ShopCompareCard result={compareTrip(lines, history.rows, g.entry.date ?? today, g.entry.amount, groceryCategoryIds)} loading={history.loading} error={history.error} />
+              })()}
             </div>
           ))}
           {withGrocery && (suggested.size > 0 || linkedMatches.size > 0) && (
@@ -533,7 +574,7 @@ function FuelFields({ fuel, amount, date, fills, onChange }: {
       {delta && delta.prev && delta.diff !== null && (
         <p className="tx-meta num">
           {`지난 주유(${Number(delta.prev.occurred_on.slice(5, 7))}월 ${Number(delta.prev.occurred_on.slice(8, 10))}일${delta.prev.fuel_type ? `, ${delta.prev.fuel_type}` : ''}) ${won(delta.prev.price_per_liter)}원/L보다 `}
-          <FuelDelta diff={delta.diff} pct={delta.pct} />
+          <PriceDelta diff={delta.diff} pct={delta.pct} />
         </p>
       )}
       {delta && !delta.prev && fills.length > 0 && !sameKind && <p className="tx-meta">같은 유종의 지난 주유 기록이 없어요.</p>}

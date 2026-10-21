@@ -124,6 +124,8 @@ const shellShots = [
   ...each((w, c) => ({ name: `shell-grocery-market-${w}-${c}`, path: '/', w, c, shell: true, tab: '장보기', market: true })),
   // 영수증 확인 화면의 '장보기 목록에서 찾은 품목'(D-011 길 ①). 가짜 영수증 응답(RECEIPT)
   ...each((w, c) => ({ name: `shell-smart-grocery-${w}-${c}`, path: '/', w, c, shell: true, tab: '내역', receipt: true })),
+  // 이번 장보기 살펴보기(설계 2026-10-21): 지난 장보기 대비, 비싸진·싸진 것, 최근에 또 산 것, 목록에 없던 것. 가짜 과거 영수증 두 번
+  ...each((w, c) => ({ name: `shell-smart-compare-${w}-${c}`, path: '/', w, c, shell: true, tab: '내역', receipt: true, compare: true })),
   // 통계 탭 주유 묶음(설계 2026-10-21): 리터당 가격·지난번 대비·추이 그래프·달별. 가짜 주유 기록 3건
   ...each((w, c) => ({ name: `shell-stats-fuel-${w}-${c}`, path: '/', w, c, shell: true, tab: '통계', scroll: '.fuel-card' })),
   // 주유소 영수증 확인 화면(설계 2026-10-21): 유종·주유량·리터당 칸과 지난 주유 대비. 가짜 응답(FUEL_RECEIPT)
@@ -268,6 +270,10 @@ try {
       if (s.fuel) {
         await page.getByText('리터당(원)').waitFor()
         await page.locator('.fuel-block').scrollIntoViewIfNeeded()
+      } else if (s.compare) {
+        await page.getByText('이번 장보기 살펴보기').waitFor()
+        await page.getByText('지난번보다 비싸진 것').waitFor()
+        await page.locator('.cmp-card').scrollIntoViewIfNeeded()
       } else {
         await page.getByText('장보기 목록에서 찾은 품목').waitFor()
         await page.locator('.grocery-match').scrollIntoViewIfNeeded()

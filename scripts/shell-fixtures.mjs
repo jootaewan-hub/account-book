@@ -47,14 +47,14 @@ const transactions = [
     { recurring_id: 'r3', recurring_month: `${ym}-01`, source: 'photo', memo: `관리비 고지서 ${Number(prevYm.slice(5))}월분` }),
   // 주유 세 번(통계 주유 묶음·내역 행의 '휘발유 35.2L, 1,652원/L'). 숫자는 캡처 확인용 예시
   ...FUEL.map((f) => tx(f.id, 1, f.amount, f.title, '차량·주유', { occurred_on: f.occurred_on, source: 'photo', fuel_fills: { liters: f.liters, price_per_liter: f.price_per_liter, fuel_type: f.fuel_type } })),
-  // 지난 장보기 두 번(영수증 확인 화면의 '이번 장보기 살펴보기'): 우유는 그때 더 쌌고, 두부는 사흘 전에도 샀다
+  // 지난 장보기 두 번(영수증 확인 화면의 '이번 장보기 살펴보기'): 우유는 그때 더 쌌고, 두부는 이틀 전에도 샀다(이레 전과 이틀 전 → 간격 5일의 절반 3일 안)
   tx('t30', 1, 19080, '이마트 분당점', '장보기', { occurred_on: daysAgo(7), source: 'photo', transaction_items: [
     { id: 'i30a', name: '서울우유 900ml', quantity: 2, unit_price: 2400, amount: 4800, pack_size: 900, pack_unit: 'ml', image_path: null, sort: 1 },
     { id: 'i30b', name: '국산 대파 1단', quantity: 1, unit_price: 3500, amount: 3500, pack_size: null, pack_unit: null, image_path: null, sort: 2 },
     { id: 'i30c', name: '계란 30구', quantity: 1, unit_price: 7980, amount: 7980, pack_size: 30, pack_unit: '구', image_path: null, sort: 3 },
     { id: 'i30d', name: '부침두부 300g', quantity: 1, unit_price: 2800, amount: 2800, pack_size: 300, pack_unit: 'g', image_path: null, sort: 4 },
   ] }),
-  tx('t31', 1, 2800, '이마트 분당점', '장보기', { occurred_on: daysAgo(3), source: 'photo', transaction_items: [
+  tx('t31', 1, 2800, '이마트 분당점', '장보기', { occurred_on: daysAgo(2), source: 'photo', transaction_items: [
     { id: 'i31a', name: '부침두부 300g', quantity: 1, unit_price: 2800, amount: 2800, pack_size: 300, pack_unit: 'g', image_path: null, sort: 1 },
   ] }),
 ]
@@ -159,13 +159,14 @@ export const RECEIPT = {
   model: 'claude-haiku-5-5',
   note: null,
   entries: [{
-    date: daysAgo(0), time: '18:20', merchant: '이마트 분당점', platform: null, amount: 15800, is_income: false, is_cancellation: false,
+    date: daysAgo(0), time: '18:20', merchant: '이마트 분당점', platform: null, amount: 17390, is_income: false, is_cancellation: false,
     card_last4: null, payment_hint: null, installment_months: null, category: '장보기', type: 'expense', items_match: true, fuel: null,
     items: [
       { name: '국산 대파 1단', is_product: true, quantity: 1, unit_price: 3000, amount: 3000, pack_size: null, pack_unit: null, category: '장보기', image_box: null },
       { name: '서울우유 900ml', is_product: true, quantity: 2, unit_price: 2500, amount: 5000, pack_size: 900, pack_unit: 'ml', category: '장보기', image_box: null },
       { name: '농심 신라면 5입', is_product: true, quantity: 1, unit_price: 5000, amount: 5000, pack_size: 5, pack_unit: '입', category: '장보기', image_box: null },
       { name: '부침두부 300g', is_product: true, quantity: 1, unit_price: 2800, amount: 2800, pack_size: 300, pack_unit: 'g', category: '장보기', image_box: null },
+      { name: '포카칩 오리지널 66g', is_product: true, quantity: 1, unit_price: 1590, amount: 1590, pack_size: 66, pack_unit: 'g', category: '장보기', image_box: null },
     ],
   }],
 }
