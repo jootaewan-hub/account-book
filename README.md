@@ -72,8 +72,10 @@
 | `supabase/migrations/` | DB 테이블, 권한(RLS), 가구 만들기·참여 함수, 내역+품목 저장 함수 |
 | `supabase/functions/extract-entries/` | 문자·사진 → Claude 구조화 출력 → 내역 초안 (Edge Function) |
 | `supabase/functions/export-csv/` | 구글 시트 IMPORTDATA용 CSV (가구별 비밀 주소, 로그인 없이 호출) |
-| `src/lib/` | 날짜·금액·통계 계산, 사진 자르기, Supabase 호출 |
-| `src/components/` | 화면 (`Motion.tsx`: 숫자 제자리 교체, 알림, 달 넘김 움직임) |
+| `src/lib/` | 날짜·금액·통계 계산, 사진 자르기, Supabase 호출. `dialog.ts`: 시트·창 공통 동작(Tab 순환, Esc, 겹친 창은 맨 위만, 닫히면 연 버튼으로 포커스 복귀, 스크롤 잠금) — 가계부 `Sheet`와 장보기 시트가 함께 쓴다 |
+| `src/hooks/` | 가구·내역·일정 불러오기와 Realtime 구독(`useLedger.ts`) |
+| `src/components/` | 화면 (`Motion.tsx`: 숫자 제자리 교체, 알림, 달 넘김 움직임. `ErrorBoundary.tsx`: 한 화면이 그리다 멈추면 그 자리에 오류와 다시 시도) |
+| `src/App.tsx` | 탭·시트 상태. 장보기·통계·고정·설정·스마트 입력은 `lazy`로 따로 묶어 눌렀을 때 받고(첫 묶음 약 170KB gzip), 첫 화면 뒤 1.5초에 미리 받아 둔다 |
 | `src/styles.css` | 색·글자·움직임 토큰과 화면 스타일. 규칙은 `DESIGN.md` |
 | `src/assets/fonts/` | SUIT 2.0.5 가변 글꼴(SIL OFL 1.1, 원본 그대로). 라이선스 전문은 `public/fonts/SUIT-OFL.txt` |
 | `tests/db.test.ts` | 마이그레이션을 PGlite에 적용해 권한 규칙 검증 |
@@ -84,6 +86,9 @@
 | `tests/categorize.test.ts` | 이름·상품명으로 분류 제안, 가게 이름 정리 검증 |
 | `tests/fuel.test.ts` | 주유소 영수증 값 정리(`checkFuel`)·다시 읽기 선택, 주유 초안·분류, 지난번 대비(같은 유종)·달별·간격·추이 계산 검증 |
 | `tests/shop-compare.test.ts` | 이번 장보기 살펴보기: 이름 맞추기, 100g·100ml당 값 비교, 최근 구매 기준, 장보기 묶음, 목록에 없던 것 검증 |
+| `tests/components/` | 화면 시험(jsdom + Testing Library, 파일 맨 위 `// @vitest-environment jsdom`): 대화상자 공통 동작, ErrorBoundary |
+| `.oxlintrc.json` | 린트 규칙(oxlint). React 훅 규칙·접근성(jsx-a11y)·느슨한 비교. TypeScript 7은 JS API가 없어 typescript-eslint를 쓸 수 없다 |
+| `.github/workflows/ci.yml`, `.github/dependabot.yml` | main이 아닌 브랜치·PR에서 타입 검사·린트·시험·빌드(묶음 크기를 요약에 적음). 의존성 갱신 PR은 매주 월요일 |
 | `src/grocery/` | 장보기 탭: 화면(`components/`), 글 나누기·식약처 대조·가격 규칙·저장소(`lib/`), 화면 CSS(`grocery.css`, `.grocery` 안에서만) |
 | `supabase/migrations/*_grocery_*.sql` | 장보기 표(`grocery` 스키마만), RLS, 식약처 대조·가격 함수 |
 | `supabase/functions/food-alerts-sync/` | 식약처 목록을 받아 저장(매일 07:00 `.github/workflows/food-alerts-sync.yml`이 부름, 로그인 없이 부르되 20시간 1회·30분 잠금) |
@@ -157,11 +162,15 @@ VITE_SUPABASE_PUBLISHABLE_KEY=...
 
 ```bash
 npm install
-npm run dev      # 개발 서버
-npm test         # 테스트
-npm run build    # 배포용 빌드 (dist/)
-npm run screens  # 화면 캡처 (개발 서버를 공개용 Supabase 값으로 먼저 띄운다. scripts/screenshots.mjs 맨 위 참고)
+npm run dev        # 개발 서버 (5173이 다른 앱에 잡혀 있으면 npx vite --port 5188 --strictPort)
+npm run typecheck  # 타입 검사 (tsc)
+npm run lint       # 린트 (oxlint: React 훅·접근성·느슨한 비교)
+npm test           # 테스트 (PGlite DB 시험과 jsdom 화면 시험 포함)
+npm run build      # 배포용 빌드 (dist/). 타입 검사를 먼저 한다
+npm run screens    # 화면 캡처 (개발 서버를 공개용 Supabase 값으로 먼저 띄운다. scripts/screenshots.mjs 맨 위 참고. 다른 포트면 BASE_URL=http://localhost:5188)
 ```
+
+브랜치에 푸시하면 `ci.yml`이 위 네 가지(타입 검사·린트·시험·빌드)를 돌린다. `main`은 `deploy.yml`이 린트·시험 뒤 배포한다.
 
 ### 5. 배포와 설치
 
