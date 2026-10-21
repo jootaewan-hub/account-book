@@ -50,7 +50,7 @@ describe('food-info: 검사', () => {
 })
 
 describe('food-info: 원재료 찾기(ingredients_search, D-020)', () => {
-  it('상품을 안 고른 품목은 품목 이름으로 식품·축산물·건강기능식품 목록을 한꺼번에 찾아 합치고 이름 일치 순으로 돌려준다', async () => {
+  it('상품을 안 고른 품목은 품목 이름으로 세 목록을 이름으로, C002·I1310을 식품유형으로 한꺼번에 찾아 합치고 순서를 매긴다', async () => {
     const { d, log } = deps(withItem('우유', null))
     const res = await handle(post({ itemId: ITEM, action: 'ingredients_search' }), d)
     expect(res.status).toBe(200)
@@ -58,35 +58,80 @@ describe('food-info: 원재료 찾기(ingredients_search, D-020)', () => {
     expect(body.status).toBe('done')
     expect(body.term).toBe('우유')
     expect(log.urls.filter((u) => u.includes('PRDLST_NM=')).map(svcOf).sort()).toEqual(['C002', 'C003', 'I1310'])
-    expect(log.urls.every((u) => u.endsWith('=%EC%9A%B0%EC%9C%A0'))).toBe(true) // 이름·식품유형 모두 '우유'
+    expect(log.urls.filter((u) => u.includes('PRDLST_DCNM=')).map(svcOf).sort()).toEqual(['C002', 'I1310'])
+    expect(log.urls.every((u) => u.includes('/json/1/50/') && u.endsWith('=%EC%9A%B0%EC%9C%A0'))).toBe(true)
     expect(body.candidates).toHaveLength(8) // 식품유형 검색이 같은 사본을 돌려줘도 보고번호로 하나만
     expect(body.failed).toEqual([])
-    // 이름에 '우유'가 든 축산물·건강기능식품이 앞에, 관련 없는 C002 사본 줄은 뒤에
     expect(body.candidates[0].source).not.toBe('C002')
     expect(body.candidates.map((c: { source: string }) => c.source).slice(-3)).toEqual(['C002', 'C002', 'C002'])
     expect(body.candidates.find((c: { source: string }) => c.source === 'I1310')).toMatchObject({ rawMaterials: null, shelfLife: expect.any(String) })
     expect(body.candidates.find((c: { source: string }) => c.source === 'C003')).toMatchObject({ health: { function: expect.any(String) } })
   })
-  it('상품을 고른 품목은 상품명 구절(구체적인 것부터)로 찾고, 없으면 다음 구절. 후보는 상품 단어가 많이 든 순', async () => {
+  it('상품을 고른 품목: 상표+낱말 → 상표+품목 식품유형 → 낱말(100건) 순으로 찾고, 후보가 모이면 멈춘다. 후보는 상품 단어가 많이 든 순(D-020 보충 2)', async () => {
     const { d, log } = deps({
       ...withItem('된장', '샘표 국산콩 100% 백일된장 900g'),
       fetchJson: async (url) => {
         log.urls.push(url)
-        if (url.includes(encodeURIComponent('국산콩 백일된장'))) return NONE(svcOf(url)!)
-        return svcOf(url) === 'C002'
-          ? { C002: { RESULT: { CODE: 'INFO-000' }, total_count: '2', row: [
-            { PRDLST_REPORT_NO: '1', PRDLST_NM: '된장', BSSH_NM: '해찬들', PRDLST_DCNM: '된장', RAWMTRL_NM: '대두, 소금' },
-            { PRDLST_REPORT_NO: '2', PRDLST_NM: '백일된장', BSSH_NM: '샘표식품(주)', PRDLST_DCNM: '된장', RAWMTRL_NM: '대두(국산), 천일염' },
+        const svc = svcOf(url)!
+        if (svc === 'C002' && url.includes('BSSH_NM=%EC%83%98%ED%91%9C&PRDLST_NM=%EB%B0%B1%EC%9D%BC%EB%90%9C%EC%9E%A5')) {
+          return { C002: { RESULT: { CODE: 'INFO-000' }, total_count: '3', row: [
+            { PRDLST_REPORT_NO: '1', PRDLST_NM: '2년숙성백일된장', BSSH_NM: '샘표식품(주)영동공장', PRDLST_DCNM: '된장', RAWMTRL_NM: '대두, 소금' },
+            { PRDLST_REPORT_NO: '2', PRDLST_NM: '국산콩백일된장', BSSH_NM: '샘표식품(주)영동공장', PRDLST_DCNM: '된장', RAWMTRL_NM: '대두(국산), 천일염' },
+            { PRDLST_REPORT_NO: '3', PRDLST_NM: '백일된장', BSSH_NM: '샘표식품(주)영동공장', PRDLST_DCNM: '된장', RAWMTRL_NM: '대두, 천일염' },
           ] } }
-          : NONE(svcOf(url)!)
+        }
+        return NONE(svc)
       },
     })
     const body = await (await handle(post({ itemId: ITEM, action: 'ingredients_search' }), d)).json()
-    expect(log.urls).toHaveLength(6) // 구절 2개 × 목록 3개
-    expect(body.term).toBe('백일된장')
-    expect(body.candidates.map((c: { name: string }) => c.name)).toEqual(['백일된장', '된장'])
+    expect(body.term).toBe('샘표 백일된장')
+    // 띄어쓴 구절("국산콩 백일된장")은 쓰지 않는다. 첫 단계(샘표+백일된장)에서 3건, 다음 단계(샘표+국산콩)까지 불러 5건이 안 되면 계속 → 끝까지
+    expect(log.urls.some((u) => u.includes(encodeURIComponent('국산콩 백일된장')))).toBe(false)
+    expect(log.urls[0]).toContain('/C002/json/1/50/BSSH_NM=%EC%83%98%ED%91%9C&PRDLST_NM=%EB%B0%B1%EC%9D%BC%EB%90%9C%EC%9E%A5')
+    expect(log.urls.some((u) => u.includes('BSSH_NM=%EC%83%98%ED%91%9C&PRDLST_DCNM=%EB%90%9C%EC%9E%A5'))).toBe(true)
+    expect(log.urls.some((u) => u.includes('/json/1/100/PRDLST_NM=%EB%B0%B1%EC%9D%BC%EB%90%9C%EC%9E%A5'))).toBe(true)
+    expect(body.candidates.map((c: { name: string }) => c.name)).toEqual(['국산콩백일된장', '백일된장', '2년숙성백일된장'])
   })
-  it('품목 이름·검색어로 찾을 때는 식품유형(PRDLST_DCNM)으로도 함께 찾아 합친다(C002·I1310, 같은 보고번호는 하나만). 식품유형이 맞는 것이 앞에 온다', async () => {
+  it('검색어를 주면 그 낱말로만 찾는다(상품명은 쓰지 않는다). 두 낱말이면 낱말마다 이름으로, 전체를 식품유형으로', async () => {
+    const { d, log } = deps(withItem('된장', '샘표 국산콩 100% 백일된장 900g'))
+    const body = await (await handle(post({ itemId: ITEM, action: 'ingredients_search', query: ' 쌈장 ' }), d)).json()
+    expect(body.term).toBe('쌈장')
+    expect(log.urls.filter((u) => u.includes('PRDLST_NM=')).map(svcOf).sort()).toEqual(['C002', 'C003', 'I1310'])
+    expect(log.urls.every((u) => !u.includes('BSSH_NM=') && u.endsWith('=%EC%8C%88%EC%9E%A5'))).toBe(true)
+    log.urls.length = 0
+    await handle(post({ itemId: ITEM, action: 'ingredients_search', query: '서울우유 버터' }), d)
+    expect(log.urls.filter((u) => u.includes('PRDLST_NM=%EC%84%9C%EC%9A%B8%EC%9A%B0%EC%9C%A0'))).toHaveLength(3)
+    expect(log.urls.filter((u) => u.includes('PRDLST_NM=%EB%B2%84%ED%84%B0'))).toHaveLength(3)
+    expect(log.urls.filter((u) => u.includes('PRDLST_DCNM=' + encodeURIComponent('서울우유 버터')))).toHaveLength(2)
+  })
+  it('한 목록이 실패하면(활용신청 없음 INFO-110 등) 나머지로 이어 가고 failed에 적는다. 그 목록은 다음 단계에서 다시 부르지 않는다', async () => {
+    const { d, log } = deps({
+      ...withItem('우유', '서울우유 1L'),
+      fetchJson: async (url) => {
+        log.urls.push(url)
+        const svc = svcOf(url)!
+        if (svc === 'I1310') return { I1310: { RESULT: { CODE: 'INFO-110', MSG: '활용신청을 하지 않았습니다' } } }
+        if (svc === 'C003') throw new TypeError('fetch failed')
+        return url.includes(encodeURIComponent('서울우유')) ? NONE('C002') : read('C002-name.json')
+      },
+    })
+    const res = await handle(post({ itemId: ITEM, action: 'ingredients_search' }), d)
+    expect(res.status).toBe(200)
+    const body = await res.json()
+    expect(body.failed).toEqual([{ source: 'I1310', reason: 'INFO-110' }, { source: 'C003', reason: 'network_error' }])
+    expect(body.candidates.map((c: { source: string }) => c.source)).toEqual(['C002', 'C002'])
+    // 낱말 하나뿐이라 상표 단계가 없다: 낱말 '서울우유'(세 목록) → 품목 이름 '우유'(살아 있는 C002만, 이름과 식품유형)
+    expect(log.urls.map(svcOf)).toEqual(['C002', 'I1310', 'C003', 'C002', 'C002'])
+  })
+  it('세 목록이 모두 실패하면 502, 찾을 말이 없으면 빈 후보', async () => {
+    const bad = deps({ ...withItem('우유', null), fetchJson: async () => ({ RESULT: { CODE: 'ERROR-300', MSG: 'x' } }) })
+    const r = await handle(post({ itemId: ITEM, action: 'ingredients_search' }), bad.d)
+    expect(r.status).toBe(502)
+    expect(await r.json()).toEqual({ status: 'error', reason: 'ERROR-300' })
+    const empty = deps(withItem('  ', null))
+    expect(await (await handle(post({ itemId: ITEM, action: 'ingredients_search' }), empty.d)).json()).toEqual({ status: 'done', term: null, candidates: [], failed: [] })
+  })
+  it('품목 이름으로 찾을 때 식품유형이 맞는 줄이 있으면 그것부터, 식품유형도 안 맞고 이름에 낱말로도 안 든 것(에그콘버터·우유케이크)은 뺀다(사용자 2026-10-21: 버터에 쿠키가 뜸)', async () => {
     const BUTTER_TYPE = { I1310: { RESULT: { CODE: 'INFO-000' }, row: [
       { PRDLST_REPORT_NO: 'b1', PRDLST_NM: '임실무염버터', BSSH_NM: '임실치즈축산업협동조합', PRDLST_DCNM: '버터' },
       { PRDLST_REPORT_NO: 'b2', PRDLST_NM: 'AF 가공버터', BSSH_NM: '롯데웰푸드', PRDLST_DCNM: '가공버터' },
@@ -106,54 +151,8 @@ describe('food-info: 원재료 찾기(ingredients_search, D-020)', () => {
       },
     })
     const body = await (await handle(post({ itemId: ITEM, action: 'ingredients_search' }), d)).json()
-    // 이름 3개 목록 + 식품유형 2개 목록(C003은 식품유형이 없다)
-    expect(log.urls.filter((u) => u.includes('PRDLST_NM=')).map(svcOf).sort()).toEqual(['C002', 'C003', 'I1310'])
-    expect(log.urls.filter((u) => u.includes('PRDLST_DCNM=%EB%B2%84%ED%84%B0')).map(svcOf).sort()).toEqual(['C002', 'I1310'])
-    expect(body.candidates.map((c: { reportNo: string }) => c.reportNo)).toEqual(['b1', 'b2', 'n1', '20120275156162', '20040347013423']) // 식품유형 버터 → 가공버터 → 이름에만 든 것 → 무관한 것은 짧은 이름부터
+    expect(body.candidates.map((c: { reportNo: string }) => c.reportNo)).toEqual(['b1', 'b2'])
     expect(body.failed).toEqual([])
-  })
-  it('상품을 고른 품목의 자동 맞춤·상품명 구절에는 식품유형 검색을 쓰지 않는다(구절은 식품유형이 아니다)', async () => {
-    const { d, log } = deps(withItem('된장', '샘표 국산콩 100% 백일된장 900g'))
-    await handle(post({ itemId: ITEM, action: 'ingredients_auto' }), d)
-    expect(log.urls.some((u) => u.includes('PRDLST_DCNM='))).toBe(false)
-    log.urls.length = 0
-    await handle(post({ itemId: ITEM, action: 'ingredients_search' }), d)
-    // 첫 구절에서 후보가 나오면 품목 이름까지 가지 않으니 식품유형 검색도 없다
-    expect(log.urls.some((u) => u.includes('PRDLST_DCNM='))).toBe(false)
-  })
-  it('검색어를 주면 그것만 찾는다(상품명은 쓰지 않는다)', async () => {
-    const { d, log } = deps(withItem('된장', '샘표 국산콩 100% 백일된장 900g'))
-    const body = await (await handle(post({ itemId: ITEM, action: 'ingredients_search', query: ' 쌈장 ' }), d)).json()
-    expect(body.term).toBe('쌈장')
-    expect(log.urls.filter((u) => u.includes('PRDLST_NM=')).map(svcOf).sort()).toEqual(['C002', 'C003', 'I1310'])
-    expect(log.urls.every((u) => u.endsWith('=%EC%8C%88%EC%9E%A5'))).toBe(true)
-  })
-  it('한 목록이 실패하면(활용신청 없음 INFO-110 등) 나머지로 이어 가고 failed에 적는다. 그 목록은 다음 구절에서 다시 부르지 않는다', async () => {
-    const { d, log } = deps({
-      ...withItem('우유', '서울우유 1L'),
-      fetchJson: async (url) => {
-        log.urls.push(url)
-        const svc = svcOf(url)!
-        if (svc === 'I1310') return { I1310: { RESULT: { CODE: 'INFO-110', MSG: '활용신청을 하지 않았습니다' } } }
-        if (svc === 'C003') throw new TypeError('fetch failed')
-        return url.includes(encodeURIComponent('서울우유')) ? NONE('C002') : read('C002-name.json')
-      },
-    })
-    const res = await handle(post({ itemId: ITEM, action: 'ingredients_search' }), d)
-    expect(res.status).toBe(200)
-    const body = await res.json()
-    expect(body.failed).toEqual([{ source: 'I1310', reason: 'INFO-110' }, { source: 'C003', reason: 'network_error' }])
-    expect(body.candidates.map((c: { source: string }) => c.source)).toEqual(['C002', 'C002'])
-    // 첫 구절에서 I1310·C003이 실패했으니 두 번째 구절(품목 이름)은 C002만, 이름과 식품유형으로 부른다: 3 + 2
-    expect(log.urls.map(svcOf)).toEqual(['C002', 'I1310', 'C003', 'C002', 'C002'])
-  })
-  it('세 목록이 모두 실패하면 502, 찾을 말이 없으면 빈 후보', async () => {
-    const bad = deps({ ...withItem('우유', null), fetchJson: async () => ({ RESULT: { CODE: 'ERROR-300', MSG: 'x' } }) })
-    const r = await handle(post({ itemId: ITEM, action: 'ingredients_search' }), bad.d)
-    expect(r.status).toBe(502)
-    expect(await r.json()).toEqual({ status: 'error', reason: 'ERROR-300' })
-    const empty = deps(withItem('  ', null))
-    expect(await (await handle(post({ itemId: ITEM, action: 'ingredients_search' }), empty.d)).json()).toEqual({ status: 'done', term: null, candidates: [], failed: [] })
   })
 })
 
@@ -167,7 +166,7 @@ describe('food-info: 원재료 자동 맞춤(ingredients_auto, D-020: 성분 탭
     expect(body).toEqual({ status: 'done', term: null, ingredients: null, reason: 'no_product' })
     expect(log.urls).toEqual([])
   })
-  it('축산물(I1310)이 맞으면 C006에서 원재료를 받아 소비기한과 함께 auto로 저장한다. 품목 이름으로는 찾지 않는다', async () => {
+  it('상표+낱말로 찾은 축산물(I1310)이 맞으면 C006에서 원재료를 받아 소비기한과 함께 auto로 저장한다. 품목 이름으로는 찾지 않는다', async () => {
     const { d, log } = deps({
       ...withItem('우유', '노벨유통 닭꼬치 300g'),
       fetchJson: async (url) => {
@@ -181,16 +180,37 @@ describe('food-info: 원재료 자동 맞춤(ingredients_auto, D-020: 성분 탭
     const res = await handle(post({ itemId: ITEM, action: 'ingredients_auto' }), d)
     expect(res.status).toBe(200)
     const body = await res.json()
-    expect(body.term).toBe('닭꼬치')
+    expect(body.term).toBe('노벨유통 닭꼬치')
+    expect(log.urls[0]).toContain('BSSH_NM=%EB%85%B8%EB%B2%A8%EC%9C%A0%ED%86%B5&PRDLST_NM=%EB%8B%AD%EA%BC%AC%EC%B9%98')
     expect(body.ingredients).toMatchObject({ origin: 'C006', reportNo: '199900307705', name: '닭꼬치', maker: '노벨유통', rawMaterials: '닭고기', shelfLife: '제조일로부터 7일' })
     expect(log.saved).toEqual([{ itemId: ITEM, auto: true, ...body.ingredients }])
-    expect(log.urls.some((u) => u.includes('PRDLST_NM=%EC%9A%B0%EC%9C%A0'))).toBe(false)
+    expect(log.urls.some((u) => u.includes('PRDLST_NM=%EC%9A%B0%EC%9C%A0') || u.includes('PRDLST_DCNM=%EC%9A%B0%EC%9C%A0'))).toBe(false)
     expect(log.urls.at(-1)).toContain('/C006/json/1/20/PRDLST_REPORT_NO=199900307705')
   })
-  it('맞는 것이 없으면(단어 하나만 맞고 업체도 다름) 저장하지 않고 null(no_fit)', async () => {
+  it('상표가 업체명에 없으면(청정원→대상) 상표 단계는 비고, 낱말 "찰고추장" 100건에서 상품 단어가 둘 이상 맞는 것을 쓴다', async () => {
+    const { d, log } = deps({
+      ...withItem('고추장', '청정원 순창 100% 현미 태양초 찰고추장 2kg'),
+      fetchJson: async (url) => {
+        log.urls.push(url)
+        const svc = svcOf(url)!
+        if (svc === 'C002' && url.includes('/json/1/100/PRDLST_NM=' + encodeURIComponent('찰고추장'))) {
+          return { C002: { RESULT: { CODE: 'INFO-000' }, row: [
+            { PRDLST_REPORT_NO: 'g1', PRDLST_NM: '고향 찰고추장 골드', BSSH_NM: '(주)진미식품', PRDLST_DCNM: '고추장', RAWMTRL_NM: '고춧가루' },
+            { PRDLST_REPORT_NO: 'g2', PRDLST_NM: '순창찰고추장(E)', BSSH_NM: '대상(주)', PRDLST_DCNM: '고추장', RAWMTRL_NM: '물엿, 고춧가루' },
+          ] } }
+        }
+        return NONE(svc)
+      },
+    })
+    const body = await (await handle(post({ itemId: ITEM, action: 'ingredients_auto' }), d)).json()
+    expect(body.term).toBe('찰고추장')
+    expect(body.ingredients).toMatchObject({ origin: 'C002', reportNo: 'g2', name: '순창찰고추장(E)' })
+    expect(log.urls.filter((u) => u.includes('BSSH_NM=')).length).toBeGreaterThan(0)
+  })
+  it('맞는 것이 없으면(단어 하나만 맞고 업체도 다름) 저장하지 않고 null(no_fit). 찾은 말은 처음 후보가 나온 단계', async () => {
     const { d, log } = deps({ ...withItem('된장', '샘표 국산콩 100% 백일된장 900g'), saveIngredients: async () => { throw new Error('must not save') } })
     const body = await (await handle(post({ itemId: ITEM, action: 'ingredients_auto' }), d)).json()
-    expect(body).toEqual({ status: 'done', term: '국산콩 백일된장', ingredients: null, reason: 'no_fit' })
+    expect(body).toEqual({ status: 'done', term: '샘표 백일된장', ingredients: null, reason: 'no_fit' })
     expect(log.urls.length).toBeGreaterThan(0)
   })
   it('세 목록이 모두 실패하면 502', async () => {

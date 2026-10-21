@@ -2,8 +2,7 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import {
-  FoodInfoError, ingredientFit, ingredientTerms, isDish, nutritionSearchUrl, nutritionTier, nutritionUrl, originOf, parseNutrition, parseNutritionRows, parseReport, productFit, productPhrases, productWords,
-  kindTier, rankByProduct, rankIngredients, rankNutrition, reportByNoUrl, reportSearchUrl, reportTypeUrl, type IngredientRow,
+  FoodInfoError, brandVariants, ingredientFit, isDish, kindTier, nutritionSearchUrl, nutritionTier, nutritionUrl, originOf, parseNutrition, parseNutritionRows, parseReport, productFit, productPhrases, productSearchWords, productWords, pruneUnrelated, queryWords, rankByProduct, rankIngredients, rankNutrition, reportBrandUrl, reportByNoUrl, reportSearchUrl, reportTypeUrl, type IngredientRow,
 } from '../../supabase/functions/_shared/foodInfo'
 
 const read = (f: string) => JSON.parse(readFileSync(new URL(`./fixtures/foodsafety/${f}`, import.meta.url), 'utf8'))
@@ -69,12 +68,31 @@ describe('원재료 찾을 말·후보 순서·자동 맞춤(D-020)', () => {
   const row = (name: string, maker: string | null = null, p: Partial<IngredientRow> = {}): IngredientRow => ({
     source: 'C002', reportNo: name, name, maker, kind: null, rawMaterials: null, changedOn: null, shelfLife: null, health: null, ...p,
   })
-  it('준 검색어가 있으면 그것만, 아니면 고른 상품명의 구절(구체적인 것부터) 뒤에 품목 이름. 겹치면 하나만', () => {
-    expect(ingredientTerms({ query: ' 백일 된장 ', productName: '샘표 국산콩 100% 백일된장 900g', itemName: '된장' })).toEqual(['백일 된장'])
-    expect(ingredientTerms({ productName: '샘표 국산콩 100% 백일된장 900g', itemName: '된장' })).toEqual(['국산콩 백일된장', '백일된장', '된장'])
-    expect(ingredientTerms({ productName: '서울우유 1L', itemName: '서울 우유' })).toEqual(['서울우유'])
-    expect(ingredientTerms({ productName: null, itemName: '고추장' })).toEqual(['고추장'])
-    expect(ingredientTerms({ itemName: '  ' })).toEqual([])
+  it('상품명에서 찾을 낱말: 상표·숫자·용량·광고 말을 빼고 뒤(상품 이름)부터. 띄어쓴 구절은 쓰지 않는다(식약처 품목명은 "국산콩백일된장"처럼 붙어 있다)', () => {
+    expect(productSearchWords('샘표 국산콩 100% 백일된장 900g')).toEqual(['백일된장', '국산콩'])
+    expect(productSearchWords('매일유업 매일우유 저지방 1% 900ml')).toEqual(['저지방', '매일우유'])
+    expect(productSearchWords('청정원 순창 100% 현미 태양초 찰고추장 2kg')).toEqual(['찰고추장', '태양초', '현미', '순창'])
+    expect(productSearchWords('한라식품 참치액 900ml')).toEqual(['참치액'])
+    expect(productSearchWords('참치액')).toEqual(['참치액'])
+  })
+  it('업체명으로 걸 상표: 첫 낱말 그대로, 3자 이상이면 앞 2자도(롯데제과→롯데웰푸드, 임실치즈농협→임실치즈축산업협동조합). 낱말 하나·숫자 상표는 없음', () => {
+    expect(brandVariants('롯데제과 초코필드 빼빼로 45g')).toEqual(['롯데제과', '롯데'])
+    expect(brandVariants('샘표 국산콩 100% 백일된장 900g')).toEqual(['샘표'])
+    expect(brandVariants('임실치즈농협 벨라유 모짜렐라 슬라이스 치즈 100g')).toEqual(['임실치즈농협', '임실'])
+    expect(brandVariants('서울우유 1L')).toEqual([])
+    expect(brandVariants('100% 참깨')).toEqual([])
+    expect(reportBrandUrl('KEY', 'C002', '샘표', { name: '백일된장' })).toBe('https://openapi.foodsafetykorea.go.kr/api/KEY/C002/json/1/50/BSSH_NM=%EC%83%98%ED%91%9C&PRDLST_NM=%EB%B0%B1%EC%9D%BC%EB%90%9C%EC%9E%A5')
+    expect(reportBrandUrl('KEY', 'I1310', '매일유업', { type: '우유' }, 20)).toBe('https://openapi.foodsafetykorea.go.kr/api/KEY/I1310/json/1/20/BSSH_NM=%EB%A7%A4%EC%9D%BC%EC%9C%A0%EC%97%85&PRDLST_DCNM=%EC%9A%B0%EC%9C%A0')
+  })
+  it('검색어 낱말: 긴 낱말부터 2개, 숫자·용량은 빼고, 남는 게 없으면 검색어 그대로', () => {
+    expect(queryWords('서울우유 버터 450g')).toEqual(['서울우유', '버터'])
+    expect(queryWords(' 버터 ')).toEqual(['버터'])
+    expect(queryWords('1L')).toEqual(['1L'])
+  })
+  it('식품유형이 맞는 줄이 있으면 식품유형도 안 맞고 이름에 낱말로도 안 든 것은 뺀다. 식품유형이 맞는 줄이 없으면 그대로', () => {
+    const rows = [row('버터쿠키', 'a', { kind: '과자' }), row('임실무염버터', 'b', { kind: '버터' }), row('서울우유 버터', 'c', { kind: null }), row('1am 에그콘버터', 'd', { kind: '분쇄가공육제품' })]
+    expect(pruneUnrelated(rows, '버터').map((r) => r.name)).toEqual(['임실무염버터', '서울우유 버터'])
+    expect(pruneUnrelated(rows.filter((r) => r.kind !== '버터'), '버터').map((r) => r.name)).toEqual(['버터쿠키', '서울우유 버터', '1am 에그콘버터'])
   })
   it('식품유형으로 찾는 주소(C002·I1310만, PRDLST_DCNM=)와 식품유형 일치 단계', () => {
     expect(reportTypeUrl('KEY', 'I1310', '버터')).toBe('https://openapi.foodsafetykorea.go.kr/api/KEY/I1310/json/1/20/PRDLST_DCNM=%EB%B2%84%ED%84%B0')

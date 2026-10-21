@@ -43,6 +43,13 @@ export function reportTypeUrl(key: string, service: 'C002' | 'I1310', type: stri
   return `${FOOD_BASE}/${encodeURIComponent(key)}/${service}/json/${start}/${end}/PRDLST_DCNM=${encodeURIComponent(type)}`
 }
 
+/** 업체명(BSSH_NM 부분 일치)에 이름 또는 식품유형을 함께 걸어 찾기. C002·I1310·C003 모두 BSSH_NM을 받고 조건은 &로 묶는다(2026-10-21 sample 실제 호출: 샘표+백일된장 → 국산콩백일된장 등 3건,
+ *  매일유업+저지방 → 매일우유 저지방 1%). 상표가 업체명에 없으면(청정원→대상(주), 수입 버터) INFO-200이 오고 다음 단계로 간다 */
+export function reportBrandUrl(key: string, service: IngredientSource, brand: string, by: { name: string } | { type: string }, end = 50): string {
+  const cond = 'name' in by ? `PRDLST_NM=${encodeURIComponent(by.name)}` : `PRDLST_DCNM=${encodeURIComponent(by.type)}`
+  return `${FOOD_BASE}/${encodeURIComponent(key)}/${service}/json/1/${end}/BSSH_NM=${encodeURIComponent(brand)}&${cond}`
+}
+
 export type IngredientRow = {
   /** 어느 목록에서 찾았나(C006으로 받은 줄은 I1310) */
   source: IngredientSource
@@ -129,15 +136,35 @@ function mergeC006(raw: Record<string, unknown>[]): Record<string, unknown>[] {
 const AD_WORDS = new Set(['무료배송', '당일배송', '특가', '행사', '기획', '증정', '세트', '묶음', '정품', '최저가', '할인', '대용량'])
 const squash = (s: string) => s.toLowerCase().replace(/[^가-힣a-z0-9]/g, '')
 
-/** 원재료 찾을 말(D-020): 준 검색어가 있으면 그것만, 아니면 고른 상품명의 구절(구체적인 것부터, productPhrases) 뒤에 품목 이름. 겹치면 하나만 */
-export function ingredientTerms(o: { query?: string | null; productName?: string | null; itemName: string }): string[] {
-  const q = (o.query ?? '').replace(/\s+/g, ' ').trim()
-  if (q) return [q]
-  const out: string[] = []
-  for (const t of [...(o.productName ? productPhrases(o.productName) : []), o.itemName.replace(/\s+/g, ' ').trim()]) {
-    if (t && !out.some((x) => squash(x) === squash(t))) out.push(t)
-  }
-  return out
+/** 상품명에서 찾을 낱말(D-020 보충 2): 식약처 품목명은 띄어쓰기가 제각각("국산콩백일된장")이고 띄어쓴 말은 첫 낱말로만 맞춰져("국산콩 백일된장"→두부들)
+ *  구절 대신 낱말 하나씩 찾는다. 상표(첫 낱말)·숫자 든 말·용량·광고 말은 빼고, 뒤(상품 이름)부터 앞으로. "샘표 국산콩 100% 백일된장 900g" → ["백일된장", "국산콩"] */
+export function productSearchWords(productName: string): string[] {
+  const words = productWords(productName)
+  const rest = (words.length > 1 ? words.slice(1) : words).filter((w) => !/\d/.test(w))
+  return [...rest].reverse()
+}
+
+/** 업체명(BSSH_NM)으로 걸 상표 후보: 상품명 첫 낱말(2자 이상, 숫자 없음) 그대로, 3자 이상이면 앞 2자도("임실치즈농협"→"임실치즈축산업협동조합", "롯데제과"→"롯데웰푸드"는 "롯데"로).
+ *  낱말이 하나뿐이면 상표가 없다 */
+export function brandVariants(productName: string): string[] {
+  const words = productWords(productName)
+  if (words.length < 2) return []
+  const b = words[0].replace(/[^가-힣a-z0-9]/g, '')
+  if (b.length < 2 || /\d/.test(b)) return []
+  return b.length >= 3 ? [b, b.slice(0, 2)] : [b]
+}
+
+/** 사람이 넣은 검색어에서 이름으로 찾을 낱말: 용량·수량·숫자 든 말을 빼고 긴 낱말부터 2개. 아무것도 안 남으면 검색어 그대로 */
+export function queryWords(query: string): string[] {
+  const words = productWords(query).filter((w) => !/\d/.test(w))
+  const out = [...new Set(words)].sort((a, b) => b.length - a.length).slice(0, 2)
+  return out.length > 0 ? out : [query.trim()].filter(Boolean)
+}
+
+/** 품목 이름으로 찾았을 때 식품유형이 맞는 줄이 하나라도 있으면, 식품유형도 안 맞고 이름에 낱말로도 안 든 것(버터쿠키·에그콘버터)은 뺀다(사용자 2026-10-21: 버터에 쿠키가 뜸) */
+export function pruneUnrelated(rows: readonly IngredientRow[], term: string): IngredientRow[] {
+  if (!rows.some((r) => kindTier(r.kind, term) <= 1)) return [...rows]
+  return rows.filter((r) => kindTier(r.kind, term) <= 1 || nutritionTier(r.name, term) <= 2)
 }
 
 /** 식품유형 일치 단계: 0 같음("버터"), 1 식품유형에 든 것("가공버터"·"버터유"·"땅콩버터"·"유당분해우유"), 4 무관 */
