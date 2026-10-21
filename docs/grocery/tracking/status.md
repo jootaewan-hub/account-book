@@ -11,7 +11,7 @@
 - 원재료를 제품명으로 찾기(D-020, 2026-10-21, 브랜치 `claude/ingredients-by-name`): 마이그레이션 `20261030000000_grocery_item_ingredients.sql`(표·`set_item_ingredients`(서비스 롤)·`item_ingredients_rows()`, PGlite 시험 `ingredientsDb.test.ts`),
   `_shared/foodInfo.ts`에 세 목록 파서(`parseReport`: C002·I1310·C006·C003, C006은 보고번호로 합침)·`ingredientTerms`·`rankIngredients`·`ingredientFit`, `food-info` 액션 `ingredients_search`·`ingredients_auto`·`ingredients_choose`(옛 `search`·`choose`는 뺌; 시험 13개).
   화면: 성분 탭 "원재료" 칸을 상품 유무와 상관없이(신선 제외) 보여 주고, 상품이 있으면 탭을 열 때 상품명으로 자동 맞춤, 없으면 "식약처 품목 찾기"(검색어 입력, 식품·축산물·건강기능식품 표시, 확인 못 한 목록 안내). 캡처 grocery-item-detail-ingredients·grocery-food-picker·grocery-ingredients-picker-noproduct.
-  공유 DB 적용·`food-info` v7 배포·main 병합은 사용자 확인 뒤. 남은 확인(사용자 첫 호출): 정식 키에 I1310·C006·C003 활용신청이 돼 있는지, 된장·고추장·우유에 "상품명으로 자동 맞춤"이 맞는지.
+  공유 DB 적용(`grocery_item_ingredients`)·`food-info` v7 배포·main 병합(a99d797) 2026-10-21 09:55 끝. 남은 확인(사용자 첫 호출): 정식 키에 I1310·C006·C003 활용신청이 돼 있는지, 된장·고추장·우유에 "상품명으로 자동 맞춤"이 맞는지.
 - 열량·영양성분 이름 검색(P9, D-018, 2026-10-20, 브랜치 `claude/nutrition-search`): 마이그레이션 `20261029000000_grocery_item_nutrition.sql`(표·`set_item_nutrition`(서비스 롤)·`item_nutrition_rows()`, PGlite 시험), `food-info` 액션 `nutrition_search`·`nutrition_choose`(품목 이름 또는 준 검색어로 FOOD_NM_KR, 같은 검색에서 식품코드를 다시 찾아 저장; 시험 3개), 파서 `parseNutritionRows`(식품코드·보고번호 포함).
   화면: 성분 탭을 신선 품목에도 열고 맨 위에 "열량·영양성분"(영양성분 찾기 → 식품 고르기 시트: 이름 다시 찾기, 이름·제조사·기준량·열량), 목록 줄에 "30kcal/100g". 캡처 grocery-item-detail-ingredients-fresh·grocery-nutrition-picker. 공유 DB 적용·`food-info` 배포는 사용자 확인 뒤.
   확인됨(2026-10-20 11:40, 사용자 첫 호출): FOOD_NM_KR 이름 검색이 응답한다(부분 일치라 "우유"에 우유식빵 등이 섞임). 같은 날 보충(D-018 보충, 브랜치 `claude/nutrition-auto`): 후보 순서 매기기(`rankNutrition`), 성분 탭을 열면 자동 맞춤(`nutrition_auto`, "이름으로 자동 맞춤" 표시), 50건 받아 20건.
