@@ -192,7 +192,8 @@ export default function ListRow({
           </span>
         </button>
         <div className="row-main">
-          <button type="button" className="row-name" aria-label={editing ? undefined : `${label} 상세`} disabled={editing}>
+          {/* 손가락 대상은 줄 전체(row-body)다. 버튼은 키보드·보조기기용이라 글줄 높이만 차지한다 */}
+          <button type="button" className="row-name" data-touch-extend aria-label={editing ? undefined : `${label} 상세`} disabled={editing}>
             {item.name}
             {item.spec && <span className="row-spec num"> {item.spec}</span>}
             {item.count > 1 && <span className="row-count num"> ×{item.count}</span>}
