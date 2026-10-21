@@ -28,6 +28,7 @@ const CLOSE = read('20261015170000_close_signups.sql')
 const TX_UPDATE = read('20261015180000_tx_update_grants.sql')
 const DROP_UNUSED = read('20261015190000_drop_unused.sql')
 const DETAILED_CATS = read('20261015200000_detailed_categories.sql')
+const FUEL = read('20261031000000_fuel_fills.sql')
 
 
 const A = '00000000-0000-4000-8000-00000000000a'
@@ -74,7 +75,7 @@ async function freshDb(migrations: string[]) {
 }
 
 beforeAll(async () => {
-  db = await freshDb([INIT, ROLES, SMART, HOOK, RECUR, EXPORT_SVC, ITEMS_IMG, CHILD, PLATFORM, EXPORT_PLATFORM, DROP_OLD_EXPORT, BILLS, REVOKE_ANON, ANNIV, INSTALL, EVENTS, AI_ALLOW, CLOSE, TX_UPDATE, DROP_UNUSED, DETAILED_CATS])
+  db = await freshDb([INIT, ROLES, SMART, HOOK, RECUR, EXPORT_SVC, ITEMS_IMG, CHILD, PLATFORM, EXPORT_PLATFORM, DROP_OLD_EXPORT, BILLS, REVOKE_ANON, ANNIV, INSTALL, EVENTS, AI_ALLOW, CLOSE, TX_UPDATE, DROP_UNUSED, DETAILED_CATS, FUEL])
 })
 
 describe('가구 만들기와 참여', () => {
@@ -611,5 +612,30 @@ describe('내역 고치기 (20261015180000_tx_update_grants)', () => {
     await as(C, `update public.transactions set platform = '다른 가구' where id = $1`, [tx])  // RLS로 0행
     expect(await as(A, `select platform from public.transactions where id = $1`, [tx])).toEqual([{ platform: null }])
     expect(await errorOf(as(A, `update public.transactions set created_by = $1 where id = $2`, [B, tx]))).toContain('permission denied')
+  })
+})
+
+describe('주유 기록 (20261031000000_fuel_fills)', () => {
+  it('같은 가구만 보고 쓰며, 내역 하나에 하나, 다른 가구 내역에는 못 붙이고, 내역을 지우면 함께 지워진다', async () => {
+    const [{ id: txA }] = await as<{ id: string }>(A,
+      `insert into public.transactions (household_id, type, occurred_on, amount, title, scope) values ($1, 'expense', '2026-10-18', 58150, 'GS칼텍스 분당주유소', 'shared') returning id`, [hhA])
+    await as(A, `insert into public.fuel_fills (household_id, transaction_id, liters, price_per_liter, fuel_type) values ($1, $2, 35.2, 1652, '휘발유')`, [hhA, txA])
+    const rows = await as<{ liters: string; price_per_liter: number; fuel_type: string }>(B, `select liters, price_per_liter, fuel_type from public.fuel_fills`)
+    expect(rows.map((r) => [Number(r.liters), r.price_per_liter, r.fuel_type])).toEqual([[35.2, 1652, '휘발유']])
+    expect(await as(C, `select * from public.fuel_fills`)).toHaveLength(0)
+    expect(await errorOf(as(null, `select * from public.fuel_fills`))).toContain('permission denied')
+    expect(await errorOf(as(C, `insert into public.fuel_fills (household_id, transaction_id, liters, price_per_liter) values ($1, $2, 1, 1000)`, [hhA, txA])))
+      .toContain('row-level security')
+    expect(await errorOf(as(B, `insert into public.fuel_fills (household_id, transaction_id, liters, price_per_liter) values ($1, $2, 1, 1000)`, [hhA, txA])))
+      .toContain('duplicate key')
+    expect(await errorOf(as(A, `insert into public.fuel_fills (household_id, transaction_id, liters, price_per_liter) values ($1, gen_random_uuid(), 0, 1000)`, [hhA])))
+      .toContain('check')
+    // 다른 가구의 내역에는 붙일 수 없다
+    const [{ id: txC }] = await as<{ id: string }>(C,
+      `insert into public.transactions (household_id, type, occurred_on, amount, scope) values ($1, 'expense', '2026-10-18', 1000, 'shared') returning id`, [hhC])
+    expect(await errorOf(as(A, `insert into public.fuel_fills (household_id, transaction_id, liters, price_per_liter) values ($1, $2, 1, 1000)`, [hhA, txC])))
+      .toContain('foreign key')
+    await as(A, `delete from public.transactions where id = $1`, [txA])
+    expect(await as(B, `select * from public.fuel_fills`)).toHaveLength(0)
   })
 })
