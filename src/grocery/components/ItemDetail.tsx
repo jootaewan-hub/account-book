@@ -159,7 +159,7 @@ export default function ItemDetail({ item, store, onChangeProduct, onClose, mark
     void loadNut()
     store.candidates(item.id).then(setCands, () => setCands(null))
     store.candidateAlerts(item.id).then(setCandAlerts, () => setCandAlerts(new Map()))
-  }, [loadIng, store, item.id])
+  }, [loadIng, loadNut, store, item.id])
   const withBusy = (p: Promise<unknown>) => {
     setSrcBusy(true)
     return p.finally(() => setSrcBusy(false))

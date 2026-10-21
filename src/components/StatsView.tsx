@@ -62,6 +62,7 @@ export function StatsView({ household, ym, today, cur, prev, lookup, categories,
       .then((t) => { if (alive) setTotals(t) })
       .catch((e) => { if (alive) setErr(friendlyError(e)) })
     return () => { alive = false }
+    // eslint-disable-next-line react/exhaustive-effect-dependencies -- cur가 바뀌면(내역 변경) 합계를 다시 읽는다
   }, [household.id, ym, cur])
 
   const series = useMemo(() => (totals ? monthSeries(totals, ym) : []), [totals, ym])

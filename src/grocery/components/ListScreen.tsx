@@ -164,7 +164,7 @@ export default function ListScreen({ store, me, ledger, market, dev }: Props) {
       },
     )
   }, [store, refetchAlerts, refetchExtras])
-  refetchRef.current = refetch
+  useEffect(() => { refetchRef.current = refetch }, [refetch])
 
   // 처음 불러오기, 실시간 구독(구독마다 채널이 하나 생기므로 정리 때 꼭 해제), 화면으로 돌아왔을 때 다시 불러오기.
   useEffect(() => {

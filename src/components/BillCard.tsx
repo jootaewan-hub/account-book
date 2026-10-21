@@ -17,6 +17,7 @@ export function BillCard({ householdId, reloadKey, onAdd }: { householdId: strin
     fetchBills(householdId).then((b) => { if (alive) { setBills(b); setIdx(0); setErr('') } })
       .catch((e) => { if (alive) setErr(friendlyError(e)) })
     return () => { alive = false }
+    // eslint-disable-next-line react/exhaustive-effect-dependencies -- reloadKey는 고지서를 저장했을 때 다시 읽는 신호
   }, [householdId, reloadKey])
 
   const bill = bills?.[idx]

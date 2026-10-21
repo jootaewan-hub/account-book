@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useEffectEvent, useRef, useState } from 'react'
 import { fetchEvents, fetchHouseholdBundle, fetchTwoMonths } from '../lib/api'
 import { addMonths, monthRange } from '../lib/dates'
 import { sb } from '../lib/supabase'
@@ -75,20 +75,18 @@ export function useMonthEvents(householdId: string | undefined, ym: string) {
  * iOS 홈 화면 앱은 백그라운드에서 연결이 끊길 수 있어, 다시 화면에 나타나면 새로 불러온다.
  */
 export function useLiveUpdates(householdId: string | undefined, onTx: () => void, onMeta: () => void, onEvents: () => void = () => {}) {
-  const txRef = useRef(onTx)
-  const metaRef = useRef(onMeta)
-  const evRef = useRef(onEvents)
-  txRef.current = onTx
-  metaRef.current = onMeta
-  evRef.current = onEvents
+  // 콜백이 바뀌어도 구독을 다시 만들지 않고 늘 최신 것을 부른다
+  const txEvent = useEffectEvent(onTx)
+  const metaEvent = useEffectEvent(onMeta)
+  const evEvent = useEffectEvent(onEvents)
 
   useEffect(() => {
     if (!householdId) return
     let timer: ReturnType<typeof setTimeout> | undefined
     const debounced = (fn: () => void) => () => { clearTimeout(timer); timer = setTimeout(fn, 250) }
-    const tx = debounced(() => txRef.current())
-    const meta = () => metaRef.current()
-    const ev = () => evRef.current()
+    const tx = debounced(() => txEvent())
+    const meta = () => metaEvent()
+    const ev = () => evEvent()
     const filter = `household_id=eq.${householdId}`
     const channel = sb()
       .channel(`ledger-${householdId}`)
@@ -107,7 +105,7 @@ export function useLiveUpdates(householdId: string | undefined, onTx: () => void
       .subscribe()
 
     const onVisible = () => {
-      if (document.visibilityState === 'visible') { txRef.current(); metaRef.current(); evRef.current() }
+      if (document.visibilityState === 'visible') { txEvent(); metaEvent(); evEvent() }
     }
     document.addEventListener('visibilitychange', onVisible)
     return () => {

@@ -26,6 +26,7 @@ export function FuelCard({ householdId, version, txs, ym, onAdd }: {
     fetchFuelFills(householdId).then((f) => { if (alive) { setFills(f); setErr('') } })
       .catch((e) => { if (alive) setErr(friendlyError(e)) })
     return () => { alive = false }
+    // eslint-disable-next-line react/exhaustive-effect-dependencies -- version(영수증 저장)·txs(내역 변경)는 다시 읽는 신호
   }, [householdId, version, txs])
 
   const delta = useMemo(() => (fills ? fuelDelta(fills) : null), [fills])
