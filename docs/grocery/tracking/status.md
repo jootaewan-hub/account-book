@@ -9,7 +9,7 @@
 
 ## 된 것 (2026-10-19, 통합 1단계)
 
-- 몰 주소 자동 찾기(D-024, 2026-10-22, 브랜치 `claude/shop-find`): Edge Function `shop-find`(verify_jwt true, Claude 웹 검색 → 결과 주소만 → 페이지 직접 읽기 → 이름·용량 견주기), `_shared/shopFind.ts`(시험 10개), `shop-find/handle.ts`(시험 12개),
+- 몰 주소 자동 찾기(D-024, 2026-10-22, 브랜치 `claude/shop-find`): Edge Function `shop-find`(verify_jwt true, Claude 웹 검색 → 결과 주소만 → 페이지 직접 읽기 → 이름·용량 견주기), `_shared/shopFind.ts`(시험 11개), `shop-find/handle.ts`(시험 13개),
   마이그레이션 `20261102000000_grocery_shop_finds.sql`(PGlite 시험 4개), 화면: 상품을 고르면 목록에서 부르고 품목 상세 가격 탭을 열 때도 한 번(찾는 중 4초마다 다시 읽기), "자동으로 찾음" 표시, "같은 상품인지 확인해 주세요" 후보와 "이 상품이에요".
   캡처 grocery-item-detail-find(-auto)(390·1280, 라이트·다크) 확인. 2026-10-22 사용자 승인 뒤 운영 반영: 공유 DB에 `grocery_shop_finds` 적용, `shop-find` v1을 커밋 고정 stub(`b519232`)으로 배포, main 병합(기록 `docs/HANDOFF.md` 5절 17). 첫 실제 호출로 확인할 것: WIF로 웹 검색이 되는지, 홈플러스 하위 도메인 결과가 오는지, 한국어 검색 품질.
 
@@ -167,6 +167,11 @@
 - Supabase 프로젝트: 가계부 프로젝트를 공유하므로 새로 만들지 않는다(D-003).
 
 ## 열린 문제
+
+- (2026-10-22, D-024 몰 주소 자동 찾기) 페이지를 하나도 못 읽어도 "찾음"으로 끝난다. `shop-find/handle.ts`는 검색 결과 주소가 하나도 몰 주소로 정리되지 않을 때(예: `homeplus.co.kr` 필터가 하위 도메인을 빼는 경우)나, 읽은 페이지가 모두 실패할 때(`http_403`·`http_503`·`parse_failed`, 예: Supabase 서버에서 몰이 막는 경우)도 `shop_finds`에 `done`과 빈 후보를 남긴다. `done`은 다시 찾지 않으므로 그 상품은 "찾지 못함"으로 굳는다.
+  - 첫 실제 사용 뒤에는 `shop_finds` 행만 보지 말고 로그 `shop_find_search`의 결과 주소와 `shop_checks`의 실패 이유를 함께 본다.
+  - 그 상품을 다시 찾게 하려면 `shop_finds`의 그 행을 지운다(운영 데이터 수정이라 사용자 확인 뒤).
+  - 고칠 방향: 읽기를 하나 이상 시도했는데 모두 실패했으면 `failed`(예: `pages_unreadable`)로 남겨 한 시간 뒤 다시 하게 한다. 사용자가 고르면 한다.
 
 - (2026-10-22, D-023 점검에서 미룬 것) 아래는 확인했지만 이번 브랜치에서 고치지 않았다. 조건과 고칠 방향을 함께 적는다.
   - RLS 정책이 행마다 `private.is_household_member(household_id)`(SECURITY DEFINER)를 부른다. 행의 칸을 넘기므로 한 번만 계산되지 않는다. 지금은 내역 70행이라 체감이 없다. 행이 수천을 넘어 목록·통계가 느려지면 `private.my_household_id()`(stable)로 `household_id = (select …)` 모양으로 바꾼다(public·grocery 정책 전부라 따로 계획).
