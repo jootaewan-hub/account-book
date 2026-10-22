@@ -107,3 +107,23 @@ describe('참가격 상품 찾기', () => {
     expect(filterGoods(many, '우유')).toHaveLength(50)
   })
 })
+
+describe('몰 주소 자동 찾기 상태 문구(D-024)', async () => {
+  const { findStateText, candidateSourceText } = await import('../../src/grocery/lib/sources')
+  const base = { searchedAt: '2026-10-22T01:00:00Z', error: null, candidates: [] }
+  it('찾는 중·실패·못 찾음은 하는 일 그대로, 결과가 있으면 문구 없음', () => {
+    expect(findStateText(null, 0)).toBeNull()
+    expect(findStateText({ ...base, status: 'searching' }, 0)).toBe('컬리·홈플러스·쿠팡에서 같은 상품 찾는 중')
+    expect(findStateText({ ...base, status: 'failed', error: 'search_disabled' }, 0)).toContain('검색 설정이 꺼져')
+    expect(findStateText({ ...base, status: 'failed', error: 'timeout' }, 0)).toBe('몰에서 상품을 찾지 못했어요. 주소를 직접 넣을 수 있어요.')
+    expect(findStateText({ ...base, status: 'done' }, 0)).toContain('이름·용량이 같은 상품을 찾지 못했어요')
+    expect(findStateText({ ...base, status: 'done' }, 1)).toBeNull() // 넣은 주소가 있으면 따로 말하지 않는다
+  })
+  it('후보 줄은 출처와 확인 시각을 함께 쓴다', () => {
+    const c = { source: 'kurly' as const, sourceId: '1', url: 'https://www.kurly.com/goods/1', name: 'x', size: null, price: 1000, checkedAt: '2026-10-22T01:05:00Z', grade: 'maybe' as const, saved: false }
+    expect(candidateSourceText(c, new Date('2026-10-22T03:00:00Z'))).toBe('컬리 페이지, 오늘 10:05 확인')
+  })
+  it('화면 문구에 AI라는 말을 쓰지 않는다', () => {
+    for (const st of ['searching', 'failed', 'done'] as const) expect(findStateText({ ...base, status: st }, 0) ?? '').not.toMatch(/AI|인공지능|분석 중/)
+  })
+})

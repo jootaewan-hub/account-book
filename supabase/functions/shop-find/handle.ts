@@ -41,6 +41,8 @@ export type FindDeps = {
 export const STALE_SEARCH_MS = 5 * 60_000
 /** 실패한 찾기는 이만큼 지난 뒤에 다시 한다(로그인 토큰 문제는 바로) */
 export const RETRY_FAILED_MS = 60 * 60_000
+/** 요청 시작부터 이만큼 지나면 페이지를 더 읽지 않고 읽은 것으로 끝낸다(함수 시간 제한 150초, 페이지 하나 최대 20초) */
+export const PAGE_DEADLINE_MS = 120_000
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const json = (status: number, body: unknown) =>
@@ -88,6 +90,7 @@ export async function handle(req: Request, deps: FindDeps): Promise<Response> {
   const { householdId, productId, productName, spec } = item
 
   const now = deps.now()
+  const started = now.getTime()
   const prev = await deps.state(householdId, productId)
   const age = prev ? now.getTime() - Date.parse(prev.searchedAt) : Infinity
   if (prev?.status === 'done') return json(200, { status: 'cached' })
@@ -113,6 +116,7 @@ export async function handle(req: Request, deps: FindDeps): Promise<Response> {
     }
     const read: { link: ShopLink; source: ShopSource; page: PageRead; match: Match }[] = []
     for (const link of pickLinks(urls, wanted)) {
+      if (deps.now().getTime() - started > PAGE_DEADLINE_MS) break // 시간 안에 끝내고 읽은 것만 쓴다
       const page = await readPage(link, deps, at)
       if (page) read.push({ link, source: link.source, page, match: matchShop({ name: productName, spec }, page) })
     }

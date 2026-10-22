@@ -143,6 +143,14 @@ describe('찾기', () => {
     await handle(post({ itemId: ITEM }), d)
     expect(log.finished[0].candidates[0]).toMatchObject({ grade: 'auto', saved: false })
   })
+  it('요청 시작부터 120초가 지나면 페이지를 더 읽지 않고 읽은 것으로 끝낸다', async () => {
+    let t = NOW.getTime()
+    // 부를 때마다 50초씩 간다: 시작(0) → 첫 페이지 전 50초 → 둘째 전 100초 → 셋째 전 150초(멈춤)
+    const { d, log } = deps({ now: () => new Date((t += 50_000) - 50_000) })
+    expect((await (await handle(post({ itemId: ITEM }), d)).json()).status).toBe('done')
+    expect(log.fetched).toHaveLength(2)
+    expect(log.finished[0].status).toBe('done')
+  })
   it('검색이 실패하면 이유를 남기고 502', async () => {
     const { d, log } = deps({ search: async () => { throw new SearchError('search_disabled') } })
     const res = await handle(post({ itemId: ITEM }), d)

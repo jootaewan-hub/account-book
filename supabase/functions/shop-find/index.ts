@@ -35,13 +35,15 @@ async function webSearch(client: Anthropic, name: string, spec: string | null): 
         system: FIND_SYSTEM,
         messages,
         tools: [{
+          // 지역(user_location)은 넣지 않는다: 결과는 allowed_domains로 한국 몰에만 좁혀지고, 지원하지 않는 나라 코드는 400이다
           type: 'web_search_20250305', name: 'web_search', max_uses: MAX_SEARCHES, allowed_domains: [...FIND_DOMAINS],
-          user_location: { type: 'approximate', country: 'KR', timezone: 'Asia/Seoul' },
         }],
         output_config: { effort: 'low' },
       }, { signal })
       urls.push(...searchResultUrls(res.content))
-      console.log('shop_find_search', res.model, res.stop_reason, res.usage.server_tool_use?.web_search_requests ?? 0, urls.length)
+      // 검색 횟수와 토큰(비용 추정 확인용), 모은 주소 수
+      console.log('shop_find_search', res.model, res.stop_reason, res.usage.server_tool_use?.web_search_requests ?? 0,
+        res.usage.input_tokens, res.usage.output_tokens, urls.length)
       if (res.stop_reason !== 'pause_turn') break
       messages.push({ role: 'assistant', content: res.content })
     }

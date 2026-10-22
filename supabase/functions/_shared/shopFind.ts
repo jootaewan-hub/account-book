@@ -58,15 +58,33 @@ export function findTokens(s: string): string[] {
 
 const sameSize = (a: Size, b: Size) => a.family === b.family && Math.abs(a.n - b.n) <= Math.max(a.n, b.n) * 0.02
 
+/** 페이지 이름의 낱말(1자도 남긴다: "왕 교자"를 이어 붙여 보려고) */
+function pageWords(s: string): string[] {
+  return s.split(/[\s,/()[\]★☆*·+]+/).map((t) => t.replace(/[^가-힣a-z0-9.]/gi, '').replace(/\.+$/, '').toLowerCase()).filter(Boolean)
+}
+
+/** 단어가 페이지 낱말 하나와 같거나, 이어진 낱말 2~3개를 붙인 것과 같은가(띄어쓰기만 다른 것). "김치왕교자" 안의 "왕교자"는 아니다 */
+function exactIn(word: string, words: readonly string[]): boolean {
+  for (let i = 0; i < words.length; i++) {
+    let joined = ''
+    for (let j = i; j < Math.min(words.length, i + 3); j++) {
+      joined += words[j]
+      if (joined === word) return true
+      if (joined.length >= word.length) break
+    }
+  }
+  return false
+}
+
 export type MatchGrade = 'auto' | 'maybe' | 'no'
-export type Match = { grade: MatchGrade; overlap: number; size: 'same' | 'different' | 'unknown' }
+export type Match = { grade: MatchGrade; overlap: number; size: 'same' | 'different' | 'unknown'; exact: number }
 
 /**
  * 몰 페이지가 고른 상품과 같은지 견준다.
  * - 용량을 둘 다 읽었는데 다르면 'no'(묶음·다른 용량은 다른 상품으로 본다).
- * - 용량이 같고 고른 상품 단어가 2개 이상, 절반 이상 페이지 이름에 들어 있으면 'auto'(자동 저장).
- * - 단어가 하나라도 겹치고 용량이 다르지 않으면 'maybe'(사람이 고른다). 그 밖은 'no'.
- * 단어는 띄어쓰기를 무시하고 페이지 이름 안에 들어 있는지로 본다("왕교자"와 "왕 교자").
+ * - 'auto'(자동 저장): 용량이 같고, 고른 상품 단어가 2개 이상·절반 이상 페이지 낱말과 **그대로** 같고(띄어쓰기만 다른 것은 같음),
+ *   마지막 단어(대개 상품 이름, "왕교자")도 그대로 같을 때. "김치왕교자"처럼 다른 말이 붙은 이름은 자동으로 넣지 않는다.
+ * - 'maybe'(사람이 고른다): 단어가 하나라도 페이지 이름 안에 들어 있고 용량이 다르지 않을 때. 그 밖은 'no'.
  */
 export function matchShop(target: { name: string; spec: string | null }, page: { name: string; size: string | null }): Match {
   const want = parseSize(target.name) ?? (target.spec ? parseSize(target.spec) : null)
@@ -74,11 +92,15 @@ export function matchShop(target: { name: string; spec: string | null }, page: {
   const size: Match['size'] = !want || !got ? 'unknown' : sameSize(want, got) ? 'same' : 'different'
   const words = findTokens(target.name)
   const hay = norm(page.name)
+  const pw = pageWords(page.name)
   const overlap = words.filter((w) => hay.includes(norm(w))).length
-  if (size === 'different') return { grade: 'no', overlap, size }
-  if (size === 'same' && overlap >= 2 && overlap * 2 >= words.length) return { grade: 'auto', overlap, size }
-  if (overlap >= 1) return { grade: 'maybe', overlap, size }
-  return { grade: 'no', overlap, size }
+  const exactWords = words.filter((w) => exactIn(norm(w), pw))
+  const exact = exactWords.length
+  const mainExact = words.length > 0 && exactWords.includes(words[words.length - 1])
+  if (size === 'different') return { grade: 'no', overlap, size, exact }
+  if (size === 'same' && exact >= 2 && exact * 2 >= words.length && mainExact) return { grade: 'auto', overlap, size, exact }
+  if (overlap >= 1) return { grade: 'maybe', overlap, size, exact }
+  return { grade: 'no', overlap, size, exact }
 }
 
 /** 찾은 후보 하나(shop_finds.candidates의 한 줄). 가격은 그 페이지에서 읽은 값과 읽은 시각 */

@@ -49,17 +49,24 @@ describe('pickLinks', () => {
 describe('matchShop', () => {
   const target = { name: 'CJ제일제당 비비고 왕교자 1.05kg', spec: null }
   it('용량이 같고 상품 단어가 절반 넘게 들어 있으면 자동 저장', () => {
-    expect(matchShop(target, { name: '[비비고] 왕교자 1.05kg', size: null })).toEqual({ grade: 'auto', overlap: 2, size: 'same' })
+    expect(matchShop(target, { name: '[비비고] 왕교자 1.05kg', size: null })).toEqual({ grade: 'auto', overlap: 2, size: 'same', exact: 2 })
+    // 다른 말이 따로 붙은 것(만두·대용량)은 괜찮다
+    expect(matchShop(target, { name: '[비비고] 왕교자 만두 대용량 1.05kg', size: null }).grade).toBe('auto')
     // 띄어쓰기가 달라도 같은 단어로 본다. 페이지에 용량 칸만 있어도 읽는다
     expect(matchShop(target, { name: 'CJ 비비고 왕 교자', size: '1050g' }).grade).toBe('auto')
   })
+  it('상품 이름에 다른 말이 붙은 다른 상품(김치왕교자·고기왕교자)은 자동으로 넣지 않고 후보로만', async () => {
+    expect(matchShop(target, { name: '비비고 김치왕교자 1.05kg', size: null })).toMatchObject({ grade: 'maybe', overlap: 2, exact: 1 })
+    expect(matchShop(target, { name: '비비고 고기왕교자 1.05kg', size: null }).grade).toBe('maybe')
+    expect(matchShop(target, { name: '비비고 매운왕교자 1.05kg', size: null }).grade).toBe('maybe')
+  })
   it('용량이 다르면(묶음 포함) 같은 상품으로 보지 않는다', () => {
-    expect(matchShop(target, { name: '비비고 왕교자 1.05kg x 2개', size: null })).toEqual({ grade: 'no', overlap: 2, size: 'different' })
+    expect(matchShop(target, { name: '비비고 왕교자 1.05kg x 2개', size: null })).toEqual({ grade: 'no', overlap: 2, size: 'different', exact: 2 })
     expect(matchShop(target, { name: '비비고 왕교자 455g', size: null }).grade).toBe('no')
   })
   it('용량을 모르거나 단어가 하나만 겹치면 사람이 고르게 후보로', () => {
-    expect(matchShop(target, { name: '비비고 왕교자', size: null })).toEqual({ grade: 'maybe', overlap: 2, size: 'unknown' })
-    expect(matchShop(target, { name: '풀무원 왕교자 1.05kg', size: null })).toEqual({ grade: 'maybe', overlap: 1, size: 'same' })
+    expect(matchShop(target, { name: '비비고 왕교자', size: null })).toEqual({ grade: 'maybe', overlap: 2, size: 'unknown', exact: 2 })
+    expect(matchShop(target, { name: '풀무원 왕교자 1.05kg', size: null })).toEqual({ grade: 'maybe', overlap: 1, size: 'same', exact: 1 })
   })
   it('겹치는 단어가 없으면 버린다', () => {
     expect(matchShop(target, { name: '고향만두 1.05kg', size: null }).grade).toBe('no')
@@ -75,7 +82,7 @@ describe('findTokens·bestPerSource', () => {
   })
   it('출처마다 자동 > 후보, 같으면 겹친 단어가 많은 것, 같으면 먼저 찾은 것', () => {
     const c = (source: 'kurly' | 'homeplus' | 'lowchart', id: string, grade: 'auto' | 'maybe' | 'no', overlap: number) =>
-      ({ source, id, match: { grade, overlap, size: 'same' as const } })
+      ({ source, id, match: { grade, overlap, size: 'same' as const, exact: overlap } })
     const picked = bestPerSource([
       c('kurly', 'k1', 'maybe', 3), c('kurly', 'k2', 'auto', 2), c('kurly', 'k3', 'auto', 2),
       c('homeplus', 'h1', 'no', 0),
