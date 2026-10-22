@@ -40,7 +40,7 @@ Deno.serve(async (req) => {
   const rows = all.filter((r) =>
     (!DATE_RE.test(from) || r.occurred_on >= from) && (!DATE_RE.test(to) || r.occurred_on <= to))
   // 엑셀에서 한글이 깨지지 않도록 내려받기(dl=1)일 때만 BOM을 붙인다. 구글 시트는 BOM 없이 읽는다.
-  const body = (url.searchParams.get('dl') === '1' ? '﻿' : '') + toCsv(rows)
+  const body = (url.searchParams.get('dl') === '1' ? '\uFEFF' : '') + toCsv(rows)
   return new Response(body, {
     headers: {
       'Content-Type': 'text/csv; charset=utf-8',

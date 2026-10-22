@@ -102,10 +102,12 @@ npm run screens
 
 14. 됨 — 2026-10-21 21:30 KST D-021·D-022(브랜치 `claude/fuel-and-grocery-compare`, 설계·계획은 `docs/superpowers/specs|plans/2026-10-21-fuel-and-grocery-compare*`): ① MCP `apply_migration`(`fuel_fills`) 적용 — RLS 켜짐·정책 `fuel_fills_all`·anon 권한 없음·제약 8개 확인, 보안 점검은 전과 같은 항목뿐, 성능 점검 새 항목은 복합 FK `(transaction_id, household_id)` 색인 없음 INFO(utility_bills와 같은 모양) ② `extract-entries` v14 배포(verify_jwt true, import map deno.json, 무인증 POST 401 확인, 배포 소스에 `FuelSchema`·`preferRetry`·withFuel 있음) ③ main 병합·푸시(아래 커밋). **순서를 지켜야 한다**: 새 번들은 내역을 읽을 때 `fuel_fills` 임베드를 요구하므로 마이그레이션 없이 main을 먼저 푸시하면 내역 목록이 빈 화면이 된다(마이그레이션이 실패하면 main 푸시를 하지 않는다). 그 뒤 사용자가 주유 영수증 1장·장보기 영수증 1장으로 확인(주유 칸 값이 영수증과 같은지, 통계 주유 묶음, 살펴보기 묶음의 지난번 값이 가계부 기록과 같은지).
 
-15. 저장소가 배포본보다 앞선 것(2026-10-22, 브랜치 `claude/structure-upgrade`, 아직 적용·배포 안 함 — 확인 뒤 이 줄을 고친다):
-    - 마이그레이션 `20261101000000_grocery_upsert_grants.sql`(몰 주소·자주 가는 매장 저장 권한). 적용 전에는 그 두 저장이 42501로 실패한다.
-    - 함수 `export-csv`(1,000행 넘게 나눠 받기), `extract-entries`(140초 마감), `_shared/edge.ts`를 쓰는 `product-search`·`product-check`·`food-info`·`price-recheck`(새 형식 키를 먼저 읽음), supabase-js `@2.117.3` 핀만 바뀐 `food-alerts-sync`·`market-sync`·`tprice-sync`.
-    - `grocery-photo`는 import 경로만 바뀌었다(`text.ts`, 동작 같음). 배포하면 `text.ts`도 함께 올린다.
+15. 구조 정리(D-023) 적용·배포(2026-10-22 10:00 KST 무렵, 사용자 승인 뒤): 브랜치 `claude/structure-upgrade` 푸시 → `ci.yml` 통과(타입 검사·린트·Edge Function `deno check`·시험·빌드).
+    - 됨: MCP `apply_migration`(`grocery_upsert_grants`). `shop_links`·`household_prefs`의 authenticated update 칸에 충돌 열쇠 칸이 들어간 것을 확인했고, 보안 점검은 적용 전과 같은 항목뿐이다.
+    - 됨: `export-csv` v8(verify_jwt false). 가짜 64자 토큰으로 GET하면 200·머리 줄만, 짧은 토큰은 400. 내보내기 BOM 글자는 소스에서 `'\uFEFF'`로 바꿔 저장소와 배포본이 같다.
+    - **안 함(저장소가 배포본보다 앞섬)**: `extract-entries`(140초 마감), `product-search`·`product-check`·`food-info`·`price-recheck`(`_shared/edge.ts` 새 형식 키 먼저), 핀만 바뀐 `food-alerts-sync`·`market-sync`·`tprice-sync`, import 경로만 바뀐 `grocery-photo`(배포하면 `text.ts`도 함께).
+      이유: 이 컴퓨터에 Supabase CLI가 없어 MCP로 파일 내용을 손으로 옮겨야 하는데, 22~48KB 파일(프롬프트 포함)은 옮긴 내용을 기계로 대조할 방법이 없다. `extract-entries` 시도 한 번은 deno.json이 빠져 서버가 거절했고 v14가 그대로 돈다.
+      배포하려면 사용자가 `npx supabase login` 뒤 `npx supabase functions deploy <이름> --project-ref kifdfpbwiebfgvdumqjf`(config.toml의 verify_jwt를 읽는다)로 저장소 파일을 그대로 올린다. 지금 앱 동작은 이 함수들에 기대지 않는다.
 
 ### 사용자 할 일
 
