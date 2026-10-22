@@ -97,12 +97,6 @@ export function dayText(on: string, ref: string): string {
 export type Period = 'w1' | 'm1' | 'y1'
 export const PERIOD_LABEL: Record<Period, string> = { w1: '1주 전', m1: '1개월 전', y1: '1년 전' }
 
-/** 비교 한 줄: "1주 전(10월 8일) 2,060원" */
-export function pastText(period: Period | 'prev', p: DatedPrice | null): string {
-  const label = period === 'prev' ? '이전 조사일' : PERIOD_LABEL[period]
-  return p ? `${label}(${koFullDay(p.on)}) ${won(p.price)}` : `${label} 확인 못 함`
-}
-
 /** 주변 범위: "서울·수원·성남 12곳 1,990~4,780원". 조사처가 하나뿐이거나 축산물이면 null */
 export function rangeText(s: Pick<MarketSeries, 'sgg' | 'low' | 'high' | 'markets'>): string | null {
   // 축산물(전국 값)은 조사처 범위가 없다. 예전에 저장된 지역 행이 있어도 쓰지 않는다

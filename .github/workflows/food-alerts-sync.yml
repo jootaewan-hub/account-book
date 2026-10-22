@@ -2,6 +2,7 @@ name: 식약처 목록 동기화
 
 # 매일 07:00(한국 시간)과 수동 실행. Supabase Edge Function food-alerts-sync를 부른다.
 # 호출 비밀번호는 없다: 함수가 20시간에 한 번만 실제로 받는다(이미 받았으면 200 {"status":"skipped"}, 30분 안 재시도는 429).
+# 207(일부만 받음)이면 31분 뒤 한 번 더 부른다(잠금 30분, 다른 동기화 워크플로와 같은 방식).
 # 식품안전나라 키는 Supabase 함수 비밀값에만 있고 여기에 두지 않는다.
 on:
   schedule:
@@ -17,13 +18,22 @@ concurrency:
 jobs:
   sync:
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     steps:
       - name: 식약처 목록 받아 저장
         run: |
-          code=$(curl -sS -o body.json -w '%{http_code}' -X POST \
-            "https://kifdfpbwiebfgvdumqjf.supabase.co/functions/v1/food-alerts-sync")
-          cat body.json
-          echo
+          call() {
+            code=$(curl -sS -m 170 -o body.json -w '%{http_code}' -X POST \
+              "https://kifdfpbwiebfgvdumqjf.supabase.co/functions/v1/food-alerts-sync")
+            cat body.json
+            echo
+          }
+          call
+          if [ "$code" = "207" ]; then
+            echo "일부만 받음: 31분 뒤 다시 부른다"
+            sleep 1860
+            call
+          fi
           if [ "$code" != "200" ]; then
             echo "동기화 실패: HTTP $code"
             exit 1

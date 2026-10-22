@@ -12,7 +12,8 @@ permissions:
 
 concurrency:
   group: pages
-  cancel-in-progress: true
+  # 배포 도중 끊지 않는다(GitHub Pages 기본 예시와 같음). 뒤에 온 실행은 기다렸다가 돈다
+  cancel-in-progress: false
 
 jobs:
   build:

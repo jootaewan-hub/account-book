@@ -119,6 +119,19 @@ describe('shop_links(가구가 상품에 붙인 몰 주소)', () => {
     await as(A, `delete from grocery.shop_links where household_id = $1 and product_id = $2 and source = 'kurly'`, [hhAB, product])
     expect(await as(A, `select 1 from grocery.shop_links`)).toEqual([])
   })
+
+  it('데이터 API 모양의 upsert(충돌 열쇠 칸까지 set에 넣음)가 로그인 사용자 권한으로 된다(20261101000000)', async () => {
+    // PostgREST merge-duplicates는 보낸 칸 전부를 do update set에 넣는다. 열쇠 칸에 update 권한이 없으면 첫 저장부터 42501이다
+    const sql = `insert into grocery.shop_links (household_id, product_id, source, source_id, url, added_by, added_at)
+      values ($1, $2, 'kurly', '5082274', $3, $4, now())
+      on conflict (household_id, product_id, source) do update set household_id = excluded.household_id, product_id = excluded.product_id,
+        source = excluded.source, source_id = excluded.source_id, url = excluded.url, added_by = excluded.added_by, added_at = excluded.added_at`
+    await as(A, sql, [hhAB, product, KURLY, A])
+    await as(B, sql, [hhAB, product, KURLY, B])
+    expect(await as(A, `select added_by from grocery.shop_links`)).toEqual([{ added_by: B }])
+    // 다른 가구로 옮기는 것은 정책이 막는다
+    expect(await errorOf(as(A, `update grocery.shop_links set household_id = $1`, [hhC]))).toMatch(/row-level security|permission denied/)
+  })
 })
 
 describe('shop_checks(출처 페이지 확인 기록)', () => {

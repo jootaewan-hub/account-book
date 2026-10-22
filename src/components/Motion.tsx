@@ -41,7 +41,8 @@ export function Toast({ msg }: { msg: string }) {
     const t = window.setTimeout(() => setText(''), 300)
     return () => window.clearTimeout(t)
   }, [msg])
-  return <div className={`toast${on ? ' on' : ''}`} role="status" aria-live="polite" hidden={!text}>{text}</div>
+  // live region은 늘 그려 두고 글만 바꾼다. 글과 함께 나타나면 보조기기가 읽지 않는다
+  return <div className={`toast${on ? ' on' : ''}`} role="status" aria-live="polite">{text}</div>
 }
 
 const reduceMotion = () => typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches

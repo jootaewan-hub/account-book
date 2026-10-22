@@ -3,18 +3,16 @@ import { fetchFuelFills, friendlyError } from '../lib/api'
 import { addMonths } from '../lib/dates'
 import { won } from '../lib/format'
 import { fillLine, fuelDelta, fuelInterval, fuelKind, fuelMonth, fuelTrend, litersText } from '../lib/fuel'
-import type { FuelFill, Transaction } from '../lib/types'
+import type { FuelFill } from '../lib/types'
 import { PriceDelta } from './PriceDelta'
 
 const md = (date: string) => `${Number(date.slice(5, 7))}월 ${Number(date.slice(8, 10))}일`
 
 /** 통계 탭의 주유 묶음: 최근 주유의 리터당 가격과 지난번 대비, 리터당 가격 추이(최근 12번), 이번 달·지난달, 평균 간격, 최근 주유 목록 */
-export function FuelCard({ householdId, version, txs, ym, onAdd }: {
+export function FuelCard({ householdId, version, ym, onAdd }: {
   householdId: string
-  /** 사진 입력을 저장할 때마다 오른다 (내역 실시간 이벤트가 주유 기록 저장보다 먼저 와도 다시 읽게) */
+  /** 사진 입력을 저장하거나 내역을 다시 읽을 때마다 오른다 (내역 실시간 이벤트가 주유 기록 저장보다 먼저 와도 다시 읽게) */
   version: number
-  /** 내역이 바뀌면(지우기 등) 다시 읽는다 */
-  txs: Transaction[]
   ym: string
   onAdd: () => void
 }) {
@@ -26,8 +24,8 @@ export function FuelCard({ householdId, version, txs, ym, onAdd }: {
     fetchFuelFills(householdId).then((f) => { if (alive) { setFills(f); setErr('') } })
       .catch((e) => { if (alive) setErr(friendlyError(e)) })
     return () => { alive = false }
-    // eslint-disable-next-line react/exhaustive-effect-dependencies -- version(영수증 저장)·txs(내역 변경)는 다시 읽는 신호
-  }, [householdId, version, txs])
+    // eslint-disable-next-line react/exhaustive-effect-dependencies -- version은 다시 읽는 신호
+  }, [householdId, version])
 
   const delta = useMemo(() => (fills ? fuelDelta(fills) : null), [fills])
   const trend = useMemo(() => (fills ? fuelTrend(fills) : []), [fills])

@@ -1,6 +1,6 @@
 // Edge Function 진입점(서비스 롤). 호출 비밀번호는 없다: handle()이 20시간에 한 번만 실제로 받고, grocery.sync_lock(id 4)을 얻지 못하면 429.
 // 저장 코드는 product-check와 같은 표(price_checks·price_quotes·shop_checks)에 쓴다.
-import { createClient } from 'npm:@supabase/supabase-js@2'
+import { createClient } from 'npm:@supabase/supabase-js@2.117.3'
 import { fetchHtml } from '../_shared/edge.ts'
 import { shopUrl, type ShopLink, type ShopSource } from '../_shared/shops.ts'
 import { handle } from './handle.ts'

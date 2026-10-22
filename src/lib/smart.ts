@@ -336,7 +336,8 @@ export function toDrafts(entries: CheckedEntry[], ctx: DraftContext, split: (e: 
 }
 
 async function errorPayload(error: unknown): Promise<{ code?: string; message?: string } | null> {
-  const ctx = (error as { context?: unknown }).context
+  // 서버가 빈 응답을 주면 error와 data가 둘 다 없다. 그때 error는 null이다
+  const ctx = (error as { context?: unknown } | null | undefined)?.context
   if (ctx instanceof Response) {
     try { return ((await ctx.json()) as { error?: { code?: string; message?: string } }).error ?? null } catch { return null }
   }

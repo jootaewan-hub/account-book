@@ -1,7 +1,7 @@
 // Edge Function 진입점. 서비스 롤 클라이언트를 만들어 handle()에 넘긴다.
 // DATA_GO_KR_SERVICE_KEY는 Supabase 함수 비밀값(공공데이터포털 키, 시세 15156057과 참가격 15158701이 같은 키). 호출 비밀번호는 없다:
 // handle()이 20시간에 한 번만 실제로 받고, grocery.sync_lock(id 3) 잠금을 얻지 못하면(30분 안의 재시도) 429로 돌려보낸다.
-import { createClient } from 'npm:@supabase/supabase-js@2'
+import { createClient } from 'npm:@supabase/supabase-js@2.117.3'
 import type { TpricePrice } from '../_shared/tprice.ts'
 import { handle } from './handle.ts'
 

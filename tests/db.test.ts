@@ -4,31 +4,14 @@ import { PGlite } from '@electric-sql/pglite'
 import { readFileSync } from 'node:fs'
 import { beforeAll, describe, expect, it } from 'vitest'
 import { EXPORT_ITEMS } from './fixtures'
+import { isGrocery, MIGRATION_FILES, readMigration } from './grocery/dbSetup'
 import { SUPABASE_STUB } from './supabaseStub'
 
 const read = (f: string) => readFileSync(new URL(`../supabase/migrations/${f}`, import.meta.url), 'utf8')
 const INIT = read('20261015000000_init.sql')
 const ROLES = read('20261015010000_spouse_roles.sql')
-const SMART = read('20261015020000_smart_input.sql')
-const HOOK = read('20261015030000_wif_audience_hook.sql')
-const RECUR = read('20261015040000_recurring_stats_export.sql')
-const EXPORT_SVC = read('20261015050000_export_rows_service_only.sql')
-const ITEMS_IMG = read('20261015060000_items_images_no_shared.sql')
-const CHILD = read('20261015070000_child.sql')
-const PLATFORM = read('20261015080000_platform_units.sql')
-const EXPORT_PLATFORM = read('20261015090000_export_platform.sql')
-const DROP_OLD_EXPORT = read('20261015100000_drop_old_export_rows.sql')
-const BILLS = read('20261015110000_utility_bills.sql')
-const REVOKE_ANON = read('20261015120000_revoke_anon.sql')
-const ANNIV = read('20261015130000_anniversaries.sql')
-const INSTALL = read('20261015140000_installments.sql')
-const EVENTS = read('20261015150000_events.sql')
-const AI_ALLOW = read('20261015160000_ai_allowlist.sql')
-const CLOSE = read('20261015170000_close_signups.sql')
-const TX_UPDATE = read('20261015180000_tx_update_grants.sql')
-const DROP_UNUSED = read('20261015190000_drop_unused.sql')
-const DETAILED_CATS = read('20261015200000_detailed_categories.sql')
-const FUEL = read('20261031000000_fuel_fills.sql')
+// 가계부(public) 마이그레이션 전부, 이름 순. 손으로 나열하지 않아 새 파일이 빠지지 않는다(장보기 파일은 tests/grocery/가 전부 적용한다)
+const LEDGER = MIGRATION_FILES.filter((f) => !isGrocery(f)).map(readMigration)
 
 
 const A = '00000000-0000-4000-8000-00000000000a'
@@ -75,7 +58,7 @@ async function freshDb(migrations: string[]) {
 }
 
 beforeAll(async () => {
-  db = await freshDb([INIT, ROLES, SMART, HOOK, RECUR, EXPORT_SVC, ITEMS_IMG, CHILD, PLATFORM, EXPORT_PLATFORM, DROP_OLD_EXPORT, BILLS, REVOKE_ANON, ANNIV, INSTALL, EVENTS, AI_ALLOW, CLOSE, TX_UPDATE, DROP_UNUSED, DETAILED_CATS, FUEL])
+  db = await freshDb(LEDGER)
 })
 
 describe('가구 만들기와 참여', () => {
@@ -381,7 +364,7 @@ describe('자녀 (20261015070000_child)', () => {
     await old.exec('set role authenticated')
     await old.query(`select public.create_household('나', 'husband')`)
     await old.exec('reset role')
-    for (const m of [SMART, HOOK, RECUR, EXPORT_SVC, ITEMS_IMG, CHILD, PLATFORM, EXPORT_PLATFORM, DROP_OLD_EXPORT, BILLS, REVOKE_ANON, ANNIV, INSTALL, EVENTS, AI_ALLOW, CLOSE, TX_UPDATE, DROP_UNUSED, DETAILED_CATS]) await old.exec(m)
+    for (const m of LEDGER.slice(2)) await old.exec(m) // INIT·ROLES 뒤의 가계부 마이그레이션 전부
     const rows = (await old.query<{ n: number }>(`select count(*)::int as n from public.categories where name = '자녀'`)).rows
     expect(rows).toEqual([{ n: 1 }])
   })
@@ -409,7 +392,7 @@ describe('기존 데이터 변환 (20261015010000_spouse_roles)', () => {
     const m = (await old.query<{ spouse_role: string | null }>(`select spouse_role from public.members`)).rows
     expect(m).toEqual([{ spouse_role: null }])
 
-    await old.exec(SMART)
+    await old.exec(LEDGER[2]) // 20261015020000_smart_input.sql
     const [u] = (await old.query<{ hh: string }>(`select raw_app_meta_data->>'household_id' as hh from auth.users where id = $1`, [A])).rows
     expect(u.hh).toBe(hh)
   })

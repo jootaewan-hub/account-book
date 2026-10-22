@@ -20,8 +20,6 @@ const YEARS: Record<number, [string, number, string]> = {
   2037: ['2037-02-15', 0, '110100100101'],
 }
 
-export const LUNAR_RANGE = { from: 2025, to: 2037 }
-
 const shift = (date: string, days: number) => {
   const t = new Date(`${date}T00:00:00Z`)
   t.setUTCDate(t.getUTCDate() + days)

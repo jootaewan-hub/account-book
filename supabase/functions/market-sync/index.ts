@@ -2,7 +2,7 @@
 // DATA_GO_KR_SERVICE_KEY는 Supabase 함수 비밀값(사용자가 넣음, 공공데이터포털 15156057 활용신청 키). 호출 비밀번호는 없다:
 // handle()이 20시간에 한 번만 실제로 받고, grocery.sync_lock(id 2) 잠금을 얻지 못하면(30분 안의 재시도) 429로 돌려보낸다.
 // SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY는 Supabase가 함수 환경에 넣어 준다.
-import { createClient } from 'npm:@supabase/supabase-js@2'
+import { createClient } from 'npm:@supabase/supabase-js@2.117.3'
 import { handle } from './handle.ts'
 
 const admin = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!, {

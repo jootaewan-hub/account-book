@@ -1,6 +1,10 @@
 // 사진으로 상품 찾기·캡처로 가격 넣기(P4, D-009)의 공용 부분: 요청 검사, 프롬프트, 응답 다듬기.
 // Deno(Edge Function)와 Node(vitest) 양쪽에서 쓰므로 런타임 전용 API를 쓰지 않는다. 읽은 값은 화면에서 사람이 확인·고친 뒤에만 쓴다.
 import { z } from 'zod'
+import { listText, productQuery, type ListItem } from './text.ts'
+
+// 글로 바꾸는 순수 함수는 text.ts에 있다(브라우저가 zod 없이 가져가게). 여기서는 시험·서버가 쓰도록 다시 내보낸다
+export { listText, productQuery }
 
 export const MAX_IMAGE_BASE64_CHARS = 8_000_000 // 약 6MB
 export const IMAGE_MEDIA_TYPES = ['image/jpeg', 'image/png', 'image/webp'] as const
@@ -76,7 +80,7 @@ export const ListSchema = z.object({
   note: z.string().nullable().describe('읽기 어려웠던 부분 등 사용자에게 알릴 말. 없으면 null'),
 })
 export type ListRead = z.infer<typeof ListSchema>
-export type ListItem = { name: string; spec: string | null; count: number }
+export type { ListItem }
 
 export const LIST_PROMPT = `당신은 장보기 메모·냉장고 사진·영수증에서 살 것 목록을 뽑는 일을 돕습니다. 주어진 JSON 형식으로만 답합니다.
 
@@ -108,15 +112,6 @@ export function checkProduct(r: ProductRead): ProductRead {
   return { name: text(r.name), brand: text(r.brand), size: text(r.size), note: text(r.note) }
 }
 
-/** 다나와 검색어: 브랜드 + 이름 + 용량. 이름에 이미 든 말은 다시 붙이지 않는다. */
-export function productQuery(r: ProductRead): string {
-  const parts: string[] = []
-  const has = (s: string) => parts.some((p) => p.includes(s)) || (r.name ?? '').includes(s)
-  if (r.brand && !has(r.brand)) parts.push(r.brand)
-  if (r.name) parts.push(r.name)
-  if (r.size && !has(r.size)) parts.push(r.size)
-  return parts.join(' ').replace(/\s+/g, ' ').trim()
-}
 
 /** 모델이 읽은 가격 정보를 다듬는다: 가격·배송비는 정수(0·음수·터무니없는 값은 null), 수량은 1~99(아니면 1) */
 export function checkPrice(r: PriceRead): PriceRead & { qty: number } {
@@ -143,10 +138,6 @@ export function checkList(r: ListRead): { items: ListItem[]; note: string | null
   return { items, note: text(r.note) }
 }
 
-/** 담기 시트의 글로: 한 줄에 하나, "이름 규격 N개"(담기 시트의 나누기 규칙과 맞춤) */
-export function listText(items: ListItem[]): string {
-  return items.map((it) => [it.name, it.spec, it.count > 1 ? `${it.count}개` : null].filter(Boolean).join(' ')).join('\n')
-}
 
 export function buildUserText(job: PhotoJob, image: PhotoImage): string {
   const size = image.width && image.height ? ` (${image.width}×${image.height} 픽셀)` : ''

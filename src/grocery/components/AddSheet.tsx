@@ -2,7 +2,7 @@ import { useId, useMemo, useRef, useState } from 'react'
 import { useClosing, useFocusTrap, useScrollLock } from '../../lib/dialog'
 import type { ListStore } from '../lib/store'
 import { READING_TEXT } from '../lib/photo'
-import { listText } from '../../../supabase/functions/grocery-photo/photo'
+import { listText } from '../../../supabase/functions/grocery-photo/text'
 import { PhotoPick } from './PhotoCapture'
 import { NAME_MAX, parseLines, type ParsedItem } from '../lib/parse'
 

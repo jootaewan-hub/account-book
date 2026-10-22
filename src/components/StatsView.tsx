@@ -16,6 +16,10 @@ interface Props {
   today: string
   cur: Transaction[]
   prev: Transaction[]
+  /** 달을 넘겨 새 달 내역을 아직 못 받았을 때 */
+  loading: boolean
+  /** 내역을 다시 읽을 때마다 오른다(합계·주유 기록을 다시 읽는 신호) */
+  txVersion: number
   lookup: Lookup
   categories: Category[]
   /** 관리비 고지서를 새로 저장하면 바뀐다 */
@@ -31,7 +35,7 @@ interface Props {
 
 const man = (n: number) => (n >= 10_000 ? `${Math.round(n / 10_000).toLocaleString('ko-KR')}만` : won(n))
 
-export function StatsView({ household, ym, today, cur, prev, lookup, categories, billsVersion, onBill, onFuel, onCategory, onPlatform }: Props) {
+export function StatsView({ household, ym, today, cur, prev, loading, txVersion, lookup, categories, billsVersion, onBill, onFuel, onCategory, onPlatform }: Props) {
   const [totals, setTotals] = useState<MonthTotal[] | null>(null)
   const [lastYear, setLastYear] = useState<Transaction[]>([])
   // 분류 추이용 지난 넉 달 (지난달·이번 달은 이미 받은 것을 쓴다)
@@ -55,15 +59,15 @@ export function StatsView({ household, ym, today, cur, prev, lookup, categories,
     return () => { alive = false }
   }, [household.id, ym])
 
-  // 내역이 바뀔 때마다: 12개월 합계 (서버에서 더하는 가벼운 호출)
+  // 내역이 바뀔 때마다(txVersion): 12개월 합계 (서버에서 더하는 가벼운 호출)
   useEffect(() => {
     let alive = true
     fetchMonthlyTotals(household.id, `${addMonths(ym, -12)}-01`, monthRange(ym).end)
       .then((t) => { if (alive) setTotals(t) })
       .catch((e) => { if (alive) setErr(friendlyError(e)) })
     return () => { alive = false }
-    // eslint-disable-next-line react/exhaustive-effect-dependencies -- cur가 바뀌면(내역 변경) 합계를 다시 읽는다
-  }, [household.id, ym, cur])
+    // eslint-disable-next-line react/exhaustive-effect-dependencies -- txVersion은 내역을 다시 읽었다는 신호
+  }, [household.id, ym, txVersion])
 
   const series = useMemo(() => (totals ? monthSeries(totals, ym) : []), [totals, ym])
   const cats = useMemo(() => categoryBreakdown(cur, prev, categories), [cur, prev, categories])
@@ -91,6 +95,8 @@ export function StatsView({ household, ym, today, cur, prev, lookup, categories,
   const maxCat = cats[0]?.amount ?? 0
   const maxPlat = Math.max(0, ...platforms.map((p) => p.amount))
   const maxWeek = Math.max(0, ...weeks.map((w) => w.amount))
+
+  if (loading) return <section className="view"><p className="lead">불러오는 중…</p></section>
 
   return (
     <section className="view">
@@ -221,7 +227,7 @@ export function StatsView({ household, ym, today, cur, prev, lookup, categories,
       </div>
 
       <BillCard householdId={household.id} reloadKey={billsVersion} onAdd={onBill} />
-      <FuelCard householdId={household.id} version={billsVersion} txs={cur} ym={ym} onAdd={onFuel} />
+      <FuelCard householdId={household.id} version={billsVersion + txVersion} ym={ym} onAdd={onFuel} />
     </section>
   )
 }

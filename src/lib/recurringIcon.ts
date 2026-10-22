@@ -27,9 +27,3 @@ export function recurringIconKey(r: { title: string; kind: RecurringKind; type: 
   if (r.kind === 'utility') return 'utility'
   return 'fixed'
 }
-
-/** 화면 읽기 프로그램용 이름 */
-export const ICON_LABEL: Record<RecurringIconKey, string> = {
-  subscription: '구독', tax: '세금', insurance: '보험', home: '주거', loan: '대출', phone: '통신', education: '교육',
-  utility: '공과금', installment: '할부', income: '수입', car: '자동차', health: '건강', fixed: '고정지출',
-}

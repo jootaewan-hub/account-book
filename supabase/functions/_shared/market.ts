@@ -209,6 +209,7 @@ export function parsePrice(v: unknown): number | null {
  * 오류 응답(인증키 오류 등)은 MarketApiError(코드와 문구, 키는 담기지 않는다).
  */
 export function parseMarket(body: unknown): { rows: MarketRow[]; total: number; seen: number } {
+  // eslint-disable-next-line typescript/no-explicit-any -- 공공데이터포털 응답의 깊은 칸을 그대로 더듬고, 값은 아래에서 하나씩 검사한다
   const b = body as Record<string, any> | null
   const gw = b?.OpenAPI_ServiceResponse?.cmmMsgHeader
   if (gw) throw new MarketApiError(`${str(gw.returnReasonCode)} ${str(gw.errMsg)}`.trim())

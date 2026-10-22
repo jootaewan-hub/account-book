@@ -17,7 +17,7 @@ import type { ItemSources, ShopLink, ShopPrice, ShopSource, StoreGood, StoreOpti
 import type { OurPurchase } from './ours'
 import type { CapturedQuoteInput, ListItem, PhotoImage, PhotoJob, PhotoResult, PriceRead, ProductRead } from './photo'
 import type { IngredientRow, IngredientSource, ItemIngredients, ItemNutrition, NutritionRow } from './foodInfo'
-import { productQuery } from '../../../supabase/functions/grocery-photo/photo'
+import { productQuery } from '../../../supabase/functions/grocery-photo/text'
 
 export interface ListStore {
   list(): Promise<Item[]>

@@ -1,7 +1,7 @@
 // Edge Function 공용: 사용자 권한·서비스 롤 클라이언트, CORS, 다나와 요청.
 // 사용자 권한 클라이언트는 요청의 로그인 JWT를 그대로 넘겨 RLS가 가구 소속을 확인하게 한다.
 // verify_jwt = true(config.toml)라서 JWT가 없거나 틀리면 함수에 오기 전에 401이 난다.
-import { createClient, type SupabaseClient } from 'npm:@supabase/supabase-js@2'
+import { createClient, type SupabaseClient } from 'npm:@supabase/supabase-js@2.117.3'
 
 export const cors = {
   'Access-Control-Allow-Origin': '*',

@@ -4,6 +4,7 @@ import { createClient } from '@supabase/supabase-js'
 import { toCsv, type ExportRow } from './csv.ts'
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
+const PAGE = 1000
 
 function serviceKey(): string {
   try {
@@ -24,12 +25,19 @@ Deno.serve(async (req) => {
   const supabase = createClient(Deno.env.get('SUPABASE_URL')!, serviceKey(), {
     auth: { persistSession: false, autoRefreshToken: false },
   })
-  const { data, error } = await supabase.rpc('export_rows_v2', { p_token: token })
-  if (error) {
-    console.error('export_rows_failed', error.message)
-    return new Response('내역을 읽지 못했어요', { status: 500 })
+  // 데이터 API는 한 번에 최대 1,000행(Max rows 기본값)만 돌려주므로 끝까지 나눠 받는다. 함수는 오래된 순으로 정렬한다
+  const all: ExportRow[] = []
+  for (let start = 0; ; start += PAGE) {
+    const { data, error } = await supabase.rpc('export_rows_v2', { p_token: token }).range(start, start + PAGE - 1)
+    if (error) {
+      console.error('export_rows_failed', error.message)
+      return new Response('내역을 읽지 못했어요', { status: 500 })
+    }
+    const page = (data ?? []) as ExportRow[]
+    all.push(...page)
+    if (page.length < PAGE) break
   }
-  const rows = (data as ExportRow[]).filter((r) =>
+  const rows = all.filter((r) =>
     (!DATE_RE.test(from) || r.occurred_on >= from) && (!DATE_RE.test(to) || r.occurred_on <= to))
   // 엑셀에서 한글이 깨지지 않도록 내려받기(dl=1)일 때만 BOM을 붙인다. 구글 시트는 BOM 없이 읽는다.
   const body = (url.searchParams.get('dl') === '1' ? '﻿' : '') + toCsv(rows)

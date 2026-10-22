@@ -6,8 +6,10 @@ import { Toast } from '../../src/components/Motion'
 
 afterEach(cleanup)
 
-it('Toast는 문장을 role=status로 보여 준다', () => {
-  render(<Toast msg="저장했어요" />)
+it('Toast는 문장을 role=status로 보여 주고, 글이 없을 때도 live region은 남아 있다', () => {
+  const { rerender } = render(<Toast msg="" />)
+  expect(screen.getByRole('status').textContent).toBe('')
+  rerender(<Toast msg="저장했어요" />)
   expect(screen.getByRole('status').textContent).toBe('저장했어요')
 })
 

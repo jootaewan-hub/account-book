@@ -17,6 +17,8 @@ interface Props {
   sel: string
   cur: Transaction[]
   prev: Transaction[]
+  /** 달을 넘겨 새 달 내역을 아직 못 받았을 때: 0원·"기록 없음" 대신 불러오는 중으로 보인다 */
+  loading?: boolean
   lookup: Lookup
   annivs: Anniversary[]
   events: CalEvent[]
@@ -28,7 +30,7 @@ interface Props {
   onEdit: (t: Transaction) => void
 }
 
-export function CalendarView({ ym, today, sel, cur, prev, lookup, annivs, events, onSelect, onPlan, onJump, onEdit }: Props) {
+export function CalendarView({ ym, today, sel, cur, prev, loading = false, lookup, annivs, events, onSelect, onPlan, onJump, onEdit }: Props) {
   const totals = useMemo(() => dailyTotals(cur), [cur])
   const annivByDate = useMemo(() => anniversariesInMonth(annivs, ym), [annivs, ym])
   const evByDate = useMemo(() => {
@@ -44,7 +46,9 @@ export function CalendarView({ ym, today, sel, cur, prev, lookup, annivs, events
   let compare: React.ReactNode = null
   // 지난달 지출 기록이 없으면 전액이 '더 썼어요'로 보이므로 비교하지 않는다
   const prevHasExpense = prev.some((t) => t.type === 'expense')
-  if (!prevHasExpense) {
+  if (loading) {
+    compare = null
+  } else if (!prevHasExpense) {
     if (exp > 0 && ym <= thisMonth) compare = <span className="muted">지난달 기록이 없어 비교하지 않아요</span>
   } else if (ym === thisMonth) {
     const d = dayOf(today)
@@ -75,10 +79,11 @@ export function CalendarView({ ym, today, sel, cur, prev, lookup, annivs, events
     <section className="view cal-view">
       {/* 넓은 화면에서는 왼쪽 달력, 오른쪽 고른 날의 내역. 휴대폰에서는 이 묶음이 풀려 한 줄로 이어진다 */}
       <div className="cal-main">
-        <div className="hero" aria-live="polite">
+        {/* aria-live를 두지 않는다: 달 표시(App)가 이미 읽히고, 배우자 내역이 들어올 때마다 전부 다시 읽히면 시끄럽다 */}
+        <div className="hero">
           <p className="hero-label"><Soft value={hasIncome ? `${m}월에 남은 돈` : `${m}월에 쓴 돈`} /></p>
           <p className={`hero-num num${hasIncome && left < 0 ? ' neg' : ''}`}>
-            <Soft value={hasIncome ? `${left < 0 ? '-' : ''}${won(Math.abs(left))}` : won(exp)} /><small>원</small>
+            <Soft value={loading ? '…' : hasIncome ? `${left < 0 ? '-' : ''}${won(Math.abs(left))}` : won(exp)} /><small>원</small>
           </p>
           {hasIncome && (
             <div className="spend-bar" role="img" aria-label={`들어온 돈의 ${Math.round((exp / inc) * 100)}%를 썼어요`}>
@@ -154,7 +159,7 @@ export function CalendarView({ ym, today, sel, cur, prev, lookup, annivs, events
           <div className="tx-list">
             {dayTx.length
               ? dayTx.map((t) => <TxRow key={t.id} t={t} lookup={lookup} onClick={() => onEdit(t)} />)
-              : <div className="empty">이 날 기록이 없어요. 기록하기로 추가해 보세요.</div>}
+              : <div className="empty">{loading ? '불러오는 중…' : '이 날 기록이 없어요. 기록하기로 추가해 보세요.'}</div>}
           </div>
         </div>
       )}

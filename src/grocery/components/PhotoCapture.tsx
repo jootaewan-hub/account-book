@@ -4,7 +4,7 @@ import { useRef, useState, type FormEvent } from 'react'
 import { fileToJpeg, type PreparedImage } from '../../lib/image'
 import type { PriceRead, ProductRead } from '../lib/photo'
 import type { CapturedQuoteInput } from '../lib/photo'
-import { productQuery } from '../../../supabase/functions/grocery-photo/photo'
+import { productQuery } from '../../../supabase/functions/grocery-photo/text'
 
 type PickProps = { label: string; inputLabel: string; disabled?: boolean; onImage: (img: PreparedImage) => void; className?: string }
 

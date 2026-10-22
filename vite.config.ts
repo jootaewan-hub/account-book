@@ -15,6 +15,8 @@ const appVersion = `${(process.env.GITHUB_SHA ?? 'local').slice(0, 7)} · ${buil
 
 export default defineConfig({
   base,
+  // 개발 서버 포트. 5173은 이 컴퓨터에서 다른 앱의 서비스 워커가 잡고 있어 5188을 쓴다(scripts/screenshots.mjs 기본 주소와 같다)
+  server: { port: 5188, strictPort: true },
   define: { __APP_VERSION__: JSON.stringify(appVersion) },
   plugins: [
     react(),

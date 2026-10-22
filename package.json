@@ -18,7 +18,7 @@
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
     "simple-icons": "16.33.0",
-    "zxing-wasm": "^3.1.3"
+    "zxing-wasm": "3.1.3"
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.5.10",
@@ -36,5 +36,8 @@
     "vite-plugin-pwa": "^2.0.0",
     "vitest": "^5.0.4",
     "zod": "^4.6.7"
+  },
+  "engines": {
+    "node": ">=22.12"
   }
 }

@@ -10,7 +10,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 import { chromium } from 'playwright'
 import { BILL, fakeSession, FUEL_RECEIPT, RECEIPT, TABLES, USER } from './shell-fixtures.mjs'
 
-const BASE = process.env.BASE_URL ?? 'http://localhost:5173'
+const BASE = process.env.BASE_URL ?? 'http://localhost:5188' // vite.config.ts server.port와 같다
 const OUT = process.env.OUT_DIR ? pathToFileURL(`${process.env.OUT_DIR.replace(/\/$/, '')}/`) : new URL('../screenshots/', import.meta.url)
 mkdirSync(OUT, { recursive: true })
 const SUPABASE = 'https://kifdfpbwiebfgvdumqjf.supabase.co'

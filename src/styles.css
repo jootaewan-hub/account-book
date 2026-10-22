@@ -195,7 +195,7 @@ main.wrap { padding-block: 4px calc(150px + env(safe-area-inset-bottom, 0px)); }
 .chip[aria-pressed="true"] { background: var(--primary); color: var(--on-primary); font-weight: 700; }
 .chip .dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
 .chip .sub { font-size: 12px; opacity: .75; margin-left: 2px; }
-.chip.muted { opacity: .5; text-decoration: line-through; }
+.chip.muted { color: var(--ink-2); text-decoration: line-through; } /* 흐리게(opacity) 하면 글자 대비가 3:1 아래로 떨어진다 */
 /* 선택 알약이 미끄러진다 (transitions.dev tabs-sliding을 CSS만으로) */
 .seg:where(:not(.grocery *)) { position: relative; isolation: isolate; display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; background: var(--oat); border-radius: var(--r-sm); padding: 3px; gap: 3px; --n: 1; --i: 0; }
 .card .seg:where(:not(.grocery *)) { background: var(--canvas); }
@@ -284,6 +284,9 @@ select.input { padding: 9px 10px; }
   opacity: 0; transform: translate(-50%, 16px) scale(.97); filter: blur(2px);
   transition: opacity var(--dur-quick) var(--ease-smooth), transform var(--dur-quick) var(--ease-smooth), filter var(--dur-quick) var(--ease-smooth); }
 .toast.on { opacity: 1; transform: translate(-50%, 0) scale(1); filter: blur(0); transition-duration: var(--dur-toast-in); }
+/* 긴 문장("저장했어요. 장보기 연결은 하지 못했어요")은 줄을 바꿔 다 보인다. 안 보일 때는 누름을 막는다(live region은 늘 그려 둔다) */
+.toast { white-space: normal; text-overflow: clip; text-align: center; max-width: min(calc(100vw - 32px), 420px); }
+.toast:not(.on) { pointer-events: none; }
 
 /* iOS Safari의 날짜 입력은 고유 최소 너비가 있어 옆 칸을 침범한다. 너비를 칸에 맞춘다. */
 .date-input { -webkit-appearance: none; appearance: none; display: block; min-width: 0; max-width: 100%; min-height: 46px; text-align: left; }
@@ -318,7 +321,7 @@ select.input { padding: 9px 10px; }
   -webkit-background-clip: text; background-clip: text; color: transparent; animation: shimmer 1.6s linear infinite; }
 @keyframes shimmer { from { background-position: 100% 0; } to { background-position: 0% 0; } }
 .draft { display: flex; flex-direction: column; gap: 10px; }
-.draft.off { opacity: .55; }
+.draft.off { color: var(--ink-2); filter: grayscale(1); } /* 흐리게(opacity) 대신 색을 빼서 글자 대비를 지킨다 */
 .draft-head { display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 500; color: var(--ink-2); }
 .draft-head input { width: 22px; height: 22px; accent-color: var(--primary); }
 .draft-head b { margin-left: auto; font-size: 18px; font-weight: 800; }
@@ -341,7 +344,7 @@ select.input { padding: 9px 10px; }
 /* 고정지출·구독·관리비 */
 .rc-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; width: 100%; padding: 12px 0; border: 0; border-top: 1px solid var(--oat-deep); background: none; text-align: left; transition: background-color var(--dur-press) ease; }
 .rc-row:first-of-type { border-top: 0; }
-.rc-row.off { opacity: .5; }
+.rc-row.off { color: var(--ink-2); filter: grayscale(1); } /* ", 꺼 둠" 글자가 읽히게 opacity를 쓰지 않는다 */
 .rc-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; font-size: 13px; color: var(--ink-2); }
 .rc-row > .svc-logo + .rc-main { flex: 1; }
 .rc-main b { font-weight: 600; font-size: 16px; color: var(--ink); }
@@ -391,7 +394,7 @@ button.cat-row { padding: 8px 0; }
 .facts li::before { content: ""; position: absolute; left: 0; top: .62em; width: 6px; height: 6px; border-radius: 50%; background: var(--sage); }
 .tips { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
 .tip { background: var(--canvas); border-radius: var(--r-sm); padding: 12px 14px; font-size: 15px; display: flex; flex-direction: column; gap: 6px; }
-.tip .save { align-self: flex-start; font-size: 12px; font-weight: 700; color: var(--sage-ink); background: var(--sage-soft); border-radius: var(--r-tag); padding: 1px 6px; }
+.tip .save { align-self: flex-start; font-size: 13px; font-weight: 700; color: var(--sage-ink); background: var(--sage-soft); border-radius: var(--r-tag); padding: 1px 6px; }
 .week-row { display: grid; grid-template-columns: 4.8em minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 6px 0; font-size: 14px; }
 .week-row .k { color: var(--ink-2); font-weight: 600; }
 .week-row .cat-bar { height: 10px; }
@@ -444,7 +447,7 @@ input[type="search"].input { -webkit-appearance: none; appearance: none; }
 .bill-table { display: flex; flex-direction: column; font-size: 14px; margin-top: 4px; }
 .bt-row { display: grid; grid-template-columns: minmax(0, 1.3fr) repeat(3, minmax(0, 1fr)); gap: 6px; align-items: baseline; padding: 8px 0; border-top: 1px solid var(--oat-deep); }
 .bt-row > span:not(:first-child) { text-align: right; display: flex; flex-direction: column; align-items: flex-end; }
-.bt-head { color: var(--ink-2); font-size: 12px; font-weight: 600; border-top: 0; padding-top: 12px; }
+.bt-head { color: var(--ink-2); font-size: 13px; font-weight: 600; border-top: 0; padding-top: 12px; }
 .bt-head > span:first-child { color: var(--ink); font-weight: 700; font-size: 13px; }
 .bt-name { min-width: 0; overflow-wrap: anywhere; font-weight: 600; }
 .bt-pct { font-size: 12px; font-weight: 600; color: var(--ink-2); }
@@ -509,7 +512,7 @@ input[type="search"].input { -webkit-appearance: none; appearance: none; }
 /* 고정 탭의 분류 아이콘 타일(세금·보험·주거·대출·통신·교육·공과금·할부·수입·차·건강·고정). 로고와 같은 크기·모서리 */
 .rc-icon { background: var(--oat); color: var(--ink-2); }
 .svc-picks { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; }
-.svc-pick { display: flex; flex-direction: column; align-items: center; gap: 4px; flex: none; width: 64px; border: 0; background: none; padding: 0; color: var(--ink-2); font-size: 12px; }
+.svc-pick { display: flex; flex-direction: column; align-items: center; gap: 4px; flex: none; width: 64px; border: 0; background: none; padding: 0; color: var(--ink-2); font-size: 13px; }
 .svc-pick span:last-child { width: 100%; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .svc-name-row { display: flex; align-items: center; gap: 10px; }
 .svc-name-row .input { flex: 1; min-width: 0; }

@@ -61,7 +61,8 @@ function AuthGate() {
   const [session, setSession] = useState<Session | null | undefined>(undefined)
   const [recovery, setRecovery] = useState(false)
   useEffect(() => {
-    void sb().auth.getSession().then(({ data }) => setSession(data.session))
+    // 저장된 세션을 못 읽으면(저장공간 막힘 등) 로그인 화면으로 간다. "불러오는 중"에 멈추지 않게
+    sb().auth.getSession().then(({ data }) => setSession(data.session), () => setSession(null))
     const { data } = sb().auth.onAuthStateChange((event, s) => {
       if (event === 'PASSWORD_RECOVERY') setRecovery(true)
       setSession(s)
@@ -132,7 +133,7 @@ function Ledger({ household, meta, userId, email }: {
   // 통계에서 분류·플랫폼을 눌러 내역 탭으로 넘어올 때의 조건
   const [listFocus, setListFocus] = useState<ListFocus | null>(null)
 
-  const { txs, error, reload } = useMonthTransactions(household.id, ym)
+  const { txs, version: txVersion, loading: txLoading, error, reload } = useMonthTransactions(household.id, ym)
   const { events, reload: reloadEvents } = useMonthEvents(household.id, ym)
   const [plan, setPlan] = useState<PlanTarget | null>(null)
   useLiveUpdates(household.id, reload, meta.reload, reloadEvents)
@@ -268,13 +269,13 @@ function Ledger({ household, meta, userId, email }: {
         )}
         {tab === 'cal' && (
           <Screen name="달력">
-            <CalendarView ym={ym} today={today} sel={sel} cur={cur} prev={prev} lookup={lookup} annivs={meta.anniversaries} events={events}
+            <CalendarView ym={ym} today={today} sel={sel} cur={cur} prev={prev} loading={txLoading} lookup={lookup} annivs={meta.anniversaries} events={events}
               onSelect={setSel} onPlan={setPlan} onJump={(d) => { setYm(d.slice(0, 7)); setSel(d) }} onEdit={(t) => setSheet({ open: true, editing: t })} />
           </Screen>
         )}
         {tab === 'list' && (
           <Screen name="내역">
-            <ListView cur={cur} lookup={lookup} focus={listFocus} onClearFocus={() => setListFocus(null)} onEdit={(t) => setSheet({ open: true, editing: t })} />
+            <ListView cur={cur} loading={txLoading} lookup={lookup} focus={listFocus} onClearFocus={() => setListFocus(null)} onEdit={(t) => setSheet({ open: true, editing: t })} />
           </Screen>
         )}
         {tab === 'grocery' && (
@@ -284,7 +285,7 @@ function Ledger({ household, meta, userId, email }: {
         )}
         {tab === 'stats' && (
           <Screen name="통계">
-            <StatsView household={household} ym={ym} today={today} cur={cur} prev={prev} lookup={lookup}
+            <StatsView household={household} ym={ym} today={today} cur={cur} prev={prev} loading={txLoading} txVersion={txVersion} lookup={lookup}
               categories={meta.categories} billsVersion={billsVersion} onBill={() => openSmart('bill')}
               onFuel={() => openSmart('photo')}
               onCategory={(id, name) => { setListFocus({ kind: 'category', id, name }); setTab('list') }}

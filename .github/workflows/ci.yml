@@ -26,6 +26,17 @@ jobs:
       - run: npm ci
       - run: npm run typecheck
       - run: npm run lint
+      # Edge Function 진입점(index.ts)은 tsc 대상이 아니라 Deno로 타입 검사한다(배포는 손으로 하므로 여기서 먼저 잡는다)
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - name: Edge Function 타입 검사
+        run: |
+          for d in supabase/functions/*/; do
+            [ -f "$d/index.ts" ] || continue
+            echo "== $d"
+            (cd "$d" && deno check --no-lock index.ts)
+          done
       - run: npm test
       - run: npm run build
         env:

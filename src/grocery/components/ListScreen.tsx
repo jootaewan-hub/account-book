@@ -171,7 +171,10 @@ export default function ListScreen({ store, me, ledger, market, dev }: Props) {
     setItems(null)
     setLoadState('loading')
     refetch()
-    const unsubscribe = store.subscribe(refetch)
+    // 실시간 알림은 250ms 안의 것을 한 번으로 묶는다(여러 품목을 한꺼번에 사거나 가계부에 넣으면 행마다 알림이 온다). 가계부 쪽(useLedger)과 같다
+    let timer: number | undefined
+    const soon = () => { window.clearTimeout(timer); timer = window.setTimeout(refetch, 250) }
+    const unsubscribe = store.subscribe(soon)
     const onVisible = () => {
       if (document.visibilityState === 'visible') refetch()
     }
@@ -179,6 +182,7 @@ export default function ListScreen({ store, me, ledger, market, dev }: Props) {
     return () => {
       seq.current++
       alertSeq.current++
+      window.clearTimeout(timer)
       unsubscribe()
       document.removeEventListener('visibilitychange', onVisible)
     }

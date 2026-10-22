@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useEffectEvent, useRef, useState } from 'react'
-import { fetchEvents, fetchHouseholdBundle, fetchTwoMonths } from '../lib/api'
+import { fetchEvents, fetchHouseholdBundle, fetchTwoMonths, friendlyError } from '../lib/api'
 import { addMonths, monthRange } from '../lib/dates'
 import { sb } from '../lib/supabase'
 import type { Anniversary, CalEvent, Category, Household, Member, PaymentMethod, Transaction } from '../lib/types'
@@ -18,22 +18,32 @@ export function useLedgerMeta(): LedgerMeta {
   const [state, setState] = useState<Omit<LedgerMeta, 'reload'>>({
     household: undefined, members: [], methods: [], categories: [], anniversaries: [], error: null,
   })
+  // 설정 저장과 실시간 알림이 겹쳐 두 번 읽을 때, 늦게 온 옛 응답이 새 값을 덮지 않게 요청 번호를 센다
+  const req = useRef(0)
   const reload = useCallback(async () => {
+    const id = ++req.current
     try {
       const b = await fetchHouseholdBundle()
-      setState({ ...b, error: null })
+      if (id === req.current) setState({ ...b, error: null })
     } catch (e) {
       // 못 불러온 것과 가구가 없는 것(null)은 다르다. 처음이면 undefined로 두어 오류 화면이 나온다
-      setState((s) => ({ ...s, error: (e as Error).message }))
+      if (id === req.current) setState((s) => ({ ...s, error: friendlyError(e) }))
     }
   }, [])
   useEffect(() => { void reload() }, [reload])
   return { ...state, reload }
 }
 
+const NO_ROWS: Transaction[] = []
+
+/**
+ * 보고 있는 달과 그 전달의 내역. 달을 넘기면 새 달의 응답이 올 때까지 txs는 비어 있고 loading이 true다
+ * (이전 달 내역으로 "지난달보다" 비교가 틀리게 나오지 않게). version은 다시 읽기에 성공할 때마다 오른다 —
+ * 배열이 새로 만들어졌는지 대신 이 숫자를 "내역이 바뀌었다"는 신호로 쓴다.
+ */
 export function useMonthTransactions(householdId: string | undefined, ym: string) {
-  const [txs, setTxs] = useState<Transaction[]>([])
-  const [loading, setLoading] = useState(true)
+  const [data, setData] = useState<{ ym: string; rows: Transaction[]; version: number } | null>(null)
+  const [pending, setPending] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const req = useRef(0)
 
@@ -42,16 +52,17 @@ export function useMonthTransactions(householdId: string | undefined, ym: string
     const id = ++req.current
     try {
       const rows = await fetchTwoMonths(householdId, ym)
-      if (id === req.current) { setTxs(rows); setError(null) }
+      if (id === req.current) { setData((d) => ({ ym, rows, version: (d?.version ?? 0) + 1 })); setError(null) }
     } catch (e) {
-      if (id === req.current) setError((e as Error).message)
+      if (id === req.current) setError(friendlyError(e))
     } finally {
-      if (id === req.current) setLoading(false)
+      if (id === req.current) setPending(false)
     }
   }, [householdId, ym])
 
-  useEffect(() => { setLoading(true); void reload() }, [reload])
-  return { txs, loading, error, reload }
+  useEffect(() => { setPending(true); void reload() }, [reload])
+  const current = data && data.ym === ym ? data : null
+  return { txs: current?.rows ?? NO_ROWS, version: current?.version ?? 0, loading: pending || current === null, error, reload }
 }
 
 /** 보고 있는 달부터 다음 달 말까지의 일정 (다가오는 일정 표시용으로 한 달 더) */
@@ -82,11 +93,15 @@ export function useLiveUpdates(householdId: string | undefined, onTx: () => void
 
   useEffect(() => {
     if (!householdId) return
-    let timer: ReturnType<typeof setTimeout> | undefined
-    const debounced = (fn: () => void) => () => { clearTimeout(timer); timer = setTimeout(fn, 250) }
+    // 여러 행이 한꺼번에 바뀌면(상품별로 나눈 영수증 저장 등) 250ms 안의 알림을 한 번으로 묶는다. 종류마다 타이머를 따로 둔다
+    const timers: ReturnType<typeof setTimeout>[] = []
+    const debounced = (fn: () => void) => {
+      let timer: ReturnType<typeof setTimeout> | undefined
+      return () => { clearTimeout(timer); timer = setTimeout(fn, 250); timers.push(timer) }
+    }
     const tx = debounced(() => txEvent())
-    const meta = () => metaEvent()
-    const ev = () => evEvent()
+    const meta = debounced(() => metaEvent())
+    const ev = debounced(() => evEvent())
     const filter = `household_id=eq.${householdId}`
     const channel = sb()
       .channel(`ledger-${householdId}`)
@@ -109,7 +124,7 @@ export function useLiveUpdates(householdId: string | undefined, onTx: () => void
     }
     document.addEventListener('visibilitychange', onVisible)
     return () => {
-      clearTimeout(timer)
+      timers.forEach(clearTimeout)
       document.removeEventListener('visibilitychange', onVisible)
       void sb().removeChannel(channel)
     }

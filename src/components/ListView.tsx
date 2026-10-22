@@ -19,13 +19,15 @@ const FOCUS_LABEL: Record<ListFocus['kind'], string> = { category: '분류', pla
 
 interface Props {
   cur: Transaction[]
+  /** 달을 넘겨 새 달 내역을 아직 못 받았을 때 */
+  loading?: boolean
   lookup: Lookup
   focus: ListFocus | null
   onClearFocus: () => void
   onEdit: (t: Transaction) => void
 }
 
-export function ListView({ cur, lookup, focus, onClearFocus, onEdit }: Props) {
+export function ListView({ cur, loading = false, lookup, focus, onClearFocus, onEdit }: Props) {
   const [filter, setFilter] = useState<'all' | Scope>('all')
   const [q, setQ] = useState('')
   const needle = q.trim().toLowerCase()
@@ -41,7 +43,11 @@ export function ListView({ cur, lookup, focus, onClearFocus, onEdit }: Props) {
   }
   const list = cur.filter((t) => (filter === 'all' || t.scope === filter) && inFocus(t) && (!needle || matches(t)))
   const groups = new Map<string, Transaction[]>()
-  for (const t of list) groups.set(t.occurred_on, [...(groups.get(t.occurred_on) ?? []), t])
+  for (const t of list) {
+    const arr = groups.get(t.occurred_on)
+    if (arr) arr.push(t)
+    else groups.set(t.occurred_on, [t])
+  }
   const dates = [...groups.keys()].sort().reverse()
   const narrowed = Boolean(needle) || focus !== null
 
@@ -68,7 +74,7 @@ export function ListView({ cur, lookup, focus, onClearFocus, onEdit }: Props) {
           </button>
         ))}
       </div>
-      {dates.length === 0 && <div className="empty">{narrowed ? '조건에 맞는 내역이 없어요.' : '이 달에는 해당하는 내역이 없어요.'}</div>}
+      {dates.length === 0 && <div className="empty">{loading ? '불러오는 중…' : narrowed ? '조건에 맞는 내역이 없어요.' : '이 달에는 해당하는 내역이 없어요.'}</div>}
       {dates.map((d) => {
         const arr = groups.get(d)!
         const e = sumType(arr, 'expense')

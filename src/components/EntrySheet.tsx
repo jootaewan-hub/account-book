@@ -12,6 +12,7 @@ import { InstallmentPicker } from './InstallmentPicker'
 import { ItemList } from './ItemList'
 import { PlatformInput } from './PlatformInput'
 import { Sheet } from './Sheet'
+import { defaultScope, lsSet } from '../lib/localPrefs'
 
 interface Props {
   open: boolean
@@ -29,22 +30,6 @@ interface Props {
 }
 
 const KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '00', '0', '⌫']
-
-export function lsGet(k: string): string | null {
-  try { return localStorage.getItem(k) } catch { return null }
-}
-export function lsSet(k: string, v: string) {
-  try { localStorage.setItem(k, v) } catch { /* 저장 공간을 못 쓰면 기본값만 사용 */ }
-}
-
-export function isScope(v: string | null): v is Scope {
-  return v === 'shared' || v === 'husband' || v === 'wife' || v === 'child'
-}
-
-export function defaultScope(lookup: Lookup): Scope {
-  const last = lsGet(`ab:lastScope:${lookup.me}`)
-  return isScope(last) ? last : 'shared'
-}
 
 export function EntrySheet({ open, editing, defaultDate, lookup, categories, usage, onSave, onDelete, onClose, onSmart }: Props) {
   const [type, setType] = useState<TxType>('expense')
