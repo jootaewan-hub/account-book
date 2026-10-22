@@ -110,6 +110,15 @@ npm run screens
       배포하려면 사용자가 `npx supabase login` 뒤 `npx supabase functions deploy <이름> --project-ref kifdfpbwiebfgvdumqjf`(config.toml의 verify_jwt를 읽는다)로 저장소 파일을 그대로 올린다. 지금 앱 동작은 이 함수들에 기대지 않는다.
     - 됨: main fast-forward 병합(7152fc3)·푸시, GitHub Pages 배포 성공(설정의 앱 버전 `7152fc3 · 10-22 10:06`, 장보기 CSS의 출처·시각 줄 말줄임 없어짐 확인). 새로 쓴 `food-alerts-sync.yml`을 main에서 수동 실행: 200 `{"status":"skipped"}`.
     - 남은 확인(사용자): 앱에서 몰 주소 하나와 자주 가는 매장 저장이 되는지(42501 고친 것의 실제 확인).
+16. 함수 다섯 배포(2026-10-22 10:25 KST 무렵, 사용자 승인, **배포 방식이 바뀜**): CLI 로그인이 번거로워 "커밋 고정 stub"으로 올렸다.
+    배포한 `index.ts`는 몇 줄짜리 stub이고 `import 'https://raw.githubusercontent.com/jootaewan-hub/account-book/afe51bfe3d59e54c298597b2d8b665fa170f09c9/supabase/functions/<이름>/index.ts'` 한 줄로 그 커밋의 저장소 코드를 그대로 불러온다(상대 import·`_shared/`도 같은 커밋에서). 손으로 옮긴 코드가 없다.
+    - `price-recheck` v3(verify_jwt false): POST 200 `{"status":"skipped"}`, GET 405. 새 형식 키로 DB에 붙는 것까지 확인.
+    - `product-search` v4·`product-check` v5·`food-info` v9(verify_jwt true): 로그인 없는 POST 401, OPTIONS 204(함수 코드의 CORS 머리글 `POST, OPTIONS` — 코드가 떴다는 뜻).
+    - `extract-entries` v15(verify_jwt true, `deno.json` import map은 저장소와 같은 내용으로 함께): OPTIONS 200 `ok`(코드 응답), 로그인 없는 POST 401. 남은 확인(사용자): 영수증 한 장 읽기.
+    - **대시보드·`get_edge_function`에는 stub만 보인다.** 실제 코드는 저장소의 그 커밋이다. 다음에 함수를 고치면 stub의 커밋 해시를 새 커밋으로 바꿔 다시 올리거나 CLI로 올린다.
+    - 되돌리기: stub의 해시를 이전 커밋으로 바꿔 다시 올린다. `extract-entries`는 `b04d2fd…`(v14와 같은 코드), 장보기 네 함수는 `b04d2fd…`도 이전 동작과 같다(그 사이 바뀐 것은 `_shared/edge.ts` 키 읽기와 supabase-js 핀뿐).
+    - 확인 필요: 원격 모듈이 배포할 때 묶음(eszip)에 함께 들어가는지. 들어가지 않으면 함수가 처음 뜰 때 GitHub raw에 기대게 된다(추측입니다: 묶음 형식은 모듈 그래프 전체를 넣게 돼 있다).
+    - 그대로 둔 것: `grocery-photo`(import 경로만 바뀜), 핀만 바뀐 `food-alerts-sync`·`market-sync`·`tprice-sync`.
 
 ### 사용자 할 일
 
