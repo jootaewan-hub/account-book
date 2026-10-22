@@ -124,9 +124,21 @@ npm run screens
     - 됨: MCP `apply_migration`(`grocery_shop_finds`). RLS 켜짐, 정책은 구성원 읽기 하나, authenticated는 SELECT만, 쓰기는 service_role만. 보안 점검은 적용 전과 같은 항목뿐이다.
     - 됨: `shop-find` v1(verify_jwt true, `deno.json` import map 함께)을 커밋 고정 stub `b519232dd6e768354f2d5be6ae8f2b559c8e6cbb`로 배포. OPTIONS 204 `POST, OPTIONS`(함수 코드 응답), 로그인 없는 POST 401.
     - 됨: main fast-forward 병합·푸시(Pages 배포).
-    - 남은 확인(첫 실제 사용): 앱에서 상품 하나를 고른 뒤 로그 `shop_find_search`(검색 수·토큰 수·결과 주소)와 `grocery.shop_finds` 행. 확인 필요: WIF 토큰으로 웹 검색이 되는지(안 되면 `search_disabled`나 `wif_denied`로 남는다), `homeplus.co.kr`이 mfront·front 결과를 포함하는지, 한국어 검색 품질.
+    - 첫 실제 사용(2026-10-22 11:29 KST, 아이폰): 상품 "이금기 프리미엄 굴소스 510g". 로그 `shop_find_search`는 웹 검색 3번, 입력 토큰 30,011, 출력 토큰 203, 결과 주소 30개.
+      확인됨: WIF 토큰으로 웹 검색이 된다. `allowed_domains`의 `homeplus.co.kr`이 하위 도메인 결과도 준다(홈플러스 상품 주소 2개가 왔다).
+      컬리 페이지 2개를 읽어 "[이금기] 프리미엄 굴소스 510g"(510g, 8,680원)은 자동 저장, "[이금기] 팬더굴소스 510g"은 고르지 않았다(낱말 규칙대로).
+      홈플러스 2개(`068886569:HYPER`, `10000305103963:DS`)는 둘 다 `parse_failed`, 쿠팡은 결과 30개 중 읽을 상품 주소가 없었다(주소 자체는 로그에 남기지 않아 어떤 주소였는지는 확인 필요). 열린 문제에 적었다.
     - 비용: 상품 하나에 검색 4번 이하(1,000번에 10달러, 2026-10-22 문서)와 토큰. 같은 상품은 다시 찾지 않는다. 이 기능 전에 고른 상품은 품목 상세를 처음 열 때 한 번 찾는다.
     - 되돌리기: 함수를 지우거나(앱은 실패를 조용히 넘긴다) stub 해시를 바꿔 다시 올린다. 표는 남겨도 앱 동작에 영향이 없다.
+
+18. 설정 '앱' 카드(D-025, 2026-10-22, 브랜치 `claude/app-update`): 사용자가 "업데이트가 안되는데" 설정에 업데이트 버튼과 휴대폰 앱 만들기를 요청.
+    - 점검: 운영 `sw.js`가 미리 받는 29개 파일은 모두 200(설치 실패는 원인이 아니다). `sw.js`·`index.html`은 `cache-control: max-age=600`. 막힌 원인은 확인 필요(추측입니다: iOS의 확인 시점과 CDN 캐시).
+      같은 시각 기록에는 11:29 KST에 아이폰 한 대가 이미 새 빌드(`e7c9af6`)로 찾기 결과를 읽은 것이 있다. Safari 탭과 홈 화면 앱은 따로 받으므로 하나만 새 버전일 수 있다(추측입니다).
+    - 만든 것: 빌드마다 `version.json`(화면 버전과 같은 문자열, 서비스 워커가 미리 받지 않음), 설정 '앱' 카드(지금 버전·업데이트 확인·앱 파일 다시 받기·홈 화면 앱 안내), 매니페스트 "장보기" 바로가기.
+    - 확인: 시험 전부 통과(새 시험 `tests/appUpdate.test.ts`·`tests/components/appCard.test.tsx`), 브랜치 `ci.yml` 통과, 빌드 결과 `version.json`과 SettingsView 묶음의 버전 문자열이 같음, `sw.js`에 `version.json` 없음.
+      개발 서버 브라우저에서 "앱 파일 다시 받기" → 새 주소로 다시 열림 → 주소의 `u` 표시 지워짐 → 설정 탭에 "앱 파일을 새로 받았어요"(캡처 `shell-settings-app-refreshed-390-*`). 캡처 `shell-settings-app-*`(390·1280, 라이트·다크, 최신 버전 상태, 아이폰 안내) 확인.
+    - 확인 필요: 실제 아이폰 홈 화면 앱에서 서비스 워커를 내리고 다시 여는 것, GitHub Pages CDN이 `?t=`·`?u=`를 다른 주소로 보는지(추측입니다: 그렇다), 홈 화면 앱이 Safari와 로그인 저장 공간을 따로 쓰는지(지금 iOS).
+    - 바뀐 동작: 안드로이드 크롬의 자동 설치 안내 띠는 이제 뜨지 않는다(`beforeinstallprompt`를 받아 두고 설정의 "홈 화면에 설치"로 띄운다).
 
 ### 사용자 할 일
 

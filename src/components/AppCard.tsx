@@ -94,7 +94,7 @@ export function AppCard({ toast, deps }: { toast: (msg: string) => void; deps?: 
   const installNote: Record<InstallKind, string> = {
     installed: '',
     prompt: "설치하면 홈 화면의 '가계부' 아이콘으로 주소창 없이 바로 열려요.",
-    ios: "Safari의 공유 버튼에서 '홈 화면에 추가'를 고르세요. 홈 화면의 '가계부' 아이콘으로 열면 주소창 없이 앱처럼 열려요. 아이콘으로 처음 열 때는 다시 로그인해야 해요.",
+    ios: "Safari의 공유 버튼에서 '홈 화면에 추가'를 고르세요. 홈 화면의 '가계부' 아이콘으로 열면 주소창 없이 앱처럼 열려요. 아이콘으로 처음 열 때는 다시 로그인해야 할 수 있어요.",
     android: "브라우저 메뉴(⋮)에서 '앱 설치'나 '홈 화면에 추가'를 고르세요. 홈 화면의 '가계부' 아이콘으로 열면 앱처럼 열려요.",
     desktop: `휴대폰 브라우저로 ${d.address} 주소를 열고 홈 화면에 추가하면 앱처럼 쓸 수 있어요.`,
   }

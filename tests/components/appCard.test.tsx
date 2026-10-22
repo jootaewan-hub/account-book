@@ -69,7 +69,7 @@ describe('홈 화면 앱', () => {
   it('아이폰은 공유 메뉴의 홈 화면에 추가와 다시 로그인을 안내한다', () => {
     setup({ status: 'failed' }, { install: () => 'ios' })
     expect(screen.getByText(/Safari의 공유 버튼에서 '홈 화면에 추가'를 고르세요/)).toBeTruthy()
-    expect(screen.getByText(/다시 로그인해야 해요/)).toBeTruthy()
+    expect(screen.getByText(/다시 로그인해야 할 수 있어요/)).toBeTruthy()
   })
   it('이미 홈 화면 앱이면 안내 없이 쓰는 중이라고만 한다', () => {
     setup({ status: 'failed' }, { install: () => 'installed' })
