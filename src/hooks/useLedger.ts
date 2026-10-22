@@ -43,7 +43,6 @@ const NO_ROWS: Transaction[] = []
  */
 export function useMonthTransactions(householdId: string | undefined, ym: string) {
   const [data, setData] = useState<{ ym: string; rows: Transaction[]; version: number } | null>(null)
-  const [pending, setPending] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const req = useRef(0)
 
@@ -55,14 +54,13 @@ export function useMonthTransactions(householdId: string | undefined, ym: string
       if (id === req.current) { setData((d) => ({ ym, rows, version: (d?.version ?? 0) + 1 })); setError(null) }
     } catch (e) {
       if (id === req.current) setError(friendlyError(e))
-    } finally {
-      if (id === req.current) setPending(false)
     }
   }, [householdId, ym])
 
-  useEffect(() => { setPending(true); void reload() }, [reload])
+  useEffect(() => { void reload() }, [reload])
   const current = data && data.ym === ym ? data : null
-  return { txs: current?.rows ?? NO_ROWS, version: current?.version ?? 0, loading: pending || current === null, error, reload }
+  // 이 달 내역을 아직 못 받았을 때만 불러오는 중(못 불러왔으면 오류 줄이 대신 보인다). 같은 달을 다시 읽는 동안은 있던 내역을 그대로 보인다
+  return { txs: current?.rows ?? NO_ROWS, version: current?.version ?? 0, loading: current === null && !error, error, reload }
 }
 
 /** 보고 있는 달부터 다음 달 말까지의 일정 (다가오는 일정 표시용으로 한 달 더) */

@@ -171,6 +171,7 @@
   - `public.fuel_fills`는 표 전체 update 권한이고 insert 정책에 `created_by = auth.uid()`가 없다(transactions와 다름). 가구 안 두 사람만 쓰므로 위험은 낮다. 다음 public 마이그레이션 때 칸 권한·정책을 transactions와 맞춘다.
   - `grocery.set_item_nutrition`·`set_item_ingredients`의 주석은 "RLS로 확인"이지만 서비스 롤로 불려 RLS가 걸리지 않는다. 실제 확인은 `food-info/handle.ts`의 `allowedItem` 하나다. 지금 다른 가구로 가는 길은 없다. 함수 안에서도 `p_user`의 가구 소속을 확인하게 바꾼다.
   - 공개 저장소는 60일 동안 활동이 없으면 GitHub이 예약 워크플로(식약처·시세·참가격·가격 다시 확인)를 끈다(GitHub 문서 기준, 이 저장소에서 겪지는 않음). 동기화가 멈추면 목록의 "확인 상태" 줄이 48시간 뒤 알린다. 그때 Actions에서 다시 켠다.
+  - 구글 시트 내보내기(`export-csv`)는 이번에 1,000행 넘게 나눠 받게 고쳤지만, `export_rows_v2`의 정렬이 `occurred_on, created_at`뿐이라 같은 시각에 저장된 내역(상품별로 나눈 영수증)이 1,000행 경계에 걸리면 한 줄이 두 번 나오거나 빠질 수 있다. 지금 내역은 70행이라 해당 없다. 1,000행에 가까워지면 public 마이그레이션으로 정렬에 `t.id`를 더한다.
   - `grocery.price_quotes`에 기본키가 없다(성능 점검 INFO). 표가 커지면 식별 칸을 더한다. 외래키 색인 없음 INFO 22건은 상품을 지울 때만 영향이 있다.
   - 예전 형식 키(`SUPABASE_SERVICE_ROLE_KEY`·`SUPABASE_ANON_KEY`)만 읽는 함수: `_shared/edge.ts`는 이번에 새 형식(`SUPABASE_SECRET_KEYS`·`SUPABASE_PUBLISHABLE_KEYS`)을 먼저 읽게 고쳤고(다음 배포부터), 수집 함수 4개(`food-alerts-sync`·`market-sync`·`tprice-sync`·`price-recheck`의 index.ts)는 그대로다. 대시보드에서 예전 키를 끄면 이 넷이 깨질 수 있다(추측입니다). 끄기 전에 같은 방식으로 바꾼다.
   - 화면: 44px보다 작은 누르는 곳(오늘 버튼 32px, 칩 34px, 구분 버튼 36px, 사진 빼기 28px), 입력칸 테두리 대비 1.22:1, 달력 칸의 "123만"(10.5px 한글)은 그대로다. 글꼴 624KB를 미리 불러오지 않는다(서비스 워커가 캐시해 첫 방문에만 영향).

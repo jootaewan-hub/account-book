@@ -75,7 +75,7 @@
 | `src/lib/` | 날짜·금액·통계 계산, 사진 자르기, Supabase 호출. `dialog.ts`: 시트·창 공통 동작(Tab 순환, Esc, 겹친 창은 맨 위만, 닫히면 연 버튼으로 포커스 복귀, 스크롤 잠금) — 가계부 `Sheet`와 장보기 시트가 함께 쓴다 |
 | `src/hooks/` | 가구·내역·일정 불러오기와 Realtime 구독(`useLedger.ts`) |
 | `src/components/` | 화면 (`Motion.tsx`: 숫자 제자리 교체, 알림, 달 넘김 움직임. `ErrorBoundary.tsx`: 한 화면이 그리다 멈추면 그 자리에 오류와 다시 시도) |
-| `src/App.tsx` | 탭·시트 상태. 장보기·통계·고정·설정·스마트 입력은 `lazy`로 따로 묶어 눌렀을 때 받고(첫 묶음 약 170KB gzip), 첫 화면 뒤 1.5초에 미리 받아 둔다 |
+| `src/App.tsx` | 탭·시트 상태. 장보기·통계·고정·설정·스마트 입력은 `lazy`로 따로 묶어 눌렀을 때 받고(첫 화면 JS는 index·api 두 묶음 약 172KB gzip, 2026-10-22 기준), 첫 화면 뒤 1.5초에 미리 받아 둔다 |
 | `src/styles.css` | 색·글자·움직임 토큰과 화면 스타일. 규칙은 `DESIGN.md` |
 | `src/assets/fonts/` | SUIT 2.0.5 가변 글꼴(SIL OFL 1.1, 원본 그대로). 라이선스 전문은 `public/fonts/SUIT-OFL.txt` |
 | `tests/db.test.ts` | 마이그레이션을 PGlite에 적용해 권한 규칙 검증 |

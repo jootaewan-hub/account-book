@@ -102,6 +102,11 @@ npm run screens
 
 14. 됨 — 2026-10-21 21:30 KST D-021·D-022(브랜치 `claude/fuel-and-grocery-compare`, 설계·계획은 `docs/superpowers/specs|plans/2026-10-21-fuel-and-grocery-compare*`): ① MCP `apply_migration`(`fuel_fills`) 적용 — RLS 켜짐·정책 `fuel_fills_all`·anon 권한 없음·제약 8개 확인, 보안 점검은 전과 같은 항목뿐, 성능 점검 새 항목은 복합 FK `(transaction_id, household_id)` 색인 없음 INFO(utility_bills와 같은 모양) ② `extract-entries` v14 배포(verify_jwt true, import map deno.json, 무인증 POST 401 확인, 배포 소스에 `FuelSchema`·`preferRetry`·withFuel 있음) ③ main 병합·푸시(아래 커밋). **순서를 지켜야 한다**: 새 번들은 내역을 읽을 때 `fuel_fills` 임베드를 요구하므로 마이그레이션 없이 main을 먼저 푸시하면 내역 목록이 빈 화면이 된다(마이그레이션이 실패하면 main 푸시를 하지 않는다). 그 뒤 사용자가 주유 영수증 1장·장보기 영수증 1장으로 확인(주유 칸 값이 영수증과 같은지, 통계 주유 묶음, 살펴보기 묶음의 지난번 값이 가계부 기록과 같은지).
 
+15. 저장소가 배포본보다 앞선 것(2026-10-22, 브랜치 `claude/structure-upgrade`, 아직 적용·배포 안 함 — 확인 뒤 이 줄을 고친다):
+    - 마이그레이션 `20261101000000_grocery_upsert_grants.sql`(몰 주소·자주 가는 매장 저장 권한). 적용 전에는 그 두 저장이 42501로 실패한다.
+    - 함수 `export-csv`(1,000행 넘게 나눠 받기), `extract-entries`(140초 마감), `_shared/edge.ts`를 쓰는 `product-search`·`product-check`·`food-info`·`price-recheck`(새 형식 키를 먼저 읽음), supabase-js `@2.117.3` 핀만 바뀐 `food-alerts-sync`·`market-sync`·`tprice-sync`.
+    - `grocery-photo`는 import 경로만 바뀌었다(`text.ts`, 동작 같음). 배포하면 `text.ts`도 함께 올린다.
+
 ### 사용자 할 일
 
 - ~~공공데이터포털 식품영양성분DB(15127578) 활용신청~~ 2026-10-20 마침(사용자). 같은 키로 통하는지는 성분 탭 첫 호출로 확인.
