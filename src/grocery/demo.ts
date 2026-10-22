@@ -194,6 +194,16 @@ export function demoSeed(): { me: Membership; items: Item[]; alerts: AlertsResul
         }),
       ],
     },
+    // 몰 주소 자동 찾기(D-024) 데모: 컬리는 이름·용량이 같아 자동으로 넣었고, 홈플러스는 용량을 못 읽어 사람이 고를 후보로 남은 모양(가상 값)
+    shopFinds: {
+      'demo-p-1': {
+        status: 'done', searchedAt: at, error: null,
+        candidates: [
+          { source: 'kurly', sourceId: '5082274', url: 'https://www.kurly.com/goods/5082274', name: '[예시] 왕교자 만두 대용량 1.05kg', size: '1050g', price: 10980, checkedAt: at, grade: 'auto', saved: true },
+          { source: 'homeplus', sourceId: '120074651:HYPER', url: 'https://mfront.homeplus.co.kr/item?itemNo=120074651&storeType=HYPER', name: '예시 왕교자 (냉동)', size: null, price: 10490, checkedAt: at, grade: 'maybe', saved: false },
+        ],
+      },
+    },
     // 참가격 조사 상품 이름은 실제 목록의 이름 모양을 따랐다(docs/grocery/data-sources.md 2절). 가격은 가상 값.
     storeGoods: [
       { goodId: '1001', name: '비비고 왕교자(1.12kg)', detail: '냉동만두' },

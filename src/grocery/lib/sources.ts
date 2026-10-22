@@ -48,7 +48,30 @@ export type StorePrice = {
   plusOne: boolean
 }
 export type StoreSection = { good: { goodId: string; name: string } | null; prices: StorePrice[] }
-export type ItemSources = { shops: ShopPrice[]; store: StoreSection }
+export type { FoundShop } from '../../../supabase/functions/_shared/shopFind'
+import type { FoundShop } from '../../../supabase/functions/_shared/shopFind'
+
+/** 몰 주소 자동 찾기 결과(grocery.shop_finds, D-024). 찾은 적 없으면 null */
+export type ShopFind = { status: 'searching' | 'done' | 'failed'; searchedAt: string; error: string | null; candidates: FoundShop[] }
+
+export type ItemSources = { shops: ShopPrice[]; store: StoreSection; find: ShopFind | null }
+
+/** 자동 찾기 상태 줄. 보여 줄 것이 없으면 null. "AI"라는 말 없이 하는 일 그대로 쓴다(CLAUDE.md) */
+export function findStateText(find: ShopFind | null, linked: number): string | null {
+  if (!find) return null
+  if (find.status === 'searching') return '컬리·홈플러스·쿠팡에서 같은 상품 찾는 중'
+  if (find.status === 'failed') {
+    if (find.error === 'search_disabled') return '몰 찾기를 쓸 수 없어요(검색 설정이 꺼져 있어요). 주소를 직접 넣어 주세요.'
+    return '몰에서 상품을 찾지 못했어요. 주소를 직접 넣을 수 있어요.'
+  }
+  if (find.candidates.length === 0 && linked === 0) return '컬리·홈플러스·쿠팡에서 이름·용량이 같은 상품을 찾지 못했어요. 주소를 직접 넣을 수 있어요.'
+  return null
+}
+
+/** 후보 줄의 출처·시각: "컬리 페이지, 오늘 10:05 확인" */
+export function candidateSourceText(c: FoundShop, now: Date = new Date()): string {
+  return `${SHOP_LABEL[c.source]} 페이지, ${checkedText(c.checkedAt, now)} 확인`
+}
 
 export const NOTE_NOT_BEST = '넣은 주소의 값은 같은 상품인지 확인되지 않아 가장 싼 값에는 넣지 않아요.'
 

@@ -13,7 +13,7 @@ import {
   type PriceLine,
   type SearchResult,
 } from './products'
-import type { ItemSources, ShopLink, ShopPrice, ShopSource, StoreGood, StoreOption, StorePrice } from './sources'
+import type { ItemSources, ShopFind, ShopLink, ShopPrice, ShopSource, StoreGood, StoreOption, StorePrice } from './sources'
 import type { OurPurchase } from './ours'
 import type { CapturedQuoteInput, ListItem, PhotoImage, PhotoJob, PhotoResult, PriceRead, ProductRead } from './photo'
 import type { IngredientRow, IngredientSource, ItemIngredients, ItemNutrition, NutritionRow } from './foodInfo'
@@ -46,6 +46,8 @@ export interface ListStore {
   /** 고른 상품에 몰 주소를 넣는다(출처마다 하나, 같은 출처는 바꿈). 상품을 안 고른 품목이면 no_product */
   addShopLink(itemId: string, link: ShopLink): Promise<void>
   removeShopLink(itemId: string, source: ShopSource): Promise<void>
+  /** 고른 상품을 컬리·홈플러스·쿠팡에서 찾아 맞는 주소를 넣는다(shop-find, D-024). 같은 상품은 한 번만 찾는다. 실패는 던진다 */
+  findShops(itemId: string): Promise<void>
   /** 참가격 조사 상품 전부(약 600개) */
   storeGoods(): Promise<StoreGood[]>
   /** 품목(이름·규격)에 참가격 상품을 고른다. null이면 푼다 */
@@ -96,6 +98,10 @@ export type DemoPrices = {
   lines: Record<string, PriceLine[]>
   /** 상품 id → 넣은 몰 주소의 값(P3) */
   shops?: Record<string, ShopPrice[]>
+  /** 상품 id → 몰 주소 자동 찾기 결과(D-024). 없는 상품을 찾으면 findShopsResult를 쓴다 */
+  shopFinds?: Record<string, ShopFind>
+  /** 데모에서 찾기를 부르면 돌려줄 결과(없으면 '못 찾음') */
+  findShopsResult?: ShopFind['candidates']
   storeGoods?: StoreGood[]
   /** 품목 id → 참가격 상품 id */
   storeLinks?: Record<string, string>
@@ -129,6 +135,7 @@ export function createMemoryStore(
   const notify = () => listeners.forEach((fn) => fn())
   // P3: 넣은 주소(상품 id마다), 참가격 연결(품목 이름·규격 열쇠마다, DB의 name_key처럼), 고른 매장
   const shops = new Map<string, ShopPrice[]>(Object.entries(demoPrices.shops ?? {}).map(([k, v]) => [k, v.map((x) => ({ ...x }))]))
+  const finds = new Map<string, ShopFind>(Object.entries(demoPrices.shopFinds ?? {}).map(([k, v]) => [k, { ...v, candidates: v.candidates.map((c) => ({ ...c })) }]))
   const nameKey = (i: Item) => `${i.name}|${i.spec ?? ''}`
   const storeLinks = new Map<string, string>()
   for (const [itemId, goodId] of Object.entries(demoPrices.storeLinks ?? {})) {
@@ -252,6 +259,22 @@ export function createMemoryStore(
           good: good ? { goodId: good.goodId, name: good.name } : null,
           prices: (chosenStores.length ? prices.filter((p) => chosenStores.includes(p.entpId)) : prices).map((p) => ({ ...p })),
         },
+        find: it?.productKey && finds.has(it.productKey) ? { ...finds.get(it.productKey)!, candidates: finds.get(it.productKey)!.candidates.map((c) => ({ ...c })) } : null,
+      }
+    },
+    async findShops(itemId) {
+      const it = items.find((i) => i.id === itemId)
+      if (!it?.productKey) throw new Error('no_product')
+      if (finds.has(it.productKey)) return
+      const candidates = (demoPrices.findShopsResult ?? []).map((c) => ({ ...c }))
+      finds.set(it.productKey, { status: 'done', searchedAt: now(), error: null, candidates })
+      // 자동으로 맞은 주소는 넣은 주소에도 들어간다(실제 함수와 같게)
+      for (const c of candidates.filter((x) => x.saved)) {
+        const row: ShopPrice = {
+          source: c.source, sourceId: c.sourceId, url: c.url, addedAt: now(), checkedAt: c.checkedAt, ok: true, error: null, pricedAt: c.checkedAt,
+          name: c.name, price: c.price, imageUrl: null, rating: null, reviewCount: null, size: c.size, priceFrom: null, obsLow: null, obsHigh: null, obsAvg: null, changedOn: null,
+        }
+        shops.set(it.productKey, [...(shops.get(it.productKey) ?? []).filter((x) => x.source !== c.source), row])
       }
     },
     async addShopLink(itemId, link) {

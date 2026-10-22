@@ -99,6 +99,7 @@
 | `supabase/functions/tprice-sync/` | 참가격(한국소비자원 생필품 가격, 공공데이터포털 15158701) 성남 판매점 가격을 받아 저장(매일 07:20 `.github/workflows/tprice-sync.yml`이 부름, 로그인 없이 부르되 20시간 1회·30분 잠금) |
 | `supabase/functions/price-recheck/` | 안 산 품목이 고른 상품의 다나와·몰 주소 가격을 하루 한 번 다시 읽음(매일 07:30 `.github/workflows/price-recheck.yml`, 로그인 없이 부르되 20시간 1회·30분 잠금, 다나와 10초 간격) |
 | `supabase/functions/grocery-photo/` | 사진으로 상품 찾기(포장 → 이름·브랜드·용량), 화면 캡처로 가격 넣기, 사진으로 담기(메모·냉장고·영수증 → 목록). 로그인 필수, Claude 인증은 가계부와 같은 WIF(`_shared/anthropic-wif.ts`) |
+| `supabase/functions/shop-find/` | 몰 주소 자동 찾기(D-024): 고른 상품을 컬리·홈플러스·쿠팡(로우차트)에서 Claude 웹 검색으로 한 번 찾고, 결과 주소의 페이지를 직접 읽어 이름·용량이 같으면 주소를 넣고 아니면 후보로 남긴다. 로그인 필수, 같은 상품은 다시 찾지 않는다(`grocery.shop_finds`) |
 | `supabase/functions/food-info/` | 성분 탭: 식약처 품목제조보고 원재료(식품 C002·축산물 I1310→C006·건강기능식품 C003)를 상품명·품목 이름으로 찾아 자동 맞춤·고르기, 식품영양성분DB 이름 검색·자동 맞춤. 로그인 필수 |
 | `supabase/config.toml` | Edge Function별 로그인 확인(`verify_jwt`) 설정 |
 | `tests/grocery/` | 장보기 계산·파서·함수·권한 검증. 권한 검증은 마이그레이션 전부를 PGlite에 적용한 위에서, `boundary.test.ts`는 장보기 마이그레이션이 `public`을 바꾸지 않는지 |

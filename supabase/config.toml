@@ -38,3 +38,7 @@ verify_jwt = true
 # food-info(성분: 식약처 품목 후보·원재료·영양성분)는 로그인한 사용자만 부른다(가구 소속은 함수 안에서 RLS로 확인).
 [functions.food-info]
 verify_jwt = true
+
+# shop-find(몰 주소 자동 찾기, D-024)는 로그인한 사용자만 부른다(로그인 토큰을 Anthropic 단기 토큰으로 바꿔 웹 검색을 부른다).
+[functions.shop-find]
+verify_jwt = true

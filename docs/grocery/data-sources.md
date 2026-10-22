@@ -95,6 +95,7 @@
 | Google Custom Search | 신규 가입 불가, 기존도 2027-01-01까지 이전 | 쓰지 않음. |
 | Bing Search API | 2025-08-11 종료 | 쓰지 않음. |
 | Bright Data, Nimble | 무료 한도 있음 | CLI·키가 없어 시험하지 못했다. |
+| Claude 웹 검색(`web_search_20250305`, D-024에서 씀) | 1,000번에 10달러 + 토큰(2026-10-22 문서 https://platform.claude.com/docs/en/agents-and-tools/tool-use/web-search-tool). 조직 관리자가 Console에서 끄지 않았으면 켜져 있고, 꺼져 있으면 400 invalid_request_error. 가계부와 같은 WIF로 부르므로 새 키·가입이 없다 | `allowed_domains`는 도메인(경로 붙일 수 있음)만 받는다. 결과 블록에 url·title·page_age만 있고 본문은 암호화돼 있어, 주소 찾기에만 쓰고 가격은 상품 페이지에서 읽는다. 확인 필요: WIF 토큰으로 웹 검색이 되는지, `homeplus.co.kr`이 mfront·front 하위 도메인 결과를 포함하는지(첫 실제 호출). 한국어 상품 검색 품질도 첫 사용에서 본다. |
 
 ## 2. 매장 가격 — 한국소비자원 참가격
 

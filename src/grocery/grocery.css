@@ -435,6 +435,11 @@
 .grocery .src-line { margin-top: 2px; font-size: 13px; color: var(--ink-2); }
 .grocery .shop-state { color: var(--ink); }
 .grocery .shop-actions { display: flex; align-items: center; gap: 16px; margin: 0; }
+/* 몰 주소 자동 찾기(D-024): 자동으로 넣은 주소 표시와 사람이 고를 후보 */
+.grocery .tag-auto { background: var(--sage-soft); color: var(--sage-ink); }
+.grocery .detail-block .find-sub { margin-top: 16px; }
+.grocery .find-row .shop-actions { margin-top: 4px; }
+.grocery .find-row .shop-actions .btn-secondary { min-height: 44px; background: var(--canvas); } /* 귀리색 카드 위에서 버튼이 보이게 */
 .grocery .shop-actions .btn-text { display: inline-flex; align-items: center; min-height: 44px; padding: 0; margin: 0; font-size: 14px; text-decoration: none; }
 .grocery .shop-note { margin: 8px 0 0; font-size: 13px; color: var(--ink-2); }
 .grocery .store-good { margin: 0 0 8px; font-size: 15px; font-weight: 600; }

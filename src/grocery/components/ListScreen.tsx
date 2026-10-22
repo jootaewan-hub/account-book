@@ -342,6 +342,8 @@ export default function ListScreen({ store, me, ledger, market, dev }: Props) {
           refetchExtras()
           showNotice({ kind: 'error', text: '다나와 가격을 지금 불러오지 못했어요.' })
         })
+        // 컬리·홈플러스·쿠팡에서 같은 상품 주소를 찾아 둔다(D-024). 결과는 품목 상세 가격 탭에 보인다. 실패해도 목록은 그대로
+        store.findShops(item.id).catch(() => {})
       },
       () => showNotice({ kind: 'error', text: '상품을 고르지 못했어요. 잠시 뒤 다시 해 주세요.' }),
     )

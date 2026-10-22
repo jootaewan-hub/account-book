@@ -202,6 +202,12 @@ describe('Supabase 저장소: 가격 확인', () => {
     expect(items.cols).toContain('products!items_product_id_fkey(name)')
   })
 
+  it('findShops는 shop-find를 품목 id로 부른다(D-024)', async () => {
+    const { invokes, client } = fakeClient({ status: 'done', saved: 1, candidates: 1 })
+    await createSupabaseStore(client, mem).findShops('i1')
+    expect(invokes).toEqual([{ name: 'shop-find', body: { itemId: 'i1' } }])
+  })
+
   it('findCandidates는 함수가 돌려준 상태를 돌려준다(기억으로 이었으면 remembered)', async () => {
     const { invokes, client } = fakeClient({ status: 'remembered' })
     const st = await createSupabaseStore(client, mem).findCandidates('i1')
@@ -223,8 +229,21 @@ describe('가격 출처(메모리, P3)', () => {
     expect(src.store.good).toEqual({ goodId: '1001', name: '비비고 왕교자(1.12kg)' })
     expect(src.store.prices.length).toBeGreaterThanOrEqual(2)
     expect(src.store.prices.some((p) => p.price === null)).toBe(true)
-    // 상품을 안 고른 품목: 주소 없음, 참가격 연결 없음
-    expect(await s.sources('demo-item-6')).toEqual({ shops: [], store: { good: null, prices: [] } })
+    // 상품을 안 고른 품목: 주소 없음, 참가격 연결 없음, 찾기 결과 없음
+    expect(await s.sources('demo-item-6')).toEqual({ shops: [], store: { good: null, prices: [] }, find: null })
+    // 몰 주소 자동 찾기(D-024): 데모 상품은 컬리를 자동으로 넣었고 홈플러스는 후보로 남았다
+    expect(src.find?.candidates.map((c) => [c.source, c.grade, c.saved])).toEqual([['kurly', 'auto', true], ['homeplus', 'maybe', false]])
+  })
+
+  it('몰 주소 찾기(D-024): 상품마다 한 번만 찾고, 자동으로 맞은 주소는 넣은 주소에도 들어간다. 상품을 안 고른 품목은 거절', async () => {
+    const { me: d, items, alerts, prices } = demoSeed()
+    const found = [{ source: 'homeplus' as const, sourceId: '1:HYPER', url: 'https://mfront.homeplus.co.kr/item?itemNo=1&storeType=HYPER', name: '예시', size: null, price: 1000, checkedAt: '2026-10-19T12:00:00Z', grade: 'auto' as const, saved: true }]
+    const s = createMemoryStore(items, d, () => '2026-10-19T12:00:00Z', alerts, { ...prices, shopFinds: {}, findShopsResult: found })
+    await s.findShops('demo-item-3')
+    const src = await s.sources('demo-item-3')
+    expect(src.find).toMatchObject({ status: 'done', candidates: found })
+    expect(src.shops.map((x) => x.source)).toContain('homeplus')
+    await expect(s.findShops('demo-item-6')).rejects.toThrow('no_product')
   })
 
   it('주소 넣기: 같은 출처는 바꾸고, 아직 확인 전(ok null)으로 둔다. 빼면 사라진다. 상품을 안 고른 품목은 거절', async () => {

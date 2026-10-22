@@ -57,6 +57,9 @@ const groceryShots = [
   ...both(390, (w, c) => ({ name: `grocery-item-detail-store-${w}-${c}`, path: G, w, c, detail: '비비고 왕교자', tab: 'price', detailScroll: '.detail-links' })),
   { name: 'grocery-item-detail-store-1280-light', path: G, w: 1280, c: 'light', detail: '비비고 왕교자', tab: 'price', detailScroll: '.detail-links' },
   { name: 'grocery-item-detail-store-none-390-light', path: G, w: 390, c: 'light', detail: '○○ 냉동볶음밥', tab: 'price', detailScroll: '.detail-links' },
+  // 몰 주소 자동 찾기(D-024): 자동으로 넣은 주소("자동으로 찾음")와 사람이 고를 후보("같은 상품인지 확인해 주세요")
+  ...each((w, c) => ({ name: `grocery-item-detail-find-${w}-${c}`, path: G, w, c, detail: '비비고 왕교자', tab: 'price', detailScroll: '.find-row' })),
+  ...both(390, (w, c) => ({ name: `grocery-item-detail-find-auto-${w}-${c}`, path: G, w, c, detail: '비비고 왕교자', tab: 'price', detailScroll: '.tag-auto' })),
   // P2 우리가 산 값
   ...both(390, (w, c) => ({ name: `grocery-item-detail-price-ours-${w}-${c}`, path: G, w, c, detail: '비비고 왕교자', tab: 'price', detailScroll: '.ours-block' })),
   { name: 'grocery-item-detail-price-ours-1280-light', path: G, w: 1280, c: 'light', detail: '비비고 왕교자', tab: 'price', detailScroll: '.ours-block' },

@@ -136,6 +136,28 @@ export default function ItemDetail({ item, store, onChangeProduct, onClose, mark
   useEffect(() => {
     void loadSources()
   }, [loadSources])
+  // 몰 주소 자동 찾기(D-024): 고른 상품을 아직 찾은 적 없으면 한 번 찾고(상품을 고를 때 목록에서도 부른다),
+  // 찾는 중이면 4초마다 다시 읽는다(2분까지). 찾기는 서버가 상품마다 한 번만 한다
+  const [finding, setFinding] = useState(false)
+  const findAsked = useRef(false)
+  const polls = useRef(0)
+  const hasProduct = Boolean(data?.product)
+  const findStatus = sources ? (sources.find?.status ?? 'none') : null
+  useEffect(() => {
+    if (!hasProduct || findStatus !== 'none' || findAsked.current) return
+    findAsked.current = true
+    setFinding(true)
+    store.findShops(item.id).catch(() => {}).then(loadSources).finally(() => setFinding(false))
+  }, [hasProduct, findStatus, store, item.id, loadSources])
+  useEffect(() => {
+    if (findStatus !== 'searching' || finding || polls.current >= 30) return
+    const t = window.setTimeout(() => {
+      polls.current++
+      void loadSources()
+    }, 4000)
+    return () => window.clearTimeout(t)
+    // eslint-disable-next-line react/exhaustive-effect-dependencies -- sources가 새로 읽힐 때마다 다음 4초를 잰다
+  }, [findStatus, finding, sources, loadSources])
   const loadIng = useCallback(() => store.itemIngredients(item.id).then(setIng, () => setIng('failed')), [store, item.id])
   const loadNut = useCallback(() => store.itemNutrition(item.id).then(setNut, () => setNut('failed')), [store, item.id])
   // 성분 탭을 열었는데 기억한 식품이 없으면 버튼 없이 이름으로 자동 맞춘다(사용자 2026-10-20). 한 번만 시도한다
@@ -339,7 +361,15 @@ export default function ItemDetail({ item, store, onChangeProduct, onClose, mark
                   {ours && <OursBlock rows={ours} members={members} busy={srcBusy} onDecide={decide} />}
                   {srcFailed && <p className="cand-state" role="status">넣은 주소의 값과 매장 가격을 불러오지 못했어요. 잠시 뒤 다시 열어 주세요.</p>}
                   {!srcFailed && !sources && <p className="cand-state" role="status">넣은 주소·매장 가격 불러오는 중</p>}
-                  {sources && data.product && <ShopLinks shops={sources.shops} busy={srcBusy || checking} onAdd={addLink} onRemove={removeLink} />}
+                  {sources && data.product && (
+                    <ShopLinks
+                      shops={sources.shops}
+                      find={finding ? { status: 'searching', searchedAt: new Date().toISOString(), error: null, candidates: [] } : sources.find}
+                      busy={srcBusy || checking}
+                      onAdd={addLink}
+                      onRemove={removeLink}
+                    />
+                  )}
                   {sources && (
                     <StorePrices store={sources.store} busy={srcBusy} onPickGood={() => openPicker('good')} onUnlink={unlinkGood} onPickStores={() => openPicker('stores')} />
                   )}

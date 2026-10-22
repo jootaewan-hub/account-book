@@ -4,7 +4,7 @@ import type { Category } from './categories'
 import type { Candidate, ItemDetailData, ItemPrice, ItemSearch, PriceLine, SafetyRecord, SearchResult } from './products'
 import { kstDay } from './products'
 import { SEONGNAM_AREAS } from '../../../supabase/functions/_shared/tprice'
-import type { ItemSources, ShopPrice, StoreGood, StoreOption, StorePrice } from './sources'
+import type { ItemSources, ShopFind, ShopPrice, StoreGood, StoreOption, StorePrice } from './sources'
 import type { OurPurchase } from './ours'
 import { invokePhoto } from './photo'
 import type { IngredientRow, IngredientSource, ItemIngredients, ItemNutrition, Nutrition, NutritionRow } from './foodInfo'
@@ -50,6 +50,18 @@ export function rowToItem(r: Row): Item {
 }
 
 // grocery.items 저장소. 서버 오류는 던진다(호출하는 쪽이 오류 상태를 보여 준다).
+/** 함수 오류 응답의 코드({ error: 'code' } 또는 { error: { code } }) */
+async function errorCode(error: unknown): Promise<string | null> {
+  const ctx = (error as { context?: unknown } | null)?.context
+  if (!ctx || typeof (ctx as Response).json !== 'function') return null
+  try {
+    const body = (await (ctx as Response).json()) as { error?: string | { code?: string } }
+    return typeof body?.error === 'string' ? body.error : (body?.error?.code ?? null)
+  } catch {
+    return null
+  }
+}
+
 export function createSupabaseStore(client: SupabaseClient, me: Membership): ListStore {
   const g = () => client.schema('grocery')
   const table = () => g().from('items')
@@ -223,12 +235,18 @@ export function createSupabaseStore(client: SupabaseClient, me: Membership): Lis
       const it = await table().select('product_id').eq('id', itemId).maybeSingle()
       if (it.error) throw it.error
       const productId = (it.data?.product_id ?? null) as string | null
-      const [shops, link, prices] = await Promise.all([
+      const [shops, link, prices, find] = await Promise.all([
         productId ? g().rpc('shop_prices', { p_product: productId }) : Promise.resolve({ data: [], error: null }),
         g().rpc('item_store_link', { p_item: itemId }),
         g().rpc('item_store_prices', { p_item: itemId }),
+        productId
+          ? g().from('shop_finds').select('status, searched_at, error, candidates').eq('household_id', me.householdId).eq('product_id', productId).maybeSingle()
+          : Promise.resolve({ data: null, error: null }),
       ])
       if (shops.error) throw shops.error
+      // 찾기 표(D-024)가 아직 없는 DB(마이그레이션 전)여도 나머지는 보여 준다
+      if (find.error) console.warn('shop_finds 읽기 실패', find.error.message)
+      const f = find.error ? null : (find.data as { status: ShopFind['status']; searched_at: string; error: string | null; candidates: ShopFind['candidates'] } | null)
       if (link.error) throw link.error
       if (prices.error) throw prices.error
       const good = ((link.data ?? []) as { good_id: string; good_name: string }[])[0]
@@ -250,6 +268,20 @@ export function createSupabaseStore(client: SupabaseClient, me: Membership): Lis
             }),
           ),
         },
+        find: f ? { status: f.status, searchedAt: f.searched_at, error: f.error, candidates: Array.isArray(f.candidates) ? f.candidates : [] } : null,
+      }
+    },
+    async findShops(itemId) {
+      // WIF 토큰 교환이 거절되면 새 로그인 토큰으로 한 번 더(grocery-photo와 같은 방식)
+      for (let attempt = 0; ; attempt++) {
+        const { error } = await client.functions.invoke('shop-find', { body: { itemId } })
+        if (!error) return
+        const code = await errorCode(error)
+        if ((code === 'wif_denied' || code === 'wif_aud_missing') && attempt === 0) {
+          await client.auth.refreshSession()
+          continue
+        }
+        throw new Error(code ?? 'shop_find_failed')
       }
     },
     async addShopLink(itemId, link) {
