@@ -88,7 +88,7 @@ export function SettingsView({ household, categories, annivs, today, lookup, ema
             <span className="lbl">{t === 'expense' ? '지출' : '수입'}</span>
             <div className="chips">
               {categories.filter((c) => c.type === t).map((c) => (
-                <button key={c.id} className={`chip${c.archived ? ' muted' : ''}`} aria-pressed={!c.archived}
+                <button key={c.id} className={`chip${c.archived ? ' muted' : ''}`}
                   aria-label={c.archived ? `${c.name} (숨김)` : c.name}
                   onClick={() => run(() => setCategoryArchived(c.id, !c.archived), c.archived ? `${c.name} 다시 보이게 했어요` : `${c.name} 숨겼어요`)}>
                   {c.name}

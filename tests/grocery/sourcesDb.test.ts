@@ -230,6 +230,15 @@ describe('household_prefs(자주 가는 매장)', () => {
     expect(await errorOf(as(C, `insert into grocery.household_prefs (household_id, store_ids) values ($1, '{1}')`, [hhAB]))).toMatch(/row-level security/)
     expect(await errorOf(as(C, `insert into grocery.household_prefs (household_id, store_ids) values ($1, '{1,2,3,4,5,6,7,8,9,10,11}')`, [hhC]))).toMatch(/check constraint/)
   })
+
+  it('데이터 API 모양의 upsert(household_id까지 set에 넣음)가 된다(20261101000000)', async () => {
+    const sql = `insert into grocery.household_prefs (household_id, store_ids, updated_by, updated_at) values ($1, $2, $3, now())
+      on conflict (household_id) do update set household_id = excluded.household_id, store_ids = excluded.store_ids,
+        updated_by = excluded.updated_by, updated_at = excluded.updated_at`
+    await as(A, sql, [hhAB, ['7'], A])
+    await as(B, sql, [hhAB, ['912', '82'], B])
+    expect(await as(A, `select store_ids, updated_by from grocery.household_prefs`)).toEqual([{ store_ids: ['912', '82'], updated_by: B }])
+  })
 })
 
 describe('item_store_prices(p_item)', () => {

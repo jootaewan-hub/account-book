@@ -195,7 +195,8 @@ main.wrap { padding-block: 4px calc(150px + env(safe-area-inset-bottom, 0px)); }
 .chip[aria-pressed="true"] { background: var(--primary); color: var(--on-primary); font-weight: 700; }
 .chip .dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
 .chip .sub { font-size: 12px; opacity: .75; margin-left: 2px; }
-.chip.muted { color: var(--ink-2); text-decoration: line-through; } /* 흐리게(opacity) 하면 글자 대비가 3:1 아래로 떨어진다 */
+/* 숨긴 분류: 흐리게(opacity) 하면 글자 대비가 3:1 아래로 떨어진다. 줄긋기·점선 테두리·바탕 없음으로 구별한다 */
+.chip.muted, .card .chip.muted { color: var(--ink-2); text-decoration: line-through; background: transparent; box-shadow: inset 0 0 0 1px var(--ink-3); }
 /* 선택 알약이 미끄러진다 (transitions.dev tabs-sliding을 CSS만으로) */
 .seg:where(:not(.grocery *)) { position: relative; isolation: isolate; display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; background: var(--oat); border-radius: var(--r-sm); padding: 3px; gap: 3px; --n: 1; --i: 0; }
 .card .seg:where(:not(.grocery *)) { background: var(--canvas); }
@@ -285,7 +286,8 @@ select.input { padding: 9px 10px; }
   transition: opacity var(--dur-quick) var(--ease-smooth), transform var(--dur-quick) var(--ease-smooth), filter var(--dur-quick) var(--ease-smooth); }
 .toast.on { opacity: 1; transform: translate(-50%, 0) scale(1); filter: blur(0); transition-duration: var(--dur-toast-in); }
 /* 긴 문장("저장했어요. 장보기 연결은 하지 못했어요")은 줄을 바꿔 다 보인다. 안 보일 때는 누름을 막는다(live region은 늘 그려 둔다) */
-.toast { white-space: normal; text-overflow: clip; text-align: center; max-width: min(calc(100vw - 32px), 420px); }
+/* width: max-content가 없으면 left: 50%인 고정 상자는 화면 너비의 절반에서 줄을 바꾼다 */
+.toast { white-space: normal; text-overflow: clip; text-align: center; width: max-content; max-width: min(calc(100vw - 32px), 420px); }
 .toast:not(.on) { pointer-events: none; }
 
 /* iOS Safari의 날짜 입력은 고유 최소 너비가 있어 옆 칸을 침범한다. 너비를 칸에 맞춘다. */
@@ -321,7 +323,8 @@ select.input { padding: 9px 10px; }
   -webkit-background-clip: text; background-clip: text; color: transparent; animation: shimmer 1.6s linear infinite; }
 @keyframes shimmer { from { background-position: 100% 0; } to { background-position: 0% 0; } }
 .draft { display: flex; flex-direction: column; gap: 10px; }
-.draft.off { color: var(--ink-2); filter: grayscale(1); } /* 흐리게(opacity) 대신 색을 빼서 글자 대비를 지킨다 */
+/* 저장하지 않을 초안: 흐리게(opacity) 대신 바탕을 비우고 점선 테두리로 구별한다(글자 대비는 그대로) */
+.card.draft.off { background: var(--canvas); border: 1.5px dashed var(--ink-3); color: var(--ink-2); }
 .draft-head { display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 500; color: var(--ink-2); }
 .draft-head input { width: 22px; height: 22px; accent-color: var(--primary); }
 .draft-head b { margin-left: auto; font-size: 18px; font-weight: 800; }
@@ -344,7 +347,9 @@ select.input { padding: 9px 10px; }
 /* 고정지출·구독·관리비 */
 .rc-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; width: 100%; padding: 12px 0; border: 0; border-top: 1px solid var(--oat-deep); background: none; text-align: left; transition: background-color var(--dur-press) ease; }
 .rc-row:first-of-type { border-top: 0; }
-.rc-row.off { color: var(--ink-2); filter: grayscale(1); } /* ", 꺼 둠" 글자가 읽히게 opacity를 쓰지 않는다 */
+/* 꺼 둔 항목: ", 꺼 둠" 글자가 읽히게 opacity를 쓰지 않고, 로고는 흑백·이름과 금액은 옅은 먹색으로 구별한다 */
+.rc-row.off > :first-child { filter: grayscale(1); }
+.rc-row.off .rc-main b, .rc-row.off .rc-side .num { color: var(--ink-2); font-weight: 500; }
 .rc-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; font-size: 13px; color: var(--ink-2); }
 .rc-row > .svc-logo + .rc-main { flex: 1; }
 .rc-main b { font-weight: 600; font-size: 16px; color: var(--ink); }

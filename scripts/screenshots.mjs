@@ -124,6 +124,14 @@ const shellShots = [
   ...each((w, c) => ({ name: `shell-grocery-market-${w}-${c}`, path: '/', w, c, shell: true, tab: '장보기', market: true })),
   // 영수증 확인 화면의 '장보기 목록에서 찾은 품목'(D-011 길 ①). 가짜 영수증 응답(RECEIPT)
   ...each((w, c) => ({ name: `shell-smart-grocery-${w}-${c}`, path: '/', w, c, shell: true, tab: '내역', receipt: true })),
+  // 저장하지 않기로 한 초안(체크 해제)이 저장할 초안과 구별되는지
+  ...both(390, (w, c) => ({ name: `shell-smart-draft-off-${w}-${c}`, path: '/', w, c, shell: true, tab: '내역', receipt: true, draftOff: true })),
+  // 꺼 둔 구독 줄(고정 탭), 숨긴 분류 칩(설정)이 켜진 것과 구별되는지
+  // (휴대폰 고정 탭의 꺼 둔 줄은 shell-fixed-390-*의 전체 화면에서 본다. 설정의 분류 칩은 휴대폰에서 아래 탭에 가려 넓은 화면만)
+  ...both(1280, (w, c) => ({ name: `shell-settings-cats-${w}-${c}`, path: '/', w, c, shell: true, tab: '설정' })),
+  // 알림(토스트): 짧은 문장과 줄이 바뀌는 긴 문장. 저장 흐름 없이 알림 칸에 글만 넣어 모양을 본다
+  ...each((w, c) => ({ name: `shell-toast-short-${w}-${c}`, path: '/', w, c, shell: true, tab: '내역', toast: '저장했어요' })),
+  ...each((w, c) => ({ name: `shell-toast-long-${w}-${c}`, path: '/', w, c, shell: true, tab: '내역', toast: '저장했어요. 할부 남은 회차는 고정 탭의 할부에 넣었어요. 장보기 연결은 하지 못했어요' })),
   // 이번 장보기 살펴보기(설계 2026-10-21): 지난 장보기 대비, 비싸진·싸진 것, 최근에 또 산 것, 목록에 없던 것. 가짜 과거 영수증 두 번
   ...each((w, c) => ({ name: `shell-smart-compare-${w}-${c}`, path: '/', w, c, shell: true, tab: '내역', receipt: true, compare: true })),
   // 통계 탭 주유 묶음(설계 2026-10-21): 리터당 가격·지난번 대비·추이 그래프·달별. 가짜 주유 기록 3건
@@ -274,10 +282,22 @@ try {
         await page.getByText('이번 장보기 살펴보기').waitFor()
         await page.getByText('지난번보다 비싸진 것').waitFor()
         await page.locator('.cmp-card').scrollIntoViewIfNeeded()
+      } else if (s.draftOff) {
+        await page.locator('.draft-head input').first().waitFor()
+        await page.locator('.draft-head input').first().uncheck()
+        await page.locator('.draft-head').first().evaluate((el) => el.scrollIntoView({ block: 'start' }))
       } else {
         await page.getByText('장보기 목록에서 찾은 품목').waitFor()
         await page.locator('.grocery-match').scrollIntoViewIfNeeded()
       }
+    }
+    if (s.toast) {
+      await page.evaluate((text) => {
+        const t = document.querySelector('.toast')
+        if (!t) throw new Error('알림 칸이 없다')
+        t.textContent = text
+        t.classList.add('on')
+      }, s.toast)
     }
     if (s.bill) {
       await page.locator('.fab, .side-record').locator('visible=true').first().click()

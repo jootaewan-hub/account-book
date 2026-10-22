@@ -15,7 +15,8 @@ const daysAgo = (n) => new Date(kst.getTime() - n * 86_400_000).toISOString().sl
 
 const EXPENSE = ['식비', '외식', '카페', '배달', '장보기', '생활용품', '교통', '차량·주유', '통신', '관리비', '구독', '의료', '문화', '기타']
 const categories = [
-  ...EXPENSE.map((name, i) => ({ id: `c${i}`, household_id: HH, type: 'expense', name, sort: i + 1, archived: false })),
+  // '문화'는 숨긴 분류(설정의 분류 칩이 숨김으로 보이는지 캡처로 본다)
+  ...EXPENSE.map((name, i) => ({ id: `c${i}`, household_id: HH, type: 'expense', name, sort: i + 1, archived: name === '문화' })),
   ...['월급', '부수입', '기타'].map((name, i) => ({ id: `i${i}`, household_id: HH, type: 'income', name, sort: i + 1, archived: false })),
 ]
 const cat = (name, type = 'expense') => categories.find((c) => c.name === name && c.type === type).id
@@ -114,6 +115,10 @@ export const TABLES = {
     { id: 'r4', household_id: HH, kind: 'installment', type: 'expense', title: '냉장고', amount: 100000, day_of_month: 15, every_months: 1,
       category_id: null, payment_method_id: null, scope: 'shared', start_month: '2026-09-01',
       end_month: '2027-01-01', generated_through: null, active: true, memo: null, installment_months: 6, created_by: ME, created_at: ago(50), updated_at: ago(50) },
+    // 꺼 둔 구독 하나(고정 탭에서 꺼짐 표시가 켜진 줄과 구별되는지 캡처로 본다)
+    { id: 'r5', household_id: HH, kind: 'subscription', type: 'expense', title: '헬스장', amount: 55000, day_of_month: 20, every_months: 1,
+      category_id: null, payment_method_id: null, scope: 'husband', start_month: '2026-03-01',
+      end_month: null, generated_through: null, active: false, memo: null, installment_months: null, created_by: ME, created_at: ago(200), updated_at: ago(30) },
   ],
   'public.utility_bills': [],
   'public.fuel_fills': FUEL.map((f, i) => ({ id: `f${i}`, household_id: HH, transaction_id: f.id, liters: f.liters, price_per_liter: f.price_per_liter, fuel_type: f.fuel_type,
