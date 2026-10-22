@@ -108,6 +108,8 @@ npm run screens
     - **안 함(저장소가 배포본보다 앞섬)**: `extract-entries`(140초 마감), `product-search`·`product-check`·`food-info`·`price-recheck`(`_shared/edge.ts` 새 형식 키 먼저), 핀만 바뀐 `food-alerts-sync`·`market-sync`·`tprice-sync`, import 경로만 바뀐 `grocery-photo`(배포하면 `text.ts`도 함께).
       이유: 이 컴퓨터에 Supabase CLI가 없어 MCP로 파일 내용을 손으로 옮겨야 하는데, 22~48KB 파일(프롬프트 포함)은 옮긴 내용을 기계로 대조할 방법이 없다. `extract-entries` 시도 한 번은 deno.json이 빠져 서버가 거절했고 v14가 그대로 돈다.
       배포하려면 사용자가 `npx supabase login` 뒤 `npx supabase functions deploy <이름> --project-ref kifdfpbwiebfgvdumqjf`(config.toml의 verify_jwt를 읽는다)로 저장소 파일을 그대로 올린다. 지금 앱 동작은 이 함수들에 기대지 않는다.
+    - 됨: main fast-forward 병합(7152fc3)·푸시, GitHub Pages 배포 성공(설정의 앱 버전 `7152fc3 · 10-22 10:06`, 장보기 CSS의 출처·시각 줄 말줄임 없어짐 확인). 새로 쓴 `food-alerts-sync.yml`을 main에서 수동 실행: 200 `{"status":"skipped"}`.
+    - 남은 확인(사용자): 앱에서 몰 주소 하나와 자주 가는 매장 저장이 되는지(42501 고친 것의 실제 확인).
 
 ### 사용자 할 일
 
