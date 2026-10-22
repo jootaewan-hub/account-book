@@ -6,7 +6,7 @@ const NOW = 1_792_640_000_000
 const reply = (status: number, body: unknown) => async () => new Response(typeof body === 'string' ? body : JSON.stringify(body), { status })
 
 describe('checkVersion', () => {
-  it('version.json을 매번 다른 주소와 캐시 없이 읽는다(CDN이 10분 동안 예전 파일을 줄 수 있다)', async () => {
+  it('version.json을 매번 다른 주소와 캐시 없이 읽는다(휴대폰 브라우저가 10분 동안 예전 파일을 주지 않게)', async () => {
     const calls: [string, RequestInit | undefined][] = []
     const fetch = (async (url: string, init?: RequestInit) => {
       calls.push([url, init])

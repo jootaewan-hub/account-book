@@ -70,7 +70,7 @@ export function AppCard({ toast, deps }: { toast: (msg: string) => void; deps?: 
     if (r.status === 'failed') return setPhase('failed')
     setLatest(r.latest)
     if (r.status === 'latest') return setPhase('latest')
-    // 방금 새로 받았는데 또 다르면 CDN이 아직 예전 파일을 주는 것이다. 되풀이하지 않고 기다리라고 한다
+    // 방금 새로 받았는데 또 다르면 서버(CDN)가 아직 예전 파일을 주는 것으로 본다(추측). 되풀이하지 않고 기다리라고 한다
     if (d.refreshed()) return setPhase('stale')
     await reload()
   }

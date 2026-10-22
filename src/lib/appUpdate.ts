@@ -1,11 +1,13 @@
 // 설정 '앱' 카드의 새 버전 확인·앱 파일 다시 받기, 홈 화면 설치 안내.
 // virtual:pwa-register를 부르지 않아 시험(Vitest)에서 그대로 쓴다. 서비스 워커 등록과 자동 반영은 pwa.ts.
 //
-// 왜 따로 확인하나: 자동 반영은 서비스 워커가 새 sw.js를 알아챌 때만 일어난다. 홈 화면 앱(iOS)은 그 확인을 드물게 하고,
-// GitHub Pages는 sw.js를 10분 캐시한다(cache-control max-age=600). 그래서 빌드마다 version.json(vite.config.ts)을 두고,
-// 사람이 누르면 그 파일을 캐시 없이 읽어 지금 버전과 견준다. 다르면 서비스 워커와 앱 캐시를 지우고 새 주소로 다시 연다.
+// 왜 따로 확인하나: 자동 반영은 서비스 워커가 새 sw.js를 알아챌 때만 일어나고, 그때가 언제인지 사람이 알 수 없다.
+// 그래서 빌드마다 version.json(vite.config.ts)을 두고, 사람이 누르면 그 파일을 캐시 없이 읽어 지금 버전과 견준다.
+// 다르면 서비스 워커와 앱 캐시를 지우고 새 주소로 다시 연다.
+// GitHub Pages 응답은 cache-control max-age=600이다. 주소 뒤 값(?t=·?u=)은 휴대폰 브라우저 캐시를 건너뛰려는 것이고,
+// GitHub Pages의 CDN(Fastly)은 주소 뒤 값을 무시하고 캐시한다(2026-10-22 확인: 처음 쓰는 ?t= 값에도 age 17초 HIT).
 
-/** 다시 받은 뒤 주소에 붙이는 표시. 처음 탭을 고르기 전에 takeRefreshMark가 지운다 */
+/** 다시 받은 뒤 주소에 붙이는 표시(브라우저 캐시에 남은 예전 index.html을 건너뛴다). 처음 탭을 고르기 전에 takeRefreshMark가 지운다 */
 export const REFRESH_PARAM = 'u'
 
 export type VersionCheck = { status: 'latest' | 'newer'; latest: string } | { status: 'failed' }
@@ -14,7 +16,7 @@ export type VersionCheck = { status: 'latest' | 'newer'; latest: string } | { st
 export async function checkVersion(current: string, opts: { base: string; fetch?: typeof fetch; now?: () => number }): Promise<VersionCheck> {
   const get = opts.fetch ?? fetch
   try {
-    // 같은 주소면 CDN이 10분 동안 예전 파일을 줄 수 있어 매번 다른 주소로 묻는다
+    // no-store와 매번 다른 주소: 휴대폰 브라우저가 10분(max-age=600) 동안 예전 파일을 주지 않게
     const res = await get(`${opts.base}version.json?t=${(opts.now ?? Date.now)()}`, { cache: 'no-store' })
     if (!res.ok) return { status: 'failed' }
     const body = (await res.json()) as { version?: unknown } | null
@@ -36,7 +38,7 @@ export type RefreshDeps = {
 
 /**
  * 앱 파일 다시 받기: 서비스 워커를 내리고 앱 캐시(Cache Storage)를 지운 뒤, 캐시를 건너뛰는 주소로 다시 연다.
- * 로그인(localStorage)과 가계부 기록(서버)은 건드리지 않는다. 누를 때만 부른다(자동으로 부르면 CDN이 예전 파일을 주는 동안 되풀이된다).
+ * 로그인(localStorage)과 가계부 기록(서버)은 건드리지 않는다. 누를 때만 부른다(자동으로 부르면 서버가 예전 파일을 주는 동안 되풀이될 수 있다).
  */
 export async function refreshApp(d: RefreshDeps): Promise<void> {
   try {

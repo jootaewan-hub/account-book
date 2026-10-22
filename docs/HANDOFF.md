@@ -137,7 +137,9 @@ npm run screens
     - 만든 것: 빌드마다 `version.json`(화면 버전과 같은 문자열, 서비스 워커가 미리 받지 않음), 설정 '앱' 카드(지금 버전·업데이트 확인·앱 파일 다시 받기·홈 화면 앱 안내), 매니페스트 "장보기" 바로가기.
     - 확인: 시험 전부 통과(새 시험 `tests/appUpdate.test.ts`·`tests/components/appCard.test.tsx`), 브랜치 `ci.yml` 통과, 빌드 결과 `version.json`과 SettingsView 묶음의 버전 문자열이 같음, `sw.js`에 `version.json` 없음.
       개발 서버 브라우저에서 "앱 파일 다시 받기" → 새 주소로 다시 열림 → 주소의 `u` 표시 지워짐 → 설정 탭에 "앱 파일을 새로 받았어요"(캡처 `shell-settings-app-refreshed-390-*`). 캡처 `shell-settings-app-*`(390·1280, 라이트·다크, 최신 버전 상태, 아이폰 안내) 확인.
-    - 확인 필요: 실제 아이폰 홈 화면 앱에서 서비스 워커를 내리고 다시 여는 것, GitHub Pages CDN이 `?t=`·`?u=`를 다른 주소로 보는지(추측입니다: 그렇다), 홈 화면 앱이 Safari와 로그인 저장 공간을 따로 쓰는지(지금 iOS).
+    - 확인됨: GitHub Pages CDN(Fastly)은 주소 뒤 값을 무시하고 캐시한다(처음 쓰는 `?t=` 값에도 age 17초 HIT). `?t=`·`?u=`는 휴대폰 브라우저 캐시(max-age=600)만 건너뛴다. 배포 직후 새 파일이 곧바로 온 것으로 보아 배포 때 CDN이 비워지는 것으로 보인다(추측입니다).
+    - 확인 필요: 실제 아이폰 홈 화면 앱에서 서비스 워커를 내리고 다시 여는 것, 홈 화면 앱이 Safari와 로그인 저장 공간을 따로 쓰는지(지금 iOS).
+    - 됨: main fast-forward(acf05f9)·푸시, Pages 배포 성공. 운영 `version.json`과 SettingsView 묶음의 버전이 `acf05f9 · 10-22 12:06`으로 같고, `sw.js`에 `version.json`이 없고, 매니페스트에 장보기 바로가기가 있다. 이 기록 고침도 같은 승인으로 main에 올렸다.
     - 바뀐 동작: 안드로이드 크롬의 자동 설치 안내 띠는 이제 뜨지 않는다(`beforeinstallprompt`를 받아 두고 설정의 "홈 화면에 설치"로 띄운다).
 
 ### 사용자 할 일
