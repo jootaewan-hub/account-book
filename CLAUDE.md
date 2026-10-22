@@ -14,7 +14,7 @@
 
 ## 장보기 부분
 
-범위: `src/grocery/`, `tests/grocery/`, `supabase/migrations/*_grocery_*.sql`, Edge Function `food-alerts-sync`·`product-search`·`product-check`·`_shared/`, `.github/workflows/food-alerts-sync.yml`, `docs/grocery/`.
+범위: `src/grocery/`, `tests/grocery/`, `supabase/migrations/*_grocery_*.sql`, Edge Function `food-alerts-sync`·`market-sync`·`tprice-sync`·`price-recheck`·`product-search`·`product-check`·`grocery-photo`·`food-info`·`_shared/`, `.github/workflows/`의 `food-alerts-sync`·`market-sync`·`tprice-sync`·`price-recheck` 워크플로, `docs/grocery/`.
 
 장보기 일을 시작하기 전에 `docs/grocery/tracking/status.md`(현재 단계·열린 문제)와 `docs/grocery/tracking/decisions/index.md`(결정 기록, 이 저장소 전체의 결정 기록으로 쓴다)를 본다. 외부 데이터를 붙이기 전에는 `docs/grocery/data-sources.md`의 "확인된 사실"과 "확인 필요"를 본다. 화면 규칙의 장보기 확장분은 `docs/grocery/DESIGN.md`에 있다.
 

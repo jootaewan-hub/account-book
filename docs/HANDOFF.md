@@ -1,4 +1,11 @@
-# 인수인계: 로컬(PC·맥북)에서 이어서 하기 (2026-10-19 클라우드 세션 끝)
+# 인수인계
+
+> **지금 상태(2026-10-22)**: 아래 1~4절은 2026-10-19 클라우드 → 로컬로 넘어올 때의 기록이라 브랜치·시험 수·결정 범위가 낡았다(지금 결정은 D-023까지, 시험은 `npm test` 전부 통과가 기준).
+> 현재 진행은 `docs/grocery/tracking/status.md` 맨 위, 배포·적용 기록은 이 문서 5절이다. 로컬 준비는 README "처음 설정 4. 실행"을 따른다:
+> `.nvmrc`의 Node 22, `npm ci`, `npm run dev`(포트 5188 고정, `vite.config.ts`), `npm run typecheck`·`npm run lint`·`npm test`, 화면 캡처는 `npm run screens`(기본 주소 5188).
+> 브랜치에 푸시하면 `.github/workflows/ci.yml`이 타입 검사·린트·Edge Function `deno check`·시험·빌드를 돈다.
+
+## (기록) 로컬(PC·맥북)에서 이어서 하기 (2026-10-19 클라우드 세션 끝)
 
 클라우드 세션에서 하던 일을 로컬 Claude Code로 이어 가기 위한 메모다. 규칙은 `CLAUDE.md`, 진행 상황은 `docs/grocery/tracking/status.md`,
 남은 계획은 `docs/superpowers/plans/2026-10-19-remaining-work.md`, 결정은 `docs/grocery/tracking/decisions/index.md`(D-001~D-013)에 있다.

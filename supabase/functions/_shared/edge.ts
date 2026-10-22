@@ -18,10 +18,19 @@ export function withCors(res: Response): Response {
 const URL_ = Deno.env.get('SUPABASE_URL')!
 const noSession = { auth: { persistSession: false, autoRefreshToken: false } }
 
-export const admin: SupabaseClient = createClient(URL_, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!, noSession)
+/** 새 형식 키(SUPABASE_SECRET_KEYS·SUPABASE_PUBLISHABLE_KEYS의 default)를 먼저, 없으면 예전 형식 키. export-csv·extract-entries와 같다 */
+function envKey(json: string, legacy: string): string {
+  try {
+    const v = (JSON.parse(Deno.env.get(json) ?? '{}') as Record<string, string>).default
+    if (v) return v
+  } catch { /* 예전 형식 키로 넘어간다 */ }
+  return Deno.env.get(legacy) ?? ''
+}
+
+export const admin: SupabaseClient = createClient(URL_, envKey('SUPABASE_SECRET_KEYS', 'SUPABASE_SERVICE_ROLE_KEY'), noSession)
 
 export function userClient(req: Request): SupabaseClient {
-  return createClient(URL_, Deno.env.get('SUPABASE_ANON_KEY')!, {
+  return createClient(URL_, envKey('SUPABASE_PUBLISHABLE_KEYS', 'SUPABASE_ANON_KEY'), {
     ...noSession,
     global: { headers: { Authorization: req.headers.get('Authorization') ?? '' } },
   })

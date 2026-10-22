@@ -86,6 +86,9 @@
 | `tests/categorize.test.ts` | 이름·상품명으로 분류 제안, 가게 이름 정리 검증 |
 | `tests/fuel.test.ts` | 주유소 영수증 값 정리(`checkFuel`)·다시 읽기 선택, 주유 초안·분류, 지난번 대비(같은 유종)·달별·간격·추이 계산 검증 |
 | `tests/shop-compare.test.ts` | 이번 장보기 살펴보기: 이름 맞추기, 100g·100ml당 값 비교, 최근 구매 기준, 장보기 묶음, 목록에 없던 것 검증 |
+| `tests/*.test.ts` (그 밖) | 순수 계산 시험: 달력·공휴일·음력(`calendar`), 콘텐츠 보안 정책(`csp`), 금액 키패드(`keypad`), 플랫폼·용량 단위(`platform-units`), 고정 항목 아이콘(`recurring-icon`), 시트 스크롤 잠금(`scroll-lock`), 구독 로고(`services`), 관리비 고지서·나눠 보내기(`bills-batches`) |
+| `scripts/shell-fixtures.mjs` | 화면 캡처의 가계부 셸이 쓰는 가짜 Supabase 응답(가구·내역·고정 항목·영수증 분석 결과 등) |
+| `supabase/functions/market-sync/` | 농수산물 시세(공공데이터포털 15156057) 수집(매일 07:10 `.github/workflows/market-sync.yml`, 로그인 없이 부르되 20시간 1회·30분 잠금) |
 | `tests/components/` | 화면 시험(jsdom + Testing Library, 파일 맨 위 `// @vitest-environment jsdom`): 대화상자 공통 동작, ErrorBoundary |
 | `.oxlintrc.json` | 린트 규칙(oxlint). React 훅 규칙·접근성(jsx-a11y)·느슨한 비교. TypeScript 7은 JS API가 없어 typescript-eslint를 쓸 수 없다 |
 | `.github/workflows/ci.yml`, `.github/dependabot.yml` | main이 아닌 브랜치·PR에서 타입 검사·린트·시험·빌드(묶음 크기를 요약에 적음). 의존성 갱신 PR은 매주 월요일 |

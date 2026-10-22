@@ -1,12 +1,18 @@
 # 현재 상태
 
-> **이어서 하기(2026-10-19 클라우드 세션 끝)**: `docs/HANDOFF.md`를 먼저 본다. 다음은 P3-1(몰 상품 페이지 읽기)이다.
+> **지금(2026-10-22)**: P1~P9·D-020~D-022까지 배포됐다. 브랜치 `claude/structure-upgrade`에 앱 구조 정리(D-023)가 있고, 공유 DB 적용(`20261101000000_grocery_upsert_grants`)·함수 배포(export-csv·extract-entries)·main 병합은 사용자 확인 대기다.
+> 배포·적용 기록은 `docs/HANDOFF.md` 5절, 결정은 `decisions/index.md`, 아래 "열린 문제"가 남은 일이다. 시험은 `npm test` 전부 통과가 기준이다(개수는 적지 않는다).
 
 > 2026-10-19부터 장보기는 가계부 저장소(jootaewan-hub/account-book) 안의 '장보기' 탭이다(D-010). 이 문서는 장보기 저장소(jootaewan-hub/grocery-app)에서 옮겨 왔고,
 > 아래 "된 것"의 경로(`docs/…`, `src/…`, `tests/…`)는 장보기 저장소 때 경로다. 지금 위치는 `docs/grocery/…`, `src/grocery/…`, `tests/grocery/…`이고
 > 마이그레이션·Edge Function은 이름 그대로 `supabase/` 아래에 있다.
 
 ## 된 것 (2026-10-19, 통합 1단계)
+
+- 앱 구조 정리(D-023, 2026-10-22, 브랜치 `claude/structure-upgrade`): 네 갈래 점검(프런트 구조·화면 접근성·백엔드·도구) 뒤 고친 것.
+  장보기 쪽: 시트 8개의 Esc·Tab·스크롤 잠금·포커스 복귀를 `src/lib/dialog.ts` 하나로, 목록 이름을 버튼으로(키보드로 상세), 상세 탭 `aria-selected`, 실시간 알림 250ms 묶기,
+  브라우저 번들에서 zod·모델 지시문 제거(`supabase/functions/grocery-photo/text.ts`), 목록 줄 출처·확인 시각이 말줄임으로 잘리던 것(12px·128px·말줄임 → 13px·줄바꿈), 12px 글자 13px로.
+  DB: 몰 주소·자주 가는 매장 저장이 데이터 API upsert에서 42501로 거절되던 칸 권한(`20261101000000_grocery_upsert_grants.sql`, PostgREST 모양 시험 2개는 마이그레이션 없이 실패하는 것을 확인). 공유 DB의 `shop_links`·`household_prefs`는 0행이었다(저장이 한 번도 안 된 것과 맞음).
 
 - 주유 영수증 분석과 이번 장보기 살펴보기(D-021·D-022, 2026-10-21 저녁, 브랜치 `claude/fuel-and-grocery-compare`, 설계 `docs/superpowers/specs/2026-10-21-fuel-and-grocery-compare-design.md`, 계획 `docs/superpowers/plans/2026-10-21-fuel-and-grocery-compare.md`):
   마이그레이션 `20261031000000_fuel_fills.sql`(public, PGlite 시험), `extract-entries`의 `fuel` 스키마·`checkFuel`·원단위 절사 규칙·`preferRetry`, `src/lib/fuel.ts`(지난번 대비·달별·간격·추이), `FuelCard`(통계)·확인 화면 주유 칸·내역 행 표시, `src/lib/shopCompare.ts`(이름 맞추기·용량당 값·최근 구매·장보기 묶음)와 `ShopCompareCard`.
@@ -157,6 +163,17 @@
 - Supabase 프로젝트: 가계부 프로젝트를 공유하므로 새로 만들지 않는다(D-003).
 
 ## 열린 문제
+
+- (2026-10-22, D-023 점검에서 미룬 것) 아래는 확인했지만 이번 브랜치에서 고치지 않았다. 조건과 고칠 방향을 함께 적는다.
+  - RLS 정책이 행마다 `private.is_household_member(household_id)`(SECURITY DEFINER)를 부른다. 행의 칸을 넘기므로 한 번만 계산되지 않는다. 지금은 내역 70행이라 체감이 없다. 행이 수천을 넘어 목록·통계가 느려지면 `private.my_household_id()`(stable)로 `household_id = (select …)` 모양으로 바꾼다(public·grocery 정책 전부라 따로 계획).
+  - 품목 상세를 열면 탭과 상관없이 16~25건을 읽는다(`ItemDetail.tsx`). product_id를 `supabaseStore.ts` 6곳에서 다시 읽고, 영양·원재료는 가구 전체 행을 받아 하나를 고른다. 상세가 느리다고 느껴지면 탭을 열 때만 읽게 나눈다.
+  - Supabase 클라이언트에 DB 타입(Database)이 없어 `as unknown as`가 5곳 있다. MCP `generate_typescript_types`로 만들어 `createClient<Database>`로 바꾸면 칸 이름이 어긋날 때 컴파일러가 잡는다.
+  - `public.fuel_fills`는 표 전체 update 권한이고 insert 정책에 `created_by = auth.uid()`가 없다(transactions와 다름). 가구 안 두 사람만 쓰므로 위험은 낮다. 다음 public 마이그레이션 때 칸 권한·정책을 transactions와 맞춘다.
+  - `grocery.set_item_nutrition`·`set_item_ingredients`의 주석은 "RLS로 확인"이지만 서비스 롤로 불려 RLS가 걸리지 않는다. 실제 확인은 `food-info/handle.ts`의 `allowedItem` 하나다. 지금 다른 가구로 가는 길은 없다. 함수 안에서도 `p_user`의 가구 소속을 확인하게 바꾼다.
+  - 공개 저장소는 60일 동안 활동이 없으면 GitHub이 예약 워크플로(식약처·시세·참가격·가격 다시 확인)를 끈다(GitHub 문서 기준, 이 저장소에서 겪지는 않음). 동기화가 멈추면 목록의 "확인 상태" 줄이 48시간 뒤 알린다. 그때 Actions에서 다시 켠다.
+  - `grocery.price_quotes`에 기본키가 없다(성능 점검 INFO). 표가 커지면 식별 칸을 더한다. 외래키 색인 없음 INFO 22건은 상품을 지울 때만 영향이 있다.
+  - 예전 형식 키(`SUPABASE_SERVICE_ROLE_KEY`·`SUPABASE_ANON_KEY`)만 읽는 함수: `_shared/edge.ts`는 이번에 새 형식(`SUPABASE_SECRET_KEYS`·`SUPABASE_PUBLISHABLE_KEYS`)을 먼저 읽게 고쳤고(다음 배포부터), 수집 함수 4개(`food-alerts-sync`·`market-sync`·`tprice-sync`·`price-recheck`의 index.ts)는 그대로다. 대시보드에서 예전 키를 끄면 이 넷이 깨질 수 있다(추측입니다). 끄기 전에 같은 방식으로 바꾼다.
+  - 화면: 44px보다 작은 누르는 곳(오늘 버튼 32px, 칩 34px, 구분 버튼 36px, 사진 빼기 28px), 입력칸 테두리 대비 1.22:1, 달력 칸의 "123만"(10.5px 한글)은 그대로다. 글꼴 624KB를 미리 불러오지 않는다(서비스 워커가 캐시해 첫 방문에만 영향).
 
 - (2026-10-21) 긴 종이 영수증(30줄 넘음)은 Haiku가 상품 이름을 많이 틀린다(뉴코아 영수증 32줄 중 10줄쯤: 복음자리→볼음자리, 동원→통원, 켈로그→첼로그, 자연별곡→지연빌곡 등). 합계가 안 맞을 때만 Sonnet으로 다시 읽고, 이제 둘 다 안 맞아도 Sonnet 결과를 쓴다(D-021). 그래도 틀리면 줄 수가 많은 영수증은 처음부터 Sonnet으로 읽을지 정한다(비용은 사진당 몇 배). 이름이 틀리면 "이번 장보기 살펴보기"가 같은 상품을 못 찾는다.
 - (2026-10-21) 같은 종류의 장보기가 다른 분류·모양으로 들어간다: 10월 14일 영수증은 상품마다 내역(분류 식비), 10월 21일은 한 내역(분류 장보기). 가게 이름은 나눈 내역에 남지 않는다. 살펴보기는 created_at 묶음으로 둘 다 "한 번의 장보기"로 보지만, 통계의 분류별 지출은 식비·장보기로 갈린다. 영수증을 나눌 때 가게 이름을 메모나 플랫폼 칸에 남길지, 분류 제안을 '장보기'로 통일할지 정한다.
