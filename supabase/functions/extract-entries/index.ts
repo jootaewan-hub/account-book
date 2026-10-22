@@ -24,6 +24,11 @@ const SHOP_MODEL = 'claude-sonnet-5-5'
 // 관리비 고지서: 작은 글씨의 표를 정확히 읽어야 해서 Sonnet 5.5
 const BILL_MODEL = 'claude-sonnet-5-5'
 
+// Edge Function 시간 제한(무료 요금제 150초)보다 먼저 스스로 멈춘다. 플랫폼이 끊으면 CORS 없는 응답이 가서 앱에는 원인 모를 오류로 보인다.
+// 마감은 요청 시작부터 잰다(SDK의 한 번 재시도까지 포함). 큰 모델로 다시 읽기는 남은 시간이 넉넉할 때만 한다.
+const DEADLINE_MS = 140_000
+const RETRY_MIN_LEFT_MS = 60_000
+
 const cors = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -117,7 +122,7 @@ function parseInput(body: unknown): Input | string {
   return '요청 형식이 잘못됐어요.'
 }
 
-async function extract(client: Anthropic, model: string, input: Input, categories: string[]) {
+async function extract(client: Anthropic, model: string, input: Input, categories: string[], signal: AbortSignal) {
   const sizes: ImageSize[] = input.kind === 'image' ? input.images.map(({ width, height }) => ({ width, height })) : []
   const shop = input.kind === 'image' && input.mode === 'shop'
   const userText = buildUserText({
@@ -134,7 +139,7 @@ async function extract(client: Anthropic, model: string, input: Input, categorie
     system: SYSTEM_PROMPT,
     messages: [{ role: 'user', content }],
     output_config: { effort: shop ? 'medium' : 'low', format: zodOutputFormat(ResultSchema) },
-  })
+  }, { signal })
   if (res.stop_reason === 'refusal') return { refused: true as const, usage: res.usage }
   if (!res.parsed_output) throw new Error(`no_parsed_output (stop_reason=${res.stop_reason})`)
   // 실제로 응답한 모델 (요청한 이름과 다르면 로그로 알 수 있게)
@@ -146,14 +151,14 @@ function imageBlocks(images: Img[]): Anthropic.ContentBlockParam[] {
   return images.map((im) => ({ type: 'image', source: { type: 'base64', media_type: im.media_type, data: im.data } }))
 }
 
-async function extractBill(client: Anthropic, input: Extract<Input, { kind: 'image' }>) {
+async function extractBill(client: Anthropic, input: Extract<Input, { kind: 'image' }>, signal: AbortSignal) {
   const res = await client.messages.parse({
     model: BILL_MODEL,
     max_tokens: 8000,
     system: BILL_PROMPT,
     messages: [{ role: 'user', content: [...imageBlocks(input.images), { type: 'text', text: buildBillText(input.today, input.images.length) }] }],
     output_config: { effort: 'low', format: zodOutputFormat(BillSchema) },
-  })
+  }, { signal })
   if (res.stop_reason === 'refusal') return null
   if (!res.parsed_output) throw new Error(`no_parsed_output (stop_reason=${res.stop_reason})`)
   console.log('bill_ok', BILL_MODEL, '->', res.model, res.usage.input_tokens, res.usage.output_tokens)
@@ -163,6 +168,8 @@ async function extractBill(client: Anthropic, input: Extract<Input, { kind: 'ima
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors })
   if (req.method !== 'POST') return fail('method_not_allowed', 'POST만 받아요.', 405)
+  const started = Date.now()
+  const left = () => DEADLINE_MS - (Date.now() - started)
 
   const jwt = req.headers.get('Authorization')?.replace(/^Bearer\s+/i, '') ?? ''
   if (!jwt) return fail('unauthorized', '로그인이 필요해요.', 401)
@@ -202,18 +209,24 @@ Deno.serve(async (req) => {
   const client = anthropicFor(userId, jwt)
   if (!client) return fail('ai_not_configured', 'AI 연결 설정이 아직 안 됐어요.', 503)
 
+  const signal = AbortSignal.timeout(Math.max(1_000, left()))
   try {
     if (input.kind === 'image' && input.mode === 'bill') {
-      const out = await extractBill(client, input)
+      const out = await extractBill(client, input, signal)
       if (!out) return fail('refused', '이 사진은 읽을 수 없어요. 직접 입력해 주세요.', 422)
       return json(out)
     }
     const first = input.kind === 'image' && input.mode === 'shop' ? SHOP_MODEL : PRIMARY_MODEL
-    let out = await extract(client, first, input, categories)
-    // 품목 합계가 결제 금액과 안 맞으면 더 큰 모델로 한 번 더 읽는다. 둘 다 안 맞아도(원단위 절사 등) 큰 모델 결과를 쓴다
+    let out = await extract(client, first, input, categories, signal)
+    // 품목 합계가 결제 금액과 안 맞으면 더 큰 모델로 한 번 더 읽는다. 둘 다 안 맞아도(원단위 절사 등) 큰 모델 결과를 쓴다.
+    // 남은 시간이 짧으면 다시 읽지 않고 첫 결과를 보낸다(합계가 안 맞는다는 확인 문장은 그대로 붙는다)
     if (!out.refused && hasItemMismatch(out.entries) && RETRY_MODEL !== first) {
-      const second = await extract(client, RETRY_MODEL, input, categories)
-      if (!second.refused && preferRetry(out.entries, second.entries) === second.entries) out = second
+      if (left() >= RETRY_MIN_LEFT_MS) {
+        const second = await extract(client, RETRY_MODEL, input, categories, signal)
+        if (!second.refused && preferRetry(out.entries, second.entries) === second.entries) out = second
+      } else {
+        console.log('retry_skipped_deadline', Date.now() - started)
+      }
     }
     if (out.refused) return fail('refused', '이 내용은 읽을 수 없어요. 직접 입력해 주세요.', 422)
     const entries: CheckedEntry[] = out.entries
@@ -223,6 +236,11 @@ Deno.serve(async (req) => {
       // 토큰 교환 거절: 클라이언트가 세션을 새로 고친 뒤 한 번 다시 시도한다
       console.error('wif_exchange_failed', e.statusCode, e.requestId, e.message)
       return fail('wif_denied', 'AI 연결 인증에 실패했어요.', 502)
+    }
+    if (e instanceof Anthropic.APIUserAbortError) {
+      // 마감(DEADLINE_MS)에 걸려 멈춤
+      console.error('extract_deadline', Date.now() - started)
+      return fail('timeout', '읽는 데 시간이 너무 걸렸어요. 사진 장수를 줄여 다시 해 주세요.', 504)
     }
     if (e instanceof Anthropic.APIError) {
       console.error('anthropic_error', e.status, e.requestID, e.message)
