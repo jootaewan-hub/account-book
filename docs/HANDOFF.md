@@ -120,6 +120,14 @@ npm run screens
     - 확인 필요: 원격 모듈이 배포할 때 묶음(eszip)에 함께 들어가는지. 들어가지 않으면 함수가 처음 뜰 때 GitHub raw에 기대게 된다(추측입니다: 묶음 형식은 모듈 그래프 전체를 넣게 돼 있다).
     - 그대로 둔 것: `grocery-photo`(import 경로만 바뀜), 핀만 바뀐 `food-alerts-sync`·`market-sync`·`tprice-sync`.
 
+17. 몰 주소 자동 찾기(D-024) 운영 반영(2026-10-22 11:00 KST 무렵, 사용자 승인): 브랜치 `claude/shop-find` 푸시 → `ci.yml` 통과.
+    - 됨: MCP `apply_migration`(`grocery_shop_finds`). RLS 켜짐, 정책은 구성원 읽기 하나, authenticated는 SELECT만, 쓰기는 service_role만. 보안 점검은 적용 전과 같은 항목뿐이다.
+    - 됨: `shop-find` v1(verify_jwt true, `deno.json` import map 함께)을 커밋 고정 stub `b519232dd6e768354f2d5be6ae8f2b559c8e6cbb`로 배포. OPTIONS 204 `POST, OPTIONS`(함수 코드 응답), 로그인 없는 POST 401.
+    - 됨: main fast-forward 병합·푸시(Pages 배포).
+    - 남은 확인(첫 실제 사용): 앱에서 상품 하나를 고른 뒤 로그 `shop_find_search`(검색 수·토큰 수·결과 주소)와 `grocery.shop_finds` 행. 확인 필요: WIF 토큰으로 웹 검색이 되는지(안 되면 `search_disabled`나 `wif_denied`로 남는다), `homeplus.co.kr`이 mfront·front 결과를 포함하는지, 한국어 검색 품질.
+    - 비용: 상품 하나에 검색 4번 이하(1,000번에 10달러, 2026-10-22 문서)와 토큰. 같은 상품은 다시 찾지 않는다. 이 기능 전에 고른 상품은 품목 상세를 처음 열 때 한 번 찾는다.
+    - 되돌리기: 함수를 지우거나(앱은 실패를 조용히 넘긴다) stub 해시를 바꿔 다시 올린다. 표는 남겨도 앱 동작에 영향이 없다.
+
 ### 사용자 할 일
 
 - ~~공공데이터포털 식품영양성분DB(15127578) 활용신청~~ 2026-10-20 마침(사용자). 같은 키로 통하는지는 성분 탭 첫 호출로 확인.

@@ -11,7 +11,7 @@
 
 - 몰 주소 자동 찾기(D-024, 2026-10-22, 브랜치 `claude/shop-find`): Edge Function `shop-find`(verify_jwt true, Claude 웹 검색 → 결과 주소만 → 페이지 직접 읽기 → 이름·용량 견주기), `_shared/shopFind.ts`(시험 10개), `shop-find/handle.ts`(시험 12개),
   마이그레이션 `20261102000000_grocery_shop_finds.sql`(PGlite 시험 4개), 화면: 상품을 고르면 목록에서 부르고 품목 상세 가격 탭을 열 때도 한 번(찾는 중 4초마다 다시 읽기), "자동으로 찾음" 표시, "같은 상품인지 확인해 주세요" 후보와 "이 상품이에요".
-  캡처 grocery-item-detail-find(-auto)(390·1280, 라이트·다크) 확인. 공유 DB 적용·함수 배포·main 병합은 사용자 확인 뒤. 첫 실제 호출로 확인할 것: WIF로 웹 검색이 되는지, 홈플러스 하위 도메인 결과가 오는지, 한국어 검색 품질.
+  캡처 grocery-item-detail-find(-auto)(390·1280, 라이트·다크) 확인. 2026-10-22 사용자 승인 뒤 운영 반영: 공유 DB에 `grocery_shop_finds` 적용, `shop-find` v1을 커밋 고정 stub(`b519232`)으로 배포, main 병합(기록 `docs/HANDOFF.md` 5절 17). 첫 실제 호출로 확인할 것: WIF로 웹 검색이 되는지, 홈플러스 하위 도메인 결과가 오는지, 한국어 검색 품질.
 
 - 앱 구조 정리(D-023, 2026-10-22, 브랜치 `claude/structure-upgrade`): 네 갈래 점검(프런트 구조·화면 접근성·백엔드·도구) 뒤 고친 것.
   장보기 쪽: 시트 8개의 Esc·Tab·스크롤 잠금·포커스 복귀를 `src/lib/dialog.ts` 하나로, 목록 이름을 버튼으로(키보드로 상세), 상세 탭 `aria-selected`, 실시간 알림 250ms 묶기,
