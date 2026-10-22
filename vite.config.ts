@@ -21,6 +21,21 @@ export default defineConfig({
   plugins: [
     react(),
     {
+      // 설정 '앱' 카드의 업데이트 확인이 캐시 없이 읽는 최신 버전(src/lib/appUpdate.ts). __APP_VERSION__과 같은 값이다.
+      // json은 아래 globPatterns에 없어 서비스 워커가 미리 받지 않는다(늘 서버에서 읽는다). 개발 서버도 같은 값을 준다(화면 캡처용).
+      name: 'app-version-file',
+      configureServer(server) {
+        server.middlewares.use(`${base}version.json`, (_req, res) => {
+          res.setHeader('content-type', 'application/json; charset=utf-8')
+          res.setHeader('cache-control', 'no-store')
+          res.end(JSON.stringify({ version: appVersion }))
+        })
+      },
+      generateBundle() {
+        this.emitFile({ type: 'asset', fileName: 'version.json', source: JSON.stringify({ version: appVersion }) })
+      },
+    },
+    {
       name: 'csp-meta',
       apply: 'build',
       transformIndexHtml: (html) => html.replace('<head>', `<head>\n    <meta http-equiv="Content-Security-Policy" content="${CSP}" />`),
@@ -43,6 +58,8 @@ export default defineConfig({
           { src: 'icon-512.png', sizes: '512x512', type: 'image/png' },
           { src: 'icon-maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
         ],
+        // 안드로이드에서 앱 아이콘을 길게 누르면 보이는 바로가기. 주소로 여는 탭은 장보기뿐이다(App.tsx initialTab)
+        shortcuts: [{ name: '장보기', short_name: '장보기', url: `${base}?tab=grocery`, icons: [{ src: 'icon-192.png', sizes: '192x192', type: 'image/png' }] }],
       },
       workbox: {
         navigateFallback: `${base}index.html`,

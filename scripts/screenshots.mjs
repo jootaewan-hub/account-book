@@ -26,6 +26,7 @@ const SHEET_TEXT = '비비고 왕교자 1.05kg x2\n우유 900ml\n대파\n고추�
 const LONG_LINE = '[무료배송] 풀무원 국산콩 두부 부침용 300g 2개입 + 찌개용 300g 2개입 냉장 신선 묶음 기획 특가 세트'
 const SPLIT_TEXT = '양파 당근 감자 비비고 왕교자 파'
 const G = '/?demo=grocery'
+const IPHONE_UA = 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1'
 // 1x1 JPEG 한 장(사진·캡처 읽기 장면용, 내용은 쓰지 않는다: 데모 저장소가 가짜 값을 돌려준다)
 const TINY_JPEG = Buffer.from('/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRofHh0aHBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/wAALCAABAAEBAREA/8QAFAABAAAAAAAAAAAAAAAAAAAACf/EABQQAQAAAAAAAAAAAAAAAAAAAAD/2gAIAQEAAD8AKp//2Q==', 'base64')
 
@@ -132,6 +133,13 @@ const shellShots = [
   // 꺼 둔 구독 줄(고정 탭), 숨긴 분류 칩(설정)이 켜진 것과 구별되는지
   // (휴대폰 고정 탭의 꺼 둔 줄은 shell-fixed-390-*의 전체 화면에서 본다. 설정의 분류 칩은 휴대폰에서 아래 탭에 가려 넓은 화면만)
   ...both(1280, (w, c) => ({ name: `shell-settings-cats-${w}-${c}`, path: '/', w, c, shell: true, tab: '설정' })),
+  // 설정 '앱' 카드: 지금 버전·업데이트 확인·홈 화면 앱 안내. 휴대폰은 아래 탭에 가리지 않게 카드를 가운데로 둔다.
+  // 개발 서버도 version.json을 주므로(vite.config.ts) 누르면 '최신 버전' 상태가 된다. ua: 아이폰 Safari로 열어 공유 메뉴 안내를 본다
+  ...each((w, c) => ({ name: `shell-settings-app-${w}-${c}`, path: '/', w, c, shell: true, tab: '설정', center: '.app-card' })),
+  ...both(390, (w, c) => ({ name: `shell-settings-app-latest-${w}-${c}`, path: '/', w, c, shell: true, tab: '설정', press: '업데이트 확인', pressWait: '지금이 최신 버전이에요.', center: '.app-card' })),
+  ...both(390, (w, c) => ({ name: `shell-settings-app-ios-${w}-${c}`, path: '/', w, c, shell: true, tab: '설정', ua: IPHONE_UA, center: '.app-card' })),
+  // 앱 파일 다시 받기를 누르면 새 주소(?u=)로 다시 열리고, 표시를 지운 뒤 설정 탭에서 '새로 받았어요'가 보여야 한다(개발 서버라 서비스 워커는 없다)
+  ...both(390, (w, c) => ({ name: `shell-settings-app-refreshed-${w}-${c}`, path: '/', w, c, shell: true, tab: '설정', press: '업데이트 확인', pressWait: '지금이 최신 버전이에요.', refreshFlow: true, center: '.app-card' })),
   // 알림(토스트): 짧은 문장과 줄이 바뀌는 긴 문장. 저장 흐름 없이 알림 칸에 글만 넣어 모양을 본다
   ...each((w, c) => ({ name: `shell-toast-short-${w}-${c}`, path: '/', w, c, shell: true, tab: '내역', toast: '저장했어요' })),
   ...each((w, c) => ({ name: `shell-toast-long-${w}-${c}`, path: '/', w, c, shell: true, tab: '내역', toast: '저장했어요. 할부 남은 회차는 고정 탭의 할부에 넣었어요. 장보기 연결은 하지 못했어요' })),
@@ -217,6 +225,7 @@ try {
         colorScheme: s.c,
         reducedMotion: 'reduce', // 캡처가 움직임 중간에 찍히지 않게
         locale: 'ko-KR',
+        ...(s.ua ? { userAgent: s.ua, hasTouch: true, isMobile: true } : {}),
       })
       // 장보기 데모도 실제 서버로 나가는 요청이 없어야 한다. 셸이 아니어도 가로채 둔다
       await fakeSupabase(context, s)
@@ -258,6 +267,15 @@ try {
         await page.locator('.market-now-name', { hasText: s.chip }).waitFor()
       }
       if (s.scroll) await page.locator(s.scroll).first().scrollIntoViewIfNeeded()
+      if (s.press) await page.getByRole('button', { name: s.press, exact: true }).click()
+      if (s.pressWait) await page.getByText(s.pressWait).waitFor()
+      if (s.refreshFlow) {
+        await page.getByRole('button', { name: '앱 파일 다시 받기' }).click()
+        await page.getByText('앱 파일을 새로 받았어요.').waitFor()
+        if (new URL(page.url()).searchParams.has('u')) problems.push(`${s.name}: 주소에 다시 받기 표시(u)가 남았다`)
+        if (!(await page.locator('.app-card').isVisible())) problems.push(`${s.name}: 다시 연 뒤 설정 탭이 아니다`)
+      }
+      if (s.center) await page.locator(s.center).first().evaluate((el) => el.scrollIntoView({ block: 'center' }))
       if (s.where) await page.getByRole('button', { name: '어디서 살지' }).click()
       if (s.record) {
         await page.locator('.fab, .side-record').locator('visible=true').first().click()

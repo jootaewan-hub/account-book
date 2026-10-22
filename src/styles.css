@@ -444,7 +444,13 @@ input[type="search"].input { -webkit-appearance: none; appearance: none; }
 .split-toggle { font-size: 14px; color: var(--ink-2); align-items: flex-start; }
 .update-bar { position: fixed; z-index: 70; left: 50%; transform: translateX(-50%); top: calc(8px + env(safe-area-inset-top, 0px)); background: var(--primary); color: var(--on-primary); border: 0; border-radius: 22px; padding: 10px 16px; font-size: 14px; font-weight: 700; white-space: nowrap; max-width: calc(100% - 32px); }
 .update-bar:active { transform: translateX(-50%) scale(.97); }
-.app-version { text-align: center; font-size: 12px; color: var(--ink-3); margin: 4px 0 0; }
+/* 설정 '앱' 카드(AppCard.tsx): 업데이트 확인 결과 줄, 앱 파일 다시 받기 */
+.app-status { margin: 10px 0 0; font-size: 14px; color: var(--ink-2); }
+.app-status:empty { margin: 0; }
+.app-reset { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; margin: 10px 0 4px; }
+.app-reset .link-btn { margin: -10px -6px; }
+.app-install { margin-top: 12px; }
+.app-card .note { margin-bottom: 4px; }
 .thumb-btn { position: relative; border: 0; padding: 0; background: none; width: 44px; height: 44px; }
 .thumb-x { position: absolute; top: -4px; right: -4px; width: 18px; height: 18px; border-radius: 50%; background: var(--primary); color: var(--on-primary); font-size: 12px; line-height: 18px; text-align: center; }
 

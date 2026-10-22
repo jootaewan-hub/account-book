@@ -13,6 +13,7 @@ import { Onboarding } from './components/Onboarding'
 import type { SmartMode } from './components/SmartSheet'
 import { useLedgerMeta, useLiveUpdates, useMonthEvents, useMonthTransactions } from './hooks/useLedger'
 import { deleteTransaction, friendlyError, generateRecurring, insertInstallmentPurchase, insertTransaction, updateSpouseRole, updateTransaction } from './lib/api'
+import { wasRefreshed } from './lib/appUpdate'
 import { addMonths, parseYM, todayLocal } from './lib/dates'
 import { makeLookup, SCOPE_LABEL } from './lib/lookup'
 import { onUpdateReady, updateReady } from './lib/pwa'
@@ -92,8 +93,9 @@ function Home({ userId, email }: { userId: string; email: string }) {
 
 type Tab = 'cal' | 'list' | 'grocery' | 'stats' | 'fixed' | 'settings'
 
-/** 처음 열 탭: ?tab=grocery(예전 장보기 주소의 안내 페이지가 여기로 보낸다). 다른 값은 무시한다 */
+/** 처음 열 탭: ?tab=grocery(예전 장보기 주소의 안내 페이지가 여기로 보낸다). 다른 값은 무시한다. 설정에서 앱 파일을 다시 받았으면 설정 */
 function initialTab(): Tab {
+  if (wasRefreshed()) return 'settings'
   return new URLSearchParams(window.location.search).get('tab') === 'grocery' ? 'grocery' : 'cal'
 }
 

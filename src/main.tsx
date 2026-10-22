@@ -1,6 +1,7 @@
 import { StrictMode, type CSSProperties, type ReactNode } from 'react'
 import { createRoot } from 'react-dom/client'
 import App from './App'
+import { takeRefreshMark } from './lib/appUpdate'
 import { startPwa } from './lib/pwa'
 import './styles.css'
 
@@ -31,6 +32,9 @@ async function devScreen(mode: string | null): Promise<ReactNode | null> {
   const dev = { barcode: new URLSearchParams(window.location.search).get('barcode') ?? undefined }
   return <main className="wrap" style={noTabbar}><div className="grocery"><GroceryHome store={store} market={market} me={d.me} ledger={{ categories, onRecorded: () => {} }} dev={dev} /></div></main>
 }
+
+// 설정에서 '앱 파일 다시 받기'를 하고 열린 것이면 주소의 표시를 지운다(처음 탭을 고르기 전에)
+takeRefreshMark()
 
 const root = createRoot(document.getElementById('root')!)
 const show = (screen: ReactNode) => root.render(<StrictMode>{screen}</StrictMode>)
