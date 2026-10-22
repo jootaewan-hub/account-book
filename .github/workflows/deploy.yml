@@ -33,7 +33,7 @@ jobs:
           # Supabase 공개용(publishable) 키. 브라우저에 그대로 들어가는 값이며 데이터는 RLS로 보호된다.
           VITE_SUPABASE_URL: https://kifdfpbwiebfgvdumqjf.supabase.co
           VITE_SUPABASE_PUBLISHABLE_KEY: sb_publishable_bQ2BOXHX_7-_l_tvVrel6A_-2atkMYK
-      - uses: actions/configure-pages@v5
+      - uses: actions/configure-pages@v6
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist
