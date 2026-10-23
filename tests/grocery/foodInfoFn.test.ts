@@ -91,7 +91,7 @@ describe('food-info: 원재료 찾기(ingredients_search, D-020)', () => {
     expect(body.term).toBe('샘표 백일된장 국산콩')
     // 띄어쓴 구절("국산콩 백일된장")은 쓰지 않는다. 첫 단계(샘표 × 백일된장·국산콩 × 세 목록)에서 3건, 5건이 안 되면 낱말 100건 → 품목 이름까지
     expect(log.urls.some((u) => u.includes(encodeURIComponent('국산콩 백일된장')))).toBe(false)
-    expect(log.urls[0]).toContain('/C002/json/1/50/BSSH_NM=%EC%83%98%ED%91%9C&PRDLST_NM=%EB%B0%B1%EC%9D%BC%EB%90%9C%EC%9E%A5')
+    expect(log.urls[0]).toContain('/C002/json/1/100/BSSH_NM=%EC%83%98%ED%91%9C&PRDLST_NM=%EB%B0%B1%EC%9D%BC%EB%90%9C%EC%9E%A5')
     expect(log.urls.slice(0, 6).every((u) => u.includes('BSSH_NM=%EC%83%98%ED%91%9C&PRDLST_NM='))).toBe(true)
     expect(log.urls.some((u) => u.includes('BSSH_NM=') && u.includes('PRDLST_DCNM='))).toBe(false)
     expect(log.urls.some((u) => u.includes('/json/1/100/PRDLST_NM=%EB%B0%B1%EC%9D%BC%EB%90%9C%EC%9E%A5'))).toBe(true)

@@ -61,7 +61,7 @@ const MATCHED_LINE = { report: '보고번호로 자동 맞춤', product: '상품
 const MATCHED_NOTE = {
   report: '원재료로 맞춘 식약처 품목과 보고번호가 같은 식품이에요.',
   product: '고른 상품의 제조사와 이름으로 자동으로 맞춘 식품이에요.',
-  name: '품목 이름으로 자동으로 맞춘 식품이에요(상품이 아니라 일반 식품 기준일 수 있어요).',
+  name: '품목 이름으로 자동으로 맞춘 식품이에요.',
 } as const
 
 type Props = {
@@ -453,7 +453,7 @@ export default function ItemDetail({ item, store, onChangeProduct, onClose, mark
                         </p>
                         {nut.auto && (
                           <p className="read-note">
-                            {MATCHED_NOTE[nut.matchedBy ?? 'name']} 다른 식품이면 "다른 식품으로 바꾸기"로 고쳐 주세요.
+                            {MATCHED_NOTE[nut.matchedBy ?? 'name']}{data.product && (nut.matchedBy ?? 'name') === 'name' ? ' 고른 상품이 아니라 같은 품목의 일반 식품 기준이에요.' : ''} 다른 식품이면 "다른 식품으로 바꾸기"로 고쳐 주세요.
                           </p>
                         )}
                       </>

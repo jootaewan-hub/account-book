@@ -90,7 +90,7 @@ const groceryShots = [
   ...both(390, (w, c) => ({ name: `grocery-item-detail-ingredients-noproduct-${w}-${c}`, path: G, w, c, detail: '냉동볶음밥', tab: 'ingredients' })),
   // 상품명 자동 맞춤이 못 고른 화면(D-026): "같은 상품인지 확인해 주세요" 후보, 업체를 찾지 못함(수입품일 수 있음)
   ...each((w, c) => ({ name: `grocery-item-detail-ingredients-unsure-${w}-${c}`, path: `${G}&match=unsure`, w, c, detail: '비비고 왕교자', tab: 'ingredients', detailScroll: '.pick-list' })),
-  ...both(390, (w, c) => ({ name: `grocery-item-detail-ingredients-nomaker-${w}-${c}`, path: `${G}&match=maker_missing`, w, c, detail: '비비고 왕교자', tab: 'ingredients', detailScroll: '.detail-link' })),
+  ...each((w, c) => ({ name: `grocery-item-detail-ingredients-nomaker-${w}-${c}`, path: `${G}&match=maker_missing`, w, c, detail: '비비고 왕교자', tab: 'ingredients', detailScroll: '.detail-link' })),
   { name: 'grocery-ingredients-picker-noproduct-390-light', path: G, w: 390, c: 'light', detail: '냉동볶음밥', tab: 'ingredients', ingredientsPick: true },
   // 가계부에 넣기(D-011 길 ②): 목록 끝의 안내와 시트(총액, 품목마다, 금액 빈 오류)
   ...each((w, c) => ({ name: `grocery-record-sheet-${w}-${c}`, path: G, w, c, purchase: 'total' })),

@@ -353,7 +353,15 @@ export function createMemoryStore(
       if (!c) return { ...base, ingredients: null, nutrition: nut, reason: 'no_rows', candidates: [] }
       const row: ItemIngredients = { ...fromRow(c), updatedAt: now(), auto: true, v: MATCH_VERSION }
       ingredients.set(itemId, row)
-      return { ...base, ingredients: { ...row }, nutrition: nut, reason: null, candidates: [] }
+      // 서버처럼 같은 보고번호의 영양성분도 맞춘다(데모 후보 첫째, 사람이 고른 줄은 그대로)
+      const f = demoCandidates(it.name)[0]
+      if (f?.foodCd && (!n || n.auto)) {
+        const { foodCd: cd, reportNo: _r, ...rest } = f
+        void _r
+        nutrition.set(itemId, { foodCd: cd, foodName: f.foodName ?? '이름 없음', maker: f.maker, nutrition: rest, updatedAt: now(), auto: true, matchedBy: 'report', v: MATCH_VERSION })
+      }
+      const n2 = nutrition.get(itemId)
+      return { ...base, ingredients: { ...row }, nutrition: n2 ? { ...n2, nutrition: { ...n2.nutrition } } : null, reason: null, candidates: [] }
     },
     async itemNutrition(itemId) {
       const n = nutrition.get(itemId)

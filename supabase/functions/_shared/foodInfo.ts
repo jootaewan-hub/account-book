@@ -45,9 +45,9 @@ export function reportTypeUrl(key: string, service: 'C002' | 'I1310', type: stri
 
 /** 업체명(BSSH_NM 부분 일치)에 이름 또는 식품유형을 함께 걸어 찾기. C002·I1310·C003 모두 BSSH_NM을 받고 조건은 &로 묶는다(2026-10-21 sample 실제 호출: 샘표+백일된장 → 국산콩백일된장 등 3건,
  *  매일유업+저지방 → 매일우유 저지방 1%). 상표가 업체명에 없으면(청정원→대상(주), 수입 버터) INFO-200이 오고 다음 단계로 간다 */
-export function reportBrandUrl(key: string, service: IngredientSource, brand: string, by: { name: string } | { type: string }, end = 50): string {
+export function reportBrandUrl(key: string, service: IngredientSource, brand: string, by: { name: string } | { type: string }, end = 50, start = 1): string {
   const cond = 'name' in by ? `PRDLST_NM=${encodeURIComponent(by.name)}` : `PRDLST_DCNM=${encodeURIComponent(by.type)}`
-  return `${FOOD_BASE}/${encodeURIComponent(key)}/${service}/json/1/${end}/BSSH_NM=${encodeURIComponent(brand)}&${cond}`
+  return `${FOOD_BASE}/${encodeURIComponent(key)}/${service}/json/${start}/${end}/BSSH_NM=${encodeURIComponent(brand)}&${cond}`
 }
 
 export type IngredientRow = {

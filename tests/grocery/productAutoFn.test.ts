@@ -139,6 +139,22 @@ describe('product_auto', () => {
     expect(log.cleared).toEqual([2])
   })
 
+  it('업체+낱말 결과가 받은 줄(100)보다 많으면(total_count) 한 쪽 더 받는다: 이름 순이라 "청정원…"이 뒤에 온다', async () => {
+    const filler = Array.from({ length: 100 }, (_, i) => ({ PRDLST_REPORT_NO: `f${i}`, PRDLST_NM: `가나다 찰고추장 ${i}`, BSSH_NM: '대상(주)', PRDLST_DCNM: '고추장' }))
+    const { d, log } = deps({}, (url) => {
+      if (url.includes('FoodNtrCpntDbInfo03')) return NUTRI([])
+      if (svcOf(url) === 'C002' && param(url, 'BSSH_NM') === '대상' && param(url, 'PRDLST_NM') === '찰고추장') {
+        const page = url.match(/\/json\/(\d+)\/(\d+)\//)!
+        const all = [...filler, DAESANG[1]]
+        return { C002: { RESULT: { CODE: 'INFO-000' }, total_count: String(all.length), row: all.slice(Number(page[1]) - 1, Math.min(Number(page[2]), 100 + Number(page[1]) - 1)) } }
+      }
+      return NONE(svcOf(url) ?? 'C002')
+    })
+    const body = await (await handle(post({ itemId: ITEM, action: 'product_auto' }), d)).json()
+    expect(body.ingredients).toMatchObject({ reportNo: '19850499011151' })
+    expect(log.urls.filter((u) => u.includes('/C002/json/101/101/'))).toHaveLength(1)
+  })
+
   it('상품을 안 고른 품목은 no_product(부르지 않음), 세 목록이 모두 실패하면 502이고 옛 줄을 지우지 않는다', async () => {
     const none = deps({ allowedItem: async () => ({ householdId: 'hh-1', name: '대파', spec: null, productName: null, product: null }) }, () => ({}))
     expect(await (await handle(post({ itemId: ITEM, action: 'product_auto' }), none.d)).json()).toMatchObject({ status: 'done', reason: 'no_product', ingredients: null })

@@ -63,8 +63,9 @@ const WORD_ROWS = 100
 const MIN_CANDIDATES = 5
 const MAX_QUERY = 60
 const ACTIONS = new Set(['product_auto', 'ingredients_search', 'ingredients_auto', 'ingredients_choose', 'nutrition_search', 'nutrition_choose', 'nutrition_auto'])
-/** 업체명+이름으로 한 번에 받는 줄 수(업체로 좁혀 많지 않다) */
-const BRAND_ROWS = 50
+/** 업체명+이름으로 한 번에 받는 줄 수. 결과가 이름 순이라 "청정원…"(ㅊ)은 뒤에 오므로 넘치면 한 쪽(BRAND_MORE번째 줄까지) 더 받는다 */
+const BRAND_ROWS = 100
+const BRAND_MORE = 300
 /** "같은 상품인지 확인해 주세요"로 보여 줄 후보 수 */
 const UNSURE_SHOWN = 3
 
@@ -90,7 +91,8 @@ export async function handle(req: Request, deps: FoodInfoDeps): Promise<Response
 }
 
 type Failed = { source: IngredientSource; reason: string }
-type Call = { source: IngredientSource; url: string }
+/** next가 있으면 응답의 total_count가 받은 줄보다 많을 때 한 쪽 더 받는다(start~end번째 줄 주소) */
+type Call = { source: IngredientSource; url: string; next?: (start: number, end: number) => string }
 /** 한 단계: 한꺼번에 부르는 호출들과 화면에 보여 줄 "찾은 말" */
 type Step = { label: string; calls: Call[] }
 
@@ -119,7 +121,11 @@ type ProductRef = { name: string; ref: { id: string; sourceId: string } | null; 
 function productSteps(key: string, plan: MatchPlan, knownMaker: boolean): Step[] {
   const steps: Step[] = plan.makers.map((maker) => ({
     label: `${maker} ${plan.words.join(' ')}`,
-    calls: plan.words.flatMap((w) => INGREDIENT_SOURCES.map((source) => ({ source, url: reportBrandUrl(key, source, maker, { name: w }, BRAND_ROWS) }))),
+    calls: plan.words.flatMap((w) => INGREDIENT_SOURCES.map((source) => ({
+      source,
+      url: reportBrandUrl(key, source, maker, { name: w }, BRAND_ROWS),
+      next: (start: number, end: number) => reportBrandUrl(key, source, maker, { name: w }, end, start),
+    }))),
   }))
   if (!knownMaker) steps.push({ label: plan.words.join(' '), calls: plan.words.flatMap((w) => INGREDIENT_SOURCES.map((source) => ({ source, url: reportSearchUrl(key, source, w, 1, WORD_ROWS) }))) })
   return steps
@@ -176,7 +182,10 @@ async function runStep(deps: FoodInfoDeps, step: Step, dead: Set<IngredientSourc
   const results = await Promise.all(
     step.calls.filter((c) => !dead.has(c.source)).map(async (c) => {
       try {
-        return parseReport(await deps.fetchJson(c.url), c.source).rows
+        const first = parseReport(await deps.fetchJson(c.url), c.source)
+        if (!c.next || first.total <= first.rows.length || first.rows.length === 0) return first.rows
+        const more = parseReport(await deps.fetchJson(c.next(first.rows.length + 1, Math.min(first.total, BRAND_MORE))), c.source).rows
+        return [...first.rows, ...more]
       } catch (e) {
         if (!dead.has(c.source)) {
           dead.add(c.source)
