@@ -1,15 +1,21 @@
 // 성분(P7·D-020): 식약처 품목제조보고 원재료 — 식품 C002, 축산물 I1310(이름으로 찾고 원재료는 C006에서 보고번호로), 건강기능식품 C003 — 를
-// 고른 상품명(상표+낱말 → 상표+식품유형 → 낱말, D-020 보충 2)·품목 이름(이름+식품유형)으로 찾아(ingredients_search) 후보를 주고, 상품명으로 맞으면 성분 탭을 열 때 자동으로(ingredients_auto),
-// 아니면 사람이 고른 것(ingredients_choose)을 품목(이름·규격 열쇠)에 저장한다. 영양성분(P9)은 식품영양성분DB. 글·숫자는 출처 값 그대로.
+// 고른 상품(다나와 제조사를 업체명으로 + 상품 낱말, D-026)·품목 이름(이름+식품유형)으로 찾아(ingredients_search) 후보를 주고, 상품을 고른 품목은 성분 탭을 열 때
+// 원재료와 영양성분을 한 번에 자동으로 맞추고(product_auto: 같은 보고번호로 영양성분), 아니면 사람이 고른 것(ingredients_choose)을 품목(이름·규격 열쇠)에 저장한다.
+// 영양성분(P9)은 식품영양성분DB. 글·숫자는 출처 값 그대로.
 // 식약처 키(FOODSAFETY_API_KEY)와 공공데이터포털 키(DATA_GO_KR_SERVICE_KEY)는 서버에만 있다. 오류 문구에는 코드만 남긴다.
 import {
-  brandVariants, FoodInfoError, INGREDIENT_SOURCES, ingredientFit, isDish, nutritionSearchUrl, nutritionTier, originOf, parseNutritionRows, parseReport, productFit, productPhrases,
-  productSearchWords, pruneUnrelated, queryWords, rankByProduct, rankIngredients, rankNutrition, REPRESENTATIVE, reportBrandUrl, reportByNoUrl, reportSearchUrl, reportTypeUrl,
-  type IngredientOrigin, type IngredientRow, type IngredientSource, type NutritionRow,
+  FoodInfoError, INGREDIENT_SOURCES, isDish, nutritionSearchUrl, nutritionTier, originOf, parseNutritionRows, parseReport, productPhrases,
+  pruneUnrelated, queryWords, rankByProduct, rankIngredients, rankNutrition, REPRESENTATIVE, reportBrandUrl, reportByNoUrl, reportSearchUrl, reportTypeUrl,
+  nutritionUrl, type IngredientOrigin, type IngredientRow, type IngredientSource, type NutritionRow,
 } from '../_shared/foodInfo.ts'
+import { MATCH_VERSION, matchPlan, rankMatches, shouldAutoSave, type MatchPlan, type MatchScore, type ProductFacts } from '../_shared/productMatch.ts'
 
-/** 자동 맞춤이 무엇으로 맞췄나: 고른 상품의 이름(product) 또는 품목 이름(name) */
-export type MatchedBy = 'product' | 'name'
+/** 자동 맞춤이 무엇으로 맞췄나: 맞춘 원재료의 보고번호(report), 고른 상품의 이름(product), 품목 이름(name) */
+export type MatchedBy = 'report' | 'product' | 'name'
+
+/** product_auto가 자동으로 저장하지 못한 까닭: 업체+낱말로 세 목록 모두 0건(maker_missing, 다른 회사가 만들었거나 수입품일 수 있다),
+ *  후보는 있지만 같은 상품이라고 볼 만큼 맞지 않음(unsure), 다나와 제조사도 모르고 아무 결과도 없음(no_rows) */
+export type NoMatch = 'maker_missing' | 'unsure' | 'no_rows'
 
 /** 저장하는 원재료 한 건(grocery.item_ingredients). 값은 식약처 응답 그대로 */
 export type IngredientInfo = {
@@ -30,11 +36,18 @@ export type FoodInfoDeps = {
   dataKey: string | undefined
   /** 주소를 불러 JSON을 돌려준다(읽지 못하면 아무 객체). 네트워크 오류는 던진다 */
   fetchJson(url: string): Promise<unknown>
-  /** 사용자 권한(RLS): 내 가구 품목이면 가구 id·이름·규격·고른 상품 이름(없으면 null), 아니면 null */
-  allowedItem(itemId: string): Promise<{ householdId: string; name: string; spec: string | null; productName: string | null } | null>
+  /** 사용자 권한(RLS): 내 가구 품목이면 가구 id·이름·규격·고른 상품 이름(없으면 null)과 그 상품(다나와 pcode, 읽어 둔 다나와 정보: 아직 안 읽었으면 null), 아니면 null */
+  allowedItem(itemId: string): Promise<{
+    householdId: string; name: string; spec: string | null; productName: string | null
+    product?: { id: string; sourceId: string; facts: ProductFacts | null } | null
+  } | null>
+  /** 다나와 상품 페이지를 읽어 제조사·상표·원산지·원재료명을 상품에 저장하고 돌려준다(D-026). 못 읽으면 던진다 */
+  loadFacts(product: { id: string; sourceId: string }): Promise<ProductFacts>
+  /** 이전 버전이 자동으로 맞춘 줄을 지운다(grocery.clear_item_auto, 서비스 롤). 사람이 고른 줄은 남는다 */
+  clearAuto(itemId: string, version: number): Promise<void>
   /** 품목(이름·규격 열쇠)에 고른 식품을 저장(grocery.set_item_nutrition, 서비스 롤). auto면 자동 맞춘 것(고른 사람 없음), matchedBy는 무엇으로 맞췄나 */
   saveNutrition(itemId: string, row: NutritionRow, auto: boolean, matchedBy: MatchedBy): Promise<void>
-  /** 품목(이름·규격 열쇠)에 원재료를 저장(grocery.set_item_ingredients, 서비스 롤). auto면 상품명으로 자동 맞춘 것(고른 사람 없음) */
+  /** 품목(이름·규격 열쇠)에 원재료를 저장(grocery.set_item_ingredients, 서비스 롤). auto면 상품명으로 자동 맞춘 것(고른 사람 없음, 있는 사람이 고른 줄은 DB가 덮지 않는다) */
   saveIngredients(itemId: string, info: IngredientInfo, auto: boolean): Promise<void>
   now(): Date
 }
@@ -49,7 +62,11 @@ const WORD_ROWS = 100
 /** 고르기 후보가 이만큼 모이면 다음 단계는 부르지 않는다 */
 const MIN_CANDIDATES = 5
 const MAX_QUERY = 60
-const ACTIONS = new Set(['ingredients_search', 'ingredients_auto', 'ingredients_choose', 'nutrition_search', 'nutrition_choose', 'nutrition_auto'])
+const ACTIONS = new Set(['product_auto', 'ingredients_search', 'ingredients_auto', 'ingredients_choose', 'nutrition_search', 'nutrition_choose', 'nutrition_auto'])
+/** 업체명+이름으로 한 번에 받는 줄 수(업체로 좁혀 많지 않다) */
+const BRAND_ROWS = 50
+/** "같은 상품인지 확인해 주세요"로 보여 줄 후보 수 */
+const UNSURE_SHOWN = 3
 
 const json = (status: number, body: unknown) =>
   new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json; charset=utf-8' } })
@@ -67,6 +84,7 @@ export async function handle(req: Request, deps: FoodInfoDeps): Promise<Response
   }
   const action = typeof body?.action === 'string' ? body.action : ''
   if (!ACTIONS.has(action)) return json(400, { error: 'bad_request' })
+  if (action === 'product_auto') return productAuto(body, deps)
   if (action.startsWith('nutrition_')) return nutritionByName(body, action, deps)
   return ingredients(body, action, deps)
 }
@@ -93,21 +111,56 @@ const dedupeRows = (rows: readonly IngredientRow[]): IngredientRow[] => {
 
 const TYPED: readonly ('C002' | 'I1310')[] = ['C002', 'I1310']
 
-/** 상품을 고른 품목(D-020 보충 2): ① 상표 + 상품 낱말(뒤부터 2개; 앞 2자 상표는 첫 낱말만) ② 상표 + 품목 이름을 식품유형으로(C002·I1310) ③ 상품 낱말만 100건.
- *  "매일유업 매일우유 저지방 1% 900ml"(품목 우유) → 매일유업+저지방, 매일유업+매일우유, 매일+저지방, 매일유업+유형 우유, 저지방, 매일우유 */
-function productSteps(key: string, productName: string, itemName: string): Step[] {
-  const words = productSearchWords(productName).slice(0, 2)
-  const brands = brandVariants(productName)
-  const steps: Step[] = []
-  brands.forEach((brand, i) => {
-    for (const w of words.slice(0, i === 0 ? 2 : 1)) {
-      steps.push({ label: `${brand} ${w}`, calls: INGREDIENT_SOURCES.map((source) => ({ source, url: reportBrandUrl(key, source, brand, { name: w }) })) })
-    }
-  })
-  if (brands[0] && itemName) steps.push({ label: `${brands[0]} ${itemName}`, calls: TYPED.map((source) => ({ source, url: reportBrandUrl(key, source, brands[0], { type: itemName }) })) })
-  for (const w of words) steps.push({ label: w, calls: INGREDIENT_SOURCES.map((source) => ({ source, url: reportSearchUrl(key, source, w, 1, WORD_ROWS) })) })
+/** 고른 상품: 이름과 다나와 상품(pcode, 읽어 둔 정보). 상품 행을 모르면 ref가 null(다나와 정보 없이 상품명만 쓴다) */
+type ProductRef = { name: string; ref: { id: string; sourceId: string } | null; facts: ProductFacts | null }
+
+/** 상품을 고른 품목의 원재료 찾기 단계(D-026): 다나와 제조사(모르면 상품명 첫 낱말)를 업체명 조건으로, 상품 낱말(핵심어부터 3개)을 이름 조건으로 세 목록을 한꺼번에.
+ *  업체 열쇠마다 한 단계("롯데푸드"가 0건이면 "롯데"). 다나와 제조사를 모르면 지금처럼 낱말만으로 100건을 마지막 단계로 둔다(업체 일치 기준에 걸린다) */
+function productSteps(key: string, plan: MatchPlan, knownMaker: boolean): Step[] {
+  const steps: Step[] = plan.makers.map((maker) => ({
+    label: `${maker} ${plan.words.join(' ')}`,
+    calls: plan.words.flatMap((w) => INGREDIENT_SOURCES.map((source) => ({ source, url: reportBrandUrl(key, source, maker, { name: w }, BRAND_ROWS) }))),
+  }))
+  if (!knownMaker) steps.push({ label: plan.words.join(' '), calls: plan.words.flatMap((w) => INGREDIENT_SOURCES.map((source) => ({ source, url: reportSearchUrl(key, source, w, 1, WORD_ROWS) }))) })
   return steps
 }
+
+/** 다나와 정보: 읽어 둔 것이 없으면 상품 페이지를 한 번 읽는다. 못 읽으면 null(상품명 첫 낱말을 업체로 쓴다) */
+async function factsOf(deps: FoodInfoDeps, product: ProductRef): Promise<ProductFacts | null> {
+  if (product.facts) return product.facts
+  if (!product.ref) return null
+  try {
+    return await deps.loadFacts(product.ref)
+  } catch {
+    return null
+  }
+}
+
+type ProductMatch = { plan: MatchPlan; facts: ProductFacts | null; ranked: MatchScore<IngredientRow>[]; pick: IngredientRow | null; reason: NoMatch | null }
+
+/** 상품 → 식약처 품목(D-026): 단계를 처음 결과가 있는 데까지 부르고, 모은 후보를 점수로 줄 세워(rankMatches) 첫째가 기준(shouldAutoSave)에 맞으면 고른다 */
+async function matchProduct(deps: FoodInfoDeps, key: string, product: ProductRef, dead: Set<IngredientSource>, failed: Failed[]): Promise<ProductMatch> {
+  const facts = await factsOf(deps, product)
+  const plan = matchPlan(product.name, facts)
+  let rows: IngredientRow[] = []
+  for (const step of productSteps(key, plan, Boolean(facts?.maker))) {
+    rows = await runStep(deps, step, dead, failed)
+    if (rows.length > 0) break
+  }
+  const ranked = rankMatches(rows, plan)
+  const ok = ranked.length > 0 && shouldAutoSave(ranked[0], ranked[1])
+  const reason: NoMatch | null = ok ? null : rows.length > 0 ? 'unsure' : facts?.maker ? 'maker_missing' : 'no_rows'
+  return { plan, facts, ranked, pick: ok ? ranked[0].row : null, reason }
+}
+
+const productOf = (item: { productName: string | null; product?: { id: string; sourceId: string; facts: ProductFacts | null } | null }): ProductRef | null =>
+  item.productName?.trim()
+    ? { name: item.productName.trim(), ref: item.product ? { id: item.product.id, sourceId: item.product.sourceId } : null, facts: item.product?.facts ?? null }
+    : null
+
+/** 고른 줄 → 저장할 원재료. 축산물(I1310)은 원재료를 C006에서 받는다 */
+const infoOf = (deps: FoodInfoDeps, key: string, row: IngredientRow): Promise<IngredientInfo | null> =>
+  row.source === 'I1310' ? fetchByNo(deps, key, 'I1310', row.reportNo, row) : Promise.resolve(toInfo(row, originOf(row.source)))
 
 /** 품목 이름·검색어: 낱말마다 이름으로(세 목록), 말 전체를 식품유형으로(C002·I1310) 한꺼번에. "버터"는 이름 검색 앞 줄이 소금빵·쿠키뿐이지만 식품유형 "버터"는 실제 버터다 */
 function nameSteps(key: string, term: string, words: string[]): Step[] {
@@ -163,7 +216,6 @@ async function ingredients(body: Body, action: string, deps: FoodInfoDeps): Prom
   if (!key) return json(500, { error: 'missing_api_key' })
   const item = await deps.allowedItem(itemId)
   if (!item) return json(403, { error: 'forbidden' })
-  const productName = item.productName?.trim() || null
   const itemName = item.name.replace(/\s+/g, ' ').trim()
 
   if (action === 'ingredients_choose') {
@@ -179,6 +231,8 @@ async function ingredients(body: Body, action: string, deps: FoodInfoDeps): Prom
     } catch {
       return json(502, { status: 'error', reason: 'save_failed' })
     }
+    // 고른 품목의 보고번호로 영양성분도 맞춘다(자동 줄로 저장: 사람이 고른 영양 줄은 DB가 덮지 않는다). 실패해도 원재료 저장은 그대로
+    await nutritionByReport(deps, info.reportNo).then((row) => (row ? deps.saveNutrition(itemId, row, true, 'report') : undefined)).catch(() => {})
     return json(200, { status: 'done', ingredients: info })
   }
 
@@ -186,37 +240,35 @@ async function ingredients(body: Body, action: string, deps: FoodInfoDeps): Prom
   const failed: Failed[] = []
 
   if (action === 'ingredients_auto') {
-    // 상품을 안 고른 품목은 이름만으로 자동으로 맞추지 않는다(된장 수천 건 중 아무거나 붙을 수 있다): 사람이 고른다
-    if (!productName) return json(200, { status: 'done', term: null, ingredients: null, reason: 'no_product' })
-    let term: string | null = null
-    for (const step of productSteps(key, productName, itemName)) {
-      const rows = await runStep(deps, step, dead, failed)
-      if (rows.length === 0) continue
-      term ??= step.label
-      const pick = rankIngredients(rows, productName, '').find((r) => ingredientFit(r, productName))
-      if (!pick) continue
-      let info: IngredientInfo | null
-      try {
-        info = pick.source === 'I1310' ? await fetchByNo(deps, key, 'I1310', pick.reportNo, pick) : toInfo(pick, originOf(pick.source))
-      } catch (e) {
-        return json(502, { status: 'error', reason: reason(e) })
-      }
-      if (!info) continue
-      try {
-        await deps.saveIngredients(itemId, info, true)
-      } catch {
-        return json(502, { status: 'error', reason: 'save_failed' })
-      }
-      return json(200, { status: 'done', term: step.label, ingredients: info })
+    // 상품을 안 고른 품목은 이름만으로 자동으로 맞추지 않는다(된장 수천 건 중 아무거나 붙을 수 있다): 사람이 고른다. 화면은 이제 product_auto를 부르고, 이 액션은 캐시된 옛 화면용이다
+    const product = productOf(item)
+    if (!product) return json(200, { status: 'done', term: null, ingredients: null, reason: 'no_product' })
+    const m = await matchProduct(deps, key, product, dead, failed)
+    if (!m.pick && failed.length === INGREDIENT_SOURCES.length) return json(502, { status: 'error', reason: failed[0].reason })
+    const term = m.plan.words.join(' ') || null
+    if (!m.pick) return json(200, { status: 'done', term, ingredients: null, reason: 'no_fit' })
+    let info: IngredientInfo | null
+    try {
+      info = await infoOf(deps, key, m.pick)
+    } catch (e) {
+      return json(502, { status: 'error', reason: reason(e) })
     }
-    if (term === null && failed.length === INGREDIENT_SOURCES.length) return json(502, { status: 'error', reason: failed[0].reason })
-    return json(200, { status: 'done', term, ingredients: null, reason: 'no_fit' })
+    if (!info) return json(200, { status: 'done', term, ingredients: null, reason: 'no_fit' })
+    try {
+      await deps.saveIngredients(itemId, info, true)
+    } catch {
+      return json(502, { status: 'error', reason: 'save_failed' })
+    }
+    return json(200, { status: 'done', term, ingredients: info })
   }
 
   // ingredients_search: 검색어가 있으면 그것(낱말은 이름, 전체는 식품유형)만. 없으면 상품 단계들 뒤에 품목 이름(이름+식품유형). 후보가 MIN_CANDIDATES 모이면 멈춘다
+  const product = query ? null : productOf(item)
+  const facts = product ? await factsOf(deps, product) : null
+  const plan = product ? matchPlan(product.name, facts) : null
   const steps = query
     ? nameSteps(key, query, queryWords(query))
-    : [...(productName ? productSteps(key, productName, itemName) : []), ...nameSteps(key, itemName, [itemName])]
+    : [...(plan ? productSteps(key, plan, Boolean(facts?.maker)) : []), ...nameSteps(key, itemName, [itemName])]
   if (steps.length === 0) return json(200, { status: 'done', term: null, candidates: [], failed: [] })
   let rows: IngredientRow[] = []
   let term: string | null = null
@@ -229,11 +281,86 @@ async function ingredients(body: Body, action: string, deps: FoodInfoDeps): Prom
     if (rows.length >= MIN_CANDIDATES) break
   }
   if (rows.length === 0 && failed.length === INGREDIENT_SOURCES.length) return json(502, { status: 'error', reason: failed[0].reason })
-  const byWords = query ? (queryWords(query).length > 1 ? query : null) : productName
-  const ranked = byWords
-    ? rankIngredients(rows, byWords, '')
-    : rankIngredients(pruneUnrelated(rows, query || itemName), null, query || itemName)
+  const byWords = query ? (queryWords(query).length > 1 ? query : null) : null
+  const ranked = plan
+    ? rankMatches(rows, plan).map((x) => x.row)
+    : byWords
+      ? rankIngredients(rows, byWords, '')
+      : rankIngredients(pruneUnrelated(rows, query || itemName), null, query || itemName)
   return json(200, { status: 'done', term: term ?? steps[0].label, candidates: ranked.slice(0, MAX_CANDIDATES), failed })
+}
+
+/** 식품영양성분DB에서 보고번호(ITEM_REPORT_NO)가 같은 상용제품(D-026). 공공데이터포털 키가 없거나 없으면 null. 보고번호 검색이 운영에서 되는지는 확인 필요 */
+async function nutritionByReport(deps: FoodInfoDeps, reportNo: string): Promise<NutritionRow | null> {
+  const dataKey = deps.dataKey?.trim()
+  if (!dataKey) return null
+  const rows = parseNutritionRows(await deps.fetchJson(nutritionUrl(dataKey, reportNo)))
+  return rows.find((r) => r.foodCd !== null && r.reportNo === reportNo) ?? null
+}
+
+/** 상품을 고른 품목의 영양성분(D-026): ① 맞춘 원재료의 보고번호 ② 상품명 검색(상용제품)에 같은 기준(업체 일치·cover·recall) ③ 품목 이름의 품목대표(음식 제외)만.
+ *  상용제품을 이름으로 붙이지 않는다("미림"에 "미림 구운계란"). 호출이 실패한 단계는 건너뛴다 */
+async function nutritionForProduct(deps: FoodInfoDeps, plan: MatchPlan, productName: string, itemName: string, reportNo: string | null): Promise<{ row: NutritionRow; matchedBy: MatchedBy } | null> {
+  const dataKey = deps.dataKey?.trim()
+  if (!dataKey) return null
+  if (reportNo) {
+    const row = await nutritionByReport(deps, reportNo).catch(() => null)
+    if (row) return { row, matchedBy: 'report' }
+  }
+  const byName = (await searchByProduct(deps, dataKey, productName))
+    .filter((r) => r.foodCd !== null)
+    .map((r) => ({ name: r.foodName ?? '', maker: r.maker, rawMaterials: null, changedOn: r.updatedOn, r }))
+  const ranked = rankMatches(byName, plan)
+  if (ranked.length > 0 && shouldAutoSave(ranked[0], ranked[1])) return { row: ranked[0].row.r, matchedBy: 'product' }
+  const general = await searchNutrition(deps, dataKey, itemName).catch(() => [] as NutritionRow[])
+  const rep = general.find((r) => r.foodCd !== null && r.dbClass === REPRESENTATIVE && !isDish(r) && nutritionTier(r.foodName ?? '', itemName) <= 2)
+  return rep ? { row: rep, matchedBy: 'name' } : null
+}
+
+/** 상품을 고른 품목의 성분 탭(D-026): 원재료와 영양성분을 한 번에 맞춰 자동 줄(v)로 저장하고, 옛 버전 자동 줄은 지운다(맞는 것이 없으면 남기지 않는다).
+ *  자동으로 못 고르면 까닭(reason)과 "같은 상품인지 확인해 주세요" 후보(앞 3개)를 돌려준다. 목록이 모두 실패하면 아무것도 지우지 않고 502 */
+async function productAuto(body: Body, deps: FoodInfoDeps): Promise<Response> {
+  const itemId = typeof body.itemId === 'string' ? body.itemId : ''
+  if (!UUID.test(itemId)) return json(400, { error: 'bad_request' })
+  const key = deps.foodKey?.trim()
+  if (!key) return json(500, { error: 'missing_api_key' })
+  const item = await deps.allowedItem(itemId)
+  if (!item) return json(403, { error: 'forbidden' })
+  const product = productOf(item)
+  if (!product) return json(200, { status: 'done', ingredients: null, nutrition: null, reason: 'no_product', candidates: [], failed: [] })
+  const itemName = item.name.replace(/\s+/g, ' ').trim()
+  const dead = new Set<IngredientSource>()
+  const failed: Failed[] = []
+  const m = await matchProduct(deps, key, product, dead, failed)
+  if (!m.pick && failed.length === INGREDIENT_SOURCES.length) return json(502, { status: 'error', reason: failed[0].reason })
+  let info: IngredientInfo | null = null
+  if (m.pick) {
+    try {
+      info = await infoOf(deps, key, m.pick)
+    } catch (e) {
+      return json(502, { status: 'error', reason: reason(e) })
+    }
+  }
+  const nut = await nutritionForProduct(deps, m.plan, product.name, itemName, info?.reportNo ?? null).catch(() => null)
+  try {
+    if (info) await deps.saveIngredients(itemId, info, true)
+    if (nut) await deps.saveNutrition(itemId, nut.row, true, nut.matchedBy)
+    await deps.clearAuto(itemId, MATCH_VERSION)
+  } catch {
+    return json(502, { status: 'error', reason: 'save_failed' })
+  }
+  return json(200, {
+    status: 'done',
+    ingredients: info,
+    nutrition: nut?.row ?? null,
+    matchedBy: nut?.matchedBy ?? null,
+    reason: info ? null : (m.reason ?? 'unsure'),
+    candidates: info ? [] : m.ranked.slice(0, UNSURE_SHOWN).map((x) => x.row),
+    maker: m.facts?.maker ?? null,
+    origin: m.facts?.origin ?? null,
+    words: m.plan.words,
+    failed,
+  })
 }
 
 /** 품목대표 호출 건수. 응답이 식품코드 순(추측)이라 음식(D…)이 앞에 오고 일반 "된장"(P112-…-F001)이 50건 뒤로 밀린다(사용자 2026-10-20 12:39). 넉넉히 받는다 */
@@ -295,22 +422,30 @@ async function nutritionByName(body: { itemId?: unknown; query?: unknown; foodCd
   const term = query || item.name.replace(/\s+/g, ' ').trim()
   if (!term) return json(200, { status: 'done', term: null, candidates: [] })
   const auto = action === 'nutrition_auto'
+  // 상품을 고른 품목의 자동 맞춤은 product_auto와 같은 기준(D-026: 업체 일치·품목대표만). 화면은 이제 product_auto를 부르고, 이 길은 캐시된 옛 화면용이다
+  const product = auto && !query ? productOf(item) : null
+  if (product) {
+    const nut = await nutritionForProduct(deps, matchPlan(product.name, await factsOf(deps, product)), product.name, term, null).catch(() => null)
+    if (!nut) return json(200, { status: 'done', term, nutrition: null })
+    try {
+      await deps.saveNutrition(itemId, nut.row, true, nut.matchedBy)
+    } catch {
+      return json(502, { status: 'error', reason: 'save_failed' })
+    }
+    return json(200, { status: 'done', term, nutrition: nut.row, matchedBy: nut.matchedBy })
+  }
   const productName = query ? null : item.productName?.trim() || null
   const byProduct = productName ? await searchByProduct(deps, dataKey, productName) : []
-  // 자동 맞춤은 상품명으로 맞는 것이 있으면 이름 검색을 부르지 않는다(호출 아낌)
-  const productPick = auto && productName ? byProduct.find((r) => r.foodCd !== null && productFit(r, productName)) : undefined
   let byName: NutritionRow[] = []
-  if (!productPick) {
-    try {
-      byName = await searchNutrition(deps, dataKey, term)
-    } catch (e) {
-      return json(502, { status: 'error', reason: reason(e) })
-    }
+  try {
+    byName = await searchNutrition(deps, dataKey, term)
+  } catch (e) {
+    return json(502, { status: 'error', reason: reason(e) })
   }
   const merged = dedupe([...byProduct, ...byName])
   if (action === 'nutrition_search') return json(200, { status: 'done', term, candidates: merged.slice(0, MAX_CANDIDATES) })
-  const matchedBy: MatchedBy = productPick ? 'product' : 'name'
-  const row = auto ? productPick ?? byName.find((r) => autoFit(r, term)) : merged.find((r) => r.foodCd === foodCd)
+  const matchedBy: MatchedBy = 'name'
+  const row = auto ? byName.find((r) => autoFit(r, term)) : merged.find((r) => r.foodCd === foodCd)
   if (!row) return auto ? json(200, { status: 'done', term, nutrition: null }) : json(404, { error: 'not_found' })
   try {
     await deps.saveNutrition(itemId, row, auto, matchedBy)

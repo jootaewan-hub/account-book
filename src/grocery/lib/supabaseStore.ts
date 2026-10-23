@@ -7,7 +7,7 @@ import { SEONGNAM_AREAS } from '../../../supabase/functions/_shared/tprice'
 import type { ItemSources, ShopFind, ShopPrice, StoreGood, StoreOption, StorePrice } from './sources'
 import type { OurPurchase } from './ours'
 import { invokePhoto } from './photo'
-import type { IngredientRow, IngredientSource, ItemIngredients, ItemNutrition, Nutrition, NutritionRow } from './foodInfo'
+import type { IngredientRow, IngredientSource, ItemIngredients, ItemNutrition, Nutrition, NutritionRow, ProductAuto } from './foodInfo'
 import type { ListStore, BarcodeRecord, CandidateAlert } from './store'
 import type { Membership } from './membership'
 import type { Item } from './types'
@@ -68,8 +68,10 @@ export function createSupabaseStore(client: SupabaseClient, me: Membership): Lis
   type NutritionRowDb = { item_id: string; food_cd: string | null; food_name: string; maker: string | null; nutrition: Nutrition; updated_at: string }
   type IngredientsRowDb = {
     item_id: string; origin: ItemIngredients['origin']; report_no: string; name: string; maker: string | null; kind: string | null; raw_materials: string | null
-    changed_on: string | null; details: { shelfLife?: unknown; health?: unknown; auto?: unknown } | null; updated_at: string
+    changed_on: string | null; details: { shelfLife?: unknown; health?: unknown; auto?: unknown; v?: unknown } | null; updated_at: string
   }
+  // 자동 맞춤 버전(D-026): 없으면 1(이전 맞춤)
+  const versionOf = (v: unknown) => (typeof v === 'number' && Number.isInteger(v) && v > 0 ? v : 1)
   const ingredientsOf = (r: IngredientsRowDb): ItemIngredients => {
     const d = r.details ?? {}
     const h = d.health && typeof d.health === 'object' ? (d.health as { function?: unknown; intake?: unknown; caution?: unknown }) : null
@@ -77,13 +79,15 @@ export function createSupabaseStore(client: SupabaseClient, me: Membership): Lis
     return {
       origin: r.origin, reportNo: r.report_no, name: r.name, maker: r.maker, kind: r.kind, rawMaterials: r.raw_materials, changedOn: r.changed_on,
       shelfLife: str(d.shelfLife), health: h ? { function: str(h.function), intake: str(h.intake), caution: str(h.caution) } : null, updatedAt: r.updated_at, auto: Boolean(d.auto),
+      v: versionOf(d.v),
     }
   }
   const nutritionOf = (r: NutritionRowDb): ItemNutrition => {
-    const j = r.nutrition as { auto?: unknown; matchedBy?: unknown }
+    const j = r.nutrition as { auto?: unknown; matchedBy?: unknown; v?: unknown }
     return {
       foodCd: r.food_cd, foodName: r.food_name, maker: r.maker, nutrition: r.nutrition, updatedAt: r.updated_at, auto: Boolean(j.auto),
-      matchedBy: j.matchedBy === 'product' || j.matchedBy === 'name' ? j.matchedBy : null,
+      matchedBy: j.matchedBy === 'report' || j.matchedBy === 'product' || j.matchedBy === 'name' ? j.matchedBy : null,
+      v: versionOf(j.v),
     }
   }
   let goodsCache: StoreGood[] | null = null // 참가격 상품 목록(약 600개)은 한 번만 읽는다
@@ -376,6 +380,18 @@ export function createSupabaseStore(client: SupabaseClient, me: Membership): Lis
       if (!data || data.status !== 'done') throw new Error('auto_failed')
       if (!data.ingredients) return null
       return this.itemIngredients(itemId)
+    },
+    async autoProduct(itemId) {
+      type Res = Omit<ProductAuto, 'ingredients' | 'nutrition'> & { status: string }
+      const { data, error } = await client.functions.invoke<Res>('food-info', { body: { itemId, action: 'product_auto' } })
+      if (error) throw error
+      if (!data || data.status !== 'done') throw new Error('auto_failed')
+      // 저장한 줄은 다시 읽는다(사람이 고른 줄은 DB가 덮지 않으므로 응답 값과 다를 수 있다)
+      const [ingredients, nutrition] = await Promise.all([this.itemIngredients(itemId), this.itemNutrition(itemId)])
+      return {
+        ingredients, nutrition, reason: data.reason ?? null, candidates: data.candidates ?? [], maker: data.maker ?? null, origin: data.origin ?? null,
+        words: data.words ?? [], failed: data.failed ?? [],
+      }
     },
     async itemNutrition(itemId) {
       const { data, error } = await g().rpc('item_nutrition_rows')

@@ -25,6 +25,10 @@ function deps(over: Partial<FoodInfoDeps> = {}) {
       return { unreadable: 404 }
     },
     allowedItem: async () => ({ householdId: 'hh-1', name: '대파', spec: null, productName: null }),
+    loadFacts: async () => {
+      throw new Error('no page')
+    },
+    clearAuto: async () => {},
     saveNutrition: async () => {},
     saveIngredients: async (itemId, info, auto) => {
       log.saved.push({ itemId, auto, ...info })
@@ -67,7 +71,7 @@ describe('food-info: 원재료 찾기(ingredients_search, D-020)', () => {
     expect(body.candidates.find((c: { source: string }) => c.source === 'I1310')).toMatchObject({ rawMaterials: null, shelfLife: expect.any(String) })
     expect(body.candidates.find((c: { source: string }) => c.source === 'C003')).toMatchObject({ health: { function: expect.any(String) } })
   })
-  it('상품을 고른 품목: 상표+낱말 → 상표+품목 식품유형 → 낱말(100건) 순으로 찾고, 후보가 모이면 멈춘다. 후보는 상품 단어가 많이 든 순(D-020 보충 2)', async () => {
+  it('상품을 고른 품목(다나와 정보 없음): 상표(첫 낱말)를 업체명으로 상품 낱말마다 → 낱말(100건) → 품목 이름 순으로 찾고, 후보가 모이면 멈춘다. 후보는 업체·이름이 맞는 순(D-026)', async () => {
     const { d, log } = deps({
       ...withItem('된장', '샘표 국산콩 100% 백일된장 900g'),
       fetchJson: async (url) => {
@@ -84,11 +88,12 @@ describe('food-info: 원재료 찾기(ingredients_search, D-020)', () => {
       },
     })
     const body = await (await handle(post({ itemId: ITEM, action: 'ingredients_search' }), d)).json()
-    expect(body.term).toBe('샘표 백일된장')
-    // 띄어쓴 구절("국산콩 백일된장")은 쓰지 않는다. 첫 단계(샘표+백일된장)에서 3건, 다음 단계(샘표+국산콩)까지 불러 5건이 안 되면 계속 → 끝까지
+    expect(body.term).toBe('샘표 백일된장 국산콩')
+    // 띄어쓴 구절("국산콩 백일된장")은 쓰지 않는다. 첫 단계(샘표 × 백일된장·국산콩 × 세 목록)에서 3건, 5건이 안 되면 낱말 100건 → 품목 이름까지
     expect(log.urls.some((u) => u.includes(encodeURIComponent('국산콩 백일된장')))).toBe(false)
     expect(log.urls[0]).toContain('/C002/json/1/50/BSSH_NM=%EC%83%98%ED%91%9C&PRDLST_NM=%EB%B0%B1%EC%9D%BC%EB%90%9C%EC%9E%A5')
-    expect(log.urls.some((u) => u.includes('BSSH_NM=%EC%83%98%ED%91%9C&PRDLST_DCNM=%EB%90%9C%EC%9E%A5'))).toBe(true)
+    expect(log.urls.slice(0, 6).every((u) => u.includes('BSSH_NM=%EC%83%98%ED%91%9C&PRDLST_NM='))).toBe(true)
+    expect(log.urls.some((u) => u.includes('BSSH_NM=') && u.includes('PRDLST_DCNM='))).toBe(false)
     expect(log.urls.some((u) => u.includes('/json/1/100/PRDLST_NM=%EB%B0%B1%EC%9D%BC%EB%90%9C%EC%9E%A5'))).toBe(true)
     expect(body.candidates.map((c: { name: string }) => c.name)).toEqual(['국산콩백일된장', '백일된장', '2년숙성백일된장'])
   })
@@ -156,7 +161,7 @@ describe('food-info: 원재료 찾기(ingredients_search, D-020)', () => {
   })
 })
 
-describe('food-info: 원재료 자동 맞춤(ingredients_auto, D-020: 성분 탭을 열면 상품명으로)', () => {
+describe('food-info: 원재료 자동 맞춤(ingredients_auto, 캐시된 옛 화면용: 안은 product_auto와 같은 맞춤, D-026)', () => {
   const POULTRY = { I1310: { RESULT: { CODE: 'INFO-000' }, row: [
     { PRDLST_REPORT_NO: '199900307705', PRDLST_NM: '닭꼬치', BSSH_NM: '노벨유통', PRDLST_DCNM: '포장육', POG_DAYCNT: '제조일로부터 7일', LAST_UPDT_DTM: '20240101' },
   ] } }
@@ -166,7 +171,7 @@ describe('food-info: 원재료 자동 맞춤(ingredients_auto, D-020: 성분 탭
     expect(body).toEqual({ status: 'done', term: null, ingredients: null, reason: 'no_product' })
     expect(log.urls).toEqual([])
   })
-  it('상표+낱말로 찾은 축산물(I1310)이 맞으면 C006에서 원재료를 받아 소비기한과 함께 auto로 저장한다. 품목 이름으로는 찾지 않는다', async () => {
+  it('업체+낱말로 찾은 축산물(I1310)이 맞으면 C006에서 원재료를 받아 소비기한과 함께 auto로 저장한다. 품목 이름으로는 찾지 않는다', async () => {
     const { d, log } = deps({
       ...withItem('우유', '노벨유통 닭꼬치 300g'),
       fetchJson: async (url) => {
@@ -180,14 +185,14 @@ describe('food-info: 원재료 자동 맞춤(ingredients_auto, D-020: 성분 탭
     const res = await handle(post({ itemId: ITEM, action: 'ingredients_auto' }), d)
     expect(res.status).toBe(200)
     const body = await res.json()
-    expect(body.term).toBe('노벨유통 닭꼬치')
+    expect(body.term).toBe('닭꼬치')
     expect(log.urls[0]).toContain('BSSH_NM=%EB%85%B8%EB%B2%A8%EC%9C%A0%ED%86%B5&PRDLST_NM=%EB%8B%AD%EA%BC%AC%EC%B9%98')
     expect(body.ingredients).toMatchObject({ origin: 'C006', reportNo: '199900307705', name: '닭꼬치', maker: '노벨유통', rawMaterials: '닭고기', shelfLife: '제조일로부터 7일' })
     expect(log.saved).toEqual([{ itemId: ITEM, auto: true, ...body.ingredients }])
     expect(log.urls.some((u) => u.includes('PRDLST_NM=%EC%9A%B0%EC%9C%A0') || u.includes('PRDLST_DCNM=%EC%9A%B0%EC%9C%A0'))).toBe(false)
     expect(log.urls.at(-1)).toContain('/C006/json/1/20/PRDLST_REPORT_NO=199900307705')
   })
-  it('상표가 업체명에 없으면(청정원→대상) 상표 단계는 비고, 낱말 "찰고추장" 100건에서 상품 단어가 둘 이상 맞는 것을 쓴다', async () => {
+  it('다나와 제조사를 모르면 상표(청정원)로는 대상(주) 제품이 업체 일치가 되지 않아 낱말 100건에서 찾아도 저장하지 않는다(다른 회사 제품을 붙이지 않는다)', async () => {
     const { d, log } = deps({
       ...withItem('고추장', '청정원 순창 100% 현미 태양초 찰고추장 2kg'),
       fetchJson: async (url) => {
@@ -195,22 +200,22 @@ describe('food-info: 원재료 자동 맞춤(ingredients_auto, D-020: 성분 탭
         const svc = svcOf(url)!
         if (svc === 'C002' && url.includes('/json/1/100/PRDLST_NM=' + encodeURIComponent('찰고추장'))) {
           return { C002: { RESULT: { CODE: 'INFO-000' }, row: [
-            { PRDLST_REPORT_NO: 'g1', PRDLST_NM: '고향 찰고추장 골드', BSSH_NM: '(주)진미식품', PRDLST_DCNM: '고추장', RAWMTRL_NM: '고춧가루' },
-            { PRDLST_REPORT_NO: 'g2', PRDLST_NM: '순창찰고추장(E)', BSSH_NM: '대상(주)', PRDLST_DCNM: '고추장', RAWMTRL_NM: '물엿, 고춧가루' },
+            { PRDLST_REPORT_NO: 'g1', PRDLST_NM: '기픈샘순창태양초찰고추장', BSSH_NM: '(주)기픈샘', PRDLST_DCNM: '고추장', RAWMTRL_NM: '고춧가루' },
+            { PRDLST_REPORT_NO: 'g2', PRDLST_NM: '청정원순창태양초찰고추장', BSSH_NM: '대상(주)', PRDLST_DCNM: '고추장', RAWMTRL_NM: '고추양념, 현미' },
           ] } }
         }
         return NONE(svc)
       },
+      saveIngredients: async () => { throw new Error('must not save') },
     })
     const body = await (await handle(post({ itemId: ITEM, action: 'ingredients_auto' }), d)).json()
-    expect(body.term).toBe('찰고추장')
-    expect(body.ingredients).toMatchObject({ origin: 'C002', reportNo: 'g2', name: '순창찰고추장(E)' })
-    expect(log.urls.filter((u) => u.includes('BSSH_NM=')).length).toBeGreaterThan(0)
+    expect(body).toMatchObject({ ingredients: null, reason: 'no_fit' })
+    expect(log.urls.filter((u) => u.includes('BSSH_NM=%EC%B2%AD%EC%A0%95%EC%9B%90')).length).toBeGreaterThan(0)
   })
   it('맞는 것이 없으면(단어 하나만 맞고 업체도 다름) 저장하지 않고 null(no_fit). 찾은 말은 처음 후보가 나온 단계', async () => {
     const { d, log } = deps({ ...withItem('된장', '샘표 국산콩 100% 백일된장 900g'), saveIngredients: async () => { throw new Error('must not save') } })
     const body = await (await handle(post({ itemId: ITEM, action: 'ingredients_auto' }), d)).json()
-    expect(body).toEqual({ status: 'done', term: '샘표 백일된장', ingredients: null, reason: 'no_fit' })
+    expect(body).toEqual({ status: 'done', term: '백일된장 국산콩', ingredients: null, reason: 'no_fit' })
     expect(log.urls.length).toBeGreaterThan(0)
   })
   it('세 목록이 모두 실패하면 502', async () => {
@@ -225,7 +230,11 @@ describe('food-info: 원재료 고르기(ingredients_choose, D-020)', () => {
     const res = await handle(post({ itemId: ITEM, action: 'ingredients_choose', source: 'C002', reportNo: '1997040105528' }), d)
     expect(res.status).toBe(200)
     const body = await res.json()
-    expect(log.urls).toEqual(['https://openapi.foodsafetykorea.go.kr/api/FOODKEY/C002/json/1/5/PRDLST_REPORT_NO=1997040105528'])
+    // 고른 보고번호로 식품영양성분DB도 부른다(D-026)
+    expect(log.urls).toEqual([
+      'https://openapi.foodsafetykorea.go.kr/api/FOODKEY/C002/json/1/5/PRDLST_REPORT_NO=1997040105528',
+      'https://apis.data.go.kr/1471000/FoodNtrCpntDbInfo03/getFoodNtrCpntDbInq03?serviceKey=DATAKEY&type=json&pageNo=1&numOfRows=5&ITEM_REPORT_NO=1997040105528',
+    ])
     expect(body.ingredients).toMatchObject({ origin: 'C002', reportNo: '1997040105528', name: '가시오가피 냉면', maker: '주식회사 금성에프앤비', kind: '숙면', changedOn: '2023-06-10' })
     expect(log.saved).toEqual([{ itemId: ITEM, auto: false, ...body.ingredients }])
   })
@@ -242,7 +251,7 @@ describe('food-info: 원재료 고르기(ingredients_choose, D-020)', () => {
     })
     const body = await (await handle(post({ itemId: ITEM, action: 'ingredients_choose', source: 'I1310', reportNo: '199900307705' }), d)).json()
     expect(body.ingredients).toMatchObject({ origin: 'C006', rawMaterials: '닭고기', shelfLife: '제조일로부터 7일', kind: '포장육' })
-    expect(log.urls.map(svcOf).sort()).toEqual(['C006', 'I1310'])
+    expect(log.urls.map(svcOf).filter(Boolean).sort()).toEqual(['C006', 'I1310'])
   })
   it('보고번호가 없으면 404, 저장 실패는 502, 목록 오류는 502', async () => {
     const none = deps({ ...withItem('냉면', null), fetchJson: async () => NONE('C002') })

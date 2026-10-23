@@ -16,7 +16,8 @@ import {
 import type { ItemSources, ShopFind, ShopLink, ShopPrice, ShopSource, StoreGood, StoreOption, StorePrice } from './sources'
 import type { OurPurchase } from './ours'
 import type { CapturedQuoteInput, ListItem, PhotoImage, PhotoJob, PhotoResult, PriceRead, ProductRead } from './photo'
-import type { IngredientRow, IngredientSource, ItemIngredients, ItemNutrition, NutritionRow } from './foodInfo'
+import { MATCH_VERSION } from '../../../supabase/functions/_shared/productMatch'
+import type { IngredientRow, IngredientSource, ItemIngredients, ItemNutrition, NutritionRow, ProductAuto } from './foodInfo'
 import { productQuery } from '../../../supabase/functions/grocery-photo/text'
 
 export interface ListStore {
@@ -71,8 +72,10 @@ export interface ListStore {
   searchIngredients(itemId: string, query?: string): Promise<{ term: string | null; candidates: IngredientRow[]; failed: { source: IngredientSource; reason: string }[] }>
   /** 사람이 고른 품목을 저장(food-info ingredients_choose) */
   chooseIngredients(itemId: string, source: IngredientSource, reportNo: string): Promise<void>
-  /** 성분 탭을 열 때 고른 상품명으로 맞는 품목을 자동으로 저장(food-info ingredients_auto). 상품이 없거나 맞는 것이 없으면 null */
+  /** 성분 탭을 열 때 고른 상품명으로 맞는 품목을 자동으로 저장(food-info ingredients_auto). 상품이 없거나 맞는 것이 없으면 null. 화면은 이제 autoProduct를 쓴다 */
   autoIngredients(itemId: string): Promise<ItemIngredients | null>
+  /** 상품을 고른 품목의 성분 탭을 열 때 원재료·영양성분을 한 번에 자동으로 맞춘다(food-info product_auto, D-026). 못 맞추면 까닭과 후보 */
+  autoProduct(itemId: string): Promise<ProductAuto>
   /** 영양성분(P9, D-018): 품목 이름·규격에 기억한 식품영양성분DB 식품. 없으면 null */
   itemNutrition(itemId: string): Promise<ItemNutrition | null>
   /** 식품영양성분DB를 이름으로 찾는다(food-info nutrition_search). query가 없으면 품목 이름 */
@@ -115,7 +118,8 @@ export type DemoPrices = {
   /** 바코드 → 식약처 기록(P6) */
   barcodes?: Record<string, BarcodeRecord[]>
   /** 원재료(D-020): 품목 id → 기억한 품목제조보고, 후보 목록 */
-  ingredients?: { items: Record<string, ItemIngredients>; candidates: IngredientRow[] }
+  /** auto를 주면 상품 자동 맞춤(autoProduct)이 저장하지 않고 그 까닭과 후보 앞 3개를 돌려준다(캡처용) */
+  ingredients?: { items: Record<string, ItemIngredients>; candidates: IngredientRow[]; auto?: Pick<ProductAuto, 'reason' | 'maker' | 'origin' | 'words'> }
   /** 품목 id → 기억한 식품, 이름 검색 후보(P9) */
   nutrition?: { items: Record<string, ItemNutrition>; candidates: NutritionRow[]; candidatesOther?: NutritionRow[] }
 }
@@ -147,7 +151,7 @@ export function createMemoryStore(
   const ingredients = new Map<string, ItemIngredients>(Object.entries(demoPrices.ingredients?.items ?? {}))
   const nutrition = new Map<string, ItemNutrition>(Object.entries(demoPrices.nutrition?.items ?? {}))
   // 데모 후보를 기억한 원재료 모양으로(축산물 I1310 줄은 C006에서 받은 것으로 본다)
-  const fromRow = (c: IngredientRow): Omit<ItemIngredients, 'updatedAt' | 'auto'> => ({
+  const fromRow = (c: IngredientRow): Omit<ItemIngredients, 'updatedAt' | 'auto' | 'v'> => ({
     origin: c.source === 'I1310' ? 'C006' : c.source, reportNo: c.reportNo, name: c.name, maker: c.maker, kind: c.kind, rawMaterials: c.rawMaterials,
     changedOn: c.changedOn, shelfLife: c.shelfLife, health: c.health,
   })
@@ -326,15 +330,30 @@ export function createMemoryStore(
     async chooseIngredients(itemId, source, reportNo) {
       const c = (demoPrices.ingredients?.candidates ?? []).find((x) => x.source === source && x.reportNo === reportNo)
       if (!c) throw new Error('not_found')
-      ingredients.set(itemId, { ...fromRow(c), updatedAt: now(), auto: false })
+      ingredients.set(itemId, { ...fromRow(c), updatedAt: now(), auto: false, v: MATCH_VERSION })
     },
     async autoIngredients(itemId) {
       const it = items.find((i) => i.id === itemId)
       const c = (demoPrices.ingredients?.candidates ?? [])[0]
       if (!it?.productKey || !c) return null
-      const row: ItemIngredients = { ...fromRow(c), updatedAt: now(), auto: true }
+      const row: ItemIngredients = { ...fromRow(c), updatedAt: now(), auto: true, v: MATCH_VERSION }
       ingredients.set(itemId, row)
       return { ...row }
+    },
+    async autoProduct(itemId) {
+      const it = items.find((i) => i.id === itemId)
+      const cands = demoPrices.ingredients?.candidates ?? []
+      const base = { maker: null, origin: null, words: [], failed: [] }
+      const n = nutrition.get(itemId)
+      const nut = n ? { ...n, nutrition: { ...n.nutrition } } : null
+      if (!it?.productKey) return { ...base, ingredients: null, nutrition: nut, reason: 'no_product', candidates: [] }
+      const miss = demoPrices.ingredients?.auto
+      if (miss) return { ...base, ...miss, ingredients: null, nutrition: nut, candidates: miss.reason === 'unsure' ? cands.slice(0, 3).map((c) => ({ ...c })) : [] }
+      const c = cands[0]
+      if (!c) return { ...base, ingredients: null, nutrition: nut, reason: 'no_rows', candidates: [] }
+      const row: ItemIngredients = { ...fromRow(c), updatedAt: now(), auto: true, v: MATCH_VERSION }
+      ingredients.set(itemId, row)
+      return { ...base, ingredients: { ...row }, nutrition: nut, reason: null, candidates: [] }
     },
     async itemNutrition(itemId) {
       const n = nutrition.get(itemId)
@@ -350,7 +369,7 @@ export function createMemoryStore(
       if (!c) throw new Error('not_found')
       const { foodCd: cd, reportNo: _r, ...n } = c
       void _r
-      nutrition.set(itemId, { foodCd: cd, foodName: c.foodName ?? '이름 없음', maker: c.maker, nutrition: n, updatedAt: now(), auto: false, matchedBy: null })
+      nutrition.set(itemId, { foodCd: cd, foodName: c.foodName ?? '이름 없음', maker: c.maker, nutrition: n, updatedAt: now(), auto: false, matchedBy: null, v: MATCH_VERSION })
     },
     async autoNutrition(itemId) {
       const it = items.find((i) => i.id === itemId)
@@ -358,7 +377,7 @@ export function createMemoryStore(
       if (!it || !c?.foodCd) return null
       const { foodCd: cd, reportNo: _r, ...n } = c
       void _r
-      const row: ItemNutrition = { foodCd: cd, foodName: c.foodName ?? '이름 없음', maker: c.maker, nutrition: n, updatedAt: now(), auto: true, matchedBy: 'name' }
+      const row: ItemNutrition = { foodCd: cd, foodName: c.foodName ?? '이름 없음', maker: c.maker, nutrition: n, updatedAt: now(), auto: true, matchedBy: 'name', v: MATCH_VERSION }
       nutrition.set(itemId, row)
       return { ...row, nutrition: { ...row.nutrition } }
     },

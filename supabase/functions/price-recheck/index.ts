@@ -52,7 +52,9 @@ Deno.serve((req) =>
     },
     fetchHtml,
     save: async (id, p, at) => {
-      const patch = p.rating === null ? { updated_at: at } : { rating: p.rating, review_count: p.reviewCount, rated_at: at, updated_at: at }
+      // 제조사·상표·원산지·원재료명(D-026)은 읽을 때마다 새로 쓴다(식약처 품목 맞춤의 업체 조건)
+      const facts = { ...p.facts, facts_at: at }
+      const patch = p.rating === null ? { ...facts, updated_at: at } : { ...facts, rating: p.rating, review_count: p.reviewCount, rated_at: at, updated_at: at }
       const up = await g().from('products').update(patch).eq('id', id)
       if (up.error) throw up.error
       const { data: check, error } = await g().from('price_checks')

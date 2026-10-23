@@ -9,6 +9,14 @@
 
 ## 된 것 (2026-10-19, 통합 1단계)
 
+- 상품명 → 식약처 품목 맞춤 다시 만들기(D-026, 2026-10-23, 브랜치 `claude/product-match`, 설계 `docs/superpowers/specs/2026-10-23-product-match-design.md`):
+  다나와 상품 페이지의 제조사·상표·원산지·원재료명 읽기(`parseDanawaProduct().facts`, 사본 product-4497661·product-246993), 마이그레이션 `20261103000000_grocery_product_facts.sql`
+  (`products` 칸 다섯, `clear_item_auto`, 저장 함수 두 개는 자동 줄이 사람이 고른 줄을 덮지 않게, PGlite 시험 `productFactsDb.test.ts`), 순수 맞춤 `_shared/productMatch.ts`(시험 `productMatch.test.ts`),
+  `food-info` 새 액션 `product_auto`(원재료·영양성분 한 번에, 같은 보고번호로 영양, 옛 버전 자동 줄 다시 맞춤·지움; 시험 `productAutoFn.test.ts`), 옛 `ingredients_auto`·`nutrition_auto`도 같은 기준,
+  `ingredients_choose`는 고른 보고번호로 영양도 맞춤. 화면: 성분 탭이 상품 있는 품목에서 `product_auto` 하나를 부르고, 못 맞추면 까닭과 "같은 상품인지 확인해 주세요" 후보 3개.
+  정답표 시험 `productMatch.golden.test.ts`(sample 응답에서 모은 실제 줄 `fixtures/foodsafety/match-rows.json`을 가짜 API가 걸러 줌).
+  남은 것: `shouldAutoSave`(자동 저장 기준)는 사용자가 정하기로 함. 공유 DB 적용·`food-info`·`product-check`·`price-recheck` 배포·main 병합은 사용자 확인 뒤.
+  운영 키로 정답표 확인(선택): 키 파일 `~/.config/acout-book/food-keys.env`가 있으면 돌린다. 식품영양성분DB `ITEM_REPORT_NO` 검색이 운영에서 되는지는 확인 필요.
 - 설정 '앱' 카드(D-025, 2026-10-22, 브랜치 `claude/app-update`): 업데이트 확인(`version.json`), 앱 파일 다시 받기, 홈 화면 앱 안내, 매니페스트 장보기 바로가기. 기록은 `docs/HANDOFF.md` 5절 18.
 - 몰 주소 자동 찾기(D-024, 2026-10-22, 브랜치 `claude/shop-find`): Edge Function `shop-find`(verify_jwt true, Claude 웹 검색 → 결과 주소만 → 페이지 직접 읽기 → 이름·용량 견주기), `_shared/shopFind.ts`(시험 11개), `shop-find/handle.ts`(시험 13개),
   마이그레이션 `20261102000000_grocery_shop_finds.sql`(PGlite 시험 4개), 화면: 상품을 고르면 목록에서 부르고 품목 상세 가격 탭을 열 때도 한 번(찾는 중 4초마다 다시 읽기), "자동으로 찾음" 표시, "같은 상품인지 확인해 주세요" 후보와 "이 상품이에요".

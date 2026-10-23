@@ -113,7 +113,7 @@ export function demoSeed(): { me: Membership; items: Item[]; alerts: AlertsResul
   ]
   const ingredientsDemo: ItemIngredients = {
     origin: 'C002', reportNo: '1997040105528', name: '예시 왕교자', maker: '예시식품', kind: '만두',
-    rawMaterials: '밀가루(미국산), 돼지고기(국산), 양배추, 대파, 두부, 당면, 부추, 정제소금, 설탕, 참기름(예시)', changedOn: ago(30), shelfLife: null, health: null, updatedAt: at, auto: true,
+    rawMaterials: '밀가루(미국산), 돼지고기(국산), 양배추, 대파, 두부, 당면, 부추, 정제소금, 설탕, 참기름(예시)', changedOn: ago(30), shelfLife: null, health: null, updatedAt: at, auto: true, v: 2,
   }
   // 영양성분 이름 검색(P9)의 가짜 식품(실제 값이 아님). 식품영양성분DB 모양만 따랐다
   const nrow = (foodCd: string, foodName: string, kcal: number, maker: string | null, carbs: number, protein: number, fat: number, sodium: number): NutritionRow => ({
@@ -241,7 +241,7 @@ export function demoSeed(): { me: Membership; items: Item[]; alerts: AlertsResul
     },
     // 대파(demo-item-4)에 기억한 식품(P9). 목록 줄에 "30kcal/100g", 성분 탭에 표
     nutrition: {
-      items: { 'demo-item-4': { foodCd: 'D000000123', foodName: '파, 대파, 생것', maker: null, nutrition: nutritionCandidates[0], updatedAt: at, auto: true, matchedBy: 'name' } },
+      items: { 'demo-item-4': { foodCd: 'D000000123', foodName: '파, 대파, 생것', maker: null, nutrition: nutritionCandidates[0], updatedAt: at, auto: true, matchedBy: 'name', v: 2 } },
       candidates: nutritionCandidates,
       candidatesOther: nutritionOther,
     },

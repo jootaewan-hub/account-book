@@ -462,6 +462,7 @@
 .grocery .ours-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 6px; }
 .grocery .ours-row .price-v .src-line { display: inline; font-weight: 400; }
 .grocery .ours-block .price-list + .detail-sub { margin-top: 16px; }
+.grocery .detail-block .detail-none + .detail-sub { margin-top: 16px; } /* 원재료 "같은 상품인지 확인해 주세요"(D-026) */
 
 /* P4 사진으로 찾기·캡처로 가격 넣기 */
 .grocery .photo-input { display: none; } /* 보이는 버튼이 프로그램으로 연다(iOS Safari도 동작). 자동 확인의 터치 대상 검사에서도 빠진다 */

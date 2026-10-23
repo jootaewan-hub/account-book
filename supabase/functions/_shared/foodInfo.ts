@@ -134,7 +134,8 @@ function mergeC006(raw: Record<string, unknown>[]): Record<string, unknown>[] {
 }
 
 const AD_WORDS = new Set(['무료배송', '당일배송', '특가', '행사', '기획', '증정', '세트', '묶음', '정품', '최저가', '할인', '대용량'])
-const squash = (s: string) => s.toLowerCase().replace(/[^가-힣a-z0-9]/g, '')
+/** 견줄 때 쓰는 꼴: 소문자, 한글·영문·숫자만(띄어쓰기·기호·한자 뺌) */
+export const squash = (s: string) => s.toLowerCase().replace(/[^가-힣a-z0-9]/g, '')
 
 /** 상품명에서 찾을 낱말(D-020 보충 2): 식약처 품목명은 띄어쓰기가 제각각("국산콩백일된장")이고 띄어쓴 말은 첫 낱말로만 맞춰져("국산콩 백일된장"→두부들)
  *  구절 대신 낱말 하나씩 찾는다. 상표(첫 낱말)·숫자 든 말·용량·광고 말은 빼고, 뒤(상품 이름)부터 앞으로. "샘표 국산콩 100% 백일된장 900g" → ["백일된장", "국산콩"] */
@@ -267,12 +268,15 @@ export const isDish = (r: { foodCd: string | null; group: string | null }): bool
 const SIZE_WORD = /^\d+(?:[.,]\d+)?(?:kg|g|mg|ml|l|리터|cc|oz|개|개입|팩|입|병|봉|캔|구|매|롤|장|포|box|박스|p|ea|세트)$/i
 const COUNT_WORD = /^(?:x|×)?\d+(?:개|팩|입|병|봉|캔|구|매|롤|장|포)?$/i
 
+/** 용량("900g")·수량("2개")·광고("무료배송") 말인가. 괄호·쉼표를 뗀 낱말을 받는다(대소문자 무시) */
+export const isNoiseWord = (t: string): boolean => SIZE_WORD.test(t) || COUNT_WORD.test(t) || AD_WORDS.has(t.toLowerCase())
+
 /** 상품명에서 찾을 단어(P9 상품 흐름, D-018 보충 3): 용량·수량·연도·광고 말을 빼고, 상표(첫 단어)와 "1%" 같은 비율은 남긴다 */
 export function productWords(productName: string): string[] {
   const out: string[] = []
   for (const w of productName.split(/\s+/)) {
     const t = w.toLowerCase().replace(/[()[\]{},/]/g, '').trim()
-    if (!t || SIZE_WORD.test(t) || COUNT_WORD.test(t) || AD_WORDS.has(t)) continue
+    if (!t || isNoiseWord(t)) continue
     if (!out.includes(t)) out.push(t)
   }
   return out

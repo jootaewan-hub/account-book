@@ -26,7 +26,9 @@ import type { MarketStore } from '../lib/marketStore'
 import MarketPanel from './MarketPanel'
 import { ShopLinks, StorePrices } from './SourceBlocks'
 import { GoodPickerSheet, IngredientsPickerSheet, NutritionPickerSheet, StorePickerSheet } from './StoreSheets'
-import { INGREDIENT_NOTE, nutritionRows, nutritionSource, ORIGIN_LINE, type ItemIngredients, type ItemNutrition } from '../lib/foodInfo'
+import {
+  INGREDIENT_NOTE, noMatchText, nutritionRows, nutritionSource, ORIGIN_LINE, SOURCE_NAME as LIST_NAME, staleAuto, type IngredientRow, type ItemIngredients, type ItemNutrition, type ProductAuto,
+} from '../lib/foodInfo'
 import { alternatives, betterText } from '../lib/alternatives'
 import type { Candidate } from '../lib/products'
 import type { ItemSources, ShopLink, ShopSource } from '../lib/sources'
@@ -53,6 +55,14 @@ const FRESH_TABS: { key: Tab; label: string }[] = [
   { key: 'ingredients', label: '성분' },
   { key: 'safety', label: '안전' },
 ]
+
+// 영양성분 자동 맞춤의 출처 줄·안내(D-026): 맞춘 원재료의 보고번호, 고른 상품의 이름, 품목 이름(일반 식품)
+const MATCHED_LINE = { report: '보고번호로 자동 맞춤', product: '상품명으로 자동 맞춤', name: '이름으로 자동 맞춤' } as const
+const MATCHED_NOTE = {
+  report: '원재료로 맞춘 식약처 품목과 보고번호가 같은 식품이에요.',
+  product: '고른 상품의 제조사와 이름으로 자동으로 맞춘 식품이에요.',
+  name: '품목 이름으로 자동으로 맞춘 식품이에요(상품이 아니라 일반 식품 기준일 수 있어요).',
+} as const
 
 type Props = {
   item: Item
@@ -160,22 +170,51 @@ export default function ItemDetail({ item, store, onChangeProduct, onClose, mark
   }, [findStatus, finding, sources, loadSources])
   const loadIng = useCallback(() => store.itemIngredients(item.id).then(setIng, () => setIng('failed')), [store, item.id])
   const loadNut = useCallback(() => store.itemNutrition(item.id).then(setNut, () => setNut('failed')), [store, item.id])
-  // 성분 탭을 열었는데 기억한 식품이 없으면 버튼 없이 이름으로 자동 맞춘다(사용자 2026-10-20). 한 번만 시도한다
+  // 성분 탭을 열었는데 기억한 것이 없으면 버튼 없이 자동으로 맞춘다(사용자 2026-10-20). 한 번만 시도한다.
+  // 상품을 고른 품목은 원재료·영양성분을 한 번에 맞추고(D-026, product_auto), 옛 버전이 자동으로 맞춘 줄도 다시 맞춘다(사람이 고른 줄은 그대로).
+  // 상품이 없는 품목은 영양성분만 품목 이름으로 맞추고, 원재료는 이름만으로 맞추지 않고 사람이 고른다(D-020)
   const autoTried = useRef(false)
+  const [miss, setMiss] = useState<ProductAuto | null>(null)
   useEffect(() => {
-    if (tab !== 'ingredients' || nut !== null || autoTried.current) return
+    if (tab !== 'ingredients' || !data || autoTried.current || nut === 'loading' || ing === 'loading') return
+    if (data.product) {
+      const needIng = ing === null || (ing !== 'failed' && staleAuto(ing))
+      const needNut = nut === null || (nut !== 'failed' && staleAuto(nut))
+      if (!needIng && !needNut) return
+      autoTried.current = true
+      const before = { ing, nut }
+      if (needIng) setIng('loading')
+      if (needNut) setNut('loading')
+      store.autoProduct(item.id).then(
+        (r) => {
+          setIng(r.ingredients)
+          setNut(r.nutrition)
+          setMiss(r.ingredients ? null : r)
+        },
+        () => {
+          // 맞추지 못하면 있던 줄을 그대로 둔다(없었으면 불러오지 못했다고 쓴다)
+          setIng(before.ing ?? 'failed')
+          setNut(before.nut ?? 'failed')
+        },
+      )
+      return
+    }
+    if (nut !== null) return
     autoTried.current = true
     setNut('loading')
     store.autoNutrition(item.id).then(setNut, () => setNut(null))
-  }, [tab, nut, store, item.id])
-  // 원재료도 성분 탭을 열면 고른 상품명으로 자동으로 맞춘다(D-020). 상품이 없는 품목은 이름만으로 맞추지 않고 사람이 고른다. 한 번만 시도한다
-  const ingTried = useRef(false)
-  useEffect(() => {
-    if (tab !== 'ingredients' || ing !== null || ingTried.current || !data?.product) return
-    ingTried.current = true
-    setIng('loading')
-    store.autoIngredients(item.id).then(setIng, () => setIng(null))
-  }, [tab, ing, data, store, item.id])
+  }, [tab, data, nut, ing, store, item.id])
+  // "같은 상품인지 확인해 주세요" 후보에서 고르면 원재료를 저장하고, 서버가 같은 보고번호로 영양성분도 맞춘다
+  const [choosing, setChoosing] = useState(false)
+  const [chooseMsg, setChooseMsg] = useState<string | null>(null)
+  const chooseMatch = (c: IngredientRow) => {
+    setChoosing(true)
+    setChooseMsg(null)
+    store.chooseIngredients(item.id, c.source, c.reportNo)
+      .then(() => Promise.all([loadIng(), loadNut()]))
+      .then(() => setMiss(null), () => setChooseMsg('저장하지 못했어요. 잠시 뒤 다시 해 주세요.'))
+      .finally(() => setChoosing(false))
+  }
   useEffect(() => {
     void loadIng()
     void loadNut()
@@ -388,11 +427,13 @@ export default function ItemDetail({ item, store, onChangeProduct, onClose, mark
                 <div role="tabpanel">
                   <div className="detail-block">
                     <p className="detail-sub">열량·영양성분</p>
-                    {nut === 'loading' && <p className="cand-state" role="status">식품영양성분DB에서 이름으로 맞추는 중</p>}
+                    {nut === 'loading' && <p className="cand-state" role="status">{data.product ? '식품영양성분DB에서 상품 찾는 중' : '식품영양성분DB에서 이름으로 맞추는 중'}</p>}
                     {nut === 'failed' && <p className="cand-state" role="status">영양성분을 불러오지 못했어요. 잠시 뒤 다시 열어 주세요.</p>}
                     {nut === null && (
                       <>
-                        <p className="detail-none">식품영양성분DB에서 이름으로 맞는 식품을 찾지 못했어요. 다른 이름으로 찾아 고르면 같은 이름·규격으로 담을 때 다시 쓰여요.</p>
+                        <p className="detail-none">
+                          {data.product ? '식품영양성분DB에서 이 상품이나 같은 품목의 일반 식품을 찾지 못했어요.' : '식품영양성분DB에서 이름으로 맞는 식품을 찾지 못했어요.'} 다른 이름으로 찾아 고르면 같은 이름·규격으로 담을 때 다시 쓰여요.
+                        </p>
                         <button type="button" className="btn-secondary detail-link" onClick={() => openPicker('nutrition')}>영양성분 찾기</button>
                       </>
                     )}
@@ -408,11 +449,11 @@ export default function ItemDetail({ item, store, onChangeProduct, onClose, mark
                           ))}
                         </dl>
                         <p className="src-line">
-                          {[nut.maker, nutritionSource(nut.nutrition), nut.auto ? `${checkedText(nut.updatedAt)} ${nut.matchedBy === 'product' ? '상품명으로' : '이름으로'} 자동 맞춤` : `${checkedText(nut.updatedAt)} 고름`].filter(Boolean).join(', ')}
+                          {[nut.maker, nutritionSource(nut.nutrition), nut.auto ? `${checkedText(nut.updatedAt)} ${MATCHED_LINE[nut.matchedBy ?? 'name']}` : `${checkedText(nut.updatedAt)} 고름`].filter(Boolean).join(', ')}
                         </p>
                         {nut.auto && (
                           <p className="read-note">
-                            {nut.matchedBy === 'product' ? '고른 상품의 이름으로' : '품목 이름으로'} 자동으로 맞춘 식품이에요. 다른 식품이면 "다른 식품으로 바꾸기"로 고쳐 주세요.
+                            {MATCHED_NOTE[nut.matchedBy ?? 'name']} 다른 식품이면 "다른 식품으로 바꾸기"로 고쳐 주세요.
                           </p>
                         )}
                       </>
@@ -421,15 +462,35 @@ export default function ItemDetail({ item, store, onChangeProduct, onClose, mark
                   {!fresh && (
                     <div className="detail-block">
                       <p className="detail-sub">원재료</p>
-                      {ing === 'loading' && <p className="cand-state" role="status">{data.product ? '식약처 품목제조보고에서 상품명으로 맞추는 중' : '원재료 불러오는 중'}</p>}
+                      {ing === 'loading' && <p className="cand-state" role="status">{data.product ? '식약처 품목제조보고에서 상품 찾는 중' : '원재료 불러오는 중'}</p>}
                       {ing === 'failed' && <p className="cand-state" role="status">원재료를 불러오지 못했어요. 잠시 뒤 다시 열어 주세요.</p>}
                       {ing === null && (
                         <>
                           <p className="detail-none">
                             {data.product
-                              ? '식약처 품목제조보고에서 상품명으로 맞는 품목을 찾지 못했어요. 직접 찾아 고르면 같은 이름·규격으로 담을 때 다시 쓰여요.'
+                              ? noMatchText(miss ?? { reason: null, maker: null, origin: null, words: [] })
                               : '식약처 품목제조보고(식품·축산물·건강기능식품)에서 같은 품목을 고르면 원재료를 보여 드려요. 상품을 고르면 상품명으로 자동으로 맞춰요.'}
                           </p>
+                          {miss?.reason === 'unsure' && miss.candidates.length > 0 && (
+                            <>
+                              <p className="detail-sub">같은 상품인지 확인해 주세요</p>
+                              <ul className="pick-list">
+                                {miss.candidates.map((c) => (
+                                  <li key={`${c.source}-${c.reportNo}`}>
+                                    <button type="button" className="pick-row" disabled={choosing} onClick={() => chooseMatch(c)}>
+                                      <span className="pick-name">{c.name}</span>
+                                      <span className="pick-meta">{[LIST_NAME[c.source], c.maker, c.kind, `보고번호 ${c.reportNo}`].filter(Boolean).join(', ')}</span>
+                                    </button>
+                                  </li>
+                                ))}
+                              </ul>
+                              <p className="src-line">맞는 것을 누르면 원재료와 같은 보고번호의 영양성분을 저장해요.</p>
+                            </>
+                          )}
+                          {chooseMsg && <p className="cand-state" role="alert">{chooseMsg}</p>}
+                          {miss && miss.failed.length > 0 && (
+                            <p className="cand-state">{miss.failed.map((f) => `${LIST_NAME[f.source]} 목록(${f.source})은 확인 못 함(${f.reason})`).join(', ')}</p>
+                          )}
                           <button type="button" className="btn-secondary detail-link" onClick={() => openPicker('food')}>식약처 품목 찾기</button>
                         </>
                       )}
@@ -449,9 +510,9 @@ export default function ItemDetail({ item, store, onChangeProduct, onClose, mark
                               .map(([k, v]) => (
                                 <p key={k} className="ingredients-text"><b>{k}</b> {v}</p>
                               ))}
-                          <p className="src-line">{ORIGIN_LINE[ing.origin]}, {ing.auto ? `${checkedText(ing.updatedAt)} 상품명으로 자동 맞춤` : `${checkedText(ing.updatedAt)} 고름`}</p>
+                          <p className="src-line">{ORIGIN_LINE[ing.origin]}, {ing.auto ? `${checkedText(ing.updatedAt)} 상품으로 자동 맞춤` : `${checkedText(ing.updatedAt)} 고름`}</p>
                           <p className="read-note">
-                            {ing.auto ? '고른 상품의 이름으로 자동으로 맞춘 품목이에요. 다른 품목이면 "다른 품목으로 바꾸기"로 고쳐 주세요. ' : ''}
+                            {ing.auto ? '고른 상품의 제조사와 이름으로 자동으로 맞춘 품목이에요. 다른 품목이면 "다른 품목으로 바꾸기"로 고쳐 주세요. ' : ''}
                             {INGREDIENT_NOTE}
                           </p>
                         </>

@@ -117,6 +117,23 @@ describe('다나와 상품 페이지', () => {
     expect(p.offers.length).toBeGreaterThan(0)
   })
 
+  it('제조사·상표·원산지·원재료명을 읽는다(D-026): 청정원 고추장의 제조사는 대상', () => {
+    const p = parseDanawaProduct(read('product-4497661.html'), '4497661')
+    expect(p.facts).toEqual({
+      maker: '대상',
+      brand: '청정원 순창',
+      origin: '고추양념(중국산), 현미(외국산)',
+      materials: '현미 20.2%, 태양초 11.3%',
+    })
+  })
+
+  it('수입품은 원산지가 나라 이름 하나, 상표가 비면 null, 원산지·원재료명이 없으면 null(굴소스·왕교자)', () => {
+    expect(parseDanawaProduct(read('product-246993.html'), '246993').facts).toEqual({ maker: '이금기', brand: null, origin: '홍콩산', materials: '굴추출물농축액 95%' })
+    expect(parseDanawaProduct(read('product-5643303.html'), '5643303').facts).toEqual({ maker: 'CJ제일제당', brand: '비비고', origin: null, materials: null })
+    const bare = read('product-5643303.html').replace(/"makerName":"[^"]*","brandName":"[^"]*"/g, '')
+    expect(parseDanawaProduct(bare, '5643303').facts).toEqual({ maker: null, brand: null, origin: null, materials: null })
+  })
+
   it('JSON-LD Product가 없으면 DanawaParseError', () => {
     expect(() => parseDanawaProduct('<html><body>점검 중</body></html>', '1')).toThrow(DanawaParseError)
   })

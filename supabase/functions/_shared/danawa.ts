@@ -24,7 +24,12 @@ export type DanawaProduct = {
   pageQty: number | null
   variants: DanawaVariant[]
   offers: DanawaOffer[]
+  /** 식약처 품목을 맞출 때 쓰는 상품 정보(D-026). 페이지 값 그대로, 없으면 null */
+  facts: DanawaFacts
 }
+
+/** 제조사(`makerName`, 청정원 상품은 "대상")·상표(`brandName`)와 JSON-LD 설명의 "원산지: …"·"원재료명: …" */
+export type DanawaFacts = { maker: string | null; brand: string | null; origin: string | null; materials: string | null }
 
 export class DanawaParseError extends Error {
   constructor(message: string) {
@@ -180,6 +185,7 @@ export function parseDanawaSearch(html: string): DanawaSearchItem[] {
 type JsonLdProduct = {
   '@type'?: string
   name?: string
+  description?: string
   image?: string | string[]
   aggregateRating?: { ratingValue?: string | number; reviewCount?: string | number }
 }
@@ -222,6 +228,29 @@ function readOffers(html: string): DanawaOffer[] {
   return out
 }
 
+/** 페이지 JSON의 `"makerName":"대상"`처럼 따옴표 친 열쇠 하나(\uXXXX는 풀어서). 비었으면 null */
+function pageField(html: string, key: string, max: number): string | null {
+  const m = html.match(new RegExp(`"${key}"\\s*:\\s*"((?:[^"\\\\]|\\\\.)*)"`))
+  if (!m) return null
+  let v: string
+  try {
+    v = JSON.parse(`"${m[1]}"`)
+  } catch {
+    return null
+  }
+  v = unescape(v).replace(/\s+/g, ' ').trim()
+  return v ? v.slice(0, max) : null
+}
+
+/** JSON-LD 설명은 "고추장 / 플라스틱 / 원재료명: 현미 20.2%, 태양초 11.3% / 원산지: 고추양념(중국산), 현미(외국산) / [영양정보] / …"처럼 " / "로 나뉜다 */
+function descField(desc: string | undefined, label: string, max: number): string | null {
+  for (const seg of unescape(desc ?? '').split(' / ')) {
+    const m = seg.match(new RegExp(`^\\s*${label}\\s*:\\s*(.+?)\\s*$`))
+    if (m) return m[1].slice(0, max)
+  }
+  return null
+}
+
 export function parseDanawaProduct(html: string, pcode: string): DanawaProduct {
   const ld = findProductLd(html)
   if (!ld || !ld.name) throw new DanawaParseError('product: no JSON-LD Product')
@@ -243,5 +272,11 @@ export function parseDanawaProduct(html: string, pcode: string): DanawaProduct {
     pageQty: q ? Number(q[1]) : variants.length === 0 ? 1 : null,
     variants,
     offers: readOffers(html),
+    facts: {
+      maker: pageField(html, 'makerName', 60),
+      brand: pageField(html, 'brandName', 60),
+      origin: descField(ld.description, '원산지', 200),
+      materials: descField(ld.description, '원재료명', 200),
+    },
   }
 }
