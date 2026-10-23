@@ -145,8 +145,9 @@ export function rankMatches<T extends MatchCandidate>(rows: readonly T[], plan: 
  * best는 rankMatches의 첫째, runnerUp은 둘째(없으면 undefined).
  */
 export function shouldAutoSave(best: MatchScore, runnerUp: MatchScore | undefined): boolean {
-  // TODO(사용자): 자동 저장 기준
-  void best
+  // 설계 기준(2026-10-23): 같은 업체이고 후보 이름이 상품 말로 거의 설명되며(cover) 상품 말의 절반 이상이 후보에 든다(recall).
+  // 앞 2자 열쇠로만 업체가 맞으면("롯데" → 롯데칠성음료도 롯데리아도) 상품 말이 더 많이 들어야 한다. 2등은 지금 기준에 쓰지 않는다(같은 이름의 공장별 보고가 흔하다)
   void runnerUp
-  return false
+  if (!best.makerOk || best.cover < 0.8) return false
+  return best.recall >= (best.makerFull ? 0.5 : 0.75)
 }
