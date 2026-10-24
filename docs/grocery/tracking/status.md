@@ -1,6 +1,6 @@
 # 현재 상태
 
-> **지금(2026-10-22)**: 앱 구조 정리(D-023)까지 배포 중이다. 공유 DB에 `20261101000000_grocery_upsert_grants` 적용, `export-csv` v8 배포, main 병합은 사용자 승인으로 했다. 함수 다섯(`extract-entries`·`product-search`·`product-check`·`food-info`·`price-recheck`)은 커밋 고정 stub으로 배포했다(`docs/HANDOFF.md` 5절 16번, 대시보드에는 stub만 보인다). 남은 확인(사용자): 앱에서 몰 주소 하나·자주 가는 매장 저장, 영수증 한 장 읽기.
+> **지금(2026-10-24)**: 상품명 → 식약처 품목 맞춤(D-026)까지 배포했다. 공유 DB에 `grocery_product_facts` 적용, `food-info` v10·`product-check` v6·`price-recheck` v4를 커밋 고정 stub으로 배포, main 병합은 사용자 승인으로 했다(`docs/HANDOFF.md` 5절 19). `clear_item_auto`는 아직 공유 DB에 없다(열린 문제). 남은 확인(사용자): 성분 탭 자동 맞춤.
 > 배포·적용 기록은 `docs/HANDOFF.md` 5절, 결정은 `decisions/index.md`, 아래 "열린 문제"가 남은 일이다. 시험은 `npm test` 전부 통과가 기준이다(개수는 적지 않는다).
 
 > 2026-10-19부터 장보기는 가계부 저장소(jootaewan-hub/account-book) 안의 '장보기' 탭이다(D-010). 이 문서는 장보기 저장소(jootaewan-hub/grocery-app)에서 옮겨 왔고,

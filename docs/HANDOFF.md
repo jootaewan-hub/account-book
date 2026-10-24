@@ -142,6 +142,18 @@ npm run screens
     - 됨: main fast-forward(acf05f9)·푸시, Pages 배포 성공. 운영 `version.json`과 SettingsView 묶음의 버전이 `acf05f9 · 10-22 12:06`으로 같고, `sw.js`에 `version.json`이 없고, 매니페스트에 장보기 바로가기가 있다. 이 기록 고침도 같은 승인으로 main에 올렸다.
     - 바뀐 동작: 안드로이드 크롬의 자동 설치 안내 띠는 이제 뜨지 않는다(`beforeinstallprompt`를 받아 두고 설정의 "홈 화면에 설치"로 띄운다).
 
+19. 상품명 → 식약처 품목 맞춤(D-026) 운영 반영(2026-10-24 12:45 KST 무렵, 사용자 승인 "진행해"·"너가 해봐"·"계속 진행해"): 브랜치 `claude/product-match` 푸시 → `ci.yml` 통과(0a5949f, 5383595).
+    - 막힌 것: MCP `apply_migration`·`execute_sql`이 `delete`가 든 문장마다 `Invalid or expired requestState`로 실패했다(네 번, 지우는 줄이 0개인 `delete from grocery.item_nutrition where false`도). 승인 창은 뜨지 않았다. 같은 때 읽기 조회는 됐다.
+      그래서 `clear_item_auto`를 `20261103010000_grocery_clear_item_auto.sql`로 떼어 내고 `delete`가 없는 앞 파일만 적용했다. 아직 안 들어간 파일과 넣는 방법은 `docs/grocery/tracking/status.md` 열린 문제에 있다.
+    - 됨: MCP `apply_migration`(`grocery_product_facts`, 원격 버전 20261024033913). `grocery.products` 새 칸 다섯(maker·brand·origin·materials·facts_at), `set_item_nutrition`·`set_item_ingredients`의 덮어쓰기 막기(`pg_get_functiondef`로 확인).
+      두 함수의 실행 권한은 그대로다(authenticated·anon 없음, `create or replace`가 권한을 남긴다). 보안 점검은 적용 전과 같은 항목뿐이다.
+    - 됨: 커밋 고정 stub `5383595f74a9bb1b38505b1f966f607fd7bb5994`로 `food-info` v10·`product-check` v6(verify_jwt true, 로그인 없는 POST 401, OPTIONS 204 `POST, OPTIONS`), `price-recheck` v4(verify_jwt false, GET 405 `method_not_allowed`).
+      `food-info`는 `clear_item_auto`가 없으면(PGRST202) 경고만 남기고 지우기를 건너뛴다.
+    - 됨: main fast-forward 병합·푸시(Pages 배포, 이 기록 커밋까지).
+    - 남은 확인(사용자): 고추장·된장·미림·쌈장·알룰로스·우유·진라면 순한맛·짜파게티·참깨·흑설탕 성분 탭을 열어 "상품명으로 자동 맞춤"과 보고번호, 굴소스·버터·참치액·치즈·파슬리는 "같은 상품인지 확인해 주세요" 또는 까닭이 뜨는지.
+      그 뒤 DB의 `item_ingredients`·`item_nutrition`(details·nutrition의 `v: 2`, matchedBy)과 `products`의 maker·facts_at, `food-info` 로그(503, 품목대표 300건 검색)를 본다.
+    - 되돌리기: stub 해시를 이전 배포 커밋 `afe51bf…`(16번)로 바꿔 다시 올리고 main을 되돌린다. 새 칸과 저장 함수의 덮어쓰기 막기는 옛 코드와 함께 둬도 동작에 영향이 없다.
+
 ### 사용자 할 일
 
 - ~~공공데이터포털 식품영양성분DB(15127578) 활용신청~~ 2026-10-20 마침(사용자). 같은 키로 통하는지는 성분 탭 첫 호출로 확인.
