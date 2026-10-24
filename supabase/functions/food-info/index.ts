@@ -48,7 +48,9 @@ Deno.serve(async (req) => {
     },
     clearAuto: async (itemId, version) => {
       const { error } = await g().rpc('clear_item_auto', { p_item: itemId, p_version: version })
-      if (error) throw error
+      // clear_item_auto는 따로 적용한다(20261103010000). 아직 없으면(PGRST202) 옛 자동 줄을 남겨 두고 넘어간다
+      if (error?.code === 'PGRST202') console.warn('clear_item_auto 없음, 옛 자동 줄 지우기 건너뜀')
+      else if (error) throw error
     },
     saveNutrition: async (itemId, row, auto, matchedBy) => {
       // 자동 맞춤은 고른 사람이 없고 jsonb에 auto·matchedBy(report/product/name)·v(맞춤 버전, D-026)를 남긴다(화면이 "보고번호로/상품명으로/이름으로 자동 맞춤"이라고 쓴다)

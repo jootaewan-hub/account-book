@@ -10,12 +10,12 @@
 ## 된 것 (2026-10-19, 통합 1단계)
 
 - 상품명 → 식약처 품목 맞춤 다시 만들기(D-026, 2026-10-23, 브랜치 `claude/product-match`, 설계 `docs/superpowers/specs/2026-10-23-product-match-design.md`):
-  다나와 상품 페이지의 제조사·상표·원산지·원재료명 읽기(`parseDanawaProduct().facts`, 사본 product-4497661·product-246993), 마이그레이션 `20261103000000_grocery_product_facts.sql`
+  다나와 상품 페이지의 제조사·상표·원산지·원재료명 읽기(`parseDanawaProduct().facts`, 사본 product-4497661·product-246993), 마이그레이션 `20261103000000_grocery_product_facts.sql`·`20261103010000_grocery_clear_item_auto.sql`
   (`products` 칸 다섯, `clear_item_auto`, 저장 함수 두 개는 자동 줄이 사람이 고른 줄을 덮지 않게, PGlite 시험 `productFactsDb.test.ts`), 순수 맞춤 `_shared/productMatch.ts`(시험 `productMatch.test.ts`),
   `food-info` 새 액션 `product_auto`(원재료·영양성분 한 번에, 같은 보고번호로 영양, 옛 버전 자동 줄 다시 맞춤·지움; 시험 `productAutoFn.test.ts`), 옛 `ingredients_auto`·`nutrition_auto`도 같은 기준,
   `ingredients_choose`는 고른 보고번호로 영양도 맞춤. 화면: 성분 탭이 상품 있는 품목에서 `product_auto` 하나를 부르고, 못 맞추면 까닭과 "같은 상품인지 확인해 주세요" 후보 3개.
   정답표 시험 `productMatch.golden.test.ts`(sample 응답에서 모은 실제 줄 `fixtures/foodsafety/match-rows.json`을 가짜 API가 걸러 줌).
-  남은 것: `shouldAutoSave`(자동 저장 기준)는 사용자가 정하기로 함. 공유 DB 적용·`food-info`·`product-check`·`price-recheck` 배포·main 병합은 사용자 확인 뒤.
+  `shouldAutoSave`는 설계 기준대로 채웠다(업체 일치, cover ≥ 0.8, recall ≥ 0.5, 앞 2자 열쇠로만 업체가 맞으면 recall ≥ 0.75). 운영 반영은 `docs/HANDOFF.md` 5절 19(`clear_item_auto`는 아직 공유 DB에 없음, 아래 열린 문제).
   운영 키로 정답표 확인(선택): 키 파일 `~/.config/acout-book/food-keys.env`가 있으면 돌린다. 식품영양성분DB `ITEM_REPORT_NO` 검색이 운영에서 되는지는 확인 필요.
 - 설정 '앱' 카드(D-025, 2026-10-22, 브랜치 `claude/app-update`): 업데이트 확인(`version.json`), 앱 파일 다시 받기, 홈 화면 앱 안내, 매니페스트 장보기 바로가기. 기록은 `docs/HANDOFF.md` 5절 18.
 - 몰 주소 자동 찾기(D-024, 2026-10-22, 브랜치 `claude/shop-find`): Edge Function `shop-find`(verify_jwt true, Claude 웹 검색 → 결과 주소만 → 페이지 직접 읽기 → 이름·용량 견주기), `_shared/shopFind.ts`(시험 11개), `shop-find/handle.ts`(시험 13개),
@@ -176,6 +176,11 @@
 - Supabase 프로젝트: 가계부 프로젝트를 공유하므로 새로 만들지 않는다(D-003).
 
 ## 열린 문제
+
+- (2026-10-24, D-026 운영 반영) `grocery.clear_item_auto`(마이그레이션 `20261103010000_grocery_clear_item_auto.sql`)가 공유 DB에 없다. Supabase MCP의 `apply_migration`·`execute_sql`이 `delete`가 든 문장마다
+  (지우는 줄이 0개인 `delete … where false`도) 사용자 확인 단계에서 `Invalid or expired requestState`로 실패해(2026-10-23~24, 네 번, 승인 창은 뜨지 않음) `delete`가 없는 `20261103000000_grocery_product_facts.sql`만 적용했다.
+  - 그동안 `food-info`는 `PGRST202`(함수 없음)를 받으면 지우기를 건너뛴다. 새 맞춤이 덮어쓸 것을 찾지 못한 옛 자동 줄(`v` 없음)은 그대로 남고, 그 품목은 성분 탭을 열 때마다 `product_auto`를 다시 부른다.
+  - 넣는 방법: MCP 확인 단계가 고쳐지면 `apply_migration`으로 그 파일을 적용한다. 또는 사용자가 Supabase SQL 편집기에서 그 파일 내용을 실행한다(적용 기록에 남지 않으니 `pg_proc`로 대조한다). 앱·함수 코드는 바꿀 것이 없다.
 
 - (2026-10-22, D-024 첫 실제 사용) 홈플러스 상품 페이지를 읽지 못했다. 11:29 KST "이금기 프리미엄 굴소스 510g" 찾기에서 웹 검색이 준 홈플러스 주소 2개(`068886569:HYPER`, `10000305103963:DS`)가 둘 다 `shop_checks.error = parse_failed`였다.
   서버(Supabase Edge)에서 받은 HTML에 `_shared/shops.ts` `parseShopProduct`가 찾는 값이 없었다는 뜻이다. 원인은 확인 필요(추측입니다: 판매 끝난 상품이거나, `DS`(입점 판매) 상품은 페이지 모양이 다르다).
