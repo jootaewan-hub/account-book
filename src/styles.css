@@ -179,13 +179,14 @@ main.wrap { padding-block: 4px calc(150px + env(safe-area-inset-bottom, 0px)); }
 .tx-memo { min-width: 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tx-amt.inc { color: var(--indigo); }
 /* 내역 고르기·같은 영수증 묶음 삭제 (D-027) */
+.month-sum:has(.pick-toggle) { flex-wrap: wrap; row-gap: 4px; }
 .month-sum .pick-toggle { margin-left: auto; margin-block: -12px; }
 .tx.picking { grid-template-columns: 20px minmax(0, 1fr) auto; cursor: pointer; }
 .tx.picking.has-lead { grid-template-columns: 20px 40px minmax(0, 1fr) auto; }
 .tx.picking input, .day-head .day-pick input { width: 20px; height: 20px; margin: 0; accent-color: var(--primary); }
 .day-head .day-pick { display: inline-flex; align-items: center; gap: 12px; font-size: inherit; font-weight: inherit; color: inherit; cursor: pointer; }
 .pick-bar { position: sticky; z-index: 5; bottom: calc(var(--tabbar-h) + 12px + env(safe-area-inset-bottom, 0px)); display: flex; flex-direction: column; gap: 10px;
-  padding: 12px; border-radius: var(--r-md); background: var(--oat); }
+  padding: 12px; border-radius: var(--r-md); background: var(--oat); outline: 12px solid var(--canvas); } /* 바깥 테두리는 아래로 비치는 내역을 가린다(그림자 아님) */
 .pick-sum { display: flex; flex-direction: column; gap: 4px; font-size: 14px; color: var(--ink-2); }
 .pick-sum b { color: var(--ink); font-weight: 700; }
 .pick-bar .danger { background: var(--canvas); }

@@ -131,8 +131,16 @@ const shellShots = [
   ...each((w, c) => ({ name: `shell-grocery-market-${w}-${c}`, path: '/', w, c, shell: true, tab: '장보기', market: true })),
   // 영수증 확인 화면의 '장보기 목록에서 찾은 품목'(D-011 길 ①). 가짜 영수증 응답(RECEIPT)
   ...each((w, c) => ({ name: `shell-smart-grocery-${w}-${c}`, path: '/', w, c, shell: true, tab: '내역', receipt: true })),
+  // 영수증 확인 화면 맨 위(D-027): 기본은 한 내역, "상품 N개를 하나씩 따로 저장"을 켜면 상품마다 나뉜다
+  ...each((w, c) => ({ name: `shell-smart-bundle-${w}-${c}`, path: '/', w, c, shell: true, tab: '내역', receipt: true, splitToggle: false })),
+  ...both(390, (w, c) => ({ name: `shell-smart-split-${w}-${c}`, path: '/', w, c, shell: true, tab: '내역', receipt: true, splitToggle: true })),
   // 저장하지 않기로 한 초안(체크 해제)이 저장할 초안과 구별되는지
   ...both(390, (w, c) => ({ name: `shell-smart-draft-off-${w}-${c}`, path: '/', w, c, shell: true, tab: '내역', receipt: true, draftOff: true })),
+  // 내역 고르기(D-027): 날짜 하나 전부 + 다른 날 한 건을 고른 상태, 아래에 고른 내역 줄. 휴대폰은 한 번 누른 확인 상태도
+  ...each((w, c) => ({ name: `shell-list-pick-${w}-${c}`, path: '/', w, c, shell: true, tab: '내역', listPick: { day: 1, row: '스타벅스' } })),
+  ...both(390, (w, c) => ({ name: `shell-list-pick-confirm-${w}-${c}`, path: '/', w, c, shell: true, tab: '내역', listPick: { day: 1, row: '스타벅스', confirm: true } })),
+  // 나눠 저장한 내역의 수정 시트: 같은 영수증 내역 목록과 '4건 모두 삭제'
+  ...each((w, c) => ({ name: `shell-entry-batch-${w}-${c}`, path: '/', w, c, shell: true, tab: '내역', batch: '샘표 진간장' })),
   // 꺼 둔 구독 줄(고정 탭), 숨긴 분류 칩(설정)이 켜진 것과 구별되는지
   // (휴대폰 고정 탭의 꺼 둔 줄은 shell-fixed-390-*의 전체 화면에서 본다. 설정의 분류 칩은 휴대폰에서 아래 탭에 가려 넓은 화면만)
   ...both(1280, (w, c) => ({ name: `shell-settings-cats-${w}-${c}`, path: '/', w, c, shell: true, tab: '설정' })),
@@ -284,6 +292,18 @@ try {
         await page.locator('.fab, .side-record').locator('visible=true').first().click()
         await page.getByRole('dialog').first().waitFor()
       }
+      if (s.listPick) {
+        await page.getByRole('button', { name: '고르기', exact: true }).click()
+        await page.locator('.day-pick input').nth(s.listPick.day).check()
+        await page.locator('.tx.picking', { hasText: s.listPick.row }).click()
+        if (s.listPick.confirm) await page.locator('.pick-bar .danger').click()
+      }
+      if (s.batch) {
+        await page.locator('.tx', { hasText: s.batch }).first().click()
+        await page.getByRole('dialog').first().waitFor()
+        await page.locator('.batch-del').waitFor()
+        await page.locator('.batch-del').evaluate((el) => el.scrollIntoView({ block: 'end' }))
+      }
       if (s.rcOpen) {
         await page.locator('.rc-row', { hasText: s.rcOpen }).click()
         await page.getByRole('dialog').first().waitFor()
@@ -306,6 +326,10 @@ try {
         await page.getByText('이번 장보기 살펴보기').waitFor()
         await page.getByText('지난번보다 비싸진 것').waitFor()
         await page.locator('.cmp-card').scrollIntoViewIfNeeded()
+      } else if (s.splitToggle !== undefined) {
+        await page.locator('.split-toggle').waitFor()
+        if (s.splitToggle) await page.locator('.split-toggle input').check()
+        await page.locator('.split-toggle').evaluate((el) => el.closest('.sheet')?.scrollTo({ top: 0 }))
       } else if (s.draftOff) {
         await page.locator('.draft-head input').first().waitFor()
         await page.locator('.draft-head input').first().uncheck()

@@ -31,7 +31,7 @@ const FUEL = [
 const tx = (id, d, amount, title, category, extra = {}) => ({
   id, household_id: HH, type: 'expense', occurred_on: day(d), amount, title, memo: null, category_id: cat(category),
   payment_method_id: null, scope: 'shared', source: 'manual', created_by: ME, created_at: ago(60), recurring_id: null,
-  recurring_month: null, platform: null, transaction_items: [], ...extra,
+  recurring_month: null, platform: null, save_batch: null, transaction_items: [], ...extra,
 })
 
 const transactions = [
@@ -58,6 +58,11 @@ const transactions = [
   tx('t31', 1, 2800, '이마트 분당점', '장보기', { occurred_on: daysAgo(2), source: 'photo', transaction_items: [
     { id: 'i31a', name: '부침두부 300g', quantity: 1, unit_price: 2800, amount: 2800, pack_size: 300, pack_unit: 'g', image_path: null, sort: 1 },
   ] }),
+  // 쿠팡 주문 하나를 상품마다 나눠 저장한 내역(D-027 같은 영수증 묶음 'sb1'). 수정 시트에서 '같은 영수증에서 나눠 저장한 내역 4건'이 보인다
+  ...[['t40', '오뚜기 사과식초 900ml', 2408], ['t41', '샘표 진간장 금F3 1.7L', 5928], ['t42', '청정원 천일염 굵은소금', 3770], ['t43', '배송비', 3000]]
+    .map(([id, title, amount], k) => tx(id, 1, amount, title, '장보기', { occurred_on: daysAgo(1), source: 'photo', platform: '쿠팡', save_batch: 'sb1',
+      created_at: ago(1500 - k), memo: k < 3 ? '할인 나눠 뺌' : null,
+      transaction_items: k < 3 ? [{ id: `i${id}`, name: title, quantity: 1, unit_price: amount, amount, pack_size: null, pack_unit: null, image_path: null, sort: 1 }] : [] })),
 ]
 
 // 가짜 Supabase는 조건과 상관없이 표의 행을 그대로 돌려주므로(한 건 조회는 첫 행), 상세를 여는 '비비고 왕교자'를 첫 행에 두고 고른 상품(p1)을 붙인다

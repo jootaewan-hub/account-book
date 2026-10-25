@@ -55,7 +55,7 @@ describe('내역 고르기', () => {
     fireEvent.click(day)
     expect(day.checked).toBe(true)
     fireEvent.click(day)
-    expect((screen.getByRole('button', { name: '0건 삭제' }) as HTMLButtonElement).disabled).toBe(true)
+    expect((screen.getByRole('button', { name: '삭제' }) as HTMLButtonElement).disabled).toBe(true)
   })
 
   it('찾기·사람 칩을 바꾸면 고른 것을 비워 안 보이는 내역은 지우지 않는다', () => {
@@ -65,7 +65,7 @@ describe('내역 고르기', () => {
     fireEvent.click(screen.getByRole('checkbox', { name: /김밥/ }))
     expect(screen.getByRole('button', { name: '4건 삭제' })).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: /남편/ }))
-    expect(screen.getByRole('button', { name: '0건 삭제' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: '삭제' })).toBeTruthy()
   })
 
   it('지우기가 실패하면 고른 것을 그대로 두고 이유를 보여 준다', async () => {

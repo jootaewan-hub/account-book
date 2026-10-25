@@ -9,6 +9,12 @@
 
 ## 된 것 (2026-10-19, 통합 1단계)
 
+- 영수증 한 묶음 저장 기본값 + 일괄 삭제(D-027, 2026-10-26, 브랜치 `claude/receipt-bundle-delete`, 설계 `docs/superpowers/specs/2026-10-26-receipt-bundle-delete-design.md`):
+  영수증·쇼핑 주문은 기본으로 내역 하나("상품 N개를 하나씩 따로 저장"을 켜면 나눔), 같은 상품 두 번 넣기 막기를 묶음 안 상품 줄까지(`markRepeats`), 내역 탭 고르기 삭제(`ListView`·`TxRow`·`deleteTransactions`),
+  같은 영수증 묶음 삭제(수정 시트, `fetchSaveBatch`), 마이그레이션 `20261104000000_tx_save_batch.sql`(public: `save_batch` 칸·색인, `add_transaction_with_items`가 읽음, 지난 내역 추정 update; PGlite 시험 3개).
+  화면 시험 `tests/components/listPick.test.tsx`. 캡처 shell-list-pick(-confirm)·shell-entry-batch·shell-smart-bundle·shell-smart-split(390·1280, 라이트·다크) 확인.
+  공유 DB 적용·main 병합은 사용자 확인 대기. 화면이 먼저 배포돼도 깨지지 않는다(새 칸을 월 내역 읽기에 넣지 않음, 묶음 칸은 못 읽으면 숨김).
+
 - 상품명 → 식약처 품목 맞춤 다시 만들기(D-026, 2026-10-23, 브랜치 `claude/product-match`, 설계 `docs/superpowers/specs/2026-10-23-product-match-design.md`):
   다나와 상품 페이지의 제조사·상표·원산지·원재료명 읽기(`parseDanawaProduct().facts`, 사본 product-4497661·product-246993), 마이그레이션 `20261103000000_grocery_product_facts.sql`·`20261103010000_grocery_clear_item_auto.sql`
   (`products` 칸 다섯, `clear_item_auto`, 저장 함수 두 개는 자동 줄이 사람이 고른 줄을 덮지 않게, PGlite 시험 `productFactsDb.test.ts`), 순수 맞춤 `_shared/productMatch.ts`(시험 `productMatch.test.ts`),

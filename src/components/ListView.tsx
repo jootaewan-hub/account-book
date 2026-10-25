@@ -153,12 +153,14 @@ export function ListView({ cur, loading = false, lookup, focus, onClearFocus, on
       {picking && (
         <div className="pick-bar" role="region" aria-label="고른 내역">
           <div className="pick-sum" aria-live="polite">
-            {chosen.length ? <><b className="num">{chosen.length}건</b> 골랐어요{chosenSum > 0 && <span className="num">, 지출 {won(chosenSum)}원</span>}</>
-              : '지울 내역이나 날짜를 눌러 고르세요'}
+            <span>
+              {chosen.length ? <><b className="num">{chosen.length}건</b> 골랐어요{chosenSum > 0 && <span className="num">, 지출 {won(chosenSum)}원</span>}</>
+                : '지울 내역이나 날짜를 눌러 고르세요'}
+            </span>
             {err && <span className="err" role="alert">{err}</span>}
           </div>
           <button className="danger" onClick={removeChosen} disabled={!chosen.length || busy}>
-            {busy ? '지우는 중…' : confirm ? `한 번 더 누르면 ${chosen.length}건 지워요` : `${chosen.length}건 삭제`}
+            {busy ? '지우는 중…' : confirm ? `한 번 더 누르면 ${chosen.length}건 지워요` : chosen.length ? `${chosen.length}건 삭제` : '삭제'}
           </button>
         </div>
       )}
