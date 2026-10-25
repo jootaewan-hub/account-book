@@ -12,7 +12,7 @@ import { Login, NewPassword } from './components/Login'
 import { Onboarding } from './components/Onboarding'
 import type { SmartMode } from './components/SmartSheet'
 import { useLedgerMeta, useLiveUpdates, useMonthEvents, useMonthTransactions } from './hooks/useLedger'
-import { deleteTransaction, friendlyError, generateRecurring, insertInstallmentPurchase, insertTransaction, updateSpouseRole, updateTransaction } from './lib/api'
+import { deleteTransaction, deleteTransactions, friendlyError, generateRecurring, insertInstallmentPurchase, insertTransaction, updateSpouseRole, updateTransaction } from './lib/api'
 import { wasRefreshed } from './lib/appUpdate'
 import { addMonths, parseYM, todayLocal } from './lib/dates'
 import { makeLookup, SCOPE_LABEL } from './lib/lookup'
@@ -134,6 +134,8 @@ function Ledger({ household, meta, userId, email }: {
   const [toastMsg, setToastMsg] = useState('')
   // 통계에서 분류·플랫폼을 눌러 내역 탭으로 넘어올 때의 조건
   const [listFocus, setListFocus] = useState<ListFocus | null>(null)
+  // 내역 탭에서 지울 내역을 고르는 중이면 기록하기 둥근 버튼을 숨긴다(고른 내역 줄이 그 자리에 뜬다)
+  const [listPicking, setListPicking] = useState(false)
 
   const { txs, version: txVersion, loading: txLoading, error, reload } = useMonthTransactions(household.id, ym)
   const { events, reload: reloadEvents } = useMonthEvents(household.id, ym)
@@ -219,6 +221,15 @@ function Ledger({ household, meta, userId, email }: {
     toast('삭제했어요')
   }
 
+  // 여러 건 지우기(D-027): 내역 탭 고르기, 같은 영수증 묶음. 중간에 멈춰도 목록은 새로 읽는다
+  async function removeMany(ids: string[]) {
+    let n: number
+    try { n = await deleteTransactions(ids) } catch (e) { await reload(); throw e }
+    setSheet({ open: false, editing: null })
+    await reload()
+    toast(n === ids.length ? `${n}건 삭제했어요` : `${ids.length}건 중 ${n}건을 지웠어요`)
+  }
+
   const { y, m } = parseYM(ym)
   const showMonth = tab === 'cal' || tab === 'list' || tab === 'stats'
 
@@ -277,7 +288,8 @@ function Ledger({ household, meta, userId, email }: {
         )}
         {tab === 'list' && (
           <Screen name="내역">
-            <ListView cur={cur} loading={txLoading} lookup={lookup} focus={listFocus} onClearFocus={() => setListFocus(null)} onEdit={(t) => setSheet({ open: true, editing: t })} />
+            <ListView cur={cur} loading={txLoading} lookup={lookup} focus={listFocus} onClearFocus={() => setListFocus(null)} onEdit={(t) => setSheet({ open: true, editing: t })}
+              onDeleteMany={removeMany} onPickingChange={setListPicking} />
           </Screen>
         )}
         {tab === 'grocery' && (
@@ -310,7 +322,7 @@ function Ledger({ household, meta, userId, email }: {
         )}
       </main>
 
-      {(tab === 'cal' || tab === 'list') && (
+      {(tab === 'cal' || (tab === 'list' && !listPicking)) && (
         <button className="fab" onClick={() => setSheet({ open: true, editing: null })}><Plus />기록하기</button>
       )}
 
@@ -331,7 +343,7 @@ function Ledger({ household, meta, userId, email }: {
       <ErrorBoundary name="기록하기">
         <EntrySheet open={sheet.open} editing={sheet.editing} defaultDate={sel.startsWith(ym) ? sel : today}
           lookup={lookup} categories={activeCats} usage={usage}
-          onSave={save} onDelete={remove} onClose={() => setSheet({ open: false, editing: null })}
+          onSave={save} onDelete={remove} onDeleteMany={removeMany} onClose={() => setSheet({ open: false, editing: null })}
           onSmart={(mode) => { setSheet({ open: false, editing: null }); openSmart(mode) }} />
       </ErrorBoundary>
 

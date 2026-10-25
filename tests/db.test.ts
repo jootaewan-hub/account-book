@@ -622,3 +622,64 @@ describe('주유 기록 (20261031000000_fuel_fills)', () => {
     expect(await as(B, `select * from public.fuel_fills`)).toHaveLength(0)
   })
 })
+
+describe('나눠 저장한 영수증 묶음 (20261104000000_tx_save_batch, D-027)', () => {
+  const BATCH = '11111111-2222-4333-8444-555555555555'
+  const tx = (title: string, amount: number, extra: Record<string, unknown> = {}) =>
+    JSON.stringify({ type: 'expense', occurred_on: '2026-10-25', amount, title, scope: 'shared', source: 'photo', ...extra })
+
+  it('저장 함수가 묶음 번호를 넣고, 같은 가구만 묶음을 보고 지운다', async () => {
+    for (const [title, amount] of [['우유', 2980], ['계란', 8900]] as const) {
+      await as(A, `select public.add_transaction_with_items($1, $2, '[]')`, [hhA, tx(title, amount, { save_batch: BATCH })])
+    }
+    await as(A, `select public.add_transaction_with_items($1, $2, '[]')`, [hhA, tx('대파', 2480)])
+    const mates = await as<{ title: string }>(B, `select title from public.transactions where save_batch = $1 order by created_at, title`, [BATCH])
+    expect(mates.map((m) => m.title).sort()).toEqual(['계란', '우유'])
+    expect(await as(B, `select save_batch from public.transactions where title = '대파'`)).toEqual([{ save_batch: null }])
+    // 다른 가구는 묶음을 못 보고 못 지운다
+    expect(await as(C, `select id from public.transactions where save_batch = $1`, [BATCH])).toHaveLength(0)
+    expect(await as(C, `delete from public.transactions where save_batch = $1 returning id`, [BATCH])).toHaveLength(0)
+    // 배우자는 지울 수 있다(한 건 삭제와 같은 권한). 지운 수를 돌려받는다
+    const ids = (await as<{ id: string }>(B, `select id from public.transactions where save_batch = $1`, [BATCH])).map((r) => r.id)
+    expect(await as(B, `delete from public.transactions where id = any($1::uuid[]) returning id`, [ids])).toHaveLength(2)
+  })
+
+  it('앱은 묶음 번호를 고칠 수 없다', async () => {
+    expect(await errorOf(as(A, `update public.transactions set save_batch = $1 where title = '대파'`, [BATCH]))).toContain('permission denied')
+  })
+
+  it('지난 내역: 같은 사람·날짜·결제수단·플랫폼으로 60초 안에 잇달아 저장한 사진 내역(품목 1줄 이하)을 한 묶음으로 본다', async () => {
+    const ledgerFiles = MIGRATION_FILES.filter((f) => !isGrocery(f))
+    const BATCH_FILE = '20261104000000_tx_save_batch.sql'
+    const old = await freshDb(ledgerFiles.filter((f) => f < BATCH_FILE).map(readMigration))
+    await old.query(`select set_config('request.jwt.claim.sub', $1, false)`, [A])
+    await old.exec('set role authenticated')
+    const [{ id: hh }] = (await old.query<{ id: string }>(`select public.create_household('나', 'husband') as id`)).rows
+    await old.exec('reset role')
+    const add = async (title: string, at: string, p: { source?: string; date?: string; platform?: string | null; items?: number } = {}) => {
+      const [{ id }] = (await old.query<{ id: string }>(
+        `insert into public.transactions (household_id, type, occurred_on, amount, title, scope, source, platform, created_by, created_at)
+         values ($1, 'expense', $2, 1000, $3, 'shared', $4, $5, $6, $7) returning id`,
+        [hh, p.date ?? '2026-10-20', title, p.source ?? 'photo', p.platform === undefined ? '쿠팡' : p.platform, A, `2026-10-20 12:${at}+09`])).rows
+      for (let i = 0; i < (p.items ?? 1); i++) {
+        await old.query(`insert into public.transaction_items (transaction_id, household_id, name, amount) values ($1, $2, $3, 1000)`, [id, hh, `${title}${i}`])
+      }
+    }
+    await add('사과식초', '00:00'); await add('간장', '00:05'); await add('배송비', '00:20', { items: 0 })
+    await add('한 묶음 영수증', '00:25', { items: 3 }) // 한 내역으로 저장한 영수증은 끼지 않는다
+    await add('통후추', '03:20'); await add('소금', '03:30') // 3분 뒤 따로 저장한 다른 묶음
+    await add('혼자', '08:20') // 한 건
+    await add('손으로 넣음', '00:06', { source: 'manual' })
+    await add('다른 날', '00:07', { date: '2026-10-19' })
+    await add('매장', '00:08', { platform: null })
+    await old.exec(readMigration(BATCH_FILE))
+    const rows = (await old.query<{ title: string; save_batch: string | null }>(`select title, save_batch from public.transactions order by created_at, title`)).rows
+    const of = (t: string) => rows.find((r) => r.title === t)!.save_batch
+    expect(of('사과식초')).not.toBeNull()
+    expect([of('간장'), of('배송비')]).toEqual([of('사과식초'), of('사과식초')])
+    expect(of('통후추')).not.toBeNull()
+    expect(of('소금')).toBe(of('통후추'))
+    expect(of('통후추')).not.toBe(of('사과식초'))
+    for (const t of ['한 묶음 영수증', '혼자', '손으로 넣음', '다른 날', '매장']) expect(of(t)).toBeNull()
+  })
+})

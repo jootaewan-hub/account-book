@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { friendlyError } from '../lib/api'
 import { formatDateLong } from '../lib/dates'
 import { won } from '../lib/format'
 import { sumType } from '../lib/ledger'
@@ -25,12 +26,28 @@ interface Props {
   focus: ListFocus | null
   onClearFocus: () => void
   onEdit: (t: Transaction) => void
+  /** 고른 내역을 한꺼번에 지운다(D-027). 실패하면 던진다 */
+  onDeleteMany: (ids: string[]) => Promise<void>
+  /** 고르기를 켜고 끌 때 (켜져 있는 동안 기록하기 둥근 버튼을 숨긴다). 바뀌지 않는 함수를 넘긴다 */
+  onPickingChange?: (on: boolean) => void
 }
 
-export function ListView({ cur, loading = false, lookup, focus, onClearFocus, onEdit }: Props) {
+export function ListView({ cur, loading = false, lookup, focus, onClearFocus, onEdit, onDeleteMany, onPickingChange }: Props) {
   const [filter, setFilter] = useState<'all' | Scope>('all')
   const [q, setQ] = useState('')
   const needle = q.trim().toLowerCase()
+  // 고르기(D-027): 지울 내역을 행·날짜 단위로 고른다. 찾기·거르기를 바꾸면 고른 것을 비워 안 보이는 내역이 지워지지 않게 한다
+  const [picking, setPicking] = useState(false)
+  const [picked, setPicked] = useState<ReadonlySet<string>>(new Set())
+  const [confirm, setConfirm] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState('')
+  const focusKey = focus ? `${focus.kind}:${focus.name}` : ''
+  // eslint-disable-next-line react/exhaustive-effect-dependencies -- 거르는 조건이 바뀌었다는 신호
+  useEffect(() => { setPicked(new Set()); setConfirm(false) }, [filter, needle, focusKey])
+  useEffect(() => { onPickingChange?.(picking) }, [picking, onPickingChange])
+  // 다른 탭으로 가며 사라질 때 둥근 버튼을 되돌린다
+  useEffect(() => () => onPickingChange?.(false), [onPickingChange])
   const matches = (t: Transaction) =>
     [t.title, t.memo, t.platform, lookup.categoryName(t.category_id), ...(t.items ?? []).map((i) => i.name)]
       .some((s) => (s ?? '').toLowerCase().includes(needle))
@@ -50,6 +67,34 @@ export function ListView({ cur, loading = false, lookup, focus, onClearFocus, on
   }
   const dates = [...groups.keys()].sort().reverse()
   const narrowed = Boolean(needle) || focus !== null
+  // 지우는 것은 지금 화면에 보이는 것 중 고른 것만 (달을 넘기면 지난달에 고른 것은 빠진다)
+  const chosen = list.filter((t) => picked.has(t.id))
+  const chosenSum = chosen.reduce((s, t) => s + (t.type === 'expense' ? t.amount : 0), 0)
+
+  function togglePicking() {
+    setPicking((p) => !p)
+    setPicked(new Set()); setConfirm(false); setErr('')
+  }
+  function toggle(ids: string[], on: boolean) {
+    setPicked((prev) => {
+      const next = new Set(prev)
+      for (const id of ids) { if (on) next.add(id); else next.delete(id) }
+      return next
+    })
+    setConfirm(false); setErr('')
+  }
+  async function removeChosen() {
+    if (!chosen.length || busy) return
+    if (!confirm) return setConfirm(true)
+    setBusy(true); setErr('')
+    try {
+      await onDeleteMany(chosen.map((t) => t.id))
+      setPicking(false); setPicked(new Set())
+    } catch (e) {
+      setErr(friendlyError(e))
+    }
+    setBusy(false); setConfirm(false)
+  }
 
   return (
     <section className="view">
@@ -57,6 +102,9 @@ export function ListView({ cur, loading = false, lookup, focus, onClearFocus, on
         <span>쓴 돈 <b>{won(sumType(list, 'expense'))}원</b></span>
         <span className="in">들어온 돈 <b>{won(sumType(list, 'income'))}원</b></span>
         {narrowed && <span>{list.length}건</span>}
+        {(list.length > 0 || picking) && (
+          <button className="link-btn pick-toggle" aria-pressed={picking} onClick={togglePicking}>{picking ? '고르기 취소' : '고르기'}</button>
+        )}
       </div>
       <input type="search" className="input" aria-label="내역 찾기" placeholder="이름·품목·메모로 찾기" value={q}
         autoComplete="off" onChange={(e) => setQ(e.target.value)} />
@@ -79,18 +127,48 @@ export function ListView({ cur, loading = false, lookup, focus, onClearFocus, on
         const arr = groups.get(d)!
         const e = sumType(arr, 'expense')
         const i = sumType(arr, 'income')
+        const day = formatDateLong(d).replace(/^\d+월 /, '')
+        const ids = arr.map((t) => t.id)
+        const n = ids.filter((id) => picked.has(id)).length
         return (
           <div key={d} className="day-group">
             <div className="day-head">
-              <h2>{formatDateLong(d).replace(/^\d+월 /, '')}</h2>
+              <h2>
+                {picking ? (
+                  <label className="check day-pick">
+                    <DayCheck all={n === ids.length} some={n > 0} onChange={(on) => toggle(ids, on)} />{day}
+                  </label>
+                ) : day}
+              </h2>
               <div className="tot num">{e > 0 && `${won(e)}원`}{e > 0 && i > 0 && <br />}{i > 0 && `+${won(i)}원`}</div>
             </div>
             <div className="tx-list">
-              {arr.map((t) => <TxRow key={t.id} t={t} lookup={lookup} onClick={() => onEdit(t)} />)}
+              {arr.map((t) => picking
+                ? <TxRow key={t.id} t={t} lookup={lookup} picked={picked.has(t.id)} onClick={() => toggle([t.id], !picked.has(t.id))} />
+                : <TxRow key={t.id} t={t} lookup={lookup} onClick={() => onEdit(t)} />)}
             </div>
           </div>
         )
       })}
+      {picking && (
+        <div className="pick-bar" role="region" aria-label="고른 내역">
+          <div className="pick-sum" aria-live="polite">
+            {chosen.length ? <><b className="num">{chosen.length}건</b> 골랐어요{chosenSum > 0 && <span className="num">, 지출 {won(chosenSum)}원</span>}</>
+              : '지울 내역이나 날짜를 눌러 고르세요'}
+            {err && <span className="err" role="alert">{err}</span>}
+          </div>
+          <button className="danger" onClick={removeChosen} disabled={!chosen.length || busy}>
+            {busy ? '지우는 중…' : confirm ? `한 번 더 누르면 ${chosen.length}건 지워요` : `${chosen.length}건 삭제`}
+          </button>
+        </div>
+      )}
     </section>
   )
+}
+
+/** 그날 내역 전부 고르기. 일부만 골랐으면 반쯤 찬 표시 */
+function DayCheck({ all, some, onChange }: { all: boolean; some: boolean; onChange: (on: boolean) => void }) {
+  const ref = useRef<HTMLInputElement>(null)
+  useEffect(() => { if (ref.current) ref.current.indeterminate = some && !all }, [all, some])
+  return <input ref={ref} type="checkbox" checked={all} onChange={() => onChange(!all)} />
 }

@@ -178,6 +178,27 @@ main.wrap { padding-block: 4px calc(150px + env(safe-area-inset-bottom, 0px)); }
 .tx-amt { font-size: 16px; font-weight: 700; text-align: right; white-space: nowrap; }
 .tx-memo { min-width: 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tx-amt.inc { color: var(--indigo); }
+/* 내역 고르기·같은 영수증 묶음 삭제 (D-027) */
+.month-sum .pick-toggle { margin-left: auto; margin-block: -12px; }
+.tx.picking { grid-template-columns: 20px minmax(0, 1fr) auto; cursor: pointer; }
+.tx.picking.has-lead { grid-template-columns: 20px 40px minmax(0, 1fr) auto; }
+.tx.picking input, .day-head .day-pick input { width: 20px; height: 20px; margin: 0; accent-color: var(--primary); }
+.day-head .day-pick { display: inline-flex; align-items: center; gap: 12px; font-size: inherit; font-weight: inherit; color: inherit; cursor: pointer; }
+.pick-bar { position: sticky; z-index: 5; bottom: calc(var(--tabbar-h) + 12px + env(safe-area-inset-bottom, 0px)); display: flex; flex-direction: column; gap: 10px;
+  padding: 12px; border-radius: var(--r-md); background: var(--oat); }
+.pick-sum { display: flex; flex-direction: column; gap: 4px; font-size: 14px; color: var(--ink-2); }
+.pick-sum b { color: var(--ink); font-weight: 700; }
+.pick-bar .danger { background: var(--canvas); }
+.pick-bar .danger:disabled, .batch-del .danger:disabled { opacity: .5; cursor: default; }
+.batch-del { border-top: 1px solid var(--line); padding-top: 14px; margin-top: 4px; }
+.batch-list { list-style: none; margin: 0; padding: 0; font-size: 14px; }
+.batch-list li { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; padding: 7px 0; border-top: 1px solid var(--line); }
+.batch-list li:first-child { border-top: 0; }
+.batch-list .num { white-space: nowrap; }
+.batch-name { min-width: 0; overflow-wrap: anywhere; }
+.batch-cur { margin-left: 6px; vertical-align: 1px; }
+.batch-list .cur .batch-name { font-weight: 700; }
+.batch-list .batch-sum { color: var(--ink-2); font-size: 13px; font-weight: 600; }
 .tag:where(:not(.grocery *)) { font-size: 12px; font-weight: 600; line-height: 1.5; border-radius: var(--r-tag); padding: 0 6px; background: var(--oat); color: var(--ink); white-space: nowrap; }
 .card .tag:where(:not(.grocery *)) { background: var(--canvas); }
 .tag:where(:not(.grocery *)).who-husband:where(:not(.grocery *)) { background: var(--slate-soft); color: var(--slate-ink); }
@@ -554,6 +575,9 @@ input[type="search"].input { -webkit-appearance: none; appearance: none; }
   .ledger .tab.side-settings { display: flex; margin-top: 12px; }
   .narrow-only { display: none; } /* 위쪽 줄의 톱니·돌아가기: 넓은 화면은 세로 메뉴의 설정 줄을 쓴다 */
   .side-record svg { width: 20px; height: 20px; }
+  .pick-bar { bottom: 16px; flex-direction: row; align-items: center; }
+  .pick-sum { flex: 1; min-width: 0; }
+  .pick-bar .danger { width: auto; min-width: 220px; }
 
 
   /* 가운데 창: 그림자 없이 뒤 막으로만 띄우고, 짧게 흐려지며 나타난다. 끌어서 닫지 않는다 */

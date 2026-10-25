@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { friendlyError } from '../lib/api'
+import { fetchSaveBatch, friendlyError, type BatchMate } from '../lib/api'
 import { suggestCategory } from '../lib/categorize'
 import { won } from '../lib/format'
 import { fuelText } from '../lib/fuel'
@@ -24,6 +24,8 @@ interface Props {
   /** installment: 새 지출을 할부로 넣을 때 개월 수와 달마다 나눠 넣을지 */
   onSave: (input: TxInput, id?: string, installment?: { months: number; split: boolean } | null) => Promise<void>
   onDelete: (id: string) => Promise<void>
+  /** 같은 영수증에서 나눠 저장한 내역을 한꺼번에 지운다(D-027) */
+  onDeleteMany?: (ids: string[]) => Promise<void>
   onClose: () => void
   /** 문자 붙여넣기·사진·쇼핑 캡처 입력으로 전환 */
   onSmart?: (mode: 'text' | 'photo' | 'shop' | 'bill') => void
@@ -31,7 +33,7 @@ interface Props {
 
 const KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '00', '0', '⌫']
 
-export function EntrySheet({ open, editing, defaultDate, lookup, categories, usage, onSave, onDelete, onClose, onSmart }: Props) {
+export function EntrySheet({ open, editing, defaultDate, lookup, categories, usage, onSave, onDelete, onDeleteMany, onClose, onSmart }: Props) {
   const [type, setType] = useState<TxType>('expense')
   const [amount, setAmount] = useState('')
   const [categoryId, setCategoryId] = useState<string | null>(null)
@@ -47,6 +49,16 @@ export function EntrySheet({ open, editing, defaultDate, lookup, categories, usa
   const [err, setErr] = useState('')
   const [busy, setBusy] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
+  // 같은 영수증에서 나눠 저장한 내역(이 내역 포함). 사진으로 넣은 내역만 찾고, 못 찾으면 칸을 숨긴다
+  const [batch, setBatch] = useState<BatchMate[]>([])
+  const [confirmBatch, setConfirmBatch] = useState(false)
+  useEffect(() => {
+    setBatch([]); setConfirmBatch(false)
+    if (!open || !editing || editing.source !== 'photo' || !onDeleteMany) return
+    let alive = true
+    fetchSaveBatch(editing).then((b) => { if (alive) setBatch(b.length >= 2 ? b : []) })
+    return () => { alive = false }
+  }, [open, editing, onDeleteMany])
 
   useEffect(() => {
     if (!open) return
@@ -128,6 +140,13 @@ export function EntrySheet({ open, editing, defaultDate, lookup, categories, usa
     if (!confirmDelete) return setConfirmDelete(true)
     setBusy(true)
     try { await onDelete(editing.id) } catch (e) { setErr(friendlyError(e)); setBusy(false) }
+  }
+
+  async function removeBatch() {
+    if (!onDeleteMany || !batch.length) return
+    if (!confirmBatch) return setConfirmBatch(true)
+    setBusy(true)
+    try { await onDeleteMany(batch.map((b) => b.id)) } catch (e) { setErr(friendlyError(e)); setBusy(false); setConfirmBatch(false) }
   }
 
   // 키보드: 글자 칸 밖에서 숫자·Backspace는 금액으로, ⌘/Ctrl+Enter는 어디서든 저장
@@ -239,6 +258,23 @@ export function EntrySheet({ open, editing, defaultDate, lookup, categories, usa
           <button className="primary" onClick={save} disabled={busy}>{busy ? '저장 중…' : n ? `${won(n)}원 저장하기` : '저장하기'}</button>
           {editing && (
             <button className="danger" onClick={remove} disabled={busy}>{confirmDelete ? '한 번 더 누르면 지워요' : '삭제하기'}</button>
+          )}
+          {editing && batch.length > 0 && (
+            <div className="field batch-del">
+              <span className="lbl">같은 영수증에서 나눠 저장한 내역 {batch.length}건</span>
+              <ul className="batch-list">
+                {batch.map((b) => (
+                  <li key={b.id} className={b.id === editing.id ? 'cur' : undefined}>
+                    <span className="batch-name">{b.title || '이름 없음'}{b.id === editing.id && <span className="tag batch-cur">지금 보는 내역</span>}</span>
+                    <span className="num">{won(b.amount)}원</span>
+                  </li>
+                ))}
+                <li className="batch-sum"><span>합계</span><span className="num">{won(batch.reduce((s, b) => s + b.amount, 0))}원</span></li>
+              </ul>
+              <button className="danger" onClick={removeBatch} disabled={busy}>
+                {confirmBatch ? `한 번 더 누르면 ${batch.length}건 지워요` : `${batch.length}건 모두 삭제`}
+              </button>
+            </div>
           )}
         </div>
       </div>

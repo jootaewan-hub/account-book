@@ -178,6 +178,48 @@ export async function deleteTransaction(id: string): Promise<void> {
   await removeItemImages(paths).catch(() => undefined)
 }
 
+const DELETE_CHUNK = 100
+
+/**
+ * 여러 내역을 한 번에 지운다(D-027). 주소가 너무 길어지지 않게 100건씩 나눠 지우고, 실제로 지운 수를 돌려준다
+ * (안 보이는 내역은 RLS가 걸러 덜 지워질 수 있다). 품목 사진은 지운 내역 것만 뒤에 지운다.
+ * 중간에 실패하면 그때까지 지운 수를 문장에 넣어 던진다.
+ */
+export async function deleteTransactions(ids: string[]): Promise<number> {
+  let deleted = 0
+  try {
+    for (let i = 0; i < ids.length; i += DELETE_CHUNK) {
+      const chunk = ids.slice(i, i + DELETE_CHUNK)
+      const items = check(await sb().from('transaction_items').select('transaction_id, image_path').in('transaction_id', chunk)) as
+        { transaction_id: string; image_path: string | null }[]
+      const gone = new Set((check(await sb().from('transactions').delete().in('id', chunk).select('id')) as { id: string }[]).map((r) => r.id))
+      deleted += gone.size
+      const paths = items.filter((x) => gone.has(x.transaction_id)).map((x) => x.image_path).filter((p): p is string => Boolean(p))
+      await removeItemImages(paths).catch(() => undefined)
+    }
+  } catch (e) {
+    throw new Error(deleted ? `${deleted}건 지운 뒤 멈췄어요. ${friendlyError(e)}` : friendlyError(e), { cause: e })
+  }
+  return deleted
+}
+
+/** 같은 영수증에서 나눠 저장한 내역 한 줄 */
+export type BatchMate = Pick<Transaction, 'id' | 'occurred_on' | 'title' | 'amount'>
+
+/**
+ * 이 내역과 같은 영수증에서 나눠 저장한 내역들(D-027, 이 내역 포함, 저장한 순서).
+ * 묶음이 없거나 읽지 못하면(save_batch 칸을 만들기 전 포함) 빈 목록이다. 월 내역 읽기에는 이 칸을 넣지 않는다.
+ */
+export async function fetchSaveBatch(tx: Pick<Transaction, 'id' | 'household_id'>): Promise<BatchMate[]> {
+  const own = await sb().from('transactions').select('save_batch').eq('id', tx.id).maybeSingle()
+  const batch = (own.data as { save_batch?: string | null } | null)?.save_batch
+  if (own.error || !batch) return []
+  const { data, error } = await sb().from('transactions').select('id, occurred_on, title, amount')
+    .eq('household_id', tx.household_id).eq('save_batch', batch).order('created_at').order('id')
+  if (error || !data) return []
+  return (data as BatchMate[]).map((r) => ({ ...r, amount: Number(r.amount) }))
+}
+
 export async function createHousehold(displayName: string, role: Spouse): Promise<void> {
   check(await sb().rpc('create_household', { p_display_name: displayName, p_spouse_role: role }))
 }

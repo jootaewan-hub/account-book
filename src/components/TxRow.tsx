@@ -9,7 +9,8 @@ import { ServiceLogo } from './ServiceLogo'
 
 const WHO_TAG: Record<Scope, string> = { shared: '', husband: 'who-husband', wife: 'who-wife', child: 'who-child' }
 
-export function TxRow({ t, lookup, onClick }: { t: Transaction; lookup: Lookup; onClick: () => void }) {
+/** picked: 내역 탭에서 고르는 중일 때 골랐는지(D-027). 고르는 중이면 행을 누를 때 수정 대신 고르기·풀기가 된다 */
+export function TxRow({ t, lookup, onClick, picked }: { t: Transaction; lookup: Lookup; onClick: () => void; picked?: boolean }) {
   const cat = lookup.categoryName(t.category_id)
   const photo = t.items?.find((i) => i.image_path)?.image_path ?? null
   const urls = useItemImages(photo ? [photo] : [])
@@ -26,8 +27,8 @@ export function TxRow({ t, lookup, onClick }: { t: Transaction; lookup: Lookup; 
   // 할부 회차 (저장할 때·자동 입력할 때 메모 앞에 "할부 2/3회"로 적는다). 태그로 보여 주므로 메모 글에서는 뺀다
   const inst = /^할부 (\d+)\/(\d+)회/.exec(t.memo ?? '')
   const memo = (t.memo ?? '').replace(/^할부 \d+\/\d+회,?\s*/, '')
-  return (
-    <button className={`tx${lead ? ' has-lead' : ''}`} onClick={onClick}>
+  const body = (
+    <>
       {thumb ? <img className="tx-thumb" src={thumb} alt="" loading="lazy" /> : logo ? <ServiceLogo name={t.title} size={40} /> : null}
       <span style={{ minWidth: 0 }}>
         <span className="tx-title">{t.title || cat}</span>
@@ -40,6 +41,13 @@ export function TxRow({ t, lookup, onClick }: { t: Transaction; lookup: Lookup; 
         </span>
       </span>
       <span className={`tx-amt num${t.type === 'income' ? ' inc' : ''}`}>{t.type === 'income' ? '+' : ''}{won(t.amount)}원</span>
-    </button>
+    </>
+  )
+  if (picked === undefined) return <button className={`tx${lead ? ' has-lead' : ''}`} onClick={onClick}>{body}</button>
+  return (
+    <label className={`tx picking${lead ? ' has-lead' : ''}${picked ? ' picked' : ''}`}>
+      <input type="checkbox" checked={picked} onChange={onClick} />
+      {body}
+    </label>
   )
 }

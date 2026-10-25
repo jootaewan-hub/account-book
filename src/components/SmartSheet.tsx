@@ -8,7 +8,7 @@ import { compareTrip, GROCERY_CATEGORY_NAMES, isGroceryEntry, type CompareLine, 
 import { cropImage, fileToJpeg, type PreparedImage } from '../lib/image'
 import { SCOPE_LABEL, SCOPES, type Lookup } from '../lib/lookup'
 import {
-  analyze, analyzeBill, analyzeImages, BATCH_SIZE, canSplit, entryDrafts, fuelComplete, isProductLine, itemsSum, markRepeats, modelLabel, parseLiters, parsePricePerLiter, saveDraft, SmartError,
+  analyze, analyzeBill, analyzeImages, BATCH_SIZE, canSplit, entryDrafts, fuelComplete, isProductLine, itemsSum, markRepeats, modelLabel, parseLiters, parsePricePerLiter, saveBatches, saveDraft, SmartError,
   type AnalyzeResult, type CheckedBill, type CheckedEntry, type Draft, type DraftContext, type DraftFuel,
 } from '../lib/smart'
 import { BillReview } from './BillReview'
@@ -173,8 +173,8 @@ export function SmartSheet({ open, mode, today, householdId, lookup, categories,
           } catch { /* 사진 없이 */ }
         }
       }
-      // 상품이 두 개 이상인 주문은 상품마다 내역 하나로 나눈다
-      const gs = res.entries.map((entry, index) => ({ index, entry, split: canSplit(entry) }))
+      // 주문 하나는 내역 하나로 넣는다. 상품마다 나누려면 주문 위의 체크박스를 켠다(D-027)
+      const gs = res.entries.map((entry, index) => ({ index, entry, split: false }))
       const ds = markRepeats(gs.flatMap((g) => withPhotos(entryDrafts(g.entry, g.index, draftContext(), g.split))))
       setGroups(gs); setDrafts(ds); setNote(res.note); setModel(modelLabel(res.model))
       const failed = (res.failed ?? []).map((f) => `사진 ${f.from}~${f.to}번은 읽지 못했어요 (${f.message}). 그 사진만 다시 넣어 주세요.`).join('\n')
@@ -281,9 +281,11 @@ export function SmartSheet({ open, mode, today, householdId, lookup, categories,
     let fuelSaved = 0
     let fuelFailed = false
     const txOf = new Map<string, string>()
+    // 한 주문을 나눠 저장하면 같은 묶음 번호를 붙여 나중에 영수증 단위로 지울 수 있게 한다
+    const batchOf = saveBatches(chosen)
     try {
       for (const d of chosen) {
-        const r = await saveDraft(householdId, d, mode === 'text' ? 'text' : 'photo')
+        const r = await saveDraft(householdId, d, mode === 'text' ? 'text' : 'photo', batchOf.get(d.key) ?? null)
         txOf.set(d.key, r.txId)
         if (r.installment) installments++
         if (r.fuelSaved === true) fuelSaved++
@@ -395,8 +397,7 @@ export function SmartSheet({ open, mode, today, householdId, lookup, categories,
                 <label className="check split-toggle">
                   <input type="checkbox" checked={g.split} onChange={() => toggleSplit(g.index)} />
                   <span>
-                    {g.entry.platform || g.entry.merchant || '주문'} {won(g.entry.amount)}원, 상품 {g.entry.items.filter(isProductLine).length}개를
-                    {' '}{g.split ? '하나씩 따로 저장' : '한 내역으로 저장'} (눌러서 바꾸기)
+                    {g.entry.platform || g.entry.merchant || '주문'} {won(g.entry.amount)}원, 상품 {g.entry.items.filter(isProductLine).length}개를 하나씩 따로 저장
                   </span>
                 </label>
               )}

@@ -315,23 +315,56 @@ export function entryDrafts(e: CheckedEntry, i: number, ctx: DraftContext, split
   return out
 }
 
+const nameKey = (s: string) => s.replace(/[\s[\]()]/g, '').toLowerCase()
 // 상품 하나짜리 초안은 할인을 나누기 전 상품 금액으로 비교한다 (같은 상품이 묶음 주문과 따로 나온 경우)
 const sameKey = (d: Pick<Draft, 'date' | 'amount' | 'title' | 'items'>) =>
-  `${d.date}|${d.items?.length === 1 ? d.items[0].amount : d.amount}|${d.title.replace(/[\s[\]()]/g, '').toLowerCase()}`
-
-/** 한 번의 분석에서 같은 상품(같은 날·금액·이름)이 또 나오면 빼 둔다 (목록·상세 화면을 함께 찍은 경우 등) */
-export function markRepeats(drafts: Draft[], before: Draft[] = []): Draft[] {
-  const seen = new Set(before.map(sameKey))
-  return drafts.map((d) => {
-    const k = sameKey(d)
-    if (seen.has(k)) return { ...d, include: false, warnings: [...d.warnings, '같은 상품이 위에 이미 있어서 뺐어요. 따로 산 것이면 다시 체크하세요.'] }
-    seen.add(k)
-    return d
-  })
+  `${d.date}|${d.items?.length === 1 ? d.items[0].amount : d.amount}|${nameKey(d.title)}`
+/** 상품 줄 하나: 날짜·원래 금액·이름 */
+const lineKey = (date: string, it: Pick<DraftItem, 'name' | 'amount'>) => `${date}|${it.amount}|${nameKey(it.name)}`
+const productLines = (d: Pick<Draft, 'items'>) => (d.items ?? []).filter(isProductLine)
+const bundleLines = (d: Pick<Draft, 'date' | 'items'>) => {
+  const ps = productLines(d)
+  return ps.length >= 2 ? ps.map((p) => lineKey(d.date, p)) : []
 }
 
-/** 여러 건을 초안으로. 기본은 상품이 두 개 이상인 주문을 상품별로 나눈다 */
-export function toDrafts(entries: CheckedEntry[], ctx: DraftContext, split: (e: CheckedEntry) => boolean = canSplit): Draft[] {
+const REPEAT = '같은 상품이 위에 이미 있어서 뺐어요. 따로 산 것이면 다시 체크하세요.'
+const IN_BUNDLE = '같은 상품이 다른 묶음 주문에 들어 있어서 뺐어요. 따로 산 것이면 다시 체크하세요.'
+
+/**
+ * 한 번의 분석에서 같은 상품(같은 날·금액·이름)이 또 나오면 빼 둔다 (목록·상세 화면을 함께 찍은 경우 등).
+ * 상품 하나짜리 초안이 다른 묶음 주문 안의 상품 줄과 같으면 하나짜리 쪽을 뺀다(어느 쪽이 먼저 나와도).
+ * before: 이미 위에 있는 초안. 저장하지 않기로 한 것(include false)은 견주지 않는다
+ */
+export function markRepeats(drafts: Draft[], before: Draft[] = []): Draft[] {
+  const kept = before.filter((d) => d.include !== false)
+  const seen = new Set(kept.map(sameKey))
+  const bundled = new Set(kept.flatMap(bundleLines))
+  const out: Draft[] = []
+  // 상품 하나짜리 초안의 상품 줄 → out에서의 위치 (뒤에 나온 묶음 주문이 그 상품을 담고 있으면 뺀다)
+  const singleAt = new Map<string, number>()
+  const skip = (d: Draft, msg: string): Draft => ({ ...d, include: false, warnings: [...d.warnings, msg] })
+  for (const d of drafts) {
+    const k = sameKey(d)
+    if (seen.has(k)) { out.push(skip(d, REPEAT)); continue }
+    seen.add(k)
+    const ps = productLines(d)
+    if (ps.length === 1) {
+      const lk = lineKey(d.date, ps[0])
+      if (bundled.has(lk)) { out.push(skip(d, IN_BUNDLE)); continue }
+      singleAt.set(lk, out.length)
+    }
+    for (const lk of bundleLines(d)) {
+      bundled.add(lk)
+      const at = singleAt.get(lk)
+      if (at !== undefined && out[at].include) out[at] = skip(out[at], IN_BUNDLE)
+    }
+    out.push(d)
+  }
+  return out
+}
+
+/** 여러 건을 초안으로. 기본은 주문 하나를 내역 하나로 넣는다(상품별로 나누려면 split) */
+export function toDrafts(entries: CheckedEntry[], ctx: DraftContext, split: (e: CheckedEntry) => boolean = () => false): Draft[] {
   return markRepeats(entries.flatMap((e, i) => entryDrafts(e, i, ctx, split(e))))
 }
 
@@ -432,7 +465,28 @@ export async function analyzeImages(
  * installment: 할부 나눠 넣기였는지, txId: 만든 내역 id(장보기 품목을 연결할 때 쓴다, D-011),
  * fuelSaved: 주유 기록을 넣었는지(주유가 아니거나 리터·단가가 비어 있으면 null, 넣기에 실패하면 false — 내역은 그대로 둔다).
  */
-export async function saveDraft(householdId: string, d: Draft, source: 'text' | 'photo'): Promise<{ installment: boolean; txId: string; fuelSaved: boolean | null }> {
+/**
+ * 한 주문을 나눠 저장하는 초안끼리 같은 묶음 번호를 붙인다(D-027). 저장할 초안이 2건 이상인 주문만.
+ * 초안 key의 앞 숫자가 주문 번호다('2', '2-0', '2-x0'). 돌려주는 것: 초안 key → 묶음 번호
+ */
+export function saveBatches(chosen: Pick<Draft, 'key'>[], newId: () => string = () => crypto.randomUUID()): Map<string, string> {
+  const byOrder = new Map<string, string[]>()
+  for (const d of chosen) {
+    const order = d.key.split('-')[0]
+    byOrder.set(order, [...(byOrder.get(order) ?? []), d.key])
+  }
+  const out = new Map<string, string>()
+  for (const keys of byOrder.values()) {
+    if (keys.length < 2) continue
+    const id = newId()
+    for (const k of keys) out.set(k, id)
+  }
+  return out
+}
+
+export async function saveDraft(
+  householdId: string, d: Draft, source: 'text' | 'photo', saveBatch: string | null = null,
+): Promise<{ installment: boolean; txId: string; fuelSaved: boolean | null }> {
   const months = d.type === 'expense' ? d.installment : null
   const title = d.title.trim().slice(0, 60)
   const plan = months && d.splitInstallment && canSplitInstallment(d.amount, months)
@@ -452,6 +506,8 @@ export async function saveDraft(householdId: string, d: Draft, source: 'text' | 
       type: d.type, occurred_on: d.date, occurred_at: d.time, amount: plan ? plan.first : d.amount, title, memo,
       category_id: d.category_id, payment_method_id: d.payment_method_id, scope: d.scope, source,
       platform: normalizePlatform(d.platform),
+      // save_batch 칸을 만들기 전의 함수는 이 값을 읽지 않고 넘어간다
+      save_batch: saveBatch,
     },
     p_items: d.items.map((it, i) => ({
       name: it.name, quantity: it.quantity, unit_price: it.unit_price, amount: it.amount,
