@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { dueDate, endMonthFor, historyRange, installmentPlan, installmentsLeft, monthlyAmount, nextDue, pastAmounts, pendingInputs, subscriptionCandidates, termLeft, termOf } from '../src/lib/recurring'
+import { dueDate, endMonthFor, historyRange, installmentPlan, installmentsLeft, monthlyAmount, nextDue, pastAmounts, pendingInputs, plannedInMonth, subscriptionCandidates, termLeft, termOf } from '../src/lib/recurring'
 import { categoryBreakdown, monthSeries, OTHER_PLATFORM, pctChange, platformBreakdown, platformOf, scopeSplit, totalOf } from '../src/lib/stats'
 import type { Category, MonthTotal, Recurring, Transaction } from '../src/lib/types'
 
@@ -120,6 +120,44 @@ describe('통계', () => {
       { name: '씨유', kind: 'merchant', amount: 1000, count: 2, prev: 0 },
       { name: OTHER_PLATFORM, kind: 'other', amount: 2000, count: 2, prev: 0 },
     ])
+  })
+})
+
+describe('달력의 고정지출 예정분 (D-030)', () => {
+  const at = (list: Recurring[], ym: string, today = '2026-10-26', txs: Transaction[] = []) =>
+    plannedInMonth(list, txs, ym, today).map((p) => [p.r.id, p.date, p.amount, p.round])
+
+  it('다음 달부터는 내는 날마다, 이번 달은 오늘 뒤 날짜만(오늘 분은 DB가 이미 넣었다)', () => {
+    const list = [rec({ id: 'rent', day_of_month: 25 }), rec({ id: 'phone', amount: 55000, day_of_month: 26 }), rec({ id: 'gym', amount: 60000, day_of_month: 28 })]
+    expect(at(list, '2026-11')).toEqual([['rent', '2026-11-25', 500000, null], ['phone', '2026-11-26', 55000, null], ['gym', '2026-11-28', 60000, null]])
+    expect(at(list, '2026-10')).toEqual([['gym', '2026-10-28', 60000, null]])
+    expect(at(list, '2026-09')).toEqual([])
+  })
+
+  it('그 달 분이 이미 내역에 있으면(recurring_month 기준) 빼고, 다른 달 분은 빼지 않는다', () => {
+    const list = [rec({ id: 'gym', amount: 60000, day_of_month: 28 })]
+    expect(at(list, '2026-10', '2026-10-26', [tx({ recurring_id: 'gym', occurred_on: '2026-10-20', recurring_month: '2026-10-01' })])).toEqual([])
+    expect(at(list, '2026-11', '2026-10-26', [tx({ recurring_id: 'gym', occurred_on: '2026-10-28', recurring_month: '2026-10-01' })])).toHaveLength(1)
+  })
+
+  it('끝난 뒤·시작 전·꺼진 항목·금액이 매달 다른 항목·수입은 없고, 매년 항목은 그 달에만, 31일은 그 달 마지막 날', () => {
+    expect(at([rec({ end_month: '2026-12-01' })], '2027-01')).toEqual([])
+    expect(at([rec({ start_month: '2027-01-01' })], '2026-12')).toEqual([])
+    expect(at([rec({ active: false })], '2026-11')).toEqual([])
+    expect(at([rec({ kind: 'utility', amount: null })], '2026-11')).toEqual([])
+    expect(at([rec({ type: 'income', title: '월급' })], '2026-11')).toEqual([])
+    const yearly = rec({ id: 'y', every_months: 12, start_month: '2026-03-01', day_of_month: 3, amount: 39000 })
+    expect(at([yearly], '2027-03')).toEqual([['y', '2027-03-03', 39000, null]])
+    expect(at([yearly], '2027-02')).toEqual([])
+    expect(at([rec({ id: 'e', day_of_month: 31 })], '2026-11')).toEqual([['e', '2026-11-30', 500000, null]])
+  })
+
+  it('할부는 회차를 DB 메모와 같은 셈으로 붙인다', () => {
+    // 9월 시작 6개월(9월~2월), 매달 15일
+    const fridge = rec({ id: 'f', kind: 'installment', amount: 100000, day_of_month: 15, start_month: '2026-09-01', end_month: '2027-02-01', installment_months: 6 })
+    expect(at([fridge], '2026-11')).toEqual([['f', '2026-11-15', 100000, [3, 6]]])
+    expect(at([fridge], '2027-02')).toEqual([['f', '2027-02-15', 100000, [6, 6]]])
+    expect(at([fridge], '2027-03')).toEqual([])
   })
 })
 

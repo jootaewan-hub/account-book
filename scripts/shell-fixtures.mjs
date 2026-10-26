@@ -120,6 +120,10 @@ export const TABLES = {
     { id: 'r4', household_id: HH, kind: 'installment', type: 'expense', title: '냉장고', amount: 100000, day_of_month: 15, every_months: 1,
       category_id: null, payment_method_id: null, scope: 'shared', start_month: '2026-09-01',
       end_month: '2027-01-01', generated_through: null, active: true, memo: null, installment_months: 6, created_by: ME, created_at: ago(50), updated_at: ago(50) },
+    // 말일에 내는 고정지출: 이번 달 달력에서 오늘 뒤 예정분(D-030, '이번 달 남은 고정지출')이 보인다. 말일이 오늘이면 예정이 아니라 보이지 않는다
+    { id: 'r6', household_id: HH, kind: 'fixed', type: 'expense', title: '휴대폰 요금', amount: 55000, day_of_month: 31, every_months: 1,
+      category_id: categories.find((c) => c.name === '통신')?.id ?? null, payment_method_id: null, scope: 'shared', start_month: '2026-01-01',
+      end_month: null, generated_through: null, active: true, memo: null, installment_months: null, created_by: ME, created_at: ago(200), updated_at: ago(200) },
     // 꺼 둔 구독 하나(고정 탭에서 꺼짐 표시가 켜진 줄과 구별되는지 캡처로 본다)
     { id: 'r5', household_id: HH, kind: 'subscription', type: 'expense', title: '헬스장', amount: 55000, day_of_month: 20, every_months: 1,
       category_id: null, payment_method_id: null, scope: 'husband', start_month: '2026-03-01',

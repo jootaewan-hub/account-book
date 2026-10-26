@@ -11,7 +11,7 @@ import { PlatformDatalist } from './components/PlatformInput'
 import { Login, NewPassword } from './components/Login'
 import { Onboarding } from './components/Onboarding'
 import type { SmartMode } from './components/SmartSheet'
-import { useLedgerMeta, useLiveUpdates, useMonthEvents, useMonthTransactions } from './hooks/useLedger'
+import { useLedgerMeta, useLiveUpdates, useMonthEvents, useMonthTransactions, useRecurringList } from './hooks/useLedger'
 import { deleteTransaction, deleteTransactions, friendlyError, generateRecurring, insertInstallmentPurchase, insertTransaction, updateSpouseRole, updateTransaction } from './lib/api'
 import { wasRefreshed } from './lib/appUpdate'
 import { takeNewRelease } from './lib/changelog'
@@ -141,6 +141,8 @@ function Ledger({ household, meta, userId, email }: {
 
   const { txs, version: txVersion, loading: txLoading, error, reload } = useMonthTransactions(household.id, ym)
   const { events, reload: reloadEvents } = useMonthEvents(household.id, ym)
+  // 달력의 고정지출 예정분(D-030). 달력 탭에 올 때마다 다시 읽어 고정 탭에서 고친 것이 바로 보인다
+  const recurring = useRecurringList(household.id, tab === 'cal')
   const [plan, setPlan] = useState<PlanTarget | null>(null)
   useLiveUpdates(household.id, reload, meta.reload, reloadEvents)
 
@@ -291,7 +293,8 @@ function Ledger({ household, meta, userId, email }: {
         {tab === 'cal' && (
           <Screen name="달력">
             <CalendarView ym={ym} today={today} sel={sel} cur={cur} prev={prev} loading={txLoading} lookup={lookup} annivs={meta.anniversaries} events={events}
-              onSelect={setSel} onPlan={setPlan} onJump={(d) => { setYm(d.slice(0, 7)); setSel(d) }} onEdit={(t) => setSheet({ open: true, editing: t })} />
+              recurring={recurring} onSelect={setSel} onPlan={setPlan} onJump={(d) => { setYm(d.slice(0, 7)); setSel(d) }}
+              onEdit={(t) => setSheet({ open: true, editing: t })} onOpenFixed={() => setTab('fixed')} />
           </Screen>
         )}
         {tab === 'list' && (

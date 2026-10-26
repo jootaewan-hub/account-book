@@ -133,6 +133,9 @@ main.wrap { padding-block: 4px calc(150px + env(safe-area-inset-bottom, 0px)); }
 .day.sel .n { box-shadow: inset 0 0 0 1.5px var(--ink); }
 .day .amt { font-size: 10.5px; font-weight: 600; line-height: 1.2; max-width: 100%; overflow: hidden; white-space: nowrap; color: var(--ink-2); }
 .day .amt.exp { color: var(--ink-2); } .day .amt.inc { color: var(--indigo); }
+/* 고정지출 예정분(D-030): 아직 내역이 아니라 점선 테두리로 실제 금액과 구별한다. 흐린 글자는 귀리 면 위 대비 기준에 못 미쳐 쓰지 않는다 */
+.day .amt.plan { border: 1px dashed var(--ink-2); border-radius: 4px; padding: 0 3px; line-height: 1.1; }
+.compare + .compare.plan-sum { margin-top: 2px; }
 .day .hname { display: none; }
 .day.blank { visibility: hidden; pointer-events: none; }
 
@@ -178,6 +181,8 @@ main.wrap { padding-block: 4px calc(150px + env(safe-area-inset-bottom, 0px)); }
 .tx-amt { font-size: 16px; font-weight: 700; text-align: right; white-space: nowrap; }
 .tx-memo { min-width: 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tx-amt.inc { color: var(--indigo); }
+.tx.plan .tx-amt, .day-head .tot .plan { color: var(--ink-2); font-weight: 600; }
+.tag:where(:not(.grocery *)).plan { background: none; outline: 1px dashed var(--ink-2); outline-offset: -1px; color: var(--ink-2); }
 /* 내역 고르기·같은 영수증 묶음 삭제 (D-027) */
 .month-sum:has(.pick-toggle) { flex-wrap: wrap; row-gap: 4px; }
 .month-sum .pick-toggle { margin-left: auto; margin-block: -12px; }

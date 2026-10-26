@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useEffectEvent, useRef, useState } from 'react'
-import { fetchEvents, fetchHouseholdBundle, fetchTwoMonths, friendlyError } from '../lib/api'
+import { fetchEvents, fetchHouseholdBundle, fetchRecurring, fetchTwoMonths, friendlyError } from '../lib/api'
 import { addMonths, monthRange } from '../lib/dates'
 import { sb } from '../lib/supabase'
-import type { Anniversary, CalEvent, Category, Household, Member, PaymentMethod, Transaction } from '../lib/types'
+import type { Anniversary, CalEvent, Category, Household, Member, PaymentMethod, Recurring, Transaction } from '../lib/types'
 
 export interface LedgerMeta {
   household: Household | null | undefined // undefined: 불러오는 중, null: 아직 가구 없음
@@ -77,6 +77,33 @@ export function useMonthEvents(householdId: string | undefined, ym: string) {
   }, [householdId, ym])
   useEffect(() => { void reload() }, [reload])
   return { events, reload }
+}
+
+const NO_RECURRING: Recurring[] = []
+
+/**
+ * 달력의 고정지출 예정분(D-030)에 쓰는 반복 항목. recurring 표는 실시간 알림에 없어서
+ * 켜질 때(달력 탭으로 올 때, 고정 탭에서 고친 뒤 포함)와 화면에 다시 나타날 때 새로 읽는다.
+ */
+export function useRecurringList(householdId: string | undefined, active: boolean) {
+  const [list, setList] = useState<Recurring[]>(NO_RECURRING)
+  const req = useRef(0)
+  const reload = useCallback(async () => {
+    if (!householdId) return
+    const id = ++req.current
+    try {
+      const rows = await fetchRecurring(householdId)
+      if (id === req.current) setList(rows)
+    } catch { /* 못 읽으면 예정 금액만 빠지고 가계부는 그대로 쓴다 */ }
+  }, [householdId])
+  useEffect(() => {
+    if (!active) return
+    void reload()
+    const onVisible = () => { if (document.visibilityState === 'visible') void reload() }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => document.removeEventListener('visibilitychange', onVisible)
+  }, [active, reload])
+  return list
 }
 
 /**

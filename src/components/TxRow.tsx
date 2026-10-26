@@ -1,6 +1,7 @@
 import { won } from '../lib/format'
 import { fuelText } from '../lib/fuel'
 import { SCOPE_LABEL, type Lookup } from '../lib/lookup'
+import { KIND_LABEL, type PlannedCharge } from '../lib/recurring'
 import type { Scope, Transaction } from '../lib/types'
 import { useItemImages } from '../hooks/useItemImages'
 import { serviceOf } from '../lib/services'
@@ -49,5 +50,31 @@ export function TxRow({ t, lookup, onClick, picked }: { t: Transaction; lookup: 
       <input type="checkbox" checked={picked} onChange={onClick} />
       {body}
     </label>
+  )
+}
+
+/**
+ * 달력의 고정지출 예정 줄(D-030). 아직 내역이 아니라 고칠 내역이 없으므로, 누르면 고정 탭으로 간다.
+ * 실제 내역 줄(TxRow)과 같은 자리에 두되 '예정' 점선 태그와 흐린 금액으로 구별한다
+ */
+export function PlannedRow({ p, lookup, onClick }: { p: PlannedCharge; lookup: Lookup; onClick: () => void }) {
+  const { r } = p
+  const logo = r.kind === 'subscription' && serviceOf(r.title) !== null
+  // 할부는 '할부 n/m' 태그가 종류를 말해 주므로 종류 글자를 되풀이하지 않는다
+  const meta = [p.round ? null : KIND_LABEL[r.kind], r.category_id ? lookup.categoryName(r.category_id) : null].filter(Boolean).join(', ')
+  return (
+    <button className={`tx plan${logo ? ' has-lead' : ''}`} onClick={onClick}>
+      {logo ? <ServiceLogo name={r.title} size={40} /> : null}
+      <span style={{ minWidth: 0 }}>
+        <span className="tx-title">{r.title}</span>
+        <span className="tx-meta">
+          <span className="tag plan">예정</span>
+          {p.round && <span className="tag">할부 {p.round[0]}/{p.round[1]}</span>}
+          {r.scope !== 'shared' && <span className={`tag ${WHO_TAG[r.scope]}`}>{SCOPE_LABEL[r.scope]}</span>}
+          <span className="num">{meta}</span>
+        </span>
+      </span>
+      <span className="tx-amt num">{won(p.amount)}원</span>
+    </button>
   )
 }

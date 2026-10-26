@@ -120,6 +120,8 @@ const TAB_SLUG = { 달력: 'cal', 내역: 'list', 장보기: 'grocery', 통계: 
 const shellShots = [
   ...['달력', '내역', '장보기', '통계', '고정', '설정'].flatMap((tab) =>
     each((w, c) => ({ name: `shell-${TAB_SLUG[tab]}-${w}-${c}`, path: '/', w, c, shell: true, tab, full: tab !== '장보기' }))),
+  // 달력 다음 달(D-030): 고정지출 예정분이 점선 금액으로, 남은 돈 아래 'N월에 나갈 고정지출', 고른 날(15일)에 할부 예정 줄
+  ...each((w, c) => ({ name: `shell-cal-next-${w}-${c}`, path: '/', w, c, shell: true, tab: '달력', full: true, calNext: 15 })),
   // 장보기는 화면 높이 그대로: 아래 탭·담기 바가 화면 아래에 어떻게 겹치는지 본다
   ...both(390, (w, c) => ({ name: `shell-grocery-removed-${w}-${c}`, path: '/', w, c, shell: true, tab: '장보기', remove: '삼겹살 600g' })),
   ...each((w, c) => ({ name: `shell-grocery-add-sheet-${w}-${c}`, path: '/', w, c, shell: true, tab: '장보기', sheet: SHEET_TEXT })),
@@ -286,6 +288,12 @@ try {
       if (s.chip) {
         await page.locator('.market-chip', { hasText: s.chip }).click()
         await page.locator('.market-now-name', { hasText: s.chip }).waitFor()
+      }
+      if (s.calNext) {
+        await page.getByRole('button', { name: '다음 달' }).click()
+        await page.locator('.plan-sum').waitFor()
+        await page.getByRole('button', { name: new RegExp(`^\\d+월 ${s.calNext}일`) }).click()
+        await page.locator('.tx.plan').first().waitFor()
       }
       if (s.scroll) await page.locator(s.scroll).first().scrollIntoViewIfNeeded()
       if (s.press) await page.getByRole('button', { name: s.press, exact: true }).click()

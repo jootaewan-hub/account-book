@@ -46,6 +46,29 @@ export function pendingInputs(list: Recurring[], txs: Transaction[], today: stri
   return out
 }
 
+/** 달력에 보이는 고정지출 예정분. round는 할부의 [회차, 총 개월 수] */
+export interface PlannedCharge { r: Recurring; date: string; amount: number; round: [number, number] | null }
+
+/**
+ * 그 달의 고정지출 예정분(D-030): 내는 날이 오늘보다 뒤라 아직 내역으로 들어가지 않은 것.
+ * DB의 generate_recurring이 오늘까지 넣으므로 오늘 뒤만 보면 겹치지 않는다. 그래도 그 달 분을 미리 넣었으면 뺀다(pendingInputs와 같은 기준).
+ * 금액을 매달 넣는 항목(관리비 등)은 숫자가 없으므로 넣지 않고, 수입도 넣지 않는다.
+ */
+export function plannedInMonth(list: Recurring[], txs: Transaction[], ym: string, today: string): PlannedCharge[] {
+  const done = new Set(txs.filter((t) => t.recurring_id && (t.recurring_month ?? t.occurred_on).startsWith(ym)).map((t) => t.recurring_id))
+  const out: PlannedCharge[] = []
+  for (const r of list) {
+    if (!r.active || r.type !== 'expense' || r.amount === null || done.has(r.id)) continue
+    const date = dueDate(r, ym)
+    if (!date || date <= today) continue
+    // DB가 넣는 메모 "할부 n/m회"와 같은 셈: 총 개월 수 - 마지막 달까지 남은 달 수
+    const round: [number, number] | null = r.kind === 'installment' && r.installment_months && r.end_month
+      ? [r.installment_months - (monthIndex(r.end_month.slice(0, 7)) - monthIndex(ym)), r.installment_months] : null
+    out.push({ r, date, amount: r.amount, round })
+  }
+  return out.sort((a, b) => a.date.localeCompare(b.date) || b.amount - a.amount)
+}
+
 /**
  * 고정 탭이 읽는 내역 기간: 지난 5개월(구독 찾기)부터 다음 달 말까지.
  * 관리비 고지서는 납부 마감일(오늘보다 뒤, 다음 달일 수도 있다)로 넣으므로 오늘까지만 읽으면 이번 달 분을 못 본다
