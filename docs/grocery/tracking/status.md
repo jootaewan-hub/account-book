@@ -14,6 +14,7 @@
   같은 영수증 묶음 삭제(수정 시트, `fetchSaveBatch`), 마이그레이션 `20261104000000_tx_save_batch.sql`(public: `save_batch` 칸·색인, `add_transaction_with_items`가 읽음, 지난 내역 추정 update; PGlite 시험 3개).
   화면 시험 `tests/components/listPick.test.tsx`. 캡처 shell-list-pick(-confirm)·shell-entry-batch·shell-smart-bundle·shell-smart-split(390·1280, 라이트·다크) 확인.
   공유 DB 적용·main 병합은 사용자 확인 대기. 화면이 먼저 배포돼도 깨지지 않는다(새 칸을 월 내역 읽기에 넣지 않음, 묶음 칸은 못 읽으면 숨김).
+  지난 내역 추정 미리 보기(공유 DB 읽기 조회, 2026-10-26): 처음 조건(품목 줄 1개 이하)은 16묶음이었고 그중 식당·편의점 영수증 5장이 한 묶음으로 잘못 잡혀, 조건을 상품 줄 정확히 1개 또는 배송비로 좁혔다 → 15묶음 59건.
 
 - 상품명 → 식약처 품목 맞춤 다시 만들기(D-026, 2026-10-23, 브랜치 `claude/product-match`, 설계 `docs/superpowers/specs/2026-10-23-product-match-design.md`):
   다나와 상품 페이지의 제조사·상표·원산지·원재료명 읽기(`parseDanawaProduct().facts`, 사본 product-4497661·product-246993), 마이그레이션 `20261103000000_grocery_product_facts.sql`·`20261103010000_grocery_clear_item_auto.sql`

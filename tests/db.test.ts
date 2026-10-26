@@ -648,7 +648,7 @@ describe('나눠 저장한 영수증 묶음 (20261104000000_tx_save_batch, D-027
     expect(await errorOf(as(A, `update public.transactions set save_batch = $1 where title = '대파'`, [BATCH]))).toContain('permission denied')
   })
 
-  it('지난 내역: 같은 사람·날짜·결제수단·플랫폼으로 60초 안에 잇달아 저장한 사진 내역(품목 1줄 이하)을 한 묶음으로 본다', async () => {
+  it('지난 내역: 같은 사람·날짜·결제수단·플랫폼으로 60초 안에 잇달아 저장한 사진 내역(상품 줄 1개 또는 배송비)을 한 묶음으로 본다', async () => {
     const ledgerFiles = MIGRATION_FILES.filter((f) => !isGrocery(f))
     const BATCH_FILE = '20261104000000_tx_save_batch.sql'
     const old = await freshDb(ledgerFiles.filter((f) => f < BATCH_FILE).map(readMigration))
@@ -672,6 +672,8 @@ describe('나눠 저장한 영수증 묶음 (20261104000000_tx_save_batch, D-027
     await add('손으로 넣음', '00:06', { source: 'manual' })
     await add('다른 날', '00:07', { date: '2026-10-19' })
     await add('매장', '00:08', { platform: null })
+    // 품목 줄 없는 영수증 여러 장(식당·편의점)을 한 번에 저장한 것은 묶지 않는다
+    await add('광동반점', '05:00', { platform: null, items: 0 }); await add('벽제 설렁탕', '05:01', { platform: null, items: 0 })
     await old.exec(readMigration(BATCH_FILE))
     const rows = (await old.query<{ title: string; save_batch: string | null }>(`select title, save_batch from public.transactions order by created_at, title`)).rows
     const of = (t: string) => rows.find((r) => r.title === t)!.save_batch
@@ -680,6 +682,6 @@ describe('나눠 저장한 영수증 묶음 (20261104000000_tx_save_batch, D-027
     expect(of('통후추')).not.toBeNull()
     expect(of('소금')).toBe(of('통후추'))
     expect(of('통후추')).not.toBe(of('사과식초'))
-    for (const t of ['한 묶음 영수증', '혼자', '손으로 넣음', '다른 날', '매장']) expect(of(t)).toBeNull()
+    for (const t of ['한 묶음 영수증', '혼자', '손으로 넣음', '다른 날', '매장', '광동반점', '벽제 설렁탕']) expect(of(t)).toBeNull()
   })
 })

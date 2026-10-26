@@ -57,14 +57,16 @@ end;
 $$;
 
 -- backfill:start
--- 지난 내역 추정: 이 칸이 생기기 전에 나눠 저장한 내역에도 번호를 붙인다. 나눠 저장한 내역은 품목 줄이 1개 이하(상품 하나 또는 배송비)이고,
--- 같은 사람이 같은 날짜·결제수단·플랫폼으로 잇달아 저장한다. 저장 시각이 60초 안으로 이어진 2건 이상을 한 묶음으로 본다.
--- 같은 날 같은 카드로 낸 영수증 두 장을 한 번에 저장했으면 한 묶음으로 잘못 묶일 수 있다(앱은 지우기 전에 목록을 보여 준다).
+-- 지난 내역 추정: 이 칸이 생기기 전에 나눠 저장한 내역에도 번호를 붙인다. 나눠 저장한 내역은 상품 줄이 정확히 1개이거나
+-- 품목 줄 없는 배송비이고, 같은 사람이 같은 날짜·결제수단·플랫폼으로 잇달아 저장한다. 저장 시각이 60초 안으로 이어진 2건 이상을 한 묶음으로 본다.
+-- 품목 줄 없는 영수증(식당 등)은 넣지 않는다: 여러 가게 영수증을 한 번에 저장한 것이 한 묶음으로 잡혔다(2026-10-26 공유 DB 미리 보기).
+-- 같은 날 같은 결제수단·플랫폼으로 상품 하나짜리 주문 여러 건을 한 번에 저장했으면 한 묶음으로 잘못 묶일 수 있다(앱은 지우기 전에 목록을 보여 준다).
 with cand as (
   select t.id, t.household_id, t.created_by, t.occurred_on, t.payment_method_id, t.platform, t.created_at
   from public.transactions t
+  cross join lateral (select count(*) as n from public.transaction_items i where i.transaction_id = t.id) items
   where t.source = 'photo' and t.recurring_id is null and t.save_batch is null
-    and (select count(*) from public.transaction_items i where i.transaction_id = t.id) <= 1
+    and (items.n = 1 or (items.n = 0 and t.title like '%배송비%'))
 ), gaps as (
   select c.*, c.created_at - lag(c.created_at) over w as gap
   from cand c
