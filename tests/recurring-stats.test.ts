@@ -110,15 +110,17 @@ describe('통계', () => {
     ])
   })
 
-  it('어디서 샀나: 한 번씩 간 작은 가게는 그 밖으로 묶고, 반복 내역과 대출이자·관리비 같은 분류는 뺀다', () => {
+  it('어디서 샀나: 한 번만 간 작은 가게도 따로 보이고, 이름 없는 결제만 맨 뒤 한 줄. 반복 내역과 대출이자·관리비 같은 분류는 뺀다', () => {
     const cats: Category[] = [{ id: 'loan', household_id: 'h', type: 'expense', name: '대출이자', sort: 1, archived: false }]
-    const cur = [tx({ title: '쿠팡', amount: 100000 }), tx({ title: '(주)신세계까사', amount: 1000 }), tx({ title: '벽제 설렁탕', amount: 1000 }),
-      tx({ title: '씨유 분당상록마을점', amount: 500 }), tx({ title: '씨유 서현점', amount: 500 }),
+    const cur = [tx({ title: '쿠팡', amount: 100000 }), tx({ title: '(주)신세계까사', amount: 1000 }), tx({ title: '벽제 설렁탕', amount: 1200 }),
+      tx({ title: '씨유 분당상록마을점', amount: 500 }), tx({ title: '씨유 서현점', amount: 500 }), tx({ title: '', amount: 9000 }),
       tx({ title: '대출이자', category_id: 'loan', amount: 3_900_000 }), tx({ title: '넷플릭스', recurring_id: 'r1', amount: 17000 })]
     expect(platformBreakdown(cur, [], cats)).toEqual([
       { name: '쿠팡', kind: 'platform', amount: 100000, count: 1, prev: 0 },
+      { name: '벽제 설렁탕', kind: 'merchant', amount: 1200, count: 1, prev: 0 },
       { name: '씨유', kind: 'merchant', amount: 1000, count: 2, prev: 0 },
-      { name: OTHER_PLATFORM, kind: 'other', amount: 2000, count: 2, prev: 0 },
+      { name: '신세계까사', kind: 'merchant', amount: 1000, count: 1, prev: 0 },
+      { name: OTHER_PLATFORM, kind: 'other', amount: 9000, count: 1, prev: 0 },
     ])
   })
 })

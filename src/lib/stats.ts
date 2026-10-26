@@ -71,7 +71,7 @@ export function scopeSplit(cur: Transaction[]): Record<Scope, number> {
 
 export interface PlatformRow {
   name: string
-  /** platform: 쿠팡 같은 온라인 플랫폼, merchant: 플랫폼이 없는 매장 결제의 가게 이름, other: 한 번씩만 간 가게들 */
+  /** platform: 쿠팡 같은 온라인 플랫폼, merchant: 플랫폼이 없는 매장 결제의 가게 이름, other: 이름이 없는 결제 */
   kind: 'platform' | 'merchant' | 'other'
   amount: number
   count: number
@@ -79,8 +79,9 @@ export interface PlatformRow {
 }
 
 /**
- * 어디서 샀나: 플랫폼별, 플랫폼이 없는 매장 결제는 가게 이름별. 두 번 넘게 갔거나 전체의 5%가 넘는 가게만 따로 두고
- * 나머지는 마지막에 '그 밖'으로 묶는다. 반복 항목으로 들어온 것과 대출이자·관리비·보험·통신·주거·세금처럼 '산 것'이 아닌 분류는 뺀다
+ * 어디서 샀나: 플랫폼별, 플랫폼이 없는 매장 결제는 가게 이름별. 한 번만 간 가게도 묶지 않고 따로 둔다(사용자 2026-10-26:
+ * 묶으면 정확히 볼 수 없다). 이름이 없는 결제만 마지막에 한 줄로. 반복 항목으로 들어온 것과 대출이자·관리비·보험·통신·주거·세금처럼
+ * '산 것'이 아닌 분류는 뺀다
  */
 export function platformBreakdown(cur: Transaction[], prev: Transaction[], categories: Category[] = []): PlatformRow[] {
   const skip = new Set(categories.filter((c) => NON_PURCHASE_CATEGORIES.has(c.name)).map((c) => c.id))
@@ -104,18 +105,7 @@ export function platformBreakdown(cur: Transaction[], prev: Transaction[], categ
   }
   const a = sum(cur)
   const b = sum(prev)
-  const total = [...a.values()].reduce((s, v) => s + v.amount, 0)
-  const rows: PlatformRow[] = []
-  const other: PlatformRow = { name: OTHER_PLATFORM, kind: 'other', amount: 0, count: 0, prev: 0 }
-  for (const [k, v] of a) {
-    const prevAmount = b.get(k)?.amount ?? 0
-    if (v.kind === 'other' || (v.kind === 'merchant' && v.count < 2 && v.amount < total * 0.05)) {
-      other.amount += v.amount; other.count += v.count; other.prev += prevAmount
-    } else {
-      rows.push({ ...v, prev: prevAmount })
-    }
-  }
-  rows.sort((x, y) => y.amount - x.amount)
-  if (other.count) rows.push(other)
-  return rows
+  const rows = [...a].map(([k, v]): PlatformRow => ({ ...v, prev: b.get(k)?.amount ?? 0 }))
+  // 금액 큰 순서, 같으면 많이 간 순서. 이름 없는 결제는 맨 뒤
+  return rows.sort((x, y) => Number(x.kind === 'other') - Number(y.kind === 'other') || y.amount - x.amount || y.count - x.count)
 }

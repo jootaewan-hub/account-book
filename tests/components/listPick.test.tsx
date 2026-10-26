@@ -4,6 +4,7 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ListView } from '../../src/components/ListView'
 import { makeLookup } from '../../src/lib/lookup'
+import { OTHER_PLATFORM } from '../../src/lib/platform'
 import { plannedTxs } from '../../src/lib/recurring'
 import type { Recurring, Transaction } from '../../src/lib/types'
 
@@ -97,5 +98,16 @@ describe('내역 고르기', () => {
     fireEvent.click(screen.getByRole('button', { name: '한 번 더 누르면 1건 지워요' }))
     expect(await screen.findByRole('alert')).toHaveProperty('textContent', '인터넷 연결을 확인해 주세요.')
     expect(screen.getByRole('button', { name: '1건 삭제' })).toBeTruthy()
+  })
+})
+
+describe('통계에서 넘어온 조건', () => {
+  it('이름 없는 결제 줄을 누르면 플랫폼도 가게 이름도 없는 내역만, 가게 줄은 그 가게만 보인다', () => {
+    const cur = [tx('n', '2026-10-25', '', 7000), tx('s', '2026-10-25', '벽제 설렁탕', 12000), tx('k', '2026-10-24', '쿠팡', 30000)]
+    const props = { cur, lookup, onClearFocus: () => {}, onEdit: () => {}, onDeleteMany: async () => {} }
+    const { rerender } = render(<ListView {...props} focus={{ kind: 'platform', name: OTHER_PLATFORM }} />)
+    expect(document.querySelector('.month-sum span')?.textContent).toBe('쓴 돈 7,000원')
+    rerender(<ListView {...props} focus={{ kind: 'merchant', name: '벽제 설렁탕' }} />)
+    expect(document.querySelector('.month-sum span')?.textContent).toBe('쓴 돈 12,000원')
   })
 })

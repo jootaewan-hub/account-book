@@ -173,6 +173,8 @@ const shellShots = [
   ...each((w, c) => ({ name: `shell-smart-compare-${w}-${c}`, path: '/', w, c, shell: true, tab: '내역', receipt: true, compare: true })),
   // 통계 탭 주유 묶음(설계 2026-10-21): 리터당 가격·지난번 대비·추이 그래프·달별. 가짜 주유 기록 3건
   ...each((w, c) => ({ name: `shell-stats-fuel-${w}-${c}`, path: '/', w, c, shell: true, tab: '통계', scroll: '.fuel-card' })),
+  // 통계 탭 어디서 샀나(사용자 2026-10-26): 한 번만 간 가게도 '그 밖'으로 묶지 않고 가게마다 한 줄
+  ...each((w, c) => ({ name: `shell-stats-shops-${w}-${c}`, path: '/', w, c, shell: true, tab: '통계', center: '.shop-card' })),
   // 주유소 영수증 확인 화면(설계 2026-10-21): 유종·주유량·리터당 칸과 지난 주유 대비. 가짜 응답(FUEL_RECEIPT)
   ...each((w, c) => ({ name: `shell-smart-fuel-${w}-${c}`, path: '/', w, c, shell: true, tab: '내역', receipt: true, fuel: true })),
   // 관리비 고지서 확인 화면(D-019): 고정 탭에 관리비 항목이 없으면 '관리비' 항목을 만든다는 안내, 있으면 그 항목에 연결한다는 안내. 가짜 고지서 응답(BILL)

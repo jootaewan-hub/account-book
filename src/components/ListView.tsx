@@ -59,7 +59,8 @@ export function ListView({ cur, future = false, loading = false, lookup, focus, 
     if (focus.kind === 'category') return t.category_id === focus.id
     const p = platformOfTx(t)
     if (focus.kind === 'merchant') return !p && normMerchant(t.title) === focus.name
-    return focus.name === OTHER_PLATFORM ? !p : p === focus.name
+    // 이름 없는 결제 줄: 플랫폼도 가게 이름도 없는 내역만
+    return focus.name === OTHER_PLATFORM ? !p && !normMerchant(t.title) : p === focus.name
   }
   const list = cur.filter((t) => (filter === 'all' || t.scope === filter) && inFocus(t) && (!needle || matches(t)))
   // 고정지출 예정분(D-030)은 DB에 없는 행이라 고를 수도 지울 수도 없다. 고르는 동안에는 목록에서 뺀다
