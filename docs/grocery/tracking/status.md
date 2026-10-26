@@ -1,6 +1,7 @@
 # 현재 상태
 
-> **지금(2026-10-24)**: 상품명 → 식약처 품목 맞춤(D-026)까지 배포했다. 공유 DB에 `grocery_product_facts` 적용, `food-info` v10·`product-check` v6·`price-recheck` v4를 커밋 고정 stub으로 배포, main 병합은 사용자 승인으로 했다(`docs/HANDOFF.md` 5절 19). `clear_item_auto`는 아직 공유 DB에 없다(열린 문제). 남은 확인(사용자): 성분 탭 자동 맞춤.
+> **지금(2026-10-26)**: v2.6.0 배포(D-027 영수증 한 묶음 저장·일괄 삭제, D-028 버전·업데이트 내역, `docs/HANDOFF.md` 5절 20). 아래는 그 전 장보기 상태.
+> **2026-10-24**: 상품명 → 식약처 품목 맞춤(D-026)까지 배포했다. 공유 DB에 `grocery_product_facts` 적용, `food-info` v10·`product-check` v6·`price-recheck` v4를 커밋 고정 stub으로 배포, main 병합은 사용자 승인으로 했다(`docs/HANDOFF.md` 5절 19). `clear_item_auto`는 아직 공유 DB에 없다(열린 문제). 남은 확인(사용자): 성분 탭 자동 맞춤.
 > 배포·적용 기록은 `docs/HANDOFF.md` 5절, 결정은 `decisions/index.md`, 아래 "열린 문제"가 남은 일이다. 시험은 `npm test` 전부 통과가 기준이다(개수는 적지 않는다).
 
 > 2026-10-19부터 장보기는 가계부 저장소(jootaewan-hub/account-book) 안의 '장보기' 탭이다(D-010). 이 문서는 장보기 저장소(jootaewan-hub/grocery-app)에서 옮겨 왔고,
@@ -13,7 +14,7 @@
   영수증·쇼핑 주문은 기본으로 내역 하나("상품 N개를 하나씩 따로 저장"을 켜면 나눔), 같은 상품 두 번 넣기 막기를 묶음 안 상품 줄까지(`markRepeats`), 내역 탭 고르기 삭제(`ListView`·`TxRow`·`deleteTransactions`),
   같은 영수증 묶음 삭제(수정 시트, `fetchSaveBatch`), 마이그레이션 `20261104000000_tx_save_batch.sql`(public: `save_batch` 칸·색인, `add_transaction_with_items`가 읽음, 지난 내역 추정 update; PGlite 시험 3개).
   화면 시험 `tests/components/listPick.test.tsx`. 캡처 shell-list-pick(-confirm)·shell-entry-batch·shell-smart-bundle·shell-smart-split(390·1280, 라이트·다크) 확인.
-  공유 DB 적용·main 병합은 사용자 확인 대기. 화면이 먼저 배포돼도 깨지지 않는다(새 칸을 월 내역 읽기에 넣지 않음, 묶음 칸은 못 읽으면 숨김).
+  2026-10-26 사용자 승인으로 공유 DB 적용(`tx_save_batch`, 15묶음 59건)·main 병합(e44cd87)·Pages 배포, v2.6.0(D-028 업데이트 내역 포함). 기록 `docs/HANDOFF.md` 5절 20.
   지난 내역 추정 미리 보기(공유 DB 읽기 조회, 2026-10-26): 처음 조건(품목 줄 1개 이하)은 16묶음이었고 그중 식당·편의점 영수증 5장이 한 묶음으로 잘못 잡혀, 조건을 상품 줄 정확히 1개 또는 배송비로 좁혔다 → 15묶음 59건.
 
 - 상품명 → 식약처 품목 맞춤 다시 만들기(D-026, 2026-10-23, 브랜치 `claude/product-match`, 설계 `docs/superpowers/specs/2026-10-23-product-match-design.md`):

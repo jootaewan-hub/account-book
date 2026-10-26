@@ -154,6 +154,14 @@ npm run screens
       그 뒤 DB의 `item_ingredients`·`item_nutrition`(details·nutrition의 `v: 2`, matchedBy)과 `products`의 maker·facts_at, `food-info` 로그(503, 품목대표 300건 검색)를 본다.
     - 되돌리기: stub 해시를 이전 배포 커밋 `afe51bf…`(16번)로 바꿔 다시 올리고 main을 되돌린다. 새 칸과 저장 함수의 덮어쓰기 막기는 옛 코드와 함께 둬도 동작에 영향이 없다.
 
+20. 영수증 한 묶음 저장 기본값 + 일괄 삭제(D-027), 버전·업데이트 내역(D-028) 운영 반영(2026-10-26 09:50 KST 무렵, 사용자 승인 "둘 다 진행해"): 브랜치 `claude/receipt-bundle-delete` → `ci.yml` 통과.
+    - 미리 보기: 지난 내역 묶음 추정을 공유 DB 읽기 조회로 먼저 셌다. 처음 조건(품목 줄 1개 이하)은 16묶음이었고 그중 식당·편의점 영수증 5장이 한 묶음으로 잡혀 조건을 상품 줄 정확히 1개 또는 배송비로 좁혔다 → 15묶음 59건.
+    - 됨: MCP `apply_migration`(`tx_save_batch`, 로컬 `20261104000000_tx_save_batch.sql`). DB로 확인: `transactions.save_batch` 칸·`transactions_save_batch_idx`, `add_transaction_with_items` 본문에 save_batch(`pg_get_functiondef`),
+      묶음 번호 붙은 행 59건·15묶음(미리 보기와 같음), authenticated의 save_batch 칸 수정 권한 없음, 저장 함수 실행 권한 그대로.
+    - 됨: main fast-forward(e44cd87)·푸시, Pages 배포 성공. 운영 `version.json`이 `e44cd87 · 10-26 09:53`, 첫 화면 묶음에 고르기 줄·v2.6.0·새 버전 알림, api 묶음에 save_batch가 있다.
+    - 남은 확인(사용자): 영수증 한 장을 넣어 한 내역으로 저장되는지, 내역 탭 고르기로 지워지는지, 예전에 나눠 저장한 내역을 열어 "함께 나눠 저장한 내역 N건" 목록이 맞는지. 각 기기에서 처음 열 때 "새 버전 v2.6.0" 알림이 한 번 뜬다.
+    - 되돌리기: main을 463cb94로 되돌린다. 새 칸과 저장 함수는 옛 화면과 함께 둬도 동작에 영향이 없다(옛 화면은 save_batch를 보내지 않고 읽지도 않는다).
+
 ### 사용자 할 일
 
 - ~~공공데이터포털 식품영양성분DB(15127578) 활용신청~~ 2026-10-20 마침(사용자). 같은 키로 통하는지는 성분 탭 첫 호출로 확인.
