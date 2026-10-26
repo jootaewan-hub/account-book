@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { dueDate, endMonthFor, historyRange, installmentPlan, installmentsLeft, monthlyAmount, nextDue, pastAmounts, monthItem, pendingInputs, plannedInMonth, plannedTotals, plannedTxs, subscriptionCandidates, termLeft, termOf } from '../src/lib/recurring'
+import { dueDate, endMonthFor, historyRange, installmentPlan, installmentsLeft, monthlyAmount, nextDue, pastAmounts, monthItem, pendingInputs, phaseAt, termAt, plannedInMonth, plannedTotals, plannedTxs, subscriptionCandidates, termLeft, termOf } from '../src/lib/recurring'
 import { categoryBreakdown, monthSeries, OTHER_PLATFORM, pctChange, platformBreakdown, platformOf, scopeSplit, totalOf } from '../src/lib/stats'
 import type { Category, MonthTotal, Recurring, Transaction } from '../src/lib/types'
 
@@ -196,6 +196,41 @@ describe('예정 내역·달별 합계·고정 탭의 달 (D-030 보충)', () =>
     const hist = [tx({ recurring_id: 'u', occurred_on: '2026-09-25', amount: 167860 })]
     expect(monthItem(util, [], hist, '2026-11', today)).toEqual({ date: '2026-11-25', state: 'planned', amount: 167860, estimate: true })
     expect(monthItem(util, [], [], '2026-11', today)).toEqual({ date: '2026-11-25', state: 'planned', amount: null, estimate: true })
+  })
+})
+
+describe('고른 달의 회차 (D-030 보충 2)', () => {
+  // 9월 시작 2027년 2월 끝(6회), 매달 10일
+  const tax = rec({ id: 't', title: '취득세', amount: 120000, day_of_month: 10, start_month: '2026-09-01', end_month: '2027-02-01' })
+  // 8월에 산 6개월 할부: 8월이 1회차(산 날 내역), 반복 항목은 9월~2027년 1월
+  const fridge = rec({ id: 'f', kind: 'installment', amount: 100000, day_of_month: 15, start_month: '2026-09-01', end_month: '2027-01-01', installment_months: 6 })
+
+  it('기간을 정한 고정지출: 시작 전·시작 달·중간·마지막 달·끝난 뒤', () => {
+    expect(phaseAt(tax, '2026-08')).toBe('before')
+    expect(termAt(tax, '2026-08')).toBeNull()
+    expect(termAt(tax, '2026-09')).toEqual({ n: 1, total: 6, left: 5, due: true })
+    expect(termAt(tax, '2026-11')).toEqual({ n: 3, total: 6, left: 3, due: true })
+    expect(termAt(tax, '2027-02')).toEqual({ n: 6, total: 6, left: 0, due: true })
+    expect(phaseAt(tax, '2027-03')).toBe('after')
+    expect(termAt(tax, '2027-03')).toBeNull()
+  })
+
+  it('할부: 산 달이 1회차, 시작 달이 2회차, 달력의 "할부 n/m"과 같은 회차', () => {
+    expect(phaseAt(fridge, '2026-07')).toBe('before')
+    expect(termAt(fridge, '2026-08')).toEqual({ n: 1, total: 6, left: 5, due: true })
+    expect(termAt(fridge, '2026-09')).toEqual({ n: 2, total: 6, left: 4, due: true })
+    expect(termAt(fridge, '2026-11')).toEqual({ n: 4, total: 6, left: 2, due: true })
+    expect(plannedInMonth([fridge], [], '2026-11', '2026-10-26')[0].round).toEqual([4, 6])
+    expect(termAt(fridge, '2027-01')).toEqual({ n: 6, total: 6, left: 0, due: true })
+    expect(phaseAt(fridge, '2027-02')).toBe('after')
+  })
+
+  it('매년 항목: 내지 않는 달에는 그 뒤로 남은 횟수만, 끝나는 달이 없으면 회차가 없다', () => {
+    const yearly = rec({ every_months: 12, start_month: '2026-03-01', end_month: '2029-03-01', day_of_month: 3 })
+    expect(termAt(yearly, '2026-11')).toEqual({ n: 1, total: 4, left: 3, due: false })
+    expect(termAt(yearly, '2027-03')).toEqual({ n: 2, total: 4, left: 2, due: true })
+    expect(termAt(rec({}), '2026-11')).toBeNull()
+    expect(phaseAt(rec({ start_month: '2026-12-01' }), '2026-11')).toBe('before')
   })
 })
 

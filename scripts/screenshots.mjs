@@ -125,6 +125,9 @@ const shellShots = [
   // 내역·통계·고정 탭 다음 달(D-030 보충): 예정 줄과 합계, 통계는 비교 문장 없이, 고정 탭은 그 달의 기록됨·예정·없음
   ...['내역', '통계', '고정'].flatMap((tab) =>
     each((w, c) => ({ name: `shell-${TAB_SLUG[tab]}-next-${w}-${c}`, path: '/', w, c, shell: true, tab, full: true, next: true }))),
+  // 고정 탭 다른 달(D-030 보충 2): 두 달 전(취득세·냉장고는 시작 전이라 빠지고 넷플릭스만), 두·네·다섯 달 뒤(회차가 줄고 마지막, 끝남)
+  ...[-2, 2, 4, 5].flatMap((n) => both(390, (w, c) => ({ name: `shell-fixed-${n < 0 ? `back${-n}` : `ahead${n}`}-${w}-${c}`, path: '/', w, c, shell: true, tab: '고정', full: true, months: n }))),
+  ...[-2, 4].map((n) => ({ name: `shell-fixed-${n < 0 ? `back${-n}` : `ahead${n}`}-1280-light`, path: '/', w: 1280, c: 'light', shell: true, tab: '고정', full: true, months: n })),
   // 장보기는 화면 높이 그대로: 아래 탭·담기 바가 화면 아래에 어떻게 겹치는지 본다
   ...both(390, (w, c) => ({ name: `shell-grocery-removed-${w}-${c}`, path: '/', w, c, shell: true, tab: '장보기', remove: '삼겹살 600g' })),
   ...each((w, c) => ({ name: `shell-grocery-add-sheet-${w}-${c}`, path: '/', w, c, shell: true, tab: '장보기', sheet: SHEET_TEXT })),
@@ -292,8 +295,9 @@ try {
         await page.locator('.market-chip', { hasText: s.chip }).click()
         await page.locator('.market-now-name', { hasText: s.chip }).waitFor()
       }
-      if (s.next) {
-        await page.getByRole('button', { name: '다음 달' }).click()
+      if (s.next || s.months) {
+        const n = s.months ?? 1
+        for (let i = 0; i < Math.abs(n); i++) await page.getByRole('button', { name: n < 0 ? '이전 달' : '다음 달' }).click()
         await page.waitForLoadState('networkidle')
         await page.locator('.plan-sum, .plan-note, .rc-row').first().waitFor()
       }

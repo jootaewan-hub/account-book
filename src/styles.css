@@ -379,8 +379,9 @@ select.input { padding: 9px 10px; }
 .rc-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; width: 100%; padding: 12px 0; border: 0; border-top: 1px solid var(--oat-deep); background: none; text-align: left; transition: background-color var(--dur-press) ease; }
 .rc-row:first-of-type { border-top: 0; }
 /* 꺼 둔 항목: ", 꺼 둠" 글자가 읽히게 opacity를 쓰지 않고, 로고는 흑백·이름과 금액은 옅은 먹색으로 구별한다 */
-.rc-row.off > :first-child { filter: grayscale(1); }
-.rc-row.off .rc-main b, .rc-row.off .rc-side .num { color: var(--ink-2); font-weight: 500; }
+/* off: 꺼 둔 항목, rest: 고른 달에 기간 밖(시작 전·끝난 뒤, D-030 보충 2) */
+.rc-row.off > :first-child, .rc-row.rest > :first-child { filter: grayscale(1); }
+.rc-row.off .rc-main b, .rc-row.off .rc-side .num, .rc-row.rest .rc-main b, .rc-row.rest .rc-side .num { color: var(--ink-2); font-weight: 500; }
 .rc-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; font-size: 13px; color: var(--ink-2); }
 .rc-row > .svc-logo + .rc-main { flex: 1; }
 .rc-main b { font-weight: 600; font-size: 16px; color: var(--ink); }

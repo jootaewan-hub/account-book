@@ -3,7 +3,7 @@ import { fetchRange, fetchRecurring, friendlyError, generateRecurring, recordRec
 import { addMonths, parseYM } from '../lib/dates'
 import { won } from '../lib/format'
 import { SCOPE_LABEL, type Lookup } from '../lib/lookup'
-import { historyRange, installmentsLeft, KIND_LABEL, monthItem, pastAmounts, pendingInputs, subscriptionCandidates, termLeft, type MonthItem } from '../lib/recurring'
+import { historyRange, KIND_LABEL, monthItem, pastAmounts, pendingInputs, phaseAt, subscriptionCandidates, termAt, type MonthItem, type TermPhase } from '../lib/recurring'
 import type { Category, Recurring, RecurringKind, Transaction } from '../lib/types'
 import { draftFrom, RecurringSheet, type RecurringDraft } from './RecurringSheet'
 import { RecurringIcon } from './RecurringIcon'
@@ -67,13 +67,16 @@ export function RecurringView({ householdId, ym, today, monthTxs, monthLoading, 
   // 고른 달에 나가는 돈(D-030 보충). 달력·통계와 같은 기준: 그 달에 들어간 내역 + 오늘 뒤에 나갈 정해진 금액.
   // 금액을 매달 넣는 항목(관리비 등)의 지난번 금액은 짐작이라 합계에 넣지 않고 따로 적는다
   const { m } = parseYM(ym)
+  const thisMonth = today.slice(0, 7)
   const spend = list.filter((r) => r.type === 'expense')
   const itemOf = (r: Recurring) => items.get(r.id) as MonthItem
   const counted = (r: Recurring) => { const it = itemOf(r); return it.state === 'done' || (it.state === 'planned' && !it.estimate) ? it.amount ?? 0 : 0 }
   const sumOf = (k: RecurringKind) => spend.filter((r) => r.kind === k).reduce((s, r) => s + counted(r), 0)
   const doneSum = spend.reduce((s, r) => s + (itemOf(r).state === 'done' ? itemOf(r).amount ?? 0 : 0), 0)
   const total = spend.reduce((s, r) => s + counted(r), 0)
-  const guess = spend.filter((r) => { const it = itemOf(r); return it.estimate && it.state !== 'none' }).reduce((s, r) => s + (itemOf(r).amount ?? 0), 0)
+  // 지난 달에 안 넣은 관리비는 짐작할 까닭이 없다(이미 지난 달이다). 이번 달·앞 달만 지난번 금액을 따로 적는다
+  const guess = spend.filter((r) => { const it = itemOf(r); return it.estimate && it.state !== 'none' && ym >= thisMonth })
+    .reduce((s, r) => s + (itemOf(r).amount ?? 0), 0)
   const installment = sumOf('installment')
   const hasInstallments = list.some((r) => r.kind === 'installment')
   const kinds: RecurringKind[] = hasInstallments ? [...KINDS, 'installment'] : KINDS
@@ -108,16 +111,18 @@ export function RecurringView({ householdId, ym, today, monthTxs, monthLoading, 
       ))}
 
       {kinds.map((k) => {
-        const items = list.filter((r) => r.kind === k)
+        const all = list.filter((r) => r.kind === k)
+        // 지난 달에는 그때 없던 항목(시작 전)을 뺀다. 이번 달·앞 달에는 'N월부터'로 남긴다(막 등록한 다음 달 구독이 안 보이면 안 된다)
+        const items = all.filter((r) => !(phaseAt(r, ym) === 'before' && ym < thisMonth))
         return (
           <div className="card" key={k}>
             <h2 className="section-title">{KIND_LABEL[k]}</h2>
-            {items.length === 0 && <p className="empty">아직 없어요</p>}
+            {items.length === 0 && <p className="empty">{all.length ? `${m}월에는 없어요` : '아직 없어요'}</p>}
             {items.map((r) => {
               const it = itemOf(r)
-              const left = k === 'installment' ? installmentsLeft(r, today) : termLeft(r, today)
+              const phase = phaseAt(r, ym)
               return (
-                <button key={r.id} className={`rc-row${r.active ? '' : ' off'}`} onClick={() => setSheet(draftFrom(r))}>
+                <button key={r.id} className={`rc-row${r.active ? '' : ' off'}${phase === 'during' ? '' : ' rest'}`} onClick={() => setSheet(draftFrom(r))}>
                   {k === 'subscription' ? <ServiceLogo name={r.title} size={34} /> : <RecurringIcon kind={r.kind} title={r.title} type={r.type} size={34} />}
                   <span className="rc-main">
                     <b>{r.title}</b>
@@ -125,10 +130,7 @@ export function RecurringView({ householdId, ym, today, monthTxs, monthLoading, 
                       {r.every_months === 12 ? `매년 ${Number(r.start_month.slice(5, 7))}월 ` : '매달 '}
                       {r.day_of_month === 31 ? '말일' : `${r.day_of_month}일`}
                       {`, ${SCOPE_LABEL[r.scope]}`}
-                      {k === 'installment' && left !== null && (left > 0 ? `, ${r.installment_months}개월 중 남은 ${left}회` : ', 다 냈어요')}
-                      {k !== 'installment' && left !== null && r.end_month && (left > 0
-                        ? `, ${r.end_month.slice(0, 4)}년 ${Number(r.end_month.slice(5, 7))}월까지 ${left}회 남음`
-                        : ', 끝났어요')}
+                      {termText(r, ym, phase)}
                       {!r.active && ', 꺼 둠'}
                     </span>
                   </span>
@@ -136,7 +138,7 @@ export function RecurringView({ householdId, ym, today, monthTxs, monthLoading, 
                     <span className={`num ${r.type === 'income' ? 'inc' : ''}`}>
                       {it.state === 'done' ? `${won(it.amount ?? 0)}원` : r.amount === null ? (it.amount !== null ? `지난번 ${won(it.amount)}` : '매달 입력') : `${won(r.amount)}원`}
                     </span>
-                    {!monthLoading && <MonthNote it={it} r={r} m={m} />}
+                    {!monthLoading && phase === 'during' && <MonthNote it={it} r={r} m={m} />}
                   </span>
                 </button>
               )
@@ -176,9 +178,29 @@ export function RecurringView({ householdId, ym, today, monthTxs, monthLoading, 
   )
 }
 
+/**
+ * 기간 글자(D-030 보충 2): 고른 달 기준 회차와 그 뒤로 남은 횟수. 마지막 달은 '마지막', 끝난 뒤는 '다 냈어요'·'끝났어요',
+ * 시작 전(이번 달·앞 달에서만 보인다)은 'N월부터'
+ */
+function termText(r: Recurring, ym: string, phase: TermPhase): string {
+  const inst = r.kind === 'installment'
+  if (phase === 'before') {
+    const y = r.start_month.slice(0, 4)
+    return `, ${y === ym.slice(0, 4) ? '' : `${y}년 `}${Number(r.start_month.slice(5, 7))}월부터`
+  }
+  if (phase === 'after') return inst ? ', 다 냈어요' : ', 끝났어요'
+  const t = termAt(r, ym)
+  if (!t || !r.end_month) return ''
+  const until = inst ? '' : `, ${r.end_month.slice(0, 4)}년 ${Number(r.end_month.slice(5, 7))}월까지`
+  const of = `${t.total}${inst ? '개월' : '회'} 중`
+  if (!t.due) return `${until}, ${t.left}회 남음`
+  return `${until}, ${of} ${t.left > 0 ? `${t.n}회째, ${t.left}회 남음` : '마지막 회'}`
+}
+
 /** 고른 달의 상태 한 줄: 10/10 기록됨, 11/10 예정, 9/25 기록 없음, 11월엔 없음(꺼 둔 항목은 '꺼 둠'이 이미 보여 적지 않는다) */
 function MonthNote({ it, r, m }: { it: MonthItem; r: Recurring; m: number }) {
-  if (it.state === 'none') return r.active ? <span className="tx-meta">{m}월엔 없음</span> : null
+  // 할부의 산 달(1회차)은 반복 항목이 아니라 산 날 내역이라 '없음'으로 적지 않는다
+  if (it.state === 'none') return r.active && r.kind !== 'installment' ? <span className="tx-meta">{m}월엔 없음</span> : null
   const label = it.state === 'done' ? '기록됨' : it.state === 'planned' ? '예정' : '기록 없음'
   return <span className="tx-meta">{md(it.date!)} {label}</span>
 }

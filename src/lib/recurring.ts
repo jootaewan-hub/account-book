@@ -162,6 +162,40 @@ export function subscriptionCandidates(txs: Transaction[], list: Recurring[]): S
   return out.sort((a, b) => b.amount - a.amount)
 }
 
+/**
+ * 고른 달이 그 항목의 기간에서 어디인지(D-030 보충 2). 할부는 산 달(start_month 앞 달)이 1회차라 그 달부터 기간이다.
+ * before: 시작 전, after: 끝나는 달 뒤
+ */
+export type TermPhase = 'before' | 'during' | 'after'
+export function phaseAt(r: Pick<Recurring, 'kind' | 'start_month' | 'end_month'>, ym: string): TermPhase {
+  const first = r.kind === 'installment' ? addMonths(r.start_month.slice(0, 7), -1) : r.start_month.slice(0, 7)
+  if (ym < first) return 'before'
+  if (r.end_month && ym > r.end_month.slice(0, 7)) return 'after'
+  return 'during'
+}
+
+/** from~to 달 중 내는 달 수 */
+function dueCount(r: Pick<Recurring, 'day_of_month' | 'every_months' | 'start_month' | 'end_month'>, from: string, to: string): number {
+  let k = 0
+  for (let ym = from; ym <= to; ym = addMonths(ym, 1)) if (dueDate(r, ym)) k++
+  return k
+}
+
+/**
+ * 끝나는 달이 있는 항목의 고른 달 회차(D-030 보충 2): n회째(그 달까지 낸 횟수), total, left(그 달 뒤로 남은 횟수),
+ * due(그 달에 내는지). 할부는 산 달의 1회차를 더한다(installment_months - 반복 항목의 횟수). 끝나는 달이 없거나 기간 밖이면 null
+ */
+export function termAt(r: Recurring, ym: string): { n: number; total: number; left: number; due: boolean } | null {
+  if (!r.end_month || phaseAt(r, ym) !== 'during') return null
+  const start = r.start_month.slice(0, 7)
+  const end = r.end_month.slice(0, 7)
+  const inTerm = dueCount(r, start, end)
+  const total = r.kind === 'installment' && r.installment_months ? r.installment_months : inTerm
+  const n = total - inTerm + (ym < start ? 0 : dueCount(r, start, ym))
+  const due = ym < start || dueDate(r, ym) !== null
+  return { n, total, left: total - n, due }
+}
+
 /** 할부 총액을 개월 수로 나눈다. 나누어떨어지지 않는 원 단위 나머지는 첫 회차에 넣는다 */
 export function installmentPlan(total: number, months: number): { first: number; rest: number } {
   const rest = Math.floor(total / months)
