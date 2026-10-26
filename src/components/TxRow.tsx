@@ -60,8 +60,8 @@ export function TxRow({ t, lookup, onClick, picked }: { t: Transaction; lookup: 
 export function PlannedRow({ p, lookup, onClick }: { p: PlannedCharge; lookup: Lookup; onClick: () => void }) {
   const { r } = p
   const logo = r.kind === 'subscription' && serviceOf(r.title) !== null
-  // 할부는 '할부 n/m' 태그가 종류를 말해 주므로 종류 글자를 되풀이하지 않는다
-  const meta = [p.round ? null : KIND_LABEL[r.kind], r.category_id ? lookup.categoryName(r.category_id) : null].filter(Boolean).join(', ')
+  // 할부는 '할부 n/m' 태그가 종류를 말해 주므로 종류 글자를 되풀이하지 않는다. 종류와 분류가 같은 말(구독)이면 한 번만
+  const meta = [...new Set([p.round ? null : KIND_LABEL[r.kind], r.category_id ? lookup.categoryName(r.category_id) : null].filter(Boolean))].join(', ')
   return (
     <button className={`tx plan${logo ? ' has-lead' : ''}`} onClick={onClick}>
       {logo ? <ServiceLogo name={r.title} size={40} /> : null}
