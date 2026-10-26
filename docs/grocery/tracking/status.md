@@ -1,6 +1,6 @@
 # 현재 상태
 
-> **지금(2026-10-26)**: v2.7.0 배포(D-029 나눠 찍은 긴 영수증 잇기, `extract-entries` v16, `docs/HANDOFF.md` 5절 21). 그 전 v2.6.0(D-027·D-028, 5절 20). 아래는 그 전 장보기 상태.
+> **지금(2026-10-26)**: v2.8.0 배포(D-030 달력의 고정지출 예정분, DB 변경 없음, `docs/HANDOFF.md` 5절 22). 그 전 v2.7.0(D-029 나눠 찍은 긴 영수증 잇기, `extract-entries` v16, 5절 21), v2.6.0(D-027·D-028, 5절 20). 아래는 그 전 장보기 상태.
 > **2026-10-24**: 상품명 → 식약처 품목 맞춤(D-026)까지 배포했다. 공유 DB에 `grocery_product_facts` 적용, `food-info` v10·`product-check` v6·`price-recheck` v4를 커밋 고정 stub으로 배포, main 병합은 사용자 승인으로 했다(`docs/HANDOFF.md` 5절 19). `clear_item_auto`는 아직 공유 DB에 없다(열린 문제). 남은 확인(사용자): 성분 탭 자동 맞춤.
 > 배포·적용 기록은 `docs/HANDOFF.md` 5절, 결정은 `decisions/index.md`, 아래 "열린 문제"가 남은 일이다. 시험은 `npm test` 전부 통과가 기준이다(개수는 적지 않는다).
 
