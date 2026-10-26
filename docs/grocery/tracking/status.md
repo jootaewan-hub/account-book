@@ -1,6 +1,6 @@
 # 현재 상태
 
-> **지금(2026-10-26)**: v2.6.0 배포(D-027 영수증 한 묶음 저장·일괄 삭제, D-028 버전·업데이트 내역, `docs/HANDOFF.md` 5절 20). 아래는 그 전 장보기 상태.
+> **지금(2026-10-26)**: v2.7.0 배포(D-029 나눠 찍은 긴 영수증 잇기, `extract-entries` v16, `docs/HANDOFF.md` 5절 21). 그 전 v2.6.0(D-027·D-028, 5절 20). 아래는 그 전 장보기 상태.
 > **2026-10-24**: 상품명 → 식약처 품목 맞춤(D-026)까지 배포했다. 공유 DB에 `grocery_product_facts` 적용, `food-info` v10·`product-check` v6·`price-recheck` v4를 커밋 고정 stub으로 배포, main 병합은 사용자 승인으로 했다(`docs/HANDOFF.md` 5절 19). `clear_item_auto`는 아직 공유 DB에 없다(열린 문제). 남은 확인(사용자): 성분 탭 자동 맞춤.
 > 배포·적용 기록은 `docs/HANDOFF.md` 5절, 결정은 `decisions/index.md`, 아래 "열린 문제"가 남은 일이다. 시험은 `npm test` 전부 통과가 기준이다(개수는 적지 않는다).
 
@@ -11,7 +11,7 @@
 ## 된 것 (2026-10-19, 통합 1단계)
 
 - 나눠 찍은 긴 영수증 잇기(D-029, 2026-10-26, 브랜치 `claude/long-receipt-stitch`, v2.7.0): `extract-entries` 지시문·스키마(`images`·`continues_from_previous`·`continues_to_next`, 잘린 조각은 줄 금액 고치기·다시 읽기 안 함),
-  앱 `stitchEntries`·`joinParts`(5장 묶음 경계 잇기, 옆 사진 날짜), 시험 `tests/stitch.test.ts`, 캡처 shell-smart-long(390·1280, 라이트·다크). 함수 배포·main 병합은 사용자 확인 대기.
+  앱 `stitchEntries`·`joinParts`(5장 묶음 경계 잇기, 옆 사진 날짜), 시험 `tests/stitch.test.ts`, 캡처 shell-smart-long(390·1280, 라이트·다크). 2026-10-26 사용자 승인으로 main 병합(be01285)·Pages 배포, `extract-entries` v16(커밋 고정 stub be01285). 기록 `docs/HANDOFF.md` 5절 21.
   확인 필요: Haiku가 실제 영수증에서 `images`와 잘림 표시를 채우는지(배포 뒤 긴 영수증 2~3장으로 확인). 표시가 비어도 '머리 없는 조각 잇기'와 '옆 사진 날짜'는 동작한다.
 
 - 영수증 한 묶음 저장 기본값 + 일괄 삭제(D-027, 2026-10-26, 브랜치 `claude/receipt-bundle-delete`, 설계 `docs/superpowers/specs/2026-10-26-receipt-bundle-delete-design.md`):
