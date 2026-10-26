@@ -181,6 +181,24 @@ export const RECEIPT = {
   }],
 }
 
+/** 긴 영수증을 두 장으로 나눠 찍은 가짜 응답(D-029): 1번은 머리·앞 품목(아래 잘림), 2번은 머리 없이 이어지는 품목과 합계.
+ *  앱이 한 내역으로 잇고 '사진 1~2번을 긴 영수증 한 장으로' 안내를 붙이는지 본다. 숫자는 캡처 확인용 예시 */
+const line = (name, amount, quantity = 1) => ({ name, is_product: true, quantity, unit_price: amount / quantity, amount, pack_size: null, pack_unit: null, category: '장보기', image_box: null })
+export const LONG_RECEIPT = {
+  model: 'claude-haiku-5-5',
+  note: null,
+  entries: [
+    { date: daysAgo(1), time: '19:05', merchant: '이마트 분당점', platform: null, amount: 15380, is_income: false, is_cancellation: false,
+      card_last4: null, payment_hint: null, installment_months: null, category: '장보기', type: 'expense', items_match: true, fuel: null,
+      items: [line('국산 대파 1단', 3000), line('서울우유 900ml', 5000, 2), line('부침두부 300g', 2800), line('농심 신라면 5입', 4580)],
+      images: [1], continues_from_previous: false, continues_to_next: true },
+    { date: null, time: null, merchant: '', platform: null, amount: 24770, is_income: false, is_cancellation: false,
+      card_last4: '4821', payment_hint: '신한카드', installment_months: null, category: '장보기', type: 'expense', items_match: false, fuel: null,
+      items: [line('계란 30구', 7980), line('포카칩 오리지널 66g', 1410)],
+      images: [2], continues_from_previous: true, continues_to_next: false },
+  ],
+}
+
 /** 주유소 영수증 가짜 응답(영수증 확인 화면의 주유 칸). 리터·단가는 캡처 확인용 예시 */
 export const FUEL_RECEIPT = {
   model: 'claude-haiku-5-5',

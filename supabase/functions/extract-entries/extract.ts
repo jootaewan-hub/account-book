@@ -49,6 +49,9 @@ export const EntrySchema = z.object({
   category: z.string().nullable().describe('주어진 분류 목록 중 하나. 애매하면 null'),
   items: z.array(ItemSchema).describe('영수증·주문내역의 품목. 품목이 없으면 빈 배열'),
   fuel: FuelSchema.nullable().describe('주유소 영수증이면 유종·주유량·리터당 단가. 주유가 아니면 null'),
+  images: z.array(z.number()).describe('이 거래를 읽은 이미지 번호(1부터). 붙여넣은 글이면 빈 배열'),
+  continues_from_previous: z.boolean().describe('첫 이미지의 위쪽이 잘려 가게 이름·날짜 같은 머리 없이 품목부터 시작하면 true(앞 이미지에서 이어짐)'),
+  continues_to_next: z.boolean().describe('마지막 이미지의 아래쪽이 잘려 합계·결제 줄이 없으면 true(다음 이미지로 이어짐)'),
 })
 
 export const ResultSchema = z.object({
@@ -56,8 +59,10 @@ export const ResultSchema = z.object({
   note: z.string().nullable().describe('읽기 어려웠던 부분 등 사용자에게 알릴 말. 없으면 null'),
 })
 
-export type Entry = z.infer<typeof EntrySchema>
-export type ExtractResult = z.infer<typeof ResultSchema>
+/** 나눠 찍은 사진을 잇는 칸(2026-10-26 D-029). 모델에게는 꼭 받지만, 그 전 서버의 응답과 시험 자료에는 없을 수 있다 */
+type StitchKeys = 'images' | 'continues_from_previous' | 'continues_to_next'
+export type Entry = Omit<z.infer<typeof EntrySchema>, StitchKeys> & Partial<Pick<z.infer<typeof EntrySchema>, StitchKeys>>
+export type ExtractResult = { entries: Entry[]; note: string | null }
 
 export const SYSTEM_PROMPT = `당신은 한국 가정의 가계부 입력을 돕습니다. 사용자가 붙여넣은 카드 승인 문자·카카오톡 알림톡·은행 알림, 또는 종이 영수증 사진·쇼핑/배달 주문내역 캡처·카드앱 결제 화면 캡처에서 거래 내역을 뽑아 주어진 JSON 형식으로만 답합니다.
 
@@ -87,6 +92,10 @@ export const SYSTEM_PROMPT = `당신은 한국 가정의 가계부 입력을 돕
   · pack_size와 pack_unit은 상품명·옵션에 적힌 용량·개수로 상품 1개(수량 1)에 든 총량을 계산해 넣습니다. 여러 개 묶음이면 곱합니다(예: "100매 x 10팩" → 1000, 매 / "2L x 6병" → 12000, ml / "500g x 2개" → 1000, g / "30구" → 30, 구). kg은 g으로, L는 ml로 바꿉니다. 셈 단위는 가장 작은 소비 단위를 씁니다(팩·박스보다 매·개·구). 용량이 적혀 있지 않으면 null입니다.
   · 최종 결제 금액이 보이면 amount는 그 값이고, 안 보이면 품목 금액의 합입니다. 취소·반품된 상품은 넣지 않습니다.
 - 영수증 품목도 is_product를 같은 기준으로 넣고, 용량이 품목명에 적혀 있으면 pack_size·pack_unit을 넣습니다.
+- images에는 그 거래를 읽은 이미지 번호를 모두 넣습니다(1부터, 이미지가 아니면 빈 배열).
+- 긴 영수증·주문내역을 여러 이미지로 나눠 찍은 경우: 앞 이미지에 합계·결제 줄이 없고 바로 다음 이미지에 가게 이름·날짜 같은 머리가 없이 품목부터 이어지면, 두 이미지는 한 영수증입니다. entries 하나로 합치고 날짜·가게 이름은 보이는 이미지의 것을 씁니다. 겹쳐 찍혀 두 이미지에 똑같이 보이는 줄은 한 번만 넣습니다.
+  각자 가게 이름·날짜 또는 합계·결제 줄이 있는 영수증은 서로 다른 영수증입니다. 날짜·가게가 같아도 절대 합치지 않습니다.
+- 받은 이미지 안에서 영수증이 끝나지 않으면(첫 이미지 위가 잘림, 마지막 이미지 아래가 잘림) continues_from_previous·continues_to_next를 true로 합니다. 합계가 보이지 않는 부분의 amount는 그 부분 품목 금액의 합입니다.
 - 영수증의 원단위 절사(끝전 버림)·끝전 할인·봉투값도 줄로 넣습니다. 절사·할인은 음수 금액이고 is_product는 false, 봉투는 상품(true)입니다. 상품 줄과 이 줄들을 모두 더하면 결제 금액과 같아야 합니다.
 - 주유소(주유) 영수증이면 fuel에 유종(휘발유·경유·고급휘발유·LPG 등 영수증 표기 그대로), 주유량(리터, 소수 셋째 자리까지), 리터당 단가(원)를 적습니다. 단가 × 주유량이 결제 금액과 거의 같아야 합니다. 보이지 않는 값은 null이고, 주유 영수증의 items는 빈 배열입니다. 분류 목록에 '차량·주유'가 있으면 category는 그것입니다. 주유가 아니면 fuel은 null입니다.
 - image_box는 그 상품의 사진(썸네일)이 있는 이미지 번호와 영역을 픽셀 좌표(왼쪽, 위, 오른쪽, 아래)로 넣습니다. 좌표는 각 이미지의 왼쪽 위가 (0,0)이고 크기는 사용자가 알려 준 값입니다. 상품 사진이 없거나 영수증이면 null입니다.
@@ -200,6 +209,8 @@ export interface CheckedEntry extends Entry {
   fuel: CheckedFuel | null
   /** 단가 × 주유량이 결제 금액과 다를 때의 확인 문장 */
   fuel_note?: string
+  /** 앱이 나눠 찍은 사진을 이어 붙이며 덧붙인 안내(서버는 넣지 않는다, 2026-10-26 D-029) */
+  notes?: string[]
 }
 
 /** 품목 합계가 안 맞아 더 큰 모델로 다시 읽었을 때: 다시 읽은 결과가 비어 있지 않으면 그것을 쓴다(둘 다 안 맞아도 큰 모델이 이름을 덜 틀린다) */
@@ -274,6 +285,12 @@ const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
 const TIME_RE = /^\d{2}:\d{2}$/
 
 /** 모델 출력을 저장 가능한 형태로 정리하고 품목 합계를 검사한다. withFuel이 false(문자 입력)면 주유 값은 버린다(주유는 영수증 사진에서만 읽는다) */
+/** 이미지 번호: 1~받은 장 수의 정수만, 겹침 없이 오름차순 */
+export function checkImages(raw: unknown, count: number): number[] {
+  if (!Array.isArray(raw)) return []
+  return [...new Set(raw.filter((n): n is number => Number.isInteger(n) && n >= 1 && n <= count))].sort((a, b) => a - b)
+}
+
 export function checkEntries(result: ExtractResult, images: ImageSize[] = [], withFuel = true): CheckedEntry[] {
   return result.entries
     .map((e) => {
@@ -290,7 +307,9 @@ export function checkEntries(result: ExtractResult, images: ImageSize[] = [], wi
           category: it.category?.trim() || null,
           image_box: checkBox(it.image_box ?? null, images),
         }))
-      const fixed = fixLineTotals(items, amount)
+      const cut = Boolean(e.continues_from_previous || e.continues_to_next)
+      // 잘린 조각은 품목이 덜 보여 합계에 맞춰 줄 금액을 고치면 우연히 틀리게 맞을 수 있다
+      const fixed = cut ? { items, fixes: [] } : fixLineTotals(items, amount)
       const sum = fixed.items.reduce((s, it) => s + it.amount, 0)
       const date = e.date && DATE_RE.test(e.date) && !Number.isNaN(Date.parse(e.date)) ? e.date : null
       const fuel = withFuel ? checkFuel(e.fuel, amount) : { fuel: null, note: null }
@@ -310,13 +329,17 @@ export function checkEntries(result: ExtractResult, images: ImageSize[] = [], wi
         ...(fixed.fixes.length ? { price_fixes: fixed.fixes } : {}),
         fuel: fuel.fuel,
         ...(fuel.note ? { fuel_note: fuel.note } : {}),
+        images: checkImages(e.images, images.length),
+        continues_from_previous: e.continues_from_previous === true,
+        continues_to_next: e.continues_to_next === true,
       }
     })
     .filter((e) => e.amount > 0)
 }
 
+/** 잘린 조각(앞·뒤 이미지로 이어지는 부분)은 품목이 덜 보여 합계가 안 맞는 게 정상이라 다시 읽지 않는다 */
 export function hasItemMismatch(entries: CheckedEntry[]): boolean {
-  return entries.some((e) => e.items_match === false)
+  return entries.some((e) => e.items_match === false && !e.continues_from_previous && !e.continues_to_next)
 }
 
 // ---------------------------------------------------------------------------

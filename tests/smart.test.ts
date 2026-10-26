@@ -105,8 +105,10 @@ describe('모델 출력 정리 (checkEntries)', () => {
   })
 
   it('스키마가 모델 응답 JSON을 그대로 받아들인다', () => {
-    const parsed = ResultSchema.parse({ note: null, entries: [entry({ card_last4: '1234', category: '장보기' })] })
-    expect(parsed.entries[0].card_last4).toBe('1234')
+    // 나눠 찍은 사진을 잇는 칸(D-029)은 모델이 꼭 넣는다
+    const parsed = ResultSchema.parse({ note: null, entries: [entry({ card_last4: '1234', category: '장보기', images: [1], continues_from_previous: false, continues_to_next: true })] })
+    expect(parsed.entries[0]).toMatchObject({ card_last4: '1234', images: [1], continues_to_next: true })
+    expect(() => ResultSchema.parse({ note: null, entries: [entry({})] })).toThrow()
   })
 })
 

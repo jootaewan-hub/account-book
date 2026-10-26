@@ -159,7 +159,7 @@ npm run screens
     - 됨: MCP `apply_migration`(`tx_save_batch`, 로컬 `20261104000000_tx_save_batch.sql`). DB로 확인: `transactions.save_batch` 칸·`transactions_save_batch_idx`, `add_transaction_with_items` 본문에 save_batch(`pg_get_functiondef`),
       묶음 번호 붙은 행 59건·15묶음(미리 보기와 같음), authenticated의 save_batch 칸 수정 권한 없음, 저장 함수 실행 권한 그대로.
     - 됨: main fast-forward(e44cd87)·푸시, Pages 배포 성공. 운영 `version.json`이 `e44cd87 · 10-26 09:53`, 첫 화면 묶음에 고르기 줄·v2.6.0·새 버전 알림, api 묶음에 save_batch가 있다.
-    - 남은 확인(사용자): 영수증 한 장을 넣어 한 내역으로 저장되는지, 내역 탭 고르기로 지워지는지, 예전에 나눠 저장한 내역을 열어 "함께 나눠 저장한 내역 N건" 목록이 맞는지. 각 기기에서 처음 열 때 "새 버전 v2.6.0" 알림이 한 번 뜬다.
+    - 사용자 확인(2026-10-26 10:06 KST "확인완료"): 영수증 한 내역 저장, 내역 탭 고르기 삭제, 함께 나눠 저장한 내역 목록, 새 버전 알림.
     - 되돌리기: main을 463cb94로 되돌린다. 새 칸과 저장 함수는 옛 화면과 함께 둬도 동작에 영향이 없다(옛 화면은 save_batch를 보내지 않고 읽지도 않는다).
 
 ### 사용자 할 일

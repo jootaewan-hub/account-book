@@ -262,6 +262,7 @@ export function entryDrafts(e: CheckedEntry, i: number, ctx: DraftContext, split
   const shared: string[] = []
   const date = e.date ?? ctx.today
   if (!e.date) shared.push('날짜를 못 읽어서 오늘로 넣었어요.')
+  if (e.notes) shared.push(...e.notes)
   const match = matchMethodDetailed(e, ctx.methods)
   const method = match.method ?? null
   const remembered = method ? null : ctx.rememberedMethod?.(e.merchant) ?? null
@@ -431,6 +432,7 @@ export function mergeBatches(results: (AnalyzeResult | Error)[], sizes: number[]
     } else {
       out.entries.push(...r.entries.map((e) => ({
         ...e, items: e.items.map((it) => (it.image_box ? { ...it, image_box: { ...it.image_box, image: it.image_box.image + offset } } : it)),
+        ...(e.images ? { images: e.images.map((n) => n + offset) } : {}),
       })))
       if (r.note) notes.push(results.length > 1 ? `사진 ${offset + 1}~${offset + sizes[k]}: ${r.note}` : r.note)
       out.model ||= r.model
@@ -456,7 +458,106 @@ export async function analyzeImages(
   // 전부 실패하면 첫 오류를 그대로 알린다
   const firstError = results.find((r): r is Error => r instanceof Error)
   if (merged.failed.length === batches.length && firstError) throw firstError
-  return merged
+  // 5장 묶음 경계에서 갈라진 긴 영수증을 잇고, 날짜가 안 보이는 내역은 옆 사진의 날짜를 쓴다(D-029)
+  return { ...merged, entries: stitchEntries(merged.entries) }
+}
+
+// ── 나눠 찍은 긴 영수증 잇기 (D-029) ─────────────────────────
+
+// 가게 이름 견주기: (주)·주식회사·㈜·띄어쓰기·괄호를 빼고
+const mergeKey = (s: string | null | undefined) => (s ?? '').replace(/\(주\)|주식회사|[\s()㈜]/g, '').toLowerCase()
+const firstImage = (e: CheckedEntry) => (e.images?.length ? e.images[0] : null)
+const lastImage = (e: CheckedEntry) => (e.images?.length ? e.images[e.images.length - 1] : null)
+/** 뒤 내역의 첫 사진이 앞 내역의 마지막 사진과 같거나 바로 다음인가 */
+function adjacent(a: CheckedEntry, b: CheckedEntry): boolean {
+  const end = lastImage(a), start = firstImage(b)
+  return end !== null && start !== null && (start === end || start === end + 1)
+}
+const sameOrEmpty = (x: string | null | undefined, y: string | null | undefined) => !mergeKey(x) || !mergeKey(y) || mergeKey(x) === mergeKey(y)
+/** 머리(가게 이름·날짜)가 없는 조각 */
+const headless = (e: CheckedEntry) => e.date === null && !e.merchant.trim()
+
+/**
+ * 앞 내역과 뒤 내역이 긴 영수증 한 장을 나눠 찍은 조각인가. 서로 다른 영수증을 붙이는 쪽이 더 나빠서 조건을 모두 봐야 한다:
+ * 사진이 이어지고, 잘렸다는 표시(앞 아래 잘림·뒤 위 잘림·뒤에 머리 없음) 중 하나가 있고, 날짜·가게·플랫폼·카드가 어긋나지 않는다.
+ * 둘 다 합계·결제 줄이 있고 머리가 있는(온전한) 영수증이면 잇지 않는다
+ */
+export function continues(a: CheckedEntry, b: CheckedEntry): boolean {
+  if (!adjacent(a, b)) return false
+  if (a.type !== b.type || a.is_cancellation || b.is_cancellation || a.fuel || b.fuel) return false
+  if (!(a.continues_to_next || b.continues_from_previous || headless(b))) return false
+  if (a.date && b.date && a.date !== b.date) return false
+  return sameOrEmpty(a.merchant, b.merchant) && sameOrEmpty(a.platform, b.platform) && sameOrEmpty(a.card_last4, b.card_last4)
+}
+
+const imagesLabel = (imgs: number[]) => (imgs.length > 1 ? `${imgs[0]}~${imgs[imgs.length - 1]}번` : `${imgs[0]}번`)
+
+/** 이어지는 조각들을 내역 하나로. 합계는 결제 줄이 보이는 조각의 값을 쓰고(겹쳐 찍은 합계를 두 번 더하지 않게), 모두 잘렸으면 조각 합 */
+export function joinParts(parts: CheckedEntry[]): CheckedEntry {
+  const footer = [...parts].reverse().find((p) => !p.continues_to_next)
+  const last = parts[parts.length - 1]
+  let items = parts.flatMap((p) => p.items)
+  const sum = (its: typeof items) => its.reduce((t, it) => t + it.amount, 0)
+  const amount = footer ? footer.amount : parts.reduce((t, p) => t + p.amount, 0)
+  // 겹쳐 찍어 경계 줄이 두 번 들어갔으면, 하나를 빼서 합계가 결제 금액과 맞을 때만 뺀다
+  if (footer && sum(items) !== amount) {
+    let at = 0
+    for (let k = 0; k < parts.length - 1; k++) {
+      at += parts[k].items.length
+      const prev = items[at - 1], next = items[at]
+      if (prev && next && prev.name === next.name && prev.amount === next.amount && sum(items) - next.amount === amount) {
+        items = [...items.slice(0, at), ...items.slice(at + 1)]
+        at -= 1
+      }
+    }
+  }
+  const pick = <K extends keyof CheckedEntry>(k: K) => [...parts].reverse().map((p) => p[k]).find((v) => v !== null && v !== undefined && v !== '')
+  const images = [...new Set(parts.flatMap((p) => p.images ?? []))].sort((x, y) => x - y)
+  const notes = parts.flatMap((p) => p.notes ?? [])
+  return {
+    ...parts[0],
+    date: parts.find((p) => p.date)?.date ?? null,
+    time: parts.find((p) => p.time)?.time ?? null,
+    merchant: parts.find((p) => p.merchant.trim())?.merchant ?? '',
+    platform: parts.find((p) => p.platform)?.platform ?? null,
+    category: parts.find((p) => p.category)?.category ?? null,
+    // 카드·할부는 결제 줄(대개 마지막 조각)에 있다
+    card_last4: (pick('card_last4') as string | undefined) ?? null,
+    payment_hint: (pick('payment_hint') as string | undefined) ?? null,
+    installment_months: (pick('installment_months') as number | undefined) ?? null,
+    amount,
+    items,
+    items_match: items.length ? sum(items) === amount : null,
+    ...(parts.some((p) => p.price_fixes?.length) ? { price_fixes: parts.flatMap((p) => p.price_fixes ?? []) } : {}),
+    images,
+    continues_from_previous: parts[0].continues_from_previous,
+    continues_to_next: last.continues_to_next,
+    notes: [...notes, `사진 ${imagesLabel(images)}을 긴 영수증 한 장으로 이어 읽었어요. 다른 영수증이면 이 내역을 빼고 그 사진만 따로 넣어 주세요.`],
+  }
+}
+
+/**
+ * 사진 순서대로 온 내역에서 ① 이어지는 조각을 내역 하나로 잇고 ② 그래도 날짜가 없는 내역은 바로 옆 사진(앞 먼저)의 날짜를 쓴다.
+ * 사진 번호(images)가 없는 응답(이 기능 전 서버)이면 그대로 돌려준다
+ */
+export function stitchEntries(entries: CheckedEntry[]): CheckedEntry[] {
+  if (!entries.some((e) => e.images?.length)) return entries
+  const joined: CheckedEntry[] = []
+  let run: CheckedEntry[] = []
+  for (const e of entries) {
+    if (run.length && continues(run[run.length - 1], e)) { run.push(e); continue }
+    if (run.length) joined.push(run.length > 1 ? joinParts(run) : run[0])
+    run = [e]
+  }
+  if (run.length) joined.push(run.length > 1 ? joinParts(run) : run[0])
+  return joined.map((e, i) => {
+    if (e.date) return e
+    const prev = joined[i - 1], next = joined[i + 1]
+    const from = prev?.date && adjacent(prev, e) ? prev : next?.date && adjacent(e, next) ? next : null
+    if (!from) return e
+    const where = from === prev ? `바로 앞 사진(${lastImage(prev)}번)` : `바로 뒤 사진(${firstImage(next)}번)`
+    return { ...e, date: from.date, notes: [...(e.notes ?? []), `날짜가 안 보여 ${where}의 날짜(${Number(from.date!.slice(5, 7))}월 ${Number(from.date!.slice(8))}일)로 넣었어요. 다르면 고쳐 주세요.`] }
+  })
 }
 
 /**

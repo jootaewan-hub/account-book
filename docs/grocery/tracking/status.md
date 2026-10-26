@@ -10,6 +10,10 @@
 
 ## 된 것 (2026-10-19, 통합 1단계)
 
+- 나눠 찍은 긴 영수증 잇기(D-029, 2026-10-26, 브랜치 `claude/long-receipt-stitch`, v2.7.0): `extract-entries` 지시문·스키마(`images`·`continues_from_previous`·`continues_to_next`, 잘린 조각은 줄 금액 고치기·다시 읽기 안 함),
+  앱 `stitchEntries`·`joinParts`(5장 묶음 경계 잇기, 옆 사진 날짜), 시험 `tests/stitch.test.ts`, 캡처 shell-smart-long(390·1280, 라이트·다크). 함수 배포·main 병합은 사용자 확인 대기.
+  확인 필요: Haiku가 실제 영수증에서 `images`와 잘림 표시를 채우는지(배포 뒤 긴 영수증 2~3장으로 확인). 표시가 비어도 '머리 없는 조각 잇기'와 '옆 사진 날짜'는 동작한다.
+
 - 영수증 한 묶음 저장 기본값 + 일괄 삭제(D-027, 2026-10-26, 브랜치 `claude/receipt-bundle-delete`, 설계 `docs/superpowers/specs/2026-10-26-receipt-bundle-delete-design.md`):
   영수증·쇼핑 주문은 기본으로 내역 하나("상품 N개를 하나씩 따로 저장"을 켜면 나눔), 같은 상품 두 번 넣기 막기를 묶음 안 상품 줄까지(`markRepeats`), 내역 탭 고르기 삭제(`ListView`·`TxRow`·`deleteTransactions`),
   같은 영수증 묶음 삭제(수정 시트, `fetchSaveBatch`), 마이그레이션 `20261104000000_tx_save_batch.sql`(public: `save_batch` 칸·색인, `add_transaction_with_items`가 읽음, 지난 내역 추정 update; PGlite 시험 3개).

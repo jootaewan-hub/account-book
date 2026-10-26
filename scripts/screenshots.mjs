@@ -8,7 +8,7 @@
 import { existsSync, mkdirSync, readFileSync } from 'node:fs'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { chromium } from 'playwright'
-import { BILL, fakeSession, FUEL_RECEIPT, RECEIPT, TABLES, USER } from './shell-fixtures.mjs'
+import { BILL, fakeSession, FUEL_RECEIPT, LONG_RECEIPT, RECEIPT, TABLES, USER } from './shell-fixtures.mjs'
 
 const BASE = process.env.BASE_URL ?? 'http://localhost:5188' // vite.config.ts server.port와 같다
 const OUT = process.env.OUT_DIR ? pathToFileURL(`${process.env.OUT_DIR.replace(/\/$/, '')}/`) : new URL('../screenshots/', import.meta.url)
@@ -136,6 +136,8 @@ const shellShots = [
   // 영수증 확인 화면 맨 위(D-027): 기본은 한 내역, "상품 N개를 하나씩 따로 저장"을 켜면 상품마다 나뉜다
   ...each((w, c) => ({ name: `shell-smart-bundle-${w}-${c}`, path: '/', w, c, shell: true, tab: '내역', receipt: true, splitToggle: false })),
   ...both(390, (w, c) => ({ name: `shell-smart-split-${w}-${c}`, path: '/', w, c, shell: true, tab: '내역', receipt: true, splitToggle: true })),
+  // 나눠 찍은 긴 영수증(D-029): 두 조각이 한 내역으로 이어지고 날짜는 1번 사진 것, '사진 1~2번을 긴 영수증 한 장으로' 안내
+  ...each((w, c) => ({ name: `shell-smart-long-${w}-${c}`, path: '/', w, c, shell: true, tab: '내역', receipt: true, longReceipt: true })),
   // 저장하지 않기로 한 초안(체크 해제)이 저장할 초안과 구별되는지
   ...both(390, (w, c) => ({ name: `shell-smart-draft-off-${w}-${c}`, path: '/', w, c, shell: true, tab: '내역', receipt: true, draftOff: true })),
   // 내역 고르기(D-027): 날짜 하나 전부 + 다른 날 한 건을 고른 상태, 아래에 고른 내역 줄. 휴대폰은 한 번 누른 확인 상태도
@@ -190,7 +192,7 @@ async function fakeSupabase(context, s = {}) {
     if (url.pathname === '/functions/v1/extract-entries') {
       let body = null
       try { body = req.postDataJSON() } catch { /* JSON이 아니면 영수증 응답 */ }
-      return json(body?.mode === 'bill' ? BILL : s.fuel ? FUEL_RECEIPT : RECEIPT)
+      return json(body?.mode === 'bill' ? BILL : s.fuel ? FUEL_RECEIPT : s.longReceipt ? LONG_RECEIPT : RECEIPT)
     }
     if (url.pathname.startsWith('/functions/v1/')) return json({ status: 'skipped' })
     if (url.pathname.startsWith('/storage/v1/')) return json([])
@@ -339,6 +341,9 @@ try {
         await page.getByText('이번 장보기 살펴보기').waitFor()
         await page.getByText('지난번보다 비싸진 것').waitFor()
         await page.locator('.cmp-card').scrollIntoViewIfNeeded()
+      } else if (s.longReceipt) {
+        await page.getByText(/긴 영수증 한 장으로/).waitFor()
+        await page.locator('.draft-group').first().evaluate((el) => el.closest('.sheet')?.scrollTo({ top: 0 }))
       } else if (s.splitToggle !== undefined) {
         await page.locator('.split-toggle').waitFor()
         if (s.splitToggle) await page.locator('.split-toggle input').check()
