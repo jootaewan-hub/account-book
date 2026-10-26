@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react'
 import { waitGroceryFlush } from '../grocery/flush'
+import { KIND_LABEL, LATEST, RELEASES, type Release } from '../lib/changelog'
 import {
   canPromptInstall, checkVersion, installedThisSession, installKind, isStandalone, onInstallChange, promptInstall, refreshApp, wasRefreshed,
   type InstallKind, type VersionCheck,
 } from '../lib/appUpdate'
 
-// 설정 '앱' 카드: 지금 버전, 업데이트 확인(서버 version.json과 견주고 다르면 앱 파일을 새로 받아 다시 연다), 홈 화면 앱 설치 안내.
+// 설정 '앱' 카드: 지금 버전(릴리스 번호와 빌드), 업데이트 확인(서버 version.json과 견주고 다르면 앱 파일을 새로 받아 다시 연다),
+// 업데이트 내역(src/lib/changelog.ts), 홈 화면 앱 설치 안내.
 // 자동 반영(pwa.ts)이 늦거나 멈췄을 때 사람이 눌러 바로 새 버전을 받는 길이다.
 
 export type AppDeps = {
@@ -103,7 +105,10 @@ export function AppCard({ toast, deps }: { toast: (msg: string) => void; deps?: 
   return (
     <div className="card app-card">
       <h2 className="section-title">앱</h2>
-      <div className="set-row"><span>지금 버전</span><span className="r">{d.current}</span></div>
+      <div className="set-row">
+        <span>지금 버전</span>
+        <span className="r"><b className="app-ver num">v{LATEST.version}</b><span className="app-build num">{d.current}</span></span>
+      </div>
       <button className="ghost" style={{ width: '100%', marginTop: 8 }} disabled={busy} onClick={() => void update()}>
         {BUTTON[phase] ?? '업데이트 확인'}
       </button>
@@ -114,6 +119,16 @@ export function AppCard({ toast, deps }: { toast: (msg: string) => void; deps?: 
           <span className="tx-meta">화면이 이상할 때만 눌러 주세요. 로그인과 기록은 그대로예요.</span>
         </p>
       )}
+      <div className="release-notes">
+        <h3>업데이트 내역</h3>
+        <ReleaseBlock r={LATEST} />
+        {RELEASES.length > 1 && (
+          <details className="release-older">
+            <summary>지난 업데이트 {RELEASES.length - 1}개</summary>
+            {RELEASES.slice(1).map((r) => <ReleaseBlock key={r.version} r={r} />)}
+          </details>
+        )}
+      </div>
       <div className="set-row app-install">
         <span>홈 화면 앱</span>
         {kind === 'prompt'
@@ -122,5 +137,21 @@ export function AppCard({ toast, deps }: { toast: (msg: string) => void; deps?: 
       </div>
       {installNote[kind] && <p className="note">{installNote[kind]}</p>}
     </div>
+  )
+}
+
+/** 릴리스 하나: 버전·종류·날짜, 제목, 바뀐 점 */
+function ReleaseBlock({ r }: { r: Release }) {
+  const [, m, day] = r.date.split('-')
+  return (
+    <section className="release" aria-label={`v${r.version}`}>
+      <div className="release-head">
+        <b className="num">v{r.version}</b>
+        <span className={`release-kind ${r.kind}`}>{KIND_LABEL[r.kind]}</span>
+        <span className="release-date num">{Number(m)}월 {Number(day)}일</span>
+      </div>
+      <p className="release-title">{r.title}</p>
+      <ul className="release-items">{r.items.map((it) => <li key={it}>{it}</li>)}</ul>
+    </section>
   )
 }

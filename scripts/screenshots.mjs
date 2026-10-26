@@ -5,7 +5,7 @@
 //  - grocery-*: 장보기 화면만(?demo=grocery…, 메모리 데이터). 장보기 grocery-app의 scripts/screenshots.mjs에서 옮겼다.
 //  - shell-*: 로그인한 가계부 셸 전체. Supabase로 가는 요청을 모두 가로채 scripts/shell-fixtures.mjs의 가짜 응답을 준다.
 // 이름을 주면 그 화면만 다시 찍는다: npm run screens -- shell-grocery-390-light grocery-list-390-dark
-import { existsSync, mkdirSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync } from 'node:fs'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { chromium } from 'playwright'
 import { BILL, fakeSession, FUEL_RECEIPT, RECEIPT, TABLES, USER } from './shell-fixtures.mjs'
@@ -15,6 +15,8 @@ const OUT = process.env.OUT_DIR ? pathToFileURL(`${process.env.OUT_DIR.replace(/
 mkdirSync(OUT, { recursive: true })
 const SUPABASE = 'https://kifdfpbwiebfgvdumqjf.supabase.co'
 const STORAGE_KEY = 'sb-kifdfpbwiebfgvdumqjf-auth-token'
+// 새 버전 알림(src/lib/changelog.ts takeNewRelease)이 모든 장면에 뜨지 않게 지금 버전을 본 것으로 둔다(package.json version = 최신 릴리스)
+const RELEASE = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version
 
 const SIZES = { 390: { width: 390, height: 844 }, 1280: { width: 1280, height: 800 } }
 const BOTH = ['light', 'dark']
@@ -151,6 +153,9 @@ const shellShots = [
   ...both(390, (w, c) => ({ name: `shell-settings-app-ios-${w}-${c}`, path: '/', w, c, shell: true, tab: '설정', ua: IPHONE_UA, center: '.app-card' })),
   // 앱 파일 다시 받기를 누르면 새 주소(?u=)로 다시 열리고, 표시를 지운 뒤 설정 탭에서 '새로 받았어요'가 보여야 한다(개발 서버라 서비스 워커는 없다)
   ...both(390, (w, c) => ({ name: `shell-settings-app-refreshed-${w}-${c}`, path: '/', w, c, shell: true, tab: '설정', press: '업데이트 확인', pressWait: '지금이 최신 버전이에요.', refreshFlow: true, center: '.app-card' })),
+  // 업데이트 내역(설정 '앱' 카드): 지금 버전 v·빌드, 최신 릴리스, 펼친 지난 업데이트. 새 버전을 처음 열 때의 알림
+  ...each((w, c) => ({ name: `shell-settings-release-${w}-${c}`, path: '/', w, c, shell: true, tab: '설정', releaseOpen: true })),
+  ...both(390, (w, c) => ({ name: `shell-new-release-${w}-${c}`, path: '/', w, c, shell: true, tab: '내역', newRelease: true })),
   // 알림(토스트): 짧은 문장과 줄이 바뀌는 긴 문장. 저장 흐름 없이 알림 칸에 글만 넣어 모양을 본다
   ...each((w, c) => ({ name: `shell-toast-short-${w}-${c}`, path: '/', w, c, shell: true, tab: '내역', toast: '저장했어요' })),
   ...each((w, c) => ({ name: `shell-toast-long-${w}-${c}`, path: '/', w, c, shell: true, tab: '내역', toast: '저장했어요. 할부 남은 회차는 고정 탭의 할부에 넣었어요. 장보기 연결은 하지 못했어요' })),
@@ -171,7 +176,10 @@ const selected = only.length ? shots.filter((s) => only.some((o) => s.name === o
 
 /** Supabase로 가는 요청을 모두 가로챈다. 표·rpc는 TABLES, 쓰기는 빈 성공, 인증은 가짜 사용자 */
 async function fakeSupabase(context, s = {}) {
-  await context.addInitScript(([key, session]) => localStorage.setItem(key, JSON.stringify(session)), [STORAGE_KEY, fakeSession()])
+  await context.addInitScript(([key, session, release]) => {
+    localStorage.setItem(key, JSON.stringify(session))
+    if (release) localStorage.setItem('ab:seenRelease', release)
+  }, [STORAGE_KEY, fakeSession(), s.newRelease ? null : RELEASE])
   await context.route(`${SUPABASE}/**`, async (route) => {
     const req = route.request()
     const url = new URL(req.url())
@@ -286,6 +294,11 @@ try {
         if (new URL(page.url()).searchParams.has('u')) problems.push(`${s.name}: 주소에 다시 받기 표시(u)가 남았다`)
         if (!(await page.locator('.app-card').isVisible())) problems.push(`${s.name}: 다시 연 뒤 설정 탭이 아니다`)
       }
+      if (s.releaseOpen) {
+        await page.locator('.release-older summary').click()
+        await page.locator('.release-notes').evaluate((el) => el.scrollIntoView({ block: 'start' }))
+      }
+      if (s.newRelease) await page.locator('.toast.on').waitFor()
       if (s.center) await page.locator(s.center).first().evaluate((el) => el.scrollIntoView({ block: 'center' }))
       if (s.where) await page.getByRole('button', { name: '어디서 살지' }).click()
       if (s.record) {

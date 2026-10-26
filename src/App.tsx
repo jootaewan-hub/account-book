@@ -14,7 +14,9 @@ import type { SmartMode } from './components/SmartSheet'
 import { useLedgerMeta, useLiveUpdates, useMonthEvents, useMonthTransactions } from './hooks/useLedger'
 import { deleteTransaction, deleteTransactions, friendlyError, generateRecurring, insertInstallmentPurchase, insertTransaction, updateSpouseRole, updateTransaction } from './lib/api'
 import { wasRefreshed } from './lib/appUpdate'
+import { takeNewRelease } from './lib/changelog'
 import { addMonths, parseYM, todayLocal } from './lib/dates'
+import { lsGet, lsSet } from './lib/localPrefs'
 import { makeLookup, SCOPE_LABEL } from './lib/lookup'
 import { onUpdateReady, updateReady } from './lib/pwa'
 import { isConfigured, sb } from './lib/supabase'
@@ -204,6 +206,12 @@ function Ledger({ household, meta, userId, email }: {
     await reload()
     toast(id ? '수정했어요' : split ? '저장했어요. 할부 남은 회차는 고정 탭의 할부에 넣었어요' : '저장했어요')
   }
+
+  // 새 버전을 이 기기에서 처음 열면 한 번 알린다(바뀐 점은 설정 > 앱의 업데이트 내역)
+  useEffect(() => {
+    const r = takeNewRelease({ get: lsGet, set: lsSet })
+    if (r) toast(`새 버전 v${r.version}: ${r.title}`)
+  }, [toast])
 
   async function smartSaved(count: number, lastDate: string, msg?: string) {
     closeSmart()

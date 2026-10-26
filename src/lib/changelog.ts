@@ -1,0 +1,150 @@
+// 업데이트 내역(설정 '앱' 카드, 새 버전을 처음 열 때 알림). 버전은 vMAJOR.MINOR.PATCH (사용자 규칙 2026-10-26):
+//  - 메이저(쓰임새가 크게 바뀜): 앞 숫자 v1 → v2 → v3 (v2.0.0)
+//  - 마이너(기능 추가, 기본 동작 바뀜): 가운데 숫자 v2.5.0 → v2.6.0
+//  - 버그 수정: 끝 숫자 v2.6.0 → v2.6.1
+// main에 올리는 변경마다 맨 위에 하나를 더하고 package.json version도 같은 값으로 바꾼다(tests/changelog.test.ts가 견준다).
+// v2.6.0 앞의 것은 main 기록(git log --first-parent main)을 날짜별로 묶어 정리했다.
+
+export type ReleaseKind = 'major' | 'minor' | 'fix'
+
+export interface Release {
+  /** 'MAJOR.MINOR.PATCH' (화면에는 앞에 v를 붙인다) */
+  version: string
+  /** 배포한 날 YYYY-MM-DD */
+  date: string
+  kind: ReleaseKind
+  title: string
+  items: string[]
+}
+
+export const KIND_LABEL: Record<ReleaseKind, string> = { major: '큰 업데이트', minor: '기능 추가', fix: '버그 수정' }
+
+/** 최신이 맨 앞 */
+export const RELEASES: Release[] = [
+  {
+    version: '2.6.0', date: '2026-10-26', kind: 'minor', title: '영수증 한 묶음 저장, 여러 건 삭제',
+    items: [
+      '영수증·쇼핑 캡처는 이제 주문 하나를 내역 하나로 저장해요. 상품마다 따로 넣으려면 확인 화면의 "상품 N개를 하나씩 따로 저장"을 켜세요.',
+      '내역 탭 "고르기": 내역이나 날짜를 골라 한꺼번에 지워요(두 번 눌러야 지워져요).',
+      '상품마다 나눠 저장한 내역은 수정 화면에서 함께 저장한 내역을 모두 지울 수 있어요. 예전에 나눠 저장한 내역도 저장한 시각으로 묶어 두었어요.',
+      '목록·상세 화면을 같이 찍어 같은 상품이 두 번 나오면 한쪽을 빼 둬요.',
+    ],
+  },
+  {
+    version: '2.5.0', date: '2026-10-24', kind: 'minor', title: '장보기 성분 자동 맞춤 개선',
+    items: [
+      '고른 상품의 제조사와 이름으로 식약처 품목을 맞춰 원재료와 영양성분을 한 번에 보여 줘요.',
+      '확실하지 않으면 "같은 상품인지 확인해 주세요"와 후보를 보여 줘요.',
+    ],
+  },
+  {
+    version: '2.4.0', date: '2026-10-22', kind: 'minor', title: '몰 주소 자동 찾기, 설정 앱 카드',
+    items: [
+      '장보기 상품을 고르면 컬리·홈플러스·쿠팡에서 같은 상품 페이지를 찾아 가격 확인에 붙여요.',
+      '설정에 "앱" 카드: 지금 버전, 업데이트 확인, 홈 화면 앱 설치 안내.',
+    ],
+  },
+  {
+    version: '2.3.1', date: '2026-10-22', kind: 'fix', title: '버그 수정과 구조 정리',
+    items: [
+      '장보기의 몰 주소·자주 가는 매장 저장이 거절되던 것을 고쳤어요.',
+      '불러오기가 실패하면 "불러오는 중"에 멈춰 있던 것을 고쳤어요.',
+      '장보기 목록의 출처·확인 시각이 잘리던 것, 꺼 둔 항목이 켜진 것과 구별되지 않던 것을 고쳤어요.',
+      '사진 읽기가 너무 오래 걸리면 계속 기다리지 않고 알려 줘요.',
+    ],
+  },
+  {
+    version: '2.3.0', date: '2026-10-21', kind: 'minor', title: '주유 영수증, 이번 장보기 살펴보기',
+    items: [
+      '주유소 영수증을 찍으면 유종·주유량·리터당 가격을 함께 저장하고, 통계에 주유 묶음(리터당 가격 추이)이 생겨요.',
+      '영수증 확인 화면에서 지난 장보기와 견줘 비싸진 것·싸진 것·최근에 또 산 것을 보여 줘요.',
+      '관리비 고지서: 고정 탭에 관리비 항목이 없으면 만들어 연결해요.',
+      '장보기 원재료를 제품명으로 찾아요.',
+    ],
+  },
+  {
+    version: '2.2.0', date: '2026-10-20', kind: 'minor', title: '고정 지출 기간, 장보기 영양성분',
+    items: [
+      '고정 지출·구독에 기간(2~60개월)을 정할 수 있어요(취득세·가전 할부).',
+      '고정 탭 항목에 분류 아이콘을 붙였어요.',
+      '장보기 성분 탭에서 열량과 영양성분을 보여 줘요.',
+      '장보기 상품 후보는 2~3인 가구에 맞는 크기를 먼저 보여 줘요.',
+    ],
+  },
+  {
+    version: '2.1.0', date: '2026-10-20', kind: 'minor', title: '장보기 가격 출처, 바코드, 성분',
+    items: [
+      '품목 상세에 매장 가격(참가격), 넣어 둔 몰 주소의 가격, 우리가 산 값을 함께 보여 줘요.',
+      '바코드나 사진으로 상품을 찾고, 가격 캡처로 값을 넣어요.',
+      '성분·대안 탭: 식약처 원재료, 더 싸거나 평가가 좋은 상품.',
+    ],
+  },
+  {
+    version: '2.0.0', date: '2026-10-19', kind: 'major', title: '장보기 탭',
+    items: [
+      '따로 쓰던 "우리집 장보기"를 가계부 안의 장보기 탭으로 합쳤어요. 아래 탭이 5개가 되고 설정은 위쪽 톱니 버튼으로 옮겼어요.',
+      '장 본 것을 가계부 내역으로 넣고, 영수증을 넣을 때 장보기 품목과 이어 줘요.',
+      '농수산물 시세 화면.',
+    ],
+  },
+  {
+    version: '1.2.1', date: '2026-10-16', kind: 'fix', title: '버그 수정',
+    items: [
+      '내역을 고쳐 저장하면 실패하던 것을 고쳤어요.',
+      '시트를 겹쳐 열고 닫으면 화면 스크롤이 잠긴 채 남던 것을 고쳤어요.',
+    ],
+  },
+  {
+    version: '1.2.0', date: '2026-10-16', kind: 'minor', title: '넓은 화면, 분류 세분화, 일정',
+    items: [
+      '컴퓨터·태블릿 화면: 왼쪽 메뉴, 달력과 내역 두 단, 키보드로 금액 입력.',
+      '분류를 33개로 나누고, 이름을 보고 분류를 골라 줘요.',
+      '달력에서 날짜를 골라 일정·기념일을 넣어요. 직접 입력에서도 할부를 골라요.',
+      '통계에 살펴보기와 "이렇게 해 보면" 제안.',
+    ],
+  },
+  {
+    version: '1.1.0', date: '2026-10-15', kind: 'minor', title: '할부, 공휴일·기념일',
+    items: [
+      '문자·사진에서 할부 개월을 읽어 첫 회차는 내역, 남은 회차는 고정 탭 할부로 넣어요.',
+      '2026~2037년 공휴일과 양력·음력 기념일을 달력에 보여 줘요.',
+    ],
+  },
+  {
+    version: '1.0.0', date: '2026-10-15', kind: 'major', title: '처음 버전',
+    items: [
+      '부부가 함께 쓰는 달력 가계부: 공동·남편·아내·자녀 구분.',
+      '카드 문자, 영수증·쇼핑 캡처, 관리비 고지서 사진으로 입력(사진 20장까지).',
+      '고정 지출·구독·관리비, 통계, 구글 시트 내보내기.',
+    ],
+  },
+]
+
+export const LATEST = RELEASES[0]
+
+/** 'MAJOR.MINOR.PATCH' → [MAJOR, MINOR, PATCH] */
+export function parseVersion(v: string): [number, number, number] | null {
+  const m = /^(\d+)\.(\d+)\.(\d+)$/.exec(v)
+  return m ? [Number(m[1]), Number(m[2]), Number(m[3])] : null
+}
+
+/** 앞 버전에서 이 종류로 올렸을 때의 다음 버전 */
+export function nextVersion(prev: string, kind: ReleaseKind): string {
+  const p = parseVersion(prev)
+  if (!p) throw new Error(`버전 형식이 아니에요: ${prev}`)
+  const [a, b, c] = p
+  return kind === 'major' ? `${a + 1}.0.0` : kind === 'minor' ? `${a}.${b + 1}.0` : `${a}.${b}.${c + 1}`
+}
+
+const SEEN_KEY = 'ab:seenRelease'
+
+/**
+ * 새 버전을 처음 열었는가: 이 기기에서 마지막으로 본 버전과 다르면 그 릴리스를 돌려주고 지금 버전을 기억한다.
+ * 기억이 없어도(이 기능 전부터 쓰던 기기) 한 번 알린다.
+ */
+export function takeNewRelease(store: { get: (k: string) => string | null; set: (k: string, v: string) => void }): Release | null {
+  const seen = store.get(SEEN_KEY)
+  if (seen === LATEST.version) return null
+  store.set(SEEN_KEY, LATEST.version)
+  return LATEST
+}
