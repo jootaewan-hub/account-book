@@ -62,6 +62,10 @@ const transactions = [
   ...[['t32', '국산 콩나물 300g', 1980], ['t33', '깐마늘 200g', 3480]].map(([id, name, amount], k) => tx(id, 1, amount, name, '장보기', {
     occurred_on: daysAgo(4), source: 'photo', save_batch: 'b-split', transaction_items: [
       { id: `${id}i`, name, quantity: 1, unit_price: amount, amount, pack_size: null, pack_unit: null, image_path: null, sort: k + 1 }] })),
+  // 가게 이름 칸(D-032) 뒤에 상품별로 나눠 저장한 영수증: 내역 줄에 가게 이름이 붙고 어디서 샀나에서 홈플러스로 모인다
+  ...[['t34', '친환경 애호박', 1990], ['t35', '무항생제 계란 15구', 6980]].map(([id, name, amount], k) => tx(id, 1, amount, name, '장보기', {
+    occurred_on: daysAgo(9), source: 'photo', merchant: '홈플러스 야탑점', save_batch: 'b-split2', transaction_items: [
+      { id: `${id}i`, name, quantity: 1, unit_price: amount, amount, pack_size: null, pack_unit: null, image_path: null, sort: k + 1 }] })),
   tx('t31', 1, 2800, '이마트 분당점', '장보기', { occurred_on: daysAgo(2), source: 'photo', transaction_items: [
     { id: 'i31a', name: '부침두부 300g', quantity: 1, unit_price: 2800, amount: 2800, pack_size: 300, pack_unit: 'g', image_path: null, sort: 1 },
   ] }),
@@ -110,7 +114,14 @@ export const TABLES = {
   ],
   'public.payment_methods': [],
   'public.categories': categories,
-  'public.anniversaries': [{ id: 'a1', household_id: HH, name: '결혼기념일', kind: 'couple', lunar: false, month: 11, day: 2 }],
+  // 기념일(D-033): 카테고리·반복(2년마다, 매달)이 있는 것까지. 10월 말 기준 30일 안에 넷이 와서 넓은 화면 칩 줄이 넘친다
+  'public.anniversaries': [
+    { id: 'a1', household_id: HH, name: '결혼기념일', kind: 'couple', category: '기념일', lunar: false, month: 11, day: 2, repeat_unit: 'year', repeat_every: 1, start_year: null },
+    { id: 'a2', household_id: HH, name: '엄마 생신', kind: 'birthday', category: '생일', lunar: false, month: 11, day: 8, repeat_unit: 'year', repeat_every: 1, start_year: null },
+    { id: 'a3', household_id: HH, name: '할머니 기일', kind: 'memorial', category: '추모', lunar: false, month: 11, day: 15, repeat_unit: 'year', repeat_every: 1, start_year: null },
+    { id: 'a4', household_id: HH, name: '건강검진', kind: 'other', category: '병원', lunar: false, month: 11, day: 20, repeat_unit: 'year', repeat_every: 2, start_year: 2024 },
+    { id: 'a5', household_id: HH, name: '아이 용돈', kind: 'other', category: '용돈', lunar: false, month: 1, day: 1, repeat_unit: 'month', repeat_every: 1, start_year: 2026 },
+  ],
   'public.events': [],
   'public.transactions': transactions,
   // 고정 탭: 계속 내는 구독 하나와 기간(6개월)을 정한 고정지출 하나(취득세 할부). 금액은 캡처 확인용 예시

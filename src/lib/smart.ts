@@ -59,6 +59,8 @@ export interface Draft {
   title: string
   /** 산 곳 (쿠팡·네이버 등). 매장이면 null */
   platform: string | null
+  /** 영수증·문자에서 읽은 가게 이름(D-032). 상품별로 나눠도 모든 초안에 같은 값을 둔다 */
+  merchant?: string | null
   amount: number
   category_id: string | null
   payment_method_id: string | null
@@ -286,7 +288,7 @@ export function entryDrafts(e: CheckedEntry, i: number, ctx: DraftContext, split
   const make = (key: string, title: string, amount: number, category: string | null, its: DraftItem[], memo: string | null): Draft => {
     const dup = sameTransaction({ date, amount, type: e.type }, ctx.existing)
     return {
-      key, include: !e.is_cancellation && !dup, type: e.type, date, time: e.time, title, platform, amount,
+      key, include: !e.is_cancellation && !dup, type: e.type, date, time: e.time, title, platform, merchant: e.merchant?.trim() || null, amount,
       category_id: fuelCategory ?? pickCategory([category, e.category], [title, ...its.map((it) => it.name), e.merchant ?? '', platform ?? ''].join(' '), e.type, ctx.categories),
       payment_method_id: method?.id ?? remembered ?? (match.method === null && match.reason !== 'none' ? null : ctx.fallbackMethodId),
       scope: ctx.fallbackScope, memo, items: its,
@@ -607,8 +609,9 @@ export async function saveDraft(
       type: d.type, occurred_on: d.date, occurred_at: d.time, amount: plan ? plan.first : d.amount, title, memo,
       category_id: d.category_id, payment_method_id: d.payment_method_id, scope: d.scope, source,
       platform: normalizePlatform(d.platform),
-      // save_batch 칸을 만들기 전의 함수는 이 값을 읽지 않고 넘어간다
+      // save_batch·merchant 칸을 만들기 전의 함수는 이 값을 읽지 않고 넘어간다
       save_batch: saveBatch,
+      merchant: d.merchant?.trim().slice(0, 60) || null,
     },
     p_items: d.items.map((it, i) => ({
       name: it.name, quantity: it.quantity, unit_price: it.unit_price, amount: it.amount,

@@ -88,10 +88,12 @@ export function normMerchant(title: string): string {
 const squash = (s: string) => s.replace(/\s+/g, '').toLowerCase()
 
 /**
- * 플랫폼 없는 결제의 가게 이름(통계 어디서 샀나, D-031 보충). 상품별로 나눠 저장한 영수증의 줄은 내역 이름이 상품명이라
- * (품목 하나, 그 이름 = 내역 이름) 가게가 아니고, 따로 넣은 배송비 줄도 그렇다. 둘과 이름이 빈 결제는 null
+ * 플랫폼 없는 결제의 가게 이름(통계 어디서 샀나, D-031 보충). 저장할 때 남긴 가게 이름(merchant, D-032)이 있으면 그것을 쓴다.
+ * 없으면 내역 이름인데, 상품별로 나눠 저장한 영수증의 줄은 내역 이름이 상품명이라(품목 하나, 그 이름 = 내역 이름) 가게가 아니고,
+ * 따로 넣은 배송비 줄도 그렇다. 둘과 이름이 빈 결제는 null
  */
-export function storeOfTx(t: Pick<Transaction, 'title' | 'items'>): string | null {
+export function storeOfTx(t: Pick<Transaction, 'title' | 'items' | 'merchant'>): string | null {
+  if (t.merchant?.trim()) return normMerchant(t.merchant) || null
   const title = squash(t.title)
   if (!title) return null
   const items = t.items ?? []

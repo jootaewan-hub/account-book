@@ -241,3 +241,18 @@ describe('모델 이름 표시', () => {
     expect(modelLabel(undefined)).toBeNull()
   })
 })
+
+describe('가게 이름 남기기 (D-032)', () => {
+  const ctx = { today: '2026-10-15', methods: [], categories: [], existing: [], fallbackMethodId: null, fallbackScope: 'shared' as const }
+  const line = (name: string, amount: number) => ({ name, is_product: true, pack_size: null, pack_unit: null, category: null, quantity: 1, unit_price: null, amount, image_box: null })
+
+  it('상품별로 나눠도 모든 초안이 영수증의 가게 이름을 갖고, 한 내역으로 넣을 때도 같다', () => {
+    const [e] = checkEntries({ note: null, entries: [entry({ merchant: ' 이마트 분당점 ', amount: 5960, items: [line('국산 콩나물 300g', 1980), line('깐마늘 200g', 3980)] })] })
+    const split = toDrafts([e], ctx, () => true)
+    expect(split.map((d) => [d.title, d.merchant])).toEqual([['국산 콩나물 300g', '이마트 분당점'], ['깐마늘 200g', '이마트 분당점']])
+    const [one] = toDrafts([e], ctx)
+    expect(one.merchant).toBe('이마트 분당점')
+    const [none] = toDrafts(checkEntries({ note: null, entries: [entry({ merchant: '' })] }), ctx)
+    expect(none.merchant).toBeNull()
+  })
+})

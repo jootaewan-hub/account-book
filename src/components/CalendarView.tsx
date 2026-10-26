@@ -1,5 +1,5 @@
-import { useMemo } from 'react'
-import { anniversariesInMonth, daysBetween, dLabel, upcomingAnniversaries } from '../lib/anniversaries'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { anniversariesInMonth, daysBetween, dLabel, repeatLabel, upcomingAnniversaries } from '../lib/anniversaries'
 import { DOW, dayOf, formatDateLong, monthGrid, parseYM } from '../lib/dates'
 import { compact, won } from '../lib/format'
 import { HOLIDAYS } from '../lib/holidays'
@@ -136,13 +136,11 @@ export function CalendarView({ ym, today, sel, cur, prev, loading = false, looku
         </div>
 
         {soon.length > 0 && (
-          <div className="anniv-soon" role="group" aria-label="다가오는 기념일">
-            {soon.map((u) => (
-              <button key={u.key} className={`anniv-chip k-${u.kind}`} onClick={() => onJump(u.date)}>
-                {u.kind === 'event' ? <CalendarIcon /> : <AnnivIcon kind={u.kind as Anniversary['kind']} />}<span>{u.name}</span><b className="num">{dLabel(u.days)}</b>
-              </button>
-            ))}
-          </div>
+          <SoonRow label="다가오는 기념일" items={soon.map((u) => (tab: number | undefined) => (
+            <button key={u.key} className={`anniv-chip k-${u.kind}`} tabIndex={tab} onClick={() => onJump(u.date)}>
+              {u.kind === 'event' ? <CalendarIcon /> : <AnnivIcon kind={u.kind as Anniversary['kind']} />}<span>{u.name}</span><b className="num">{dLabel(u.days)}</b>
+            </button>
+          ))} />
         )}
       </div>
 
@@ -162,7 +160,8 @@ export function CalendarView({ ym, today, sel, cur, prev, loading = false, looku
             <div className="anniv-list">
               {dayAnniv.map((a) => (
                 <button key={a.id} className={`anniv-row k-${a.kind}`} onClick={() => onPlan({ kind: 'anniv', anniv: a })}>
-                  <AnnivIcon kind={a.kind} /><b>{a.name}</b>{a.lunar && <span>음력 {a.month}월 {a.day}일</span>}
+                  <AnnivIcon kind={a.kind} /><b>{a.name}</b>
+                  <span>{[a.category, a.repeat_unit === 'month' || a.repeat_every > 1 ? repeatLabel(a) : null, a.lunar ? `음력 ${a.month}월 ${a.day}일` : null].filter(Boolean).join(' · ')}</span>
                 </button>
               ))}
               {dayEvents.map((e) => (
@@ -180,5 +179,46 @@ export function CalendarView({ ym, today, sel, cur, prev, loading = false, looku
         </div>
       )}
     </section>
+  )
+}
+
+/**
+ * 다가오는 기념일 줄(D-033). 칩이 줄을 넘치면 마우스로 쓰는 화면(PC)에서는 옆으로 천천히 흘러 다 보이게 한다:
+ * 같은 칩을 한 번 더 이어 붙여(읽기·탭 이동에서 뺀다) 끊김 없이 돌고, 마우스를 올리거나 포커스가 가면 멈춘다.
+ * 움직임 줄이기를 켰으면 흐르지 않고 줄을 바꿔 다 보인다. 손가락으로 쓰는 화면은 지금처럼 밀어서 본다
+ */
+function SoonRow({ label, items }: { label: string; items: ((tab: number | undefined) => ReactNode)[] }) {
+  const box = useRef<HTMLDivElement>(null)
+  const set = useRef<HTMLDivElement>(null)
+  const [mode, setMode] = useState<{ kind: 'still' | 'flow' | 'wrap'; width: number }>({ kind: 'still', width: 0 })
+  useEffect(() => {
+    const el = box.current
+    const one = set.current
+    if (!el || !one || typeof ResizeObserver === 'undefined' || typeof window.matchMedia !== 'function') return
+    const fine = window.matchMedia('(hover: hover) and (pointer: fine)')
+    const calm = window.matchMedia('(prefers-reduced-motion: reduce)')
+    const check = () => {
+      // 칩 너비의 합(+ 간격 6px): 줄을 바꿔도 변하지 않는 원래 너비로 넘치는지 본다(scrollWidth는 줄을 바꾸면 줄어 오락가락한다)
+      const chips = [...one.children]
+      const width = chips.reduce((sum, c) => sum + c.getBoundingClientRect().width, 0) + 6 * Math.max(0, chips.length - 1)
+      const over = width > el.clientWidth + 1
+      setMode({ kind: !over || !fine.matches ? 'still' : calm.matches ? 'wrap' : 'flow', width })
+    }
+    check()
+    const ro = new ResizeObserver(check)
+    ro.observe(el)
+    ro.observe(one)
+    calm.addEventListener('change', check)
+    return () => { ro.disconnect(); calm.removeEventListener('change', check) }
+  }, [])
+  // 1초에 40px쯤: 칩 네 개(500px 안팎)가 한 바퀴 도는 데 열몇 초
+  const seconds = Math.max(8, Math.round((mode.width + 6) / 40))
+  return (
+    <div ref={box} className={`anniv-soon${mode.kind === 'still' ? '' : ` ${mode.kind}`}`} role="group" aria-label={label}>
+      <div className="soon-track" style={mode.kind === 'flow' ? { animationDuration: `${seconds}s` } : undefined}>
+        <div className="soon-set" ref={set}>{items.map((f) => f(undefined))}</div>
+        {mode.kind === 'flow' && <div className="soon-set" aria-hidden="true" inert>{items.map((f) => f(-1))}</div>}
+      </div>
+    </div>
   )
 }

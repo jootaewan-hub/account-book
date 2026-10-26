@@ -74,5 +74,8 @@ describe('어디서 샀나의 가게 이름 (D-031 보충)', () => {
     expect(storeOfTx({ title: '풀무원 저당 오리엔탈', items: [item('풀무원 저당 오리엔탈 드레싱 245g')] })).toBeNull()
     expect(storeOfTx({ title: '배송비', items: [] })).toBeNull()
     expect(storeOfTx({ title: '  ', items: [] })).toBeNull()
+    // 저장할 때 남긴 가게 이름(D-032)이 있으면 상품명 줄도 그 가게다
+    expect(storeOfTx({ title: '홍시 (4~6입/팩)', items: [item('홍시 (4~6입/팩)')], merchant: '이마트 분당점' })).toBe('이마트')
+    expect(storeOfTx({ title: '이마트 분당점', items: [], merchant: '  ' })).toBe('이마트')
   })
 })

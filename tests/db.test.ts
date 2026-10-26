@@ -685,3 +685,54 @@ describe('나눠 저장한 영수증 묶음 (20261104000000_tx_save_batch, D-027
     for (const t of ['한 묶음 영수증', '혼자', '손으로 넣음', '다른 날', '매장', '광동반점', '벽제 설렁탕']) expect(of(t)).toBeNull()
   })
 })
+
+describe('가게 이름 칸 (20261105000000_tx_merchant)', () => {
+  it('저장 함수가 가게 이름을 남기고(빈 말은 null), 앱은 그 칸을 고칠 수 없다. 가게 이름 없이 불러도 된다', async () => {
+    const save = (tx: Record<string, unknown>) => as<{ id: string }>(A, `select public.add_transaction_with_items($1, $2, $3) as id`, [hhA,
+      JSON.stringify({ type: 'expense', occurred_on: '2026-10-14', amount: 3980, scope: 'shared', source: 'photo', ...tx }),
+      JSON.stringify([{ name: '국산 콩나물 300g', amount: 3980 }])])
+    const [{ id }] = await save({ title: '국산 콩나물 300g', merchant: ' 이마트 분당점 ' })
+    const [{ id: blank }] = await save({ title: '깐마늘', merchant: '  ' })
+    const [{ id: none }] = await save({ title: '대파' })
+    const rows = await as<{ id: string; merchant: string | null }>(B, `select id, merchant from public.transactions where id = any($1)`, [[id, blank, none]])
+    expect(Object.fromEntries(rows.map((r) => [r.id, r.merchant]))).toEqual({ [id]: '이마트 분당점', [blank]: null, [none]: null })
+    expect(await errorOf(as(A, `update public.transactions set merchant = '홈플러스' where id = $1`, [id]))).toContain('permission denied')
+    expect(await errorOf(as(A, `insert into public.transactions (household_id, type, occurred_on, amount, scope, merchant) values ($1, 'expense', '2026-10-14', 1, 'shared', $2)`,
+      [hhA, 'x'.repeat(61)]))).toContain('check')
+  })
+})
+
+describe('기념일 반복·카테고리 (20261105010000_anniv_repeat_category)', () => {
+  it('N개월마다·N년마다는 시작 해가 있어야 하고, 매달 반복은 양력만. 카테고리는 12자까지', async () => {
+    const add = (cols: string, vals: string) => as(A, `insert into public.anniversaries (household_id, name, month, day, ${cols}) values ($1, 'x', 3, 10, ${vals})`, [hhA])
+    await add('repeat_unit, repeat_every, start_year, category', `'month', 1, 2026, '용돈'`)
+    await add('repeat_unit, repeat_every, start_year', `'year', 2, 2026`)
+    expect(await errorOf(add('repeat_unit, repeat_every', `'year', 2`))).toContain('check')
+    expect(await errorOf(add('repeat_unit', `'month'`))).toContain('check')
+    expect(await errorOf(add('repeat_unit, start_year, lunar', `'month', 2026, true`))).toContain('check')
+    expect(await errorOf(add('repeat_unit, start_year', `'week', 2026`))).toContain('check')
+    expect(await errorOf(add('repeat_every, start_year', `0, 2026`))).toContain('check')
+    expect(await errorOf(add('category', `'열세 글자가 넘는 카테고리 이름'`))).toContain('check')
+    const [row] = await as<{ repeat_unit: string; repeat_every: number; category: string | null }>(A,
+      `select repeat_unit, repeat_every, category from public.anniversaries where name = '어머니 생신'`)
+    expect(row).toEqual({ repeat_unit: 'year', repeat_every: 1, category: null })
+  })
+
+  it('기존 기념일은 종류로 카테고리를 채운다: 생일·기념일·추모, 그 밖은 없음', async () => {
+    const files = MIGRATION_FILES.filter((f) => !isGrocery(f))
+    const before = files.filter((f) => f < '20261105010000').map(readMigration)
+    const old = await freshDb(before)
+    await old.query(`select set_config('request.jwt.claim.sub', $1, false)`, [A])
+    await old.exec('set role authenticated')
+    const [{ id: hh }] = (await old.query<{ id: string }>(`select public.create_household('나', 'husband') as id`)).rows
+    for (const [name, kind] of [['엄마 생신', 'birthday'], ['결혼기념일', 'couple'], ['할머니 기일', 'memorial'], ['이사한 날', 'other']]) {
+      await old.query(`insert into public.anniversaries (household_id, name, kind, month, day) values ($1, $2, $3, 5, 5)`, [hh, name, kind])
+    }
+    await old.exec('reset role')
+    await old.exec(readMigration('20261105010000_anniv_repeat_category.sql'))
+    const rows = (await old.query<{ name: string; category: string | null }>(`select name, category from public.anniversaries order by name`)).rows
+    expect(rows).toEqual([
+      { name: '결혼기념일', category: '기념일' }, { name: '엄마 생신', category: '생일' }, { name: '이사한 날', category: null }, { name: '할머니 기일', category: '추모' },
+    ])
+  })
+})

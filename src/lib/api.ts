@@ -9,7 +9,7 @@ import type {
 } from './types'
 
 const TX_COLUMNS =
-  'id, household_id, type, occurred_on, amount, title, memo, category_id, payment_method_id, scope, source, created_by, created_at, recurring_id, recurring_month, platform'
+  'id, household_id, type, occurred_on, amount, title, memo, category_id, payment_method_id, scope, source, created_by, created_at, recurring_id, recurring_month, platform, merchant'
 const ITEM_COLUMNS = 'id, name, quantity, unit_price, amount, pack_size, pack_unit, image_path, sort'
 // 주유 기록(fuel_fills)은 내역 하나에 하나라 함께 읽는다
 const TX_WITH_ITEMS = `${TX_COLUMNS}, transaction_items(${ITEM_COLUMNS}), fuel_fills(liters, price_per_liter, fuel_type)`
@@ -67,7 +67,7 @@ export async function fetchHouseholdBundle(): Promise<{
   return { household, members: check(members), methods: check(methods), categories: check(categories), anniversaries: check(anniversaries) }
 }
 
-const ANNIV_COLUMNS = 'id, household_id, name, kind, lunar, month, day'
+const ANNIV_COLUMNS = 'id, household_id, name, kind, category, lunar, month, day, repeat_unit, repeat_every, start_year'
 
 export async function insertAnniversary(householdId: string, a: AnniversaryInput): Promise<void> {
   check(await sb().from('anniversaries').insert({ ...a, household_id: householdId }))

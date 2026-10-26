@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { deleteAnniversary, deleteEvent, friendlyError, insertAnniversary, insertEvent, updateAnniversary, updateEvent } from '../lib/api'
 import { formatDateLong } from '../lib/dates'
+import { annivCategories, annivInput, newAnnivInput } from '../lib/anniversaries'
 import type { Anniversary, CalEvent, EventInput } from '../lib/types'
 import { annivFromDate, AnniversaryForm } from './AnniversaryForm'
 import { Sheet } from './Sheet'
@@ -15,6 +16,8 @@ interface Props {
   target: PlanTarget | null
   householdId: string
   today: string
+  /** 카테고리 고르기에 쓰는 가구의 기념일 */
+  annivs: Anniversary[]
   onEventsChanged: () => Promise<void>
   onAnnivsChanged: () => Promise<void>
   onClose: () => void
@@ -22,7 +25,7 @@ interface Props {
 }
 
 /** 달력에서 일정·기념일을 넣고 고치는 시트 */
-export function PlanSheet({ target, householdId, today, onEventsChanged, onAnnivsChanged, onClose, toast }: Props) {
+export function PlanSheet({ target, householdId, today, annivs, onEventsChanged, onAnnivsChanged, onClose, toast }: Props) {
   const [mode, setMode] = useState<'event' | 'anniv'>('event')
   useEffect(() => { if (target) setMode(target.kind === 'anniv' ? 'anniv' : 'event') }, [target])
 
@@ -38,7 +41,7 @@ export function PlanSheet({ target, householdId, today, onEventsChanged, onAnniv
       {target && isNew && (
         <div className="seg" role="group" aria-label="넣을 것">
           <button aria-pressed={mode === 'event'} onClick={() => setMode('event')}>일정</button>
-          <button aria-pressed={mode === 'anniv'} onClick={() => setMode('anniv')}>기념일 (해마다)</button>
+          <button aria-pressed={mode === 'anniv'} onClick={() => setMode('anniv')}>기념일 (반복)</button>
         </div>
       )}
       {target && mode === 'event' && target.kind !== 'anniv' && (
@@ -52,11 +55,9 @@ export function PlanSheet({ target, householdId, today, onEventsChanged, onAnniv
       )}
       {target && mode === 'anniv' && target.kind !== 'event' && (
         <AnniversaryForm key={target.kind === 'anniv' ? target.anniv.id : `new-${target.date}`} today={today}
-          editing={target.kind === 'anniv'}
+          editing={target.kind === 'anniv'} categories={annivCategories(annivs)}
           fromDate={target.kind === 'new' ? target.date : undefined}
-          initial={target.kind === 'anniv'
-            ? { name: target.anniv.name, kind: target.anniv.kind, lunar: target.anniv.lunar, month: target.anniv.month, day: target.anniv.day }
-            : { name: '', kind: 'birthday', lunar: false, ...annivFromDate(target.date, false) }}
+          initial={target.kind === 'anniv' ? annivInput(target.anniv) : newAnnivInput(target.date, annivFromDate(target.date, false))}
           onCancel={onClose}
           onSave={(v) => run(() => (target.kind === 'anniv' ? updateAnniversary(target.anniv.id, v) : insertAnniversary(householdId, v)),
             onAnnivsChanged, target.kind === 'anniv' ? '기념일을 고쳤어요' : '기념일을 넣었어요')}

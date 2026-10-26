@@ -52,7 +52,7 @@ export function ListView({ cur, future = false, loading = false, lookup, focus, 
   // 다른 탭으로 가며 사라질 때 둥근 버튼을 되돌린다
   useEffect(() => () => onPickingChange?.(false), [onPickingChange])
   const matches = (t: Transaction) =>
-    [t.title, t.memo, t.platform, lookup.categoryName(t.category_id), ...(t.items ?? []).map((i) => i.name)]
+    [t.title, t.memo, t.platform, t.merchant, lookup.categoryName(t.category_id), ...(t.items ?? []).map((i) => i.name)]
       .some((s) => (s ?? '').toLowerCase().includes(needle))
   const inFocus = (t: Transaction) => {
     if (!focus) return true

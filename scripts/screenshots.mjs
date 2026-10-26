@@ -173,6 +173,12 @@ const shellShots = [
   ...each((w, c) => ({ name: `shell-smart-compare-${w}-${c}`, path: '/', w, c, shell: true, tab: '내역', receipt: true, compare: true })),
   // 통계 탭 주유 묶음(설계 2026-10-21): 리터당 가격·지난번 대비·추이 그래프·달별. 가짜 주유 기록 3건
   ...each((w, c) => ({ name: `shell-stats-fuel-${w}-${c}`, path: '/', w, c, shell: true, tab: '통계', scroll: '.fuel-card' })),
+  // 다가오는 기념일 칩(D-033): 넓은 화면에서 넘치면 흐른다(움직임 그대로 찍어 이어 붙인 칩·양끝 흐림을 본다). 움직임 줄이기는 줄을 바꾼다(shell-cal-1280-*)
+  ...both(1280, (w, c) => ({ name: `shell-cal-chips-flow-${w}-${c}`, path: '/', w, c, shell: true, tab: '달력', motion: 'no-preference', center: '.anniv-soon' })),
+  // 기념일 넣기(D-033): 카테고리 칩, 반복 네 가지 중 '몇 년마다'와 숫자 칸, 시작한 해
+  ...each((w, c) => ({ name: `shell-anniv-form-${w}-${c}`, path: '/', w, c, shell: true, tab: '설정', presses: ['기념일 추가', '몇 년마다', '병원'], center: '.anniv-form' })),
+  // 달력 다음 달 20일: 2년마다 오는 기념일 줄(카테고리·반복 말)
+  ...both(390, (w, c) => ({ name: `shell-cal-anniv-row-${w}-${c}`, path: '/', w, c, shell: true, tab: '달력', next: true, calDay: 20, center: '.anniv-list' })),
   // 통계 탭 어디서 샀나(사용자 2026-10-26): 한 번만 간 가게도 '그 밖'으로 묶지 않고 가게마다 한 줄
   ...each((w, c) => ({ name: `shell-stats-shops-${w}-${c}`, path: '/', w, c, shell: true, tab: '통계', center: '.shop-card' })),
   // 주유소 영수증 확인 화면(설계 2026-10-21): 유종·주유량·리터당 칸과 지난 주유 대비. 가짜 응답(FUEL_RECEIPT)
@@ -254,7 +260,7 @@ try {
         viewport: SIZES[s.w],
         deviceScaleFactor: s.w === 390 ? 2 : 1,
         colorScheme: s.c,
-        reducedMotion: 'reduce', // 캡처가 움직임 중간에 찍히지 않게
+        reducedMotion: s.motion ?? 'reduce', // 캡처가 움직임 중간에 찍히지 않게(흐르는 칩 장면만 'no-preference')
         locale: 'ko-KR',
         ...(s.ua ? { userAgent: s.ua, hasTouch: true, isMobile: true } : {}),
       })
@@ -305,10 +311,11 @@ try {
       }
       if (s.calDay) {
         await page.getByRole('button', { name: new RegExp(`^\\d+월 ${s.calDay}일`) }).click()
-        await page.locator('.tx.plan').first().waitFor()
+        await page.locator('.tx.plan, .anniv-row').first().waitFor()
       }
       if (s.scroll) await page.locator(s.scroll).first().scrollIntoViewIfNeeded()
       if (s.press) await page.getByRole('button', { name: s.press, exact: true }).click()
+      for (const name of s.presses ?? []) await page.getByRole('button', { name, exact: true }).first().click()
       if (s.pressWait) await page.getByText(s.pressWait).waitFor()
       if (s.refreshFlow) {
         await page.getByRole('button', { name: '앱 파일 다시 받기' }).click()

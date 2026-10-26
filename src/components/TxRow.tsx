@@ -24,7 +24,9 @@ export function TxRow({ t, lookup, onClick, picked }: { t: Transaction; lookup: 
   // 상품 하나짜리 내역은 이름이 곧 상품명이라 품목 수 대신 수량 × 개당 가격을 보여 준다
   const one = items === 1 && t.items![0].quantity !== 1 ? qtyPriceLabel(t.items![0]) : null
   // 주유 내역은 품목 대신 '휘발유 35.2L, 1,652원/L'
-  const meta = [cat, t.fuel ? fuelText(t.fuel) : null, items > 1 ? `품목 ${items}개` : null, one, t.created_by !== lookup.me ? `${lookup.personLabel(t.created_by)} 입력` : null]
+  // 상품별로 나눠 저장한 매장 영수증 줄은 내역 이름이 상품명이라 가게 이름(D-032)을 함께 적는다. 플랫폼이면 태그가 이미 산 곳이다
+  const store = !t.platform && t.merchant && t.merchant.replace(/\s+/g, '') !== t.title.replace(/\s+/g, '') ? t.merchant : null
+  const meta = [cat, store, t.fuel ? fuelText(t.fuel) : null, items > 1 ? `품목 ${items}개` : null, one, t.created_by !== lookup.me ? `${lookup.personLabel(t.created_by)} 입력` : null]
     .filter(Boolean).join(', ')
   const lead = thumb || logo
   // 할부 회차 (저장할 때·자동 입력할 때 메모 앞에 "할부 2/3회"로 적는다). 태그로 보여 주므로 메모 글에서는 뺀다

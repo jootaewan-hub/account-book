@@ -60,6 +60,8 @@ export interface Transaction {
   recurring_month?: string | null
   /** 산 곳: 쿠팡·네이버 같은 온라인 플랫폼. 매장 결제는 null */
   platform: string | null
+  /** 영수증·카드 문자에서 읽은 가게(가맹점) 이름(D-032). 상품별로 나눠 저장해도 남는다. 칸이 생기기 전 내역과 직접 입력은 없음 */
+  merchant?: string | null
   /** 품목 (영수증·쇼핑 주문). 목록 화면에서 불러온 경우에만 있음 */
   items?: TxItem[]
   /** 주유 기록(주유소 영수증). 목록 화면에서 불러온 경우에만 있고, 주유 내역이 아니면 null */
@@ -167,21 +169,31 @@ export interface UtilityBill {
   transaction_id: string | null
 }
 
-/** 기념일 종류: 생일, 우리 둘(만난 날·결혼기념일 등), 추모, 그 밖 */
+/** 기념일 아이콘·색(케이크·하트·초·별). 사람이 고르지 않고 카테고리 말로 앱이 정해 DB kind 칸에 쓴다(D-033) */
 export type AnnivKind = 'birthday' | 'couple' | 'memorial' | 'other'
+/** 반복 단위: 개월마다 또는 년마다 */
+export type RepeatUnit = 'month' | 'year'
 
 export interface Anniversary {
   id: string
   household_id: string
   name: string
   kind: AnnivKind
-  /** true면 month·day가 음력 (윤달이 아닌 달) */
+  /** 사람이 적은 카테고리(생일, 기념일, 추모, 병원 등). 없으면 null */
+  category: string | null
+  /** true면 month·day가 음력 (윤달이 아닌 달). 매달 반복은 양력만 */
   lunar: boolean
+  /** 해마다 오는 달. 개월 반복이면 시작한 달 */
   month: number
   day: number
+  /** 반복: (year, 1) 해마다, (year, 2) 2년마다, (month, 1) 매달, (month, 3) 3개월마다 */
+  repeat_unit: RepeatUnit
+  repeat_every: number
+  /** 시작한 해. 해마다(1년)는 없어도 되고, 그 밖의 반복은 이 해 month월부터 센다 */
+  start_year: number | null
 }
 
-export type AnniversaryInput = Pick<Anniversary, 'name' | 'kind' | 'lunar' | 'month' | 'day'>
+export type AnniversaryInput = Pick<Anniversary, 'name' | 'kind' | 'category' | 'lunar' | 'month' | 'day' | 'repeat_unit' | 'repeat_every' | 'start_year'>
 
 /** 일정: 한 번 있는 일 (병원 예약, 모임 등) */
 export interface CalEvent {

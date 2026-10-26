@@ -1,11 +1,9 @@
 import { useState } from 'react'
-import { annivDateLabel, dLabel, upcomingAnniversaries } from '../lib/anniversaries'
+import { annivCategories, annivDateLabel, annivInput, dLabel, newAnnivInput, upcomingAnniversaries } from '../lib/anniversaries'
 import { deleteAnniversary, friendlyError, insertAnniversary, updateAnniversary } from '../lib/api'
-import type { Anniversary, AnniversaryInput } from '../lib/types'
+import type { Anniversary } from '../lib/types'
 import { AnniversaryForm } from './AnniversaryForm'
 import { AnnivIcon } from './Icons'
-
-const EMPTY: AnniversaryInput = { name: '', kind: 'birthday', lunar: false, month: 1, day: 1 }
 
 interface Props {
   householdId: string
@@ -28,9 +26,10 @@ export function AnniversaryCard({ householdId, annivs, today, onChanged, toast }
     try { await fn(); await onChanged(); toast(ok); setEdit(null) } catch (e) { toast(friendlyError(e)) }
   }
 
+  const categories = annivCategories(annivs)
   const form = (a: Anniversary | null) => (
-    <AnniversaryForm key={a?.id ?? 'new'} today={today} editing={a !== null}
-      initial={a ? { name: a.name, kind: a.kind, lunar: a.lunar, month: a.month, day: a.day } : EMPTY}
+    <AnniversaryForm key={a?.id ?? 'new'} today={today} editing={a !== null} categories={categories}
+      initial={a ? annivInput(a) : newAnnivInput()}
       onCancel={() => setEdit(null)}
       onSave={(v) => run(() => (a ? updateAnniversary(a.id, v) : insertAnniversary(householdId, v)), a ? '기념일을 고쳤어요' : '기념일을 넣었어요')}
       onDelete={a ? () => run(() => deleteAnniversary(a.id), '기념일을 지웠어요') : undefined} />
@@ -39,7 +38,7 @@ export function AnniversaryCard({ householdId, annivs, today, onChanged, toast }
   const row = (a: Anniversary, date: string | null, days: number | null) => edit === a.id ? <div key={a.id}>{form(a)}</div> : (
     <button key={a.id} className="rc-row anniv-item" onClick={() => setEdit(a.id)}>
       <span className={`anniv-ic k-${a.kind}`}><AnnivIcon kind={a.kind} /></span>
-      <span className="rc-main"><b>{a.name}</b><span>{annivDateLabel(a)}{a.lunar && date ? `, 양력 ${solarLabel(date)}` : ''}</span></span>
+      <span className="rc-main"><b>{a.name}</b><span>{a.category ? `${a.category} · ` : ''}{annivDateLabel(a)}{a.lunar && date ? `, 양력 ${solarLabel(date)}` : ''}</span></span>
       <span className="rc-side num">{days === null ? '' : dLabel(days)}</span>
     </button>
   )
@@ -47,7 +46,7 @@ export function AnniversaryCard({ householdId, annivs, today, onChanged, toast }
   return (
     <div className="card">
       <h2 className="section-title">기념일</h2>
-      <p className="tx-meta" style={{ marginTop: -6, marginBottom: 6 }}>달력에 표시돼요. 음력은 해마다 양력 날짜로 바꿔 보여 줘요. 달력에서 날짜를 골라 넣을 수도 있어요.</p>
+      <p className="tx-meta" style={{ marginTop: -6, marginBottom: 6 }}>달력에 표시돼요. 해마다·몇 년마다·매달·몇 달마다 중에서 고르고, 카테고리는 직접 적어요. 음력은 양력 날짜로 바꿔 보여 줘요.</p>
       {annivs.length === 0 && edit !== 'new' && <p className="empty">아직 넣은 기념일이 없어요.</p>}
       {up.map((u) => row(u.a, u.date, u.days))}
       {unknown.map((a) => row(a, null, null))}

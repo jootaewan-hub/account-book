@@ -161,6 +161,14 @@ main.wrap { padding-block: 4px calc(150px + env(safe-area-inset-bottom, 0px)); }
 .anniv-row.k-memorial, .anniv-chip.k-memorial { background: var(--oat); color: var(--ink-2); }
 .anniv-soon { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; padding: 2px 0; }
 .anniv-soon::-webkit-scrollbar { display: none; }
+/* 다가오는 기념일이 줄을 넘칠 때(D-033): PC는 흐르고(같은 칩을 이어 붙여 반 바퀴 = 한 묶음 + 간격 6px), 움직임 줄이기는 줄을 바꾼다 */
+.soon-track, .soon-set { display: flex; gap: 6px; flex: none; }
+.anniv-soon.flow { overflow: hidden; -webkit-mask-image: linear-gradient(90deg, transparent, #000 16px, #000 calc(100% - 16px), transparent); mask-image: linear-gradient(90deg, transparent, #000 16px, #000 calc(100% - 16px), transparent); }
+.anniv-soon.flow .soon-track { animation: soon-flow 14s linear infinite; }
+.anniv-soon.flow:hover .soon-track, .anniv-soon.flow:focus-within .soon-track { animation-play-state: paused; }
+@keyframes soon-flow { to { transform: translateX(calc(-50% - 3px)); } }
+.anniv-soon.wrap { overflow: visible; }
+.anniv-soon.wrap .soon-track, .anniv-soon.wrap .soon-set { flex: 1 1 auto; flex-wrap: wrap; }
 .anniv-chip { flex: none; border: 0; display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 0 12px; border-radius: 999px; background: var(--blush-soft); color: var(--rose-ink); font-size: 14px; font-weight: 600; }
 .anniv-chip svg { width: 16px; height: 16px; flex: none; }
 .anniv-chip span { color: var(--ink); }
@@ -170,6 +178,10 @@ main.wrap { padding-block: 4px calc(150px + env(safe-area-inset-bottom, 0px)); }
 .anniv-ic.k-memorial { background: var(--canvas); color: var(--ink-3); }
 .anniv-item .rc-main { flex: 1; }
 .anniv-form { display: flex; flex-direction: column; gap: 8px; padding: 12px 0; border-top: 1px solid var(--oat-deep); }
+/* 기념일 카테고리 고르기(D-033): 직접 적는 칸 아래 쓴 것·기본 말 칩 */
+.anniv-cats { margin: -2px 0 2px; }
+.anniv-every { display: flex; align-items: center; gap: 8px; font-size: 15px; font-weight: 600; color: var(--ink); }
+.anniv-every .input { width: 88px; text-align: center; }
 
 /* 내역 */
 .day-group { display: flex; flex-direction: column; }
@@ -303,6 +315,7 @@ main.wrap { padding-block: 4px calc(150px + env(safe-area-inset-bottom, 0px)); }
 .link-btn { border: 0; background: none; color: var(--sage-ink); font-weight: 700; font-size: 14px; min-height: 44px; padding: 10px 6px; margin: -8px -6px; text-decoration: underline; text-underline-offset: 3px; }
 .form-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px; margin-top: 10px; }
 .form-grid .full { grid-column: 1 / -1; }
+.form-grid.three { grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) minmax(0, 1fr); }
 select.input { padding: 9px 10px; }
 
 /* 로그인, 처음 설정 */

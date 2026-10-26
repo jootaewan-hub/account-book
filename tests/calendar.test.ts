@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { anniversariesInMonth, nextOccurrence, occurrencesIn, upcomingAnniversaries } from '../src/lib/anniversaries'
+import { annivCategories, annivDateLabel, annivInput, annivKindOf, anniversariesInMonth, finishAnnivInput, newAnnivInput, nextOccurrence, occurrencesIn, upcomingAnniversaries } from '../src/lib/anniversaries'
+import type { Anniversary } from '../src/lib/types'
 import { electionDay, HOLIDAYS } from '../src/lib/holidays'
 import { lunarToSolar, solarToLunar } from '../src/lib/lunar'
 
@@ -109,5 +110,58 @@ describe('기념일', () => {
     expect(upcomingAnniversaries(list, '2026-10-15').map((u) => [u.a.name, u.days])).toEqual([
       ['음력 생일 A', 4], ['양력 기념일', 5], ['음력 생일 B', 129], ['윤일', 136],
     ])
+  })
+})
+
+describe('기념일 반복·카테고리 (D-033)', () => {
+  const at = (p: Partial<Anniversary>) => ({ lunar: false, month: 3, day: 10, repeat_unit: 'year' as const, repeat_every: 1, start_year: null, ...p })
+
+  it('N년마다: 시작 해부터 N년 간격, 그 전 해에는 없고, 다가오는 날은 N년 뒤까지 찾는다', () => {
+    const every3 = at({ repeat_every: 3, start_year: 2024 })
+    expect([2023, 2024, 2025, 2026, 2027].map((y) => occurrencesIn(every3, y).length)).toEqual([0, 1, 0, 0, 1])
+    expect(nextOccurrence(every3, '2026-10-26')).toBe('2027-03-10')
+    expect(nextOccurrence(at({ repeat_every: 5, start_year: 2023 }), '2026-10-26')).toBe('2028-03-10')
+    // 음력은 음력 해로 센다: 2년마다 음력 8월 15일(2026년부터) → 2026·2028년 추석
+    const lunar2 = at({ lunar: true, month: 8, day: 15, repeat_every: 2, start_year: 2026 })
+    expect(occurrencesIn(lunar2, 2026)).toEqual(['2026-09-25'])
+    expect(occurrencesIn(lunar2, 2027)).toEqual([])
+  })
+
+  it('개월마다: 시작 달부터 N개월 간격, 그 달에 없는 날은 마지막 날', () => {
+    const monthly = at({ repeat_unit: 'month', start_year: 2026, month: 10, day: 31 })
+    expect(occurrencesIn(monthly, 2026)).toEqual(['2026-10-31', '2026-11-30', '2026-12-31'])
+    expect(anniversariesInMonth([monthly], '2027-02').get('2027-02-28')).toHaveLength(1)
+    expect(anniversariesInMonth([monthly], '2026-09').size).toBe(0)
+    const quarterly = at({ repeat_unit: 'month', repeat_every: 3, start_year: 2026, month: 1, day: 5 })
+    expect(occurrencesIn(quarterly, 2026)).toEqual(['2026-01-05', '2026-04-05', '2026-07-05', '2026-10-05'])
+    expect(nextOccurrence(quarterly, '2026-10-26')).toBe('2027-01-05')
+    // 해마다(시작 해 없음)는 예전과 같다
+    expect(upcomingAnniversaries([{ ...at({ month: 11, day: 2 }), name: '결혼기념일' }], '2026-10-26')[0].days).toBe(7)
+  })
+
+  it('반복 말, 아이콘 종류, 카테고리 목록', () => {
+    expect(annivDateLabel(at({}))).toBe('3월 10일')
+    expect(annivDateLabel(at({ lunar: true }))).toBe('음력 3월 10일')
+    expect(annivDateLabel(at({ repeat_every: 2, start_year: 2026 }))).toBe('2년마다 3월 10일')
+    expect(annivDateLabel(at({ repeat_unit: 'month', start_year: 2026 }))).toBe('매달 10일')
+    expect(annivDateLabel(at({ repeat_unit: 'month', repeat_every: 3, start_year: 2026 }))).toBe('3개월마다 10일')
+    expect([annivKindOf('생일', '엄마'), annivKindOf(null, '할머니 기일'), annivKindOf('기념일', 'x'), annivKindOf('병원', '건강검진')])
+      .toEqual(['birthday', 'memorial', 'couple', 'other'])
+    expect(annivCategories([{ category: '병원' }, { category: '생일' }, { category: '병원' }, { category: null }]))
+      .toEqual(['병원', '생일', '기념일', '추모', '명절', '갱신'])
+  })
+
+  it('저장 값 다듬기: 해마다는 시작 해를 두지 않고, 그 밖은 시작 해가 있고, 매달은 양력. 고치기 폼 값은 모든 칸을 옮긴다', () => {
+    const base = newAnnivInput('2026-10-26')
+    expect(base).toMatchObject({ month: 10, day: 26, repeat_unit: 'year', repeat_every: 1, start_year: 2026 })
+    expect(finishAnnivInput({ ...base, name: ' 엄마 생신 ', category: ' 생일 ' }, 2026))
+      .toMatchObject({ name: '엄마 생신', category: '생일', kind: 'birthday', start_year: null })
+    expect(finishAnnivInput({ ...base, name: '여권', category: '  ', repeat_every: 10, start_year: null }, 2026))
+      .toMatchObject({ category: null, kind: 'other', repeat_every: 10, start_year: 2026 })
+    expect(finishAnnivInput({ ...base, name: '용돈', repeat_unit: 'month', lunar: true }, 2026)).toMatchObject({ lunar: false, start_year: 2026 })
+    const saved: Anniversary = { id: 'a', household_id: 'h', name: '건강검진', kind: 'other', category: '병원', lunar: false, month: 5, day: 1,
+      repeat_unit: 'year', repeat_every: 2, start_year: 2024 }
+    expect(annivInput(saved)).toEqual({ name: '건강검진', kind: 'other', category: '병원', lunar: false, month: 5, day: 1,
+      repeat_unit: 'year', repeat_every: 2, start_year: 2024 })
   })
 })
