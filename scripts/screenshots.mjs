@@ -120,8 +120,11 @@ const TAB_SLUG = { 달력: 'cal', 내역: 'list', 장보기: 'grocery', 통계: 
 const shellShots = [
   ...['달력', '내역', '장보기', '통계', '고정', '설정'].flatMap((tab) =>
     each((w, c) => ({ name: `shell-${TAB_SLUG[tab]}-${w}-${c}`, path: '/', w, c, shell: true, tab, full: tab !== '장보기' }))),
-  // 달력 다음 달(D-030): 고정지출 예정분이 점선 금액으로, 남은 돈 아래 'N월에 나갈 고정지출', 고른 날(15일)에 할부 예정 줄
-  ...each((w, c) => ({ name: `shell-cal-next-${w}-${c}`, path: '/', w, c, shell: true, tab: '달력', full: true, calNext: 15 })),
+  // 다음 달(D-030): 고정지출 예정분이 나갈 돈에 들어가고 칸에는 점선 금액, 고른 날(15일)에 할부 예정 줄
+  ...each((w, c) => ({ name: `shell-cal-next-${w}-${c}`, path: '/', w, c, shell: true, tab: '달력', full: true, next: true, calDay: 15 })),
+  // 내역·통계·고정 탭 다음 달(D-030 보충): 예정 줄과 합계, 통계는 비교 문장 없이, 고정 탭은 그 달의 기록됨·예정·없음
+  ...['내역', '통계', '고정'].flatMap((tab) =>
+    each((w, c) => ({ name: `shell-${TAB_SLUG[tab]}-next-${w}-${c}`, path: '/', w, c, shell: true, tab, full: true, next: true }))),
   // 장보기는 화면 높이 그대로: 아래 탭·담기 바가 화면 아래에 어떻게 겹치는지 본다
   ...both(390, (w, c) => ({ name: `shell-grocery-removed-${w}-${c}`, path: '/', w, c, shell: true, tab: '장보기', remove: '삼겹살 600g' })),
   ...each((w, c) => ({ name: `shell-grocery-add-sheet-${w}-${c}`, path: '/', w, c, shell: true, tab: '장보기', sheet: SHEET_TEXT })),
@@ -289,10 +292,13 @@ try {
         await page.locator('.market-chip', { hasText: s.chip }).click()
         await page.locator('.market-now-name', { hasText: s.chip }).waitFor()
       }
-      if (s.calNext) {
+      if (s.next) {
         await page.getByRole('button', { name: '다음 달' }).click()
-        await page.locator('.plan-sum').waitFor()
-        await page.getByRole('button', { name: new RegExp(`^\\d+월 ${s.calNext}일`) }).click()
+        await page.waitForLoadState('networkidle')
+        await page.locator('.plan-sum, .plan-note, .rc-row').first().waitFor()
+      }
+      if (s.calDay) {
+        await page.getByRole('button', { name: new RegExp(`^\\d+월 ${s.calDay}일`) }).click()
         await page.locator('.tx.plan').first().waitFor()
       }
       if (s.scroll) await page.locator(s.scroll).first().scrollIntoViewIfNeeded()

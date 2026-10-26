@@ -14,8 +14,11 @@ interface Props {
   household: Household
   ym: string
   today: string
+  /** 그 달·지난달 내역. 고정지출 예정분(planned, D-030)도 들어 있다 */
   cur: Transaction[]
   prev: Transaction[]
+  /** 12개월 막대에 더할 달별 고정지출 예정 합계(이번 달부터) */
+  planTotals: MonthTotal[]
   /** 달을 넘겨 새 달 내역을 아직 못 받았을 때 */
   loading: boolean
   /** 내역을 다시 읽을 때마다 오른다(합계·주유 기록을 다시 읽는 신호) */
@@ -35,7 +38,7 @@ interface Props {
 
 const man = (n: number) => (n >= 10_000 ? `${Math.round(n / 10_000).toLocaleString('ko-KR')}만` : won(n))
 
-export function StatsView({ household, ym, today, cur, prev, loading, txVersion, lookup, categories, billsVersion, onBill, onFuel, onCategory, onPlatform }: Props) {
+export function StatsView({ household, ym, today, cur, prev, planTotals, loading, txVersion, lookup, categories, billsVersion, onBill, onFuel, onCategory, onPlatform }: Props) {
   const [totals, setTotals] = useState<MonthTotal[] | null>(null)
   const [lastYear, setLastYear] = useState<Transaction[]>([])
   // 분류 추이용 지난 넉 달 (지난달·이번 달은 이미 받은 것을 쓴다)
@@ -69,7 +72,7 @@ export function StatsView({ household, ym, today, cur, prev, loading, txVersion,
     // eslint-disable-next-line react/exhaustive-effect-dependencies -- txVersion은 내역을 다시 읽었다는 신호
   }, [household.id, ym, txVersion])
 
-  const series = useMemo(() => (totals ? monthSeries(totals, ym) : []), [totals, ym])
+  const series = useMemo(() => (totals ? monthSeries([...totals, ...planTotals], ym) : []), [totals, planTotals, ym])
   const cats = useMemo(() => categoryBreakdown(cur, prev, categories), [cur, prev, categories])
   const split = useMemo(() => scopeSplit(cur), [cur])
   const prevSplit = useMemo(() => scopeSplit(prev), [prev])
@@ -81,6 +84,10 @@ export function StatsView({ household, ym, today, cur, prev, loading, txVersion,
   const trendTxs = useMemo(() => [...older, ...prev, ...cur], [older, prev, cur])
 
   const isCurrent = ym === today.slice(0, 7)
+  // 앞 달은 고정지출 예정분만 있는 달이라 꽉 찬 지난달·작년과 견주면 '크게 줄었다'처럼 틀린 말이 된다. 비교·살펴보기·제안을 뺀다
+  const future = ym > today.slice(0, 7)
+  const planned = cur.filter((t) => t.planned)
+  const planSum = sumType(planned, 'expense')
   const upto = isCurrent ? dayOf(today) : undefined
   const { m } = parseYM(ym)
   // 지난달 기록이 아예 없으면 전액이 '늘었다'로 보이므로 비교하지 않는다
@@ -90,7 +97,7 @@ export function StatsView({ household, ym, today, cur, prev, loading, txVersion,
     return { type, now, hasPrev: prevHas(type), mom: now - sumType(prev, type, upto), momPct: pctChange(now, sumType(prev, type, upto)),
       yoy: now - sumType(lastYear, type, upto), yoyPct: pctChange(now, sumType(lastYear, type, upto)), hasLY: lastYear.some((t) => t.type === type) }
   })
-  const noPrev = !prevHas('expense')
+  const noPrev = future || !prevHas('expense')
   const selPoint = series.find((p) => p.ym === sel)
   const maxCat = cats[0]?.amount ?? 0
   const maxPlat = Math.max(0, ...platforms.map((p) => p.amount))
@@ -108,20 +115,27 @@ export function StatsView({ household, ym, today, cur, prev, loading, txVersion,
           <div className="stat-row" key={r.type}>
             <span className="k">{r.type === 'expense' ? '지출' : '수입'}</span>
             <b className={`num ${r.type === 'expense' ? 'exp' : 'inc'}`}>{won(r.now)}</b>
-            <span className="delta">전월 {r.hasPrev ? <Delta diff={r.mom} pct={r.momPct} /> : <span className="muted">기록 없음</span>}</span>
-            <span className="delta">전년 {r.hasLY ? <Delta diff={r.yoy} pct={r.yoyPct} /> : <span className="muted">기록 없음</span>}</span>
+            {!future && <span className="delta">전월 {r.hasPrev ? <Delta diff={r.mom} pct={r.momPct} /> : <span className="muted">기록 없음</span>}</span>}
+            {!future && <span className="delta">전년 {r.hasLY ? <Delta diff={r.yoy} pct={r.yoyPct} /> : <span className="muted">기록 없음</span>}</span>}
           </div>
         ))}
+        {planSum > 0 && (
+          <p className="plan-note">
+            {future
+              ? <>고정지출 예정 <b className="num">{won(planSum)}원</b>({planned.length}건)이 들어 있어요. 아직 오지 않은 달이라 지난달·작년과 비교하지 않아요.</>
+              : <>분류·주별·12개월에는 오늘 뒤에 나갈 고정지출 <b className="num">{won(planSum)}원</b>도 넣었어요.</>}
+          </p>
+        )}
       </div>
 
-      {facts.length > 0 && (
+      {!future && facts.length > 0 && (
         <div className="card">
           <h2 className="section-title">{m}월 살펴보기</h2>
           <ul className="facts">{facts.map((f) => <li key={f.key}>{f.text}</li>)}</ul>
         </div>
       )}
 
-      {tips.length > 0 && (
+      {!future && tips.length > 0 && (
         <div className="card">
           <h2 className="section-title">이렇게 해 보면</h2>
           <ul className="tips">
@@ -156,7 +170,7 @@ export function StatsView({ household, ym, today, cur, prev, loading, txVersion,
           <span><i className="sw inc" />수입</span>
         </div>
         {totals ? <MonthChart points={series} sel={sel} onSelect={setSel} /> : <p className="lead">불러오는 중…</p>}
-        {selPoint && <p className="readout num">{readout(selPoint)}</p>}
+        {selPoint && <p className="readout num">{readout(selPoint, today.slice(0, 7))}</p>}
         <details className="table-view">
           <summary>표로 보기</summary>
           <table>
@@ -173,7 +187,7 @@ export function StatsView({ household, ym, today, cur, prev, loading, txVersion,
       <div className="card">
         <h2 className="section-title">어디에 썼나</h2>
         {cats.length === 0 && <p className="empty">이번 달 지출이 없어요</p>}
-        {cats.length > 0 && <p className="tx-meta" style={{ marginTop: -6, marginBottom: 6 }}>{noPrev ? '지난달 기록이 없어 비교하지 않아요. ' : ''}눌러서 여섯 달 추이와 내역을 봐요.</p>}
+        {cats.length > 0 && <p className="tx-meta" style={{ marginTop: -6, marginBottom: 6 }}>{future ? '' : noPrev ? '지난달 기록이 없어 비교하지 않아요. ' : ''}눌러서 여섯 달 추이와 내역을 봐요.</p>}
         {cats.map((c) => {
           const open = openCat === c.id
           return (
@@ -212,7 +226,7 @@ export function StatsView({ household, ym, today, cur, prev, loading, txVersion,
 
       <div className="card">
         <h2 className="section-title">어디서 샀나</h2>
-        {platforms.length === 0 && <p className="empty">이번 달 지출이 없어요</p>}
+        {platforms.length === 0 && <p className="empty">{sumType(cur, 'expense') > 0 ? '산 곳으로 묶을 지출이 없어요' : '이번 달 지출이 없어요'}</p>}
         {platforms.map((p) => (
           <button className="cat-row cat-btn" key={`${p.kind}:${p.name}`} onClick={() => onPlatform(p.name, p.kind)}>
             <div className="cat-top">
@@ -232,10 +246,11 @@ export function StatsView({ household, ym, today, cur, prev, loading, txVersion,
   )
 }
 
-/** 12개월 그래프 아래 문장. 수입이 없으면 쓴 돈만, 수입보다 많이 썼으면 '더 썼어요' */
-function readout(p: MonthPoint): string {
+/** 12개월 그래프 아래 문장. 수입이 없으면 쓴 돈만, 수입보다 많이 썼으면 '더 썼어요'. 앞 달은 고정지출 예정분이라 '나갈 예정' */
+function readout(p: MonthPoint, thisMonth: string): string {
   const { y, m } = parseYM(p.ym)
   const when = `${y}년 ${m}월에`
+  if (p.ym > thisMonth && p.income === 0) return `${when} 고정지출 ${won(p.expense)}원이 나갈 예정이에요`
   if (p.income === 0) return `${when} ${won(p.expense)}원 썼어요`
   const left = p.income - p.expense
   if (left < 0) return `${when} ${won(p.expense)}원 쓰고 ${won(p.income)}원 들어와 ${won(-left)}원 더 썼어요`

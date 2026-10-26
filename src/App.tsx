@@ -18,6 +18,7 @@ import { takeNewRelease } from './lib/changelog'
 import { addMonths, parseYM, todayLocal } from './lib/dates'
 import { lsGet, lsSet } from './lib/localPrefs'
 import { makeLookup, SCOPE_LABEL } from './lib/lookup'
+import { plannedTotals, plannedTxs } from './lib/recurring'
 import { onUpdateReady, updateReady } from './lib/pwa'
 import { isConfigured, sb } from './lib/supabase'
 import type { Household, Spouse, Transaction, TxInput } from './lib/types'
@@ -141,8 +142,8 @@ function Ledger({ household, meta, userId, email }: {
 
   const { txs, version: txVersion, loading: txLoading, error, reload } = useMonthTransactions(household.id, ym)
   const { events, reload: reloadEvents } = useMonthEvents(household.id, ym)
-  // 달력의 고정지출 예정분(D-030). 달력 탭에 올 때마다 다시 읽어 고정 탭에서 고친 것이 바로 보인다
-  const recurring = useRecurringList(household.id, tab === 'cal')
+  // 고정지출 예정분(D-030)에 쓰는 반복 항목. 고정 탭에서 다른 탭으로 올 때마다 다시 읽어 고친 것이 바로 보인다
+  const recurring = useRecurringList(household.id, tab === 'cal' || tab === 'list' || tab === 'stats')
   const [plan, setPlan] = useState<PlanTarget | null>(null)
   useLiveUpdates(household.id, reload, meta.reload, reloadEvents)
 
@@ -181,6 +182,13 @@ function Ledger({ household, meta, userId, email }: {
   const lookup = useMemo(() => makeLookup(userId, meta.members, meta.methods, meta.categories), [userId, meta.members, meta.methods, meta.categories])
   const cur = useMemo(() => txs.filter((t) => t.occurred_on.startsWith(ym)), [txs, ym])
   const prev = useMemo(() => txs.filter((t) => !t.occurred_on.startsWith(ym)), [txs, ym])
+  // 고정지출은 이미 정해진 지출이라(D-030 보충) 오늘 뒤에 나갈 것을 예정 내역으로 더해 달력·내역·통계 합계에 넣는다.
+  // 그 달 내역을 받기 전에는 이미 들어간 분을 가려낼 수 없어 더하지 않는다
+  const curAll = useMemo(() => (txLoading ? cur : [...cur, ...plannedTxs(recurring, txs, ym, today)]), [txLoading, cur, recurring, txs, ym, today])
+  const prevAll = useMemo(() => (txLoading ? prev : [...prev, ...plannedTxs(recurring, txs, addMonths(ym, -1), today)]), [txLoading, prev, recurring, txs, ym, today])
+  const planTotals = useMemo(() => plannedTotals(recurring, txs, addMonths(ym, -12), ym, today), [recurring, txs, ym, today])
+  // 예정 내역은 고칠 것이 없으므로 고정 탭(같은 달)으로 보낸다
+  const editTx = (t: Transaction) => { if (t.planned) setTab('fixed'); else setSheet({ open: true, editing: t }) }
   const usage = useMemo(() => {
     const m = new Map<string, number>()
     for (const t of txs) if (t.category_id) m.set(t.category_id, (m.get(t.category_id) ?? 0) + 1)
@@ -241,7 +249,7 @@ function Ledger({ household, meta, userId, email }: {
   }
 
   const { y, m } = parseYM(ym)
-  const showMonth = tab === 'cal' || tab === 'list' || tab === 'stats'
+  const showMonth = tab === 'cal' || tab === 'list' || tab === 'stats' || tab === 'fixed'
 
   return (
     // 넓은 화면에서는 아래 탭이 왼쪽 세로 메뉴가 된다 (styles.css 넓은 화면)
@@ -292,14 +300,13 @@ function Ledger({ household, meta, userId, email }: {
         )}
         {tab === 'cal' && (
           <Screen name="달력">
-            <CalendarView ym={ym} today={today} sel={sel} cur={cur} prev={prev} loading={txLoading} lookup={lookup} annivs={meta.anniversaries} events={events}
-              recurring={recurring} onSelect={setSel} onPlan={setPlan} onJump={(d) => { setYm(d.slice(0, 7)); setSel(d) }}
-              onEdit={(t) => setSheet({ open: true, editing: t })} onOpenFixed={() => setTab('fixed')} />
+            <CalendarView ym={ym} today={today} sel={sel} cur={curAll} prev={prevAll} loading={txLoading} lookup={lookup} annivs={meta.anniversaries} events={events}
+              onSelect={setSel} onPlan={setPlan} onJump={(d) => { setYm(d.slice(0, 7)); setSel(d) }} onEdit={editTx} />
           </Screen>
         )}
         {tab === 'list' && (
           <Screen name="내역">
-            <ListView cur={cur} loading={txLoading} lookup={lookup} focus={listFocus} onClearFocus={() => setListFocus(null)} onEdit={(t) => setSheet({ open: true, editing: t })}
+            <ListView cur={curAll} future={ym > today.slice(0, 7)} loading={txLoading} lookup={lookup} focus={listFocus} onClearFocus={() => setListFocus(null)} onEdit={editTx}
               onDeleteMany={removeMany} onPickingChange={setListPicking} />
           </Screen>
         )}
@@ -310,7 +317,7 @@ function Ledger({ household, meta, userId, email }: {
         )}
         {tab === 'stats' && (
           <Screen name="통계">
-            <StatsView household={household} ym={ym} today={today} cur={cur} prev={prev} loading={txLoading} txVersion={txVersion} lookup={lookup}
+            <StatsView household={household} ym={ym} today={today} cur={curAll} prev={prevAll} planTotals={planTotals} loading={txLoading} txVersion={txVersion} lookup={lookup}
               categories={meta.categories} billsVersion={billsVersion} onBill={() => openSmart('bill')}
               onFuel={() => openSmart('photo')}
               onCategory={(id, name) => { setListFocus({ kind: 'category', id, name }); setTab('list') }}
@@ -319,7 +326,7 @@ function Ledger({ household, meta, userId, email }: {
         )}
         {tab === 'fixed' && (
           <Screen name="고정 지출">
-            <RecurringView householdId={household.id} today={today} lookup={lookup}
+            <RecurringView householdId={household.id} ym={ym} today={today} monthTxs={cur} monthLoading={txLoading} lookup={lookup}
               categories={activeCats} onTxChanged={reload} toast={toast} />
           </Screen>
         )}

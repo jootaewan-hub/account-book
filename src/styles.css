@@ -136,6 +136,10 @@ main.wrap { padding-block: 4px calc(150px + env(safe-area-inset-bottom, 0px)); }
 /* 고정지출 예정분(D-030): 아직 내역이 아니라 점선 테두리로 실제 금액과 구별한다. 흐린 글자는 귀리 면 위 대비 기준에 못 미쳐 쓰지 않는다 */
 .day .amt.plan { border: 1px dashed var(--ink-2); border-radius: 4px; padding: 0 3px; line-height: 1.1; }
 .compare + .compare.plan-sum { margin-top: 2px; }
+/* 합계에 든 고정지출 예정분 안내(내역 탭 합계 아래, 통계 첫 묶음 아래) */
+.plan-note { margin: 0; padding: 0 4px; font-size: 13px; font-weight: 500; color: var(--ink-2); }
+.plan-note b { color: var(--ink); font-weight: 700; }
+.card .plan-note { margin-top: 10px; padding: 0; }
 .day .hname { display: none; }
 .day.blank { visibility: hidden; pointer-events: none; }
 

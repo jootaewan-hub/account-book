@@ -19,7 +19,10 @@ export type ListFocus =
 const FOCUS_LABEL: Record<ListFocus['kind'], string> = { category: '분류', platform: '플랫폼', merchant: '가게' }
 
 interface Props {
+  /** 그 달 내역. 고정지출 예정분(planned, D-030)도 들어 있다 */
   cur: Transaction[]
+  /** 앞 달(오늘 뒤의 달)이면 '쓴 돈' 대신 '나갈 돈' */
+  future?: boolean
   /** 달을 넘겨 새 달 내역을 아직 못 받았을 때 */
   loading?: boolean
   lookup: Lookup
@@ -32,7 +35,7 @@ interface Props {
   onPickingChange?: (on: boolean) => void
 }
 
-export function ListView({ cur, loading = false, lookup, focus, onClearFocus, onEdit, onDeleteMany, onPickingChange }: Props) {
+export function ListView({ cur, future = false, loading = false, lookup, focus, onClearFocus, onEdit, onDeleteMany, onPickingChange }: Props) {
   const [filter, setFilter] = useState<'all' | Scope>('all')
   const [q, setQ] = useState('')
   const needle = q.trim().toLowerCase()
@@ -59,8 +62,11 @@ export function ListView({ cur, loading = false, lookup, focus, onClearFocus, on
     return focus.name === OTHER_PLATFORM ? !p : p === focus.name
   }
   const list = cur.filter((t) => (filter === 'all' || t.scope === filter) && inFocus(t) && (!needle || matches(t)))
+  // 고정지출 예정분(D-030)은 DB에 없는 행이라 고를 수도 지울 수도 없다. 고르는 동안에는 목록에서 뺀다
+  const real = list.filter((t) => !t.planned)
+  const planSum = sumType(list.filter((t) => t.planned), 'expense')
   const groups = new Map<string, Transaction[]>()
-  for (const t of list) {
+  for (const t of picking ? real : list) {
     const arr = groups.get(t.occurred_on)
     if (arr) arr.push(t)
     else groups.set(t.occurred_on, [t])
@@ -68,7 +74,7 @@ export function ListView({ cur, loading = false, lookup, focus, onClearFocus, on
   const dates = [...groups.keys()].sort().reverse()
   const narrowed = Boolean(needle) || focus !== null
   // 지우는 것은 지금 화면에 보이는 것 중 고른 것만 (달을 넘기면 지난달에 고른 것은 빠진다)
-  const chosen = list.filter((t) => picked.has(t.id))
+  const chosen = real.filter((t) => picked.has(t.id))
   const chosenSum = chosen.reduce((s, t) => s + (t.type === 'expense' ? t.amount : 0), 0)
 
   function togglePicking() {
@@ -99,13 +105,14 @@ export function ListView({ cur, loading = false, lookup, focus, onClearFocus, on
   return (
     <section className="view">
       <div className="month-sum num">
-        <span>쓴 돈 <b>{won(sumType(list, 'expense'))}원</b></span>
+        <span>{future ? '나갈 돈' : '쓴 돈'} <b>{won(sumType(list, 'expense'))}원</b></span>
         <span className="in">들어온 돈 <b>{won(sumType(list, 'income'))}원</b></span>
         {narrowed && <span>{list.length}건</span>}
-        {(list.length > 0 || picking) && (
+        {(real.length > 0 || picking) && (
           <button className="link-btn pick-toggle" aria-pressed={picking} onClick={togglePicking}>{picking ? '고르기 취소' : '고르기'}</button>
         )}
       </div>
+      {planSum > 0 && <p className="plan-note">고정지출 예정 <b className="num">{won(planSum)}원</b>이 들어 있어요</p>}
       <input type="search" className="input" aria-label="내역 찾기" placeholder="이름·품목·메모로 찾기" value={q}
         autoComplete="off" onChange={(e) => setQ(e.target.value)} />
       {focus && (

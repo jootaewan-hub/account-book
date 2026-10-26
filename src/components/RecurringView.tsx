@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { fetchRange, fetchRecurring, friendlyError, generateRecurring, recordRecurring } from '../lib/api'
-import { addMonths } from '../lib/dates'
+import { addMonths, parseYM } from '../lib/dates'
 import { won } from '../lib/format'
 import { SCOPE_LABEL, type Lookup } from '../lib/lookup'
-import { historyRange, installmentsLeft, KIND_LABEL, monthlyAmount, nextDue, pastAmounts, pendingInputs, subscriptionCandidates, termLeft } from '../lib/recurring'
+import { historyRange, installmentsLeft, KIND_LABEL, monthItem, pastAmounts, pendingInputs, subscriptionCandidates, termLeft, type MonthItem } from '../lib/recurring'
 import type { Category, Recurring, RecurringKind, Transaction } from '../lib/types'
 import { draftFrom, RecurringSheet, type RecurringDraft } from './RecurringSheet'
 import { RecurringIcon } from './RecurringIcon'
@@ -11,7 +11,12 @@ import { ServiceLogo } from './ServiceLogo'
 
 interface Props {
   householdId: string
+  /** 위쪽 달 넘김으로 고른 달(D-030 보충): 그 달에 낸 것·낼 것을 보인다 */
+  ym: string
   today: string
+  /** 고른 달의 내역(App이 달력과 함께 읽은 것). 받는 중이면 monthLoading */
+  monthTxs: Transaction[]
+  monthLoading: boolean
   lookup: Lookup
   categories: Category[]
   /** 내역이 새로 들어갔을 때 달력·내역을 다시 불러온다 */
@@ -22,7 +27,7 @@ interface Props {
 const KINDS: RecurringKind[] = ['fixed', 'subscription', 'utility']
 const md = (date: string) => `${Number(date.slice(5, 7))}/${Number(date.slice(8, 10))}`
 
-export function RecurringView({ householdId, today, lookup, categories, onTxChanged, toast }: Props) {
+export function RecurringView({ householdId, ym, today, monthTxs, monthLoading, lookup, categories, onTxChanged, toast }: Props) {
   const [list, setList] = useState<Recurring[] | null>(null)
   const [history, setHistory] = useState<Transaction[]>([])
   const [err, setErr] = useState('')
@@ -55,32 +60,42 @@ export function RecurringView({ householdId, today, lookup, categories, onTxChan
 
   const pending = useMemo(() => (list ? pendingInputs(list, history, today) : []), [list, history, today])
   const candidates = useMemo(() => (list ? subscriptionCandidates(history, list) : []), [history, list])
+  const items = useMemo(() => new Map((list ?? []).map((r) => [r.id, monthItem(r, monthTxs, history, ym, today)])), [list, monthTxs, history, ym, today])
 
   if (!list) return <section className="view"><p className="lead">{err || '불러오는 중…'}</p></section>
 
-  // 끝나는 달이 있는 항목(할부, 기간을 정한 고정지출·구독)은 남은 회차가 있는 것만 매달 나가는 돈에 넣는다
-  const active = list.filter((r) => r.active && r.type === 'expense' && (r.end_month === null || installmentsLeft(r, today) > 0))
-  const sumOf = (k: RecurringKind) => active.filter((r) => r.kind === k).reduce((s, r) => s + monthlyAmount(r), 0)
-  const utilityLast = active.filter((r) => r.kind === 'utility' && r.amount === null)
-    .reduce((s, r) => s + (pastAmounts(r, history)[0]?.amount ?? 0), 0)
+  // 고른 달에 나가는 돈(D-030 보충). 달력·통계와 같은 기준: 그 달에 들어간 내역 + 오늘 뒤에 나갈 정해진 금액.
+  // 금액을 매달 넣는 항목(관리비 등)의 지난번 금액은 짐작이라 합계에 넣지 않고 따로 적는다
+  const { m } = parseYM(ym)
+  const spend = list.filter((r) => r.type === 'expense')
+  const itemOf = (r: Recurring) => items.get(r.id) as MonthItem
+  const counted = (r: Recurring) => { const it = itemOf(r); return it.state === 'done' || (it.state === 'planned' && !it.estimate) ? it.amount ?? 0 : 0 }
+  const sumOf = (k: RecurringKind) => spend.filter((r) => r.kind === k).reduce((s, r) => s + counted(r), 0)
+  const doneSum = spend.reduce((s, r) => s + (itemOf(r).state === 'done' ? itemOf(r).amount ?? 0 : 0), 0)
+  const total = spend.reduce((s, r) => s + counted(r), 0)
+  const guess = spend.filter((r) => { const it = itemOf(r); return it.estimate && it.state !== 'none' }).reduce((s, r) => s + (itemOf(r).amount ?? 0), 0)
   const installment = sumOf('installment')
   const hasInstallments = list.some((r) => r.kind === 'installment')
   const kinds: RecurringKind[] = hasInstallments ? [...KINDS, 'installment'] : KINDS
+  const v = (n: number) => (monthLoading ? '…' : won(n))
 
   return (
     <section className="view">
       {err && <p className="banner" role="alert">{err}</p>}
       <div className="card">
         <div className={`summary${installment > 0 ? ' four' : ''}`}>
-          <div><div className="k">고정지출</div><div className="v num">{won(sumOf('fixed'))}</div></div>
-          <div><div className="k">구독</div><div className="v num">{won(sumOf('subscription'))}</div></div>
-          <div><div className="k">관리비·공과금</div><div className="v num">{won(sumOf('utility') + utilityLast)}</div></div>
-          {installment > 0 && <div><div className="k">할부</div><div className="v num">{won(installment)}</div></div>}
+          <div><div className="k">고정지출</div><div className="v num">{v(sumOf('fixed'))}</div></div>
+          <div><div className="k">구독</div><div className="v num">{v(sumOf('subscription'))}</div></div>
+          <div><div className="k">관리비·공과금</div><div className="v num">{guess > 0 && !monthLoading ? `약 ${won(sumOf('utility') + guess)}` : v(sumOf('utility'))}</div></div>
+          {installment > 0 && <div><div className="k">할부</div><div className="v num">{v(installment)}</div></div>}
         </div>
         <div className="compare">
-          매달 나가는 돈 약 <b className="num">{won(sumOf('fixed') + sumOf('subscription') + sumOf('utility') + utilityLast + installment)}원</b>
-          {utilityLast > 0 && <> (금액이 달라지는 항목은 지난번 금액 기준)</>}
+          {m}월에 나가는 돈 <b className="num">{v(total)}원</b>
+          {guess > 0 && !monthLoading && <> (관리비·공과금 지난번 기준 약 {won(guess)}원 별도)</>}
         </div>
+        {!monthLoading && doneSum > 0 && doneSum < total && (
+          <div className="compare plan-split">내역에 들어간 것 <b className="num">{won(doneSum)}원</b>, 앞으로 나갈 것 <b className="num">{won(total - doneSum)}원</b></div>
+        )}
       </div>
 
       {pending.map(({ r, due }) => (
@@ -99,8 +114,7 @@ export function RecurringView({ householdId, today, lookup, categories, onTxChan
             <h2 className="section-title">{KIND_LABEL[k]}</h2>
             {items.length === 0 && <p className="empty">아직 없어요</p>}
             {items.map((r) => {
-              const next = nextDue(r, today)
-              const last = r.amount === null ? pastAmounts(r, history)[0] : undefined
+              const it = itemOf(r)
               const left = k === 'installment' ? installmentsLeft(r, today) : termLeft(r, today)
               return (
                 <button key={r.id} className={`rc-row${r.active ? '' : ' off'}`} onClick={() => setSheet(draftFrom(r))}>
@@ -120,9 +134,9 @@ export function RecurringView({ householdId, today, lookup, categories, onTxChan
                   </span>
                   <span className="rc-side">
                     <span className={`num ${r.type === 'income' ? 'inc' : ''}`}>
-                      {r.amount === null ? (last ? `지난번 ${won(last.amount)}` : '매달 입력') : `${won(r.amount)}원`}
+                      {it.state === 'done' ? `${won(it.amount ?? 0)}원` : r.amount === null ? (it.amount !== null ? `지난번 ${won(it.amount)}` : '매달 입력') : `${won(r.amount)}원`}
                     </span>
-                    {r.active && next && <span className="tx-meta">다음 {md(next)}</span>}
+                    {!monthLoading && <MonthNote it={it} r={r} m={m} />}
                   </span>
                 </button>
               )
@@ -160,6 +174,13 @@ export function RecurringView({ householdId, today, lookup, categories, onTxChan
         categories={categories} onSaved={saved} onClose={() => setSheet(null)} />
     </section>
   )
+}
+
+/** 고른 달의 상태 한 줄: 10/10 기록됨, 11/10 예정, 9/25 기록 없음, 11월엔 없음(꺼 둔 항목은 '꺼 둠'이 이미 보여 적지 않는다) */
+function MonthNote({ it, r, m }: { it: MonthItem; r: Recurring; m: number }) {
+  if (it.state === 'none') return r.active ? <span className="tx-meta">{m}월엔 없음</span> : null
+  const label = it.state === 'done' ? '기록됨' : it.state === 'planned' ? '예정' : '기록 없음'
+  return <span className="tx-meta">{md(it.date!)} {label}</span>
 }
 
 function PendingCard({ r, due, past, onSave }: {

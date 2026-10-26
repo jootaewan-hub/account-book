@@ -5,17 +5,17 @@ import { compact, won } from '../lib/format'
 import { HOLIDAYS } from '../lib/holidays'
 import { dailyTotals, samePeriodDiff, sumType } from '../lib/ledger'
 import type { Lookup } from '../lib/lookup'
-import { plannedInMonth, type PlannedCharge } from '../lib/recurring'
-import type { Anniversary, CalEvent, Recurring, Transaction } from '../lib/types'
+import type { Anniversary, CalEvent, Transaction } from '../lib/types'
 import { AnnivIcon, CalendarIcon, Plus } from './Icons'
 import type { PlanTarget } from './PlanSheet'
 import { Soft, useSlideIn } from './Motion'
-import { PlannedRow, TxRow } from './TxRow'
+import { TxRow } from './TxRow'
 
 interface Props {
   ym: string
   today: string
   sel: string
+  /** 그 달 내역. 고정지출 예정분(planned, D-030)도 들어 있다 */
   cur: Transaction[]
   prev: Transaction[]
   /** 달을 넘겨 새 달 내역을 아직 못 받았을 때: 0원·"기록 없음" 대신 불러오는 중으로 보인다 */
@@ -23,29 +23,20 @@ interface Props {
   lookup: Lookup
   annivs: Anniversary[]
   events: CalEvent[]
-  /** 고정 탭의 반복 항목: 오늘 뒤에 나갈 고정지출을 예정으로 보인다(D-030) */
-  recurring: Recurring[]
   onSelect: (date: string) => void
   /** 일정·기념일 넣기·고치기 시트를 연다 */
   onPlan: (t: PlanTarget) => void
   /** 다른 달의 날짜로 옮겨 가서 고른다 (다가오는 기념일) */
   onJump: (date: string) => void
+  /** 내역을 누를 때. 예정 내역이면 부르는 쪽이 고정 탭으로 보낸다 */
   onEdit: (t: Transaction) => void
-  /** 예정 줄을 누르면 고정 탭으로 */
-  onOpenFixed: () => void
 }
 
-export function CalendarView({ ym, today, sel, cur, prev, loading = false, lookup, annivs, events, recurring, onSelect, onPlan, onJump, onEdit, onOpenFixed }: Props) {
-  const totals = useMemo(() => dailyTotals(cur), [cur])
-  // 고정지출 예정분(D-030): 아직 내역이 아니므로 쓴 돈·남은 돈·지난달 비교에는 넣지 않고 따로 보인다.
-  // 그 달 내역을 받기 전에는 이미 넣은 분을 가려낼 수 없어 보이지 않는다
-  const planned = useMemo(() => (loading ? [] : plannedInMonth(recurring, [...cur, ...prev], ym, today)), [loading, recurring, cur, prev, ym, today])
-  const planByDate = useMemo(() => {
-    const m = new Map<string, PlannedCharge[]>()
-    for (const p of planned) m.set(p.date, [...(m.get(p.date) ?? []), p])
-    return m
-  }, [planned])
-  const planSum = (ps: PlannedCharge[] | undefined) => (ps ?? []).reduce((s, p) => s + p.amount, 0)
+export function CalendarView({ ym, today, sel, cur, prev, loading = false, lookup, annivs, events, onSelect, onPlan, onJump, onEdit }: Props) {
+  // 고정지출 예정분(D-030)은 쓴 돈·남은 돈에 넣되(이미 정해진 지출), 칸에서는 점선 금액으로 따로 보인다
+  const totals = useMemo(() => dailyTotals(cur.filter((t) => !t.planned)), [cur])
+  const planned = useMemo(() => cur.filter((t) => t.planned), [cur])
+  const planByDate = useMemo(() => dailyTotals(planned), [planned])
   const annivByDate = useMemo(() => anniversariesInMonth(annivs, ym), [annivs, ym])
   const evByDate = useMemo(() => {
     const m = new Map<string, CalEvent[]>()
@@ -77,17 +68,17 @@ export function CalendarView({ ym, today, sel, cur, prev, loading = false, looku
   const dayTx = cur.filter((t) => t.occurred_on === sel)
   const dayAnniv = annivByDate.get(sel) ?? []
   const dayEvents = evByDate.get(sel) ?? []
-  const dayPlan = planByDate.get(sel) ?? []
   // 이번 달을 볼 때만, 30일 안에 오는 기념일·일정 네 개까지 (가까운 순서)
   const soon = ym !== thisMonth ? [] : [
     ...upcomingAnniversaries(annivs, today).map((u) => ({ key: u.a.id, kind: u.a.kind as string, name: u.a.name, date: u.date, days: u.days })),
     ...events.filter((e) => e.date >= today).map((e) => ({ key: e.id, kind: 'event', name: e.title, date: e.date, days: daysBetween(today, e.date) })),
   ].filter((x) => x.days <= 30).sort((a, b) => a.days - b.days || a.name.localeCompare(b.name)).slice(0, 4)
-  const de = sumType(dayTx, 'expense')
+  const de = sumType(dayTx.filter((t) => !t.planned), 'expense')
   const di = sumType(dayTx, 'income')
-  const dp = planSum(dayPlan)
-  const monthPlan = planSum(planned)
-  // 들어온 돈이 없는 달은 남은 돈 대신 쓴 돈을 크게 보여 준다
+  const dp = sumType(dayTx.filter((t) => t.planned), 'expense')
+  const monthPlan = sumType(planned, 'expense')
+  const future = ym > thisMonth
+  // 들어온 돈이 없는 달은 남은 돈 대신 쓴 돈을 크게 보여 준다. 앞 달은 고정지출 예정분이라 '나갈 돈'
   const hasIncome = inc > 0
   const left = inc - exp
   const ratio = hasIncome ? Math.min(1, exp / inc) : 0
@@ -98,7 +89,7 @@ export function CalendarView({ ym, today, sel, cur, prev, loading = false, looku
       <div className="cal-main">
         {/* aria-live를 두지 않는다: 달 표시(App)가 이미 읽히고, 배우자 내역이 들어올 때마다 전부 다시 읽히면 시끄럽다 */}
         <div className="hero">
-          <p className="hero-label"><Soft value={hasIncome ? `${m}월에 남은 돈` : `${m}월에 쓴 돈`} /></p>
+          <p className="hero-label"><Soft value={hasIncome ? `${m}월에 ${future ? '남을' : '남은'} 돈` : `${m}월에 ${future ? '나갈' : '쓴'} 돈`} /></p>
           <p className={`hero-num num${hasIncome && left < 0 ? ' neg' : ''}`}>
             <Soft value={loading ? '…' : hasIncome ? `${left < 0 ? '-' : ''}${won(Math.abs(left))}` : won(exp)} /><small>원</small>
           </p>
@@ -108,13 +99,13 @@ export function CalendarView({ ym, today, sel, cur, prev, loading = false, looku
             </div>
           )}
           <div className="hero-legend num">
-            <span>쓴 돈 <b><Soft value={won(exp)} /></b></span>
+            <span>{future ? '나갈 돈' : '쓴 돈'} <b><Soft value={won(exp)} /></b></span>
             <span className="in">들어온 돈 <b><Soft value={won(inc)} /></b></span>
           </div>
           {compare && <p className="compare">{compare}</p>}
           {monthPlan > 0 && (
             <p className="compare plan-sum">
-              {ym === thisMonth ? '이번 달 남은 고정지출' : `${m}월에 나갈 고정지출`} <b className="num">{won(monthPlan)}원</b><span className="num">, {planned.length}건</span>
+              고정지출 예정 <b className="num">{won(monthPlan)}원</b><span className="num">, {planned.length}건</span> 포함
             </p>
           )}
         </div>
@@ -129,7 +120,7 @@ export function CalendarView({ ym, today, sel, cur, prev, loading = false, looku
               const hol = HOLIDAYS[date]
               const an = annivByDate.get(date)
               const ev = evByDate.get(date)
-              const pl = planSum(planByDate.get(date))
+              const pl = planByDate.get(date)?.expense
               const cls = ['day', dw === 0 && 'sun', dw === 6 && 'sat', hol && 'hol', an && 'anniv', date === today && 'today', date === sel && 'sel'].filter(Boolean).join(' ')
               const label = `${m}월 ${dayOf(date)}일${hol ? ` ${hol}` : ''}${an ? ` ${an.map((a) => a.name).join(', ')}` : ''}${ev ? ` 일정 ${ev.map((e) => e.title).join(', ')}` : ''}${t?.expense ? ` 지출 ${won(t.expense)}원` : ''}${t?.income ? ` 수입 ${won(t.income)}원` : ''}${pl ? ` 고정지출 예정 ${won(pl)}원` : ''}`
               return (
@@ -184,8 +175,7 @@ export function CalendarView({ ym, today, sel, cur, prev, loading = false, looku
           <button className="day-add" onClick={() => onPlan({ kind: 'new', date: sel })}><Plus />일정·기념일 넣기</button>
           <div className="tx-list">
             {dayTx.map((t) => <TxRow key={t.id} t={t} lookup={lookup} onClick={() => onEdit(t)} />)}
-            {dayPlan.map((p) => <PlannedRow key={p.r.id} p={p} lookup={lookup} onClick={onOpenFixed} />)}
-            {!dayTx.length && !dayPlan.length && <div className="empty">{loading ? '불러오는 중…' : '이 날 기록이 없어요. 기록하기로 추가해 보세요.'}</div>}
+            {!dayTx.length && <div className="empty">{loading ? '불러오는 중…' : '이 날 기록이 없어요. 기록하기로 추가해 보세요.'}</div>}
           </div>
         </div>
       )}

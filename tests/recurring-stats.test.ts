@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { dueDate, endMonthFor, historyRange, installmentPlan, installmentsLeft, monthlyAmount, nextDue, pastAmounts, pendingInputs, plannedInMonth, subscriptionCandidates, termLeft, termOf } from '../src/lib/recurring'
+import { dueDate, endMonthFor, historyRange, installmentPlan, installmentsLeft, monthlyAmount, nextDue, pastAmounts, monthItem, pendingInputs, plannedInMonth, plannedTotals, plannedTxs, subscriptionCandidates, termLeft, termOf } from '../src/lib/recurring'
 import { categoryBreakdown, monthSeries, OTHER_PLATFORM, pctChange, platformBreakdown, platformOf, scopeSplit, totalOf } from '../src/lib/stats'
 import type { Category, MonthTotal, Recurring, Transaction } from '../src/lib/types'
 
@@ -158,6 +158,44 @@ describe('달력의 고정지출 예정분 (D-030)', () => {
     expect(at([fridge], '2026-11')).toEqual([['f', '2026-11-15', 100000, [3, 6]]])
     expect(at([fridge], '2027-02')).toEqual([['f', '2027-02-15', 100000, [6, 6]]])
     expect(at([fridge], '2027-03')).toEqual([])
+  })
+})
+
+describe('예정 내역·달별 합계·고정 탭의 달 (D-030 보충)', () => {
+  const rent = rec({ id: 'rent', day_of_month: 25 })
+  const util = rec({ id: 'u', kind: 'utility', title: '관리비', amount: null, day_of_month: 25 })
+  const yearly = rec({ id: 'y', every_months: 12, start_month: '2026-03-01', day_of_month: 3, amount: 39000 })
+
+  it('예정 내역은 DB에 없는 id(plan:)와 planned 표시, 그 달 분(recurring_month)을 단다', () => {
+    expect(plannedTxs([rent], [], '2026-11', '2026-10-26')).toEqual([expect.objectContaining({
+      id: 'plan:rent:2026-11', type: 'expense', occurred_on: '2026-11-25', amount: 500000, title: '월세', source: 'recurring',
+      recurring_id: 'rent', recurring_month: '2026-11-01', planned: { kind: 'fixed', round: null },
+    })])
+  })
+
+  it('12개월 막대: 이번 달부터만, 달마다 합계와 건수', () => {
+    expect(plannedTotals([rent, yearly], [], '2026-01', '2027-03', '2026-10-26')).toEqual([
+      { month: '2026-11-01', type: 'expense', total: 500000, n: 1 },
+      { month: '2026-12-01', type: 'expense', total: 500000, n: 1 },
+      { month: '2027-01-01', type: 'expense', total: 500000, n: 1 },
+      { month: '2027-02-01', type: 'expense', total: 500000, n: 1 },
+      { month: '2027-03-01', type: 'expense', total: 539000, n: 2 },
+    ])
+  })
+
+  it('고정 탭의 달: 기록됨(내역 금액)·예정·기록 없음·그 달엔 없음, 관리비는 지난번 금액을 짐작으로', () => {
+    const today = '2026-10-26'
+    const done = tx({ recurring_id: 'rent', occurred_on: '2026-10-25', recurring_month: '2026-10-01', amount: 480000 })
+    expect(monthItem(rent, [done], [], '2026-10', today)).toEqual({ date: '2026-10-25', state: 'done', amount: 480000, estimate: false })
+    expect(monthItem(rent, [], [], '2026-10', today)).toEqual({ date: '2026-10-25', state: 'missing', amount: 500000, estimate: false })
+    expect(monthItem(rent, [], [], '2026-11', today)).toEqual({ date: '2026-11-25', state: 'planned', amount: 500000, estimate: false })
+    expect(monthItem(yearly, [], [], '2026-11', today)).toEqual({ date: null, state: 'none', amount: 39000, estimate: false })
+    expect(monthItem({ ...rent, active: false }, [], [], '2026-11', today).state).toBe('none')
+    // 예정 내역(planned)은 '기록됨'으로 치지 않는다
+    expect(monthItem(rent, plannedTxs([rent], [], '2026-11', today), [], '2026-11', today).state).toBe('planned')
+    const hist = [tx({ recurring_id: 'u', occurred_on: '2026-09-25', amount: 167860 })]
+    expect(monthItem(util, [], hist, '2026-11', today)).toEqual({ date: '2026-11-25', state: 'planned', amount: 167860, estimate: true })
+    expect(monthItem(util, [], [], '2026-11', today)).toEqual({ date: '2026-11-25', state: 'planned', amount: null, estimate: true })
   })
 })
 

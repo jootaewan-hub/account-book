@@ -64,6 +64,11 @@ export interface Transaction {
   items?: TxItem[]
   /** 주유 기록(주유소 영수증). 목록 화면에서 불러온 경우에만 있고, 주유 내역이 아니면 null */
   fuel?: TxFuel | null
+  /**
+   * 고정지출 예정분(D-030): DB에 없는, 화면에서 만든 내역(id 'plan:항목:달'). 합계·분류·통계에는 들어가고
+   * 고치기·지우기·고르기에는 쓰지 않는다. round는 할부의 [회차, 총 개월 수]
+   */
+  planned?: { kind: RecurringKind; round: [number, number] | null }
 }
 
 /** 내역에 붙은 주유 값(영수증에 적힌 값 그대로) */

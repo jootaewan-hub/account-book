@@ -40,7 +40,10 @@ const transactions = [
   tx('t2', 3, 12900, '비비고 왕교자 1.05kg', '장보기', { platform: '쿠팡', source: 'photo' }),
   tx('t3', 5, 6500, '스타벅스', '카페', { scope: 'wife', created_by: YOU }),
   tx('t4', 8, 32000, '동네 고깃집', '외식'),
-  tx('t5', 11, 17000, '넷플릭스', '구독'),
+  // 고정 탭 항목이 내는 날에 자동으로 들어온 이번 달 분(generate_recurring). 고정 탭 이번 달에 '기록됨'으로 보인다
+  tx('t5', 5, 17000, '넷플릭스', '구독', { source: 'recurring', recurring_id: 'r1', recurring_month: `${ym}-01` }),
+  tx('t9', 10, 120000, '자동차 취득세 할부', '기타', { category_id: null, source: 'recurring', recurring_id: 'r2', recurring_month: `${ym}-01` }),
+  tx('t10', 15, 100000, '냉장고', '기타', { category_id: null, memo: '할부 3/6회', source: 'recurring', recurring_id: 'r4', recurring_month: `${ym}-01` }),
   tx('t6', 14, 23800, '배달의민족', '배달'),
   tx('t7', 18, 9800, '휴지 30롤', '생활용품', { platform: '쿠팡' }),
   // 고지서로 넣은 지난달 분 관리비: 고정 탭의 '아파트 관리비'(r3) 이번 달 분으로 연결돼 '지난번 금액'과 합계에 보인다

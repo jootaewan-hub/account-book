@@ -1,6 +1,6 @@
 // 고정지출·구독·관리비 계산. DB의 generate_recurring과 같은 규칙(31일 → 그 달 마지막 날, 매년은 시작 달 기준)을 쓴다.
 import { addMonths, daysInMonth, monthRange, ymd, parseYM } from './dates'
-import type { Recurring, RecurringKind, Transaction } from './types'
+import type { MonthTotal, Recurring, RecurringKind, Transaction } from './types'
 
 export const KIND_LABEL: Record<RecurringKind, string> = { fixed: '고정지출', subscription: '구독', utility: '관리비·공과금', installment: '할부' }
 
@@ -67,6 +67,46 @@ export function plannedInMonth(list: Recurring[], txs: Transaction[], ym: string
     out.push({ r, date, amount: r.amount, round })
   }
   return out.sort((a, b) => a.date.localeCompare(b.date) || b.amount - a.amount)
+}
+
+/**
+ * 예정분을 내역 모양으로(D-030 보충): 고정지출은 이미 정해진 지출이라 달력·내역·통계 합계에 실제 내역과 같은 계산으로 넣는다.
+ * DB에 없는 행이므로 id를 'plan:'으로 시작하고 planned를 붙여, 고치기·지우기·고르기에서 뺀다
+ */
+export function plannedTxs(list: Recurring[], txs: Transaction[], ym: string, today: string): Transaction[] {
+  return plannedInMonth(list, txs, ym, today).map(({ r, date, amount, round }) => ({
+    id: `plan:${r.id}:${ym}`, household_id: r.household_id, type: 'expense', occurred_on: date, amount, title: r.title, memo: null,
+    category_id: r.category_id, payment_method_id: r.payment_method_id, scope: r.scope, source: 'recurring', created_by: '', created_at: '',
+    recurring_id: r.id, recurring_month: `${ym}-01`, platform: null, planned: { kind: r.kind, round },
+  }))
+}
+
+/** 통계 12개월 막대에 더할 달별 예정 합계: from~to 중 이번 달부터만(지난 달은 이미 내역이다) */
+export function plannedTotals(list: Recurring[], txs: Transaction[], fromYm: string, toYm: string, today: string): MonthTotal[] {
+  const out: MonthTotal[] = []
+  for (let ym = fromYm > today.slice(0, 7) ? fromYm : today.slice(0, 7); ym <= toYm; ym = addMonths(ym, 1)) {
+    const ps = plannedInMonth(list, txs, ym, today)
+    if (ps.length) out.push({ month: `${ym}-01`, type: 'expense', total: ps.reduce((s, p) => s + p.amount, 0), n: ps.length })
+  }
+  return out
+}
+
+/**
+ * 고정 탭에서 고른 달의 한 항목(D-030 보충). done: 그 달 분 내역이 있음(금액은 내역 값), planned: 내는 날이 오늘 뒤,
+ * missing: 내는 날이 지났는데 내역이 없음, none: 그 달에 내지 않음(매년 다른 달, 시작 전·끝난 뒤, 꺼 둠).
+ * 금액을 매달 넣는 항목은 지난번 금액을 estimate로 붙인다(합계에는 넣지 않고 따로 보인다)
+ */
+export type MonthState = 'done' | 'planned' | 'missing' | 'none'
+export interface MonthItem { date: string | null; state: MonthState; amount: number | null; estimate: boolean }
+
+export function monthItem(r: Recurring, txs: Transaction[], history: Transaction[], ym: string, today: string): MonthItem {
+  const rec = txs.find((t) => !t.planned && t.recurring_id === r.id && (t.recurring_month ?? t.occurred_on).startsWith(ym))
+  if (rec) return { date: rec.occurred_on, state: 'done', amount: rec.amount, estimate: false }
+  const date = dueDate(r, ym)
+  if (!date || !r.active) return { date: null, state: 'none', amount: r.amount, estimate: false }
+  const state: MonthState = date > today ? 'planned' : 'missing'
+  if (r.amount !== null) return { date, state, amount: r.amount, estimate: false }
+  return { date, state, amount: pastAmounts(r, history)[0]?.amount ?? null, estimate: true }
 }
 
 /**

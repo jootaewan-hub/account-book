@@ -4,7 +4,8 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ListView } from '../../src/components/ListView'
 import { makeLookup } from '../../src/lib/lookup'
-import type { Transaction } from '../../src/lib/types'
+import { plannedTxs } from '../../src/lib/recurring'
+import type { Recurring, Transaction } from '../../src/lib/types'
 
 afterEach(cleanup)
 
@@ -66,6 +67,25 @@ describe('내역 고르기', () => {
     expect(screen.getByRole('button', { name: '4건 삭제' })).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: /남편/ }))
     expect(screen.getByRole('button', { name: '삭제' })).toBeTruthy()
+  })
+
+  it('고정지출 예정 행(D-030)은 쓴 돈에 들어가지만, 고르는 동안 숨고 날짜 전부 고르기에도 들어가지 않는다', async () => {
+    const rent: Recurring = { id: 'rent', household_id: 'h', kind: 'fixed', type: 'expense', title: '월세', amount: 500000, day_of_month: 25,
+      every_months: 1, category_id: null, payment_method_id: null, scope: 'shared', start_month: '2026-01-01', end_month: null, active: true,
+      memo: null, installment_months: null }
+    const cur = [...CUR, ...plannedTxs([rent], CUR, '2026-10', '2026-10-24')]
+    const onDeleteMany = vi.fn(async (_ids: string[]) => {})
+    const onEdit = vi.fn()
+    render(<ListView cur={cur} lookup={lookup} focus={null} onClearFocus={() => {}} onEdit={onEdit} onDeleteMany={onDeleteMany} />)
+    expect(document.querySelector('.month-sum span')?.textContent).toBe('쓴 돈 518,860원')
+    fireEvent.click(screen.getByRole('button', { name: /월세.*예정/ }))
+    expect(onEdit.mock.calls[0][0].planned).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: '고르기' }))
+    expect(screen.queryByText('월세')).toBeNull()
+    fireEvent.click(screen.getByRole('checkbox', { name: /25일/ }))
+    fireEvent.click(screen.getByRole('button', { name: '3건 삭제' }))
+    fireEvent.click(screen.getByRole('button', { name: '한 번 더 누르면 3건 지워요' }))
+    await vi.waitFor(() => expect(onDeleteMany).toHaveBeenCalledWith(['a', 'b', 'c']))
   })
 
   it('지우기가 실패하면 고른 것을 그대로 두고 이유를 보여 준다', async () => {
