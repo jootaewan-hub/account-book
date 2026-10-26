@@ -237,7 +237,7 @@ export function StatsView({ household, ym, today, cur, prev, planTotals, loading
             {!noPrev && <span className="delta">{p.prev ? <Delta diff={p.amount - p.prev} pct={pctChange(p.amount, p.prev)} /> : <span className="muted">지난달 없음</span>}</span>}
           </button>
         ))}
-        <p className="note">온라인은 플랫폼 칸으로, 매장 결제는 가게 이름으로 묶어요. 한 번만 간 곳도 가게마다 따로 보여요. 대출이자·관리비·보험처럼 산 게 아닌 돈과 자동으로 들어온 고정지출은 빼요. 눌러서 그 내역을 봐요.</p>
+        <p className="note">온라인은 플랫폼 칸으로, 매장 결제는 가게 이름으로 묶어요. 한 번만 간 곳도 가게마다 따로 보여요. 상품별로 나눠 저장한 영수증은 가게 이름이 없어 맨 뒤 '가게 이름 없는 결제'에 모아요. 대출이자·관리비·보험처럼 산 게 아닌 돈과 자동으로 들어온 고정지출은 빼요. 눌러서 그 내역을 봐요.</p>
       </div>
 
       <BillCard householdId={household.id} reloadKey={billsVersion} onAdd={onBill} />

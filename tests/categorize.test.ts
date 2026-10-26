@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { normMerchant, suggestCategory, suggestCategoryNames } from '../src/lib/categorize'
-import type { Category } from '../src/lib/types'
+import { normMerchant, storeOfTx, suggestCategory, suggestCategoryNames } from '../src/lib/categorize'
+import type { Category, TxItem } from '../src/lib/types'
 
 const NAMES = ['식비', '외식', '카페', '배달', '장보기', '주방용품', '욕실·청소', '세제·소모품', '수납·정리', '가전·전자', '가구·인테리어', '생활용품',
   '뷰티·화장품', '의류·잡화', '쇼핑', '교통', '차량·주유', '통신', '관리비', '월세·주거', '대출이자', '보험', '세금·수수료', '구독', '의료', '건강·운동',
@@ -60,5 +60,19 @@ describe('가게 이름', () => {
     expect(normMerchant('이마트에브리데이')).toBe('이마트에브리데이')
     expect(normMerchant('벽제 설렁탕')).toBe('벽제 설렁탕')
     expect(normMerchant('  광동반점 ')).toBe('광동반점')
+  })
+})
+
+describe('어디서 샀나의 가게 이름 (D-031 보충)', () => {
+  const item = (name: string): TxItem => ({ id: 'i', name, quantity: 1, unit_price: null, amount: 1000, pack_size: null, pack_unit: null, image_path: null, sort: 1 })
+  it('매장 영수증·카드 문자는 내역 이름이 가게, 상품별로 나눈 줄·배송비 줄·빈 이름은 가게가 아니다', () => {
+    expect(storeOfTx({ title: '이마트 분당점', items: [item('서울우유 900ml'), item('대파')] })).toBe('이마트')
+    expect(storeOfTx({ title: 'GS칼텍스 분당주유소', items: [] })).toBe('GS칼텍스 분당주유소')
+    expect(storeOfTx({ title: '스타벅스' })).toBe('스타벅스')
+    expect(storeOfTx({ title: '홍시 (4~6입/팩)', items: [item('홍시 (4~6입/팩)')] })).toBeNull()
+    // 60자로 자른 내역 이름도 상품명의 앞부분이면 같은 줄로 본다
+    expect(storeOfTx({ title: '풀무원 저당 오리엔탈', items: [item('풀무원 저당 오리엔탈 드레싱 245g')] })).toBeNull()
+    expect(storeOfTx({ title: '배송비', items: [] })).toBeNull()
+    expect(storeOfTx({ title: '  ', items: [] })).toBeNull()
   })
 })

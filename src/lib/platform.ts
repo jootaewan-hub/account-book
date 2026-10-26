@@ -33,8 +33,11 @@ export const PLATFORM_NAMES = PLATFORMS.map(([name]) => name)
 /** 음식 배달 앱: 내역 이름은 상품(메뉴)보다 가게 이름이 알아보기 쉽다 */
 export const DELIVERY_PLATFORMS = new Set(['쿠팡이츠', '배달의민족', '요기요'])
 
-/** 어디서 샀나에서 플랫폼도 가게 이름도 없는 결제의 묶음. 이름이 있는 가게는 한 번만 갔어도 따로 보인다 */
-export const OTHER_PLATFORM = '이름 없는 결제'
+/**
+ * 어디서 샀나에서 플랫폼도 가게 이름도 모르는 결제의 묶음(상품별로 나눠 저장한 영수증 줄, 배송비 줄, 이름 없는 결제).
+ * 가게 이름이 있으면 한 번만 갔어도 따로 보인다
+ */
+export const OTHER_PLATFORM = '가게 이름 없는 결제'
 
 /** 이름으로 아는 플랫폼을 찾는다. 모르면 null */
 export function platformOf(text: string | null | undefined): string | null {

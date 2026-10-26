@@ -58,6 +58,10 @@ const transactions = [
     { id: 'i30c', name: '계란 30구', quantity: 1, unit_price: 7980, amount: 7980, pack_size: 30, pack_unit: '구', image_path: null, sort: 3 },
     { id: 'i30d', name: '부침두부 300g', quantity: 1, unit_price: 2800, amount: 2800, pack_size: 300, pack_unit: 'g', image_path: null, sort: 4 },
   ] }),
+  // 상품별로 나눠 저장한 매장 영수증(가게 이름 없이 상품명이 내역 이름): 통계 어디서 샀나에서 '가게 이름 없는 결제'로 모인다(D-031 보충)
+  ...[['t32', '국산 콩나물 300g', 1980], ['t33', '깐마늘 200g', 3480]].map(([id, name, amount], k) => tx(id, 1, amount, name, '장보기', {
+    occurred_on: daysAgo(4), source: 'photo', save_batch: 'b-split', transaction_items: [
+      { id: `${id}i`, name, quantity: 1, unit_price: amount, amount, pack_size: null, pack_unit: null, image_path: null, sort: k + 1 }] })),
   tx('t31', 1, 2800, '이마트 분당점', '장보기', { occurred_on: daysAgo(2), source: 'photo', transaction_items: [
     { id: 'i31a', name: '부침두부 300g', quantity: 1, unit_price: 2800, amount: 2800, pack_size: 300, pack_unit: 'g', image_path: null, sort: 1 },
   ] }),

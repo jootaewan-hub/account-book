@@ -1,5 +1,5 @@
 // 통계 화면 계산: 12개월 추이, 전월·전년 대비, 분류별·용도별 지출
-import { NON_PURCHASE_CATEGORIES, normMerchant } from './categorize'
+import { NON_PURCHASE_CATEGORIES, storeOfTx } from './categorize'
 import { addMonths } from './dates'
 import { OTHER_PLATFORM, platformOfTx } from './platform'
 import type { Category, MonthTotal, Scope, Transaction } from './types'
@@ -71,7 +71,7 @@ export function scopeSplit(cur: Transaction[]): Record<Scope, number> {
 
 export interface PlatformRow {
   name: string
-  /** platform: 쿠팡 같은 온라인 플랫폼, merchant: 플랫폼이 없는 매장 결제의 가게 이름, other: 이름이 없는 결제 */
+  /** platform: 쿠팡 같은 온라인 플랫폼, merchant: 플랫폼이 없는 매장 결제의 가게 이름, other: 가게 이름을 모르는 결제(storeOfTx) */
   kind: 'platform' | 'merchant' | 'other'
   amount: number
   count: number
@@ -80,7 +80,8 @@ export interface PlatformRow {
 
 /**
  * 어디서 샀나: 플랫폼별, 플랫폼이 없는 매장 결제는 가게 이름별. 한 번만 간 가게도 묶지 않고 따로 둔다(사용자 2026-10-26:
- * 묶으면 정확히 볼 수 없다). 이름이 없는 결제만 마지막에 한 줄로. 반복 항목으로 들어온 것과 대출이자·관리비·보험·통신·주거·세금처럼
+ * 묶으면 정확히 볼 수 없다). 상품명이 내역 이름인 줄(상품별로 나눠 저장한 영수증)은 가게가 아니므로 가게 이름을 모르는 결제와 함께
+ * 마지막 한 줄로(사용자 2026-10-26: 품목이 가게처럼 보이면 안 된다). 반복 항목으로 들어온 것과 대출이자·관리비·보험·통신·주거·세금처럼
  * '산 것'이 아닌 분류는 뺀다
  */
 export function platformBreakdown(cur: Transaction[], prev: Transaction[], categories: Category[] = []): PlatformRow[] {
@@ -89,7 +90,7 @@ export function platformBreakdown(cur: Transaction[], prev: Transaction[], categ
     if (t.type !== 'expense' || t.recurring_id || (t.category_id && skip.has(t.category_id))) return null
     const p = platformOfTx(t)
     if (p) return { name: p, kind: 'platform' }
-    const m = normMerchant(t.title)
+    const m = storeOfTx(t)
     return m ? { name: m, kind: 'merchant' } : { name: OTHER_PLATFORM, kind: 'other' }
   }
   const sum = (txs: Transaction[]) => {

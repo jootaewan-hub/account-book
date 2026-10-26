@@ -1,6 +1,6 @@
 // 내역 이름·상품명·가게 이름으로 분류를 제안한다. 규칙은 위에서부터 보고 먼저 맞는 것을 고른다.
 // 모델(스마트 입력)이 '기타·쇼핑·생활용품'처럼 두루뭉술하게 고르거나 직접 입력에서 분류를 아직 안 골랐을 때 쓴다.
-import type { Category, TxType } from './types'
+import type { Category, Transaction, TxType } from './types'
 
 /** 두루뭉술한 분류. 더 구체적인 제안이 있으면 그쪽을 쓴다 */
 export const VAGUE_CATEGORIES = new Set(['기타', '쇼핑', '생활용품'])
@@ -83,4 +83,19 @@ export function normMerchant(title: string): string {
   const parts = s.split(' ')
   if (parts.length > 1 && /점$/.test(parts[parts.length - 1])) parts.pop()
   return parts.join(' ').slice(0, 30)
+}
+
+const squash = (s: string) => s.replace(/\s+/g, '').toLowerCase()
+
+/**
+ * 플랫폼 없는 결제의 가게 이름(통계 어디서 샀나, D-031 보충). 상품별로 나눠 저장한 영수증의 줄은 내역 이름이 상품명이라
+ * (품목 하나, 그 이름 = 내역 이름) 가게가 아니고, 따로 넣은 배송비 줄도 그렇다. 둘과 이름이 빈 결제는 null
+ */
+export function storeOfTx(t: Pick<Transaction, 'title' | 'items'>): string | null {
+  const title = squash(t.title)
+  if (!title) return null
+  const items = t.items ?? []
+  if (items.length === 1 && squash(items[0].name).startsWith(title)) return null
+  if (items.length === 0 && /^배송비/.test(t.title.trim())) return null
+  return normMerchant(t.title) || null
 }
