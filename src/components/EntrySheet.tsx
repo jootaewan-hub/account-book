@@ -52,13 +52,16 @@ export function EntrySheet({ open, editing, defaultDate, lookup, categories, usa
   // 같은 영수증에서 나눠 저장한 내역(이 내역 포함). 사진으로 넣은 내역만 찾고, 못 찾으면 칸을 숨긴다
   const [batch, setBatch] = useState<BatchMate[]>([])
   const [confirmBatch, setConfirmBatch] = useState(false)
+  const canBatch = Boolean(onDeleteMany)
+  // 앱이 다시 그려질 때(실시간 갱신 등) 다시 읽지 않게 내역 id로만 다시 읽는다. 다시 읽으면 두 번 누르기 확인이 풀린다
+  // eslint-disable-next-line react/exhaustive-effect-dependencies -- editing은 id·source·household_id만 쓴다
   useEffect(() => {
     setBatch([]); setConfirmBatch(false)
-    if (!open || !editing || editing.source !== 'photo' || !onDeleteMany) return
+    if (!open || !editing || editing.source !== 'photo' || !canBatch) return
     let alive = true
     fetchSaveBatch(editing).then((b) => { if (alive) setBatch(b.length >= 2 ? b : []) })
     return () => { alive = false }
-  }, [open, editing, onDeleteMany])
+  }, [open, editing?.id, editing?.source, canBatch])
 
   useEffect(() => {
     if (!open) return
@@ -261,7 +264,7 @@ export function EntrySheet({ open, editing, defaultDate, lookup, categories, usa
           )}
           {editing && batch.length > 0 && (
             <div className="field batch-del">
-              <span className="lbl">같은 영수증에서 나눠 저장한 내역 {batch.length}건</span>
+              <span className="lbl">함께 나눠 저장한 내역 {batch.length}건</span>
               <ul className="batch-list">
                 {batch.map((b) => (
                   <li key={b.id} className={b.id === editing.id ? 'cur' : undefined}>

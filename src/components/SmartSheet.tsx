@@ -281,9 +281,9 @@ export function SmartSheet({ open, mode, today, householdId, lookup, categories,
     let fuelSaved = 0
     let fuelFailed = false
     const txOf = new Map<string, string>()
-    // 한 주문을 나눠 저장하면 같은 묶음 번호를 붙여 나중에 영수증 단위로 지울 수 있게 한다
-    const batchOf = saveBatches(chosen)
     try {
+      // 한 주문을 나눠 저장하면 같은 묶음 번호를 붙여 나중에 영수증 단위로 지울 수 있게 한다
+      const batchOf = saveBatches(chosen)
       for (const d of chosen) {
         const r = await saveDraft(householdId, d, mode === 'text' ? 'text' : 'photo', batchOf.get(d.key) ?? null)
         txOf.set(d.key, r.txId)
