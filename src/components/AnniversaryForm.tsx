@@ -34,6 +34,9 @@ interface Props {
 export function AnniversaryForm({ initial, today, categories, fromDate, editing, onSave, onCancel, onDelete }: Props) {
   const thisYear = Number(today.slice(0, 4))
   const [v, setV] = useState<AnniversaryInput>(initial)
+  // 반복 고르기와 '몇'은 따로 든다: 숫자 칸을 지우고 다시 적는 동안(빈칸, 1) 고르기가 해마다로 돌아가 칸이 사라지면 안 된다
+  const [mode, setMode] = useState<RepeatMode>(modeOf(initial))
+  const [everyText, setEveryText] = useState(String(initial.repeat_every > 1 ? initial.repeat_every : 2))
   const [busy, setBusy] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const set = (p: Partial<AnniversaryInput>) => setV((cur) => {
@@ -42,19 +45,23 @@ export function AnniversaryForm({ initial, today, categories, fromDate, editing,
     if (fromDate && next.lunar !== cur.lunar) Object.assign(next, annivFromDate(fromDate, next.lunar))
     return { ...next, day: Math.min(next.day, maxDay(next.lunar, next.month)) }
   })
-  const mode = modeOf(v)
-  const monthly = v.repeat_unit === 'month'
-  const needsStart = monthly || v.repeat_every > 1
+  const many = mode === 'yN' || mode === 'mN'
+  // 몇 년·몇 달마다는 2~100. 적는 중에는 그대로 두고 저장·칸을 벗어날 때 맞춘다
+  const every = many ? Math.min(100, Math.max(2, Number(everyText) || 2)) : 1
+  const monthly = mode[0] === 'm'
+  const needsStart = monthly || many
   const startYear = v.start_year ?? (fromDate ? Number(fromDate.slice(0, 4)) : thisYear)
-  const done = finishAnnivInput({ ...v, start_year: needsStart ? startYear : v.start_year }, thisYear)
+  const done = finishAnnivInput({ ...v, repeat_unit: monthly ? 'month' : 'year', repeat_every: every, start_year: needsStart ? startYear : v.start_year }, thisYear)
   const next = v.lunar || needsStart ? nextOccurrence(done, today) : null
   const solarLabel = (d: string) => `${Number(d.slice(0, 4)) !== thisYear ? `${d.slice(0, 4)}년 ` : ''}${Number(d.slice(5, 7))}월 ${Number(d.slice(8))}일`
   const years = Array.from({ length: 71 }, (_, i) => thisYear + 10 - i)
 
   function pickRepeat(m: RepeatMode) {
     const unit = m[0] === 'm' ? 'month' : 'year'
-    const every = m[1] === '1' ? 1 : Math.max(2, v.repeat_every > 1 && v.repeat_unit === unit ? v.repeat_every : unit === 'month' ? 3 : 2)
-    set({ repeat_unit: unit, repeat_every: every, start_year: v.start_year ?? startYear })
+    // 단위를 바꿔 '몇'을 처음 고르면 몇 년은 2, 몇 달은 3에서 시작한다
+    if (m[1] === 'N' && m[0] !== mode[0]) setEveryText(unit === 'month' ? '3' : '2')
+    setMode(m)
+    set({ repeat_unit: unit, start_year: v.start_year ?? startYear })
   }
 
   async function submit() {
@@ -87,10 +94,10 @@ export function AnniversaryForm({ initial, today, categories, fromDate, editing,
           <button type="button" key={m} aria-pressed={mode === m} onClick={() => pickRepeat(m)}>{label}</button>
         ))}
       </div>
-      {(mode === 'yN' || mode === 'mN') && (
+      {many && (
         <label className="anniv-every">
           <input className="input num" type="number" inputMode="numeric" min={2} max={100} aria-label={mode === 'yN' ? '몇 년마다' : '몇 달마다'}
-            value={v.repeat_every} onChange={(e) => set({ repeat_every: Math.min(100, Math.max(1, Number(e.target.value) || 1)) })} />
+            value={everyText} onChange={(e) => setEveryText(e.target.value.replace(/\D/g, '').slice(0, 3))} onBlur={() => setEveryText(String(every))} />
           <span>{mode === 'yN' ? '년마다' : '개월마다'}</span>
         </label>
       )}

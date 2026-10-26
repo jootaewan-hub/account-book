@@ -43,13 +43,32 @@ describe('기념일 폼', () => {
     expect(onSave.mock.calls[0][0]).toMatchObject({ name: '아이 용돈', category: '용돈', kind: 'other', lunar: false, repeat_unit: 'month', repeat_every: 1, start_year: 2026, month: 10 })
   })
 
-  it('몇 년마다를 고르면 숫자 칸이 나오고 그 값으로 저장한다', async () => {
+  it('몇 년마다를 고르면 숫자 칸이 나오고, 지우고 다시 적어도 칸이 남아 그 값으로 저장한다. 2보다 작으면 2', async () => {
     const onSave = open(newAnnivInput(TODAY), false)
     fireEvent.change(screen.getByRole('textbox', { name: '기념일 이름' }), { target: { value: '여권 갱신' } })
     fireEvent.click(screen.getByRole('button', { name: '몇 년마다' }))
-    fireEvent.change(screen.getByRole('spinbutton', { name: '몇 년마다' }), { target: { value: '10' } })
+    // 휴대폰에서 2를 지우고 10을 치는 동안(빈칸 → 1 → 10) 숫자 칸이 사라지지 않는다
+    const box = () => screen.getByRole<HTMLInputElement>('spinbutton', { name: '몇 년마다' })
+    for (const value of ['', '1', '10']) {
+      fireEvent.change(box(), { target: { value } })
+      expect(box().value).toBe(value)
+    }
     fireEvent.click(screen.getByRole('button', { name: '넣기' }))
     await vi.waitFor(() => expect(onSave).toHaveBeenCalled())
     expect(onSave.mock.calls[0][0]).toMatchObject({ repeat_unit: 'year', repeat_every: 10, start_year: 2026 })
+  })
+
+  it('몇 달마다 칸을 비우거나 1로 두고 벗어나면 2로 맞춘다', async () => {
+    const onSave = open(newAnnivInput(TODAY), false)
+    fireEvent.change(screen.getByRole('textbox', { name: '기념일 이름' }), { target: { value: '정기 점검' } })
+    fireEvent.click(screen.getByRole('button', { name: '몇 달마다' }))
+    const box = screen.getByRole<HTMLInputElement>('spinbutton', { name: '몇 달마다' })
+    expect(box.value).toBe('3')
+    fireEvent.change(box, { target: { value: '1' } })
+    fireEvent.blur(box)
+    expect(box.value).toBe('2')
+    fireEvent.click(screen.getByRole('button', { name: '넣기' }))
+    await vi.waitFor(() => expect(onSave).toHaveBeenCalled())
+    expect(onSave.mock.calls[0][0]).toMatchObject({ repeat_unit: 'month', repeat_every: 2 })
   })
 })
