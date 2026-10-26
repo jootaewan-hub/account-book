@@ -199,6 +199,12 @@ npm run screens
     - 남은 결정(사용자): 상품별로 나눠 저장할 때 가게 이름을 남기려면 내역에 칸을 더해야 한다(DB 변경).
     - 되돌리기: main을 6f0be39(v2.10.0 기록)로 되돌린다(화면만 바뀌었다).
 
+27. 가게 이름 칸, 기념일 반복·카테고리, PC 다가오는 기념일 흐름(D-032·D-033, v2.11.0) 운영 반영(2026-10-26 16:36~16:39 KST, 사용자 승인 "진행해"): 브랜치 `claude/recurring-calendar-plan` → `ci.yml` 통과(ea8a3ab).
+    - 됨(공유 DB, MCP `apply_migration`): `tx_merchant`(20261105000000) → `anniv_repeat_category`(20261105010000). DB로 확인: `transactions.merchant` text, `add_transaction_with_items` 정의에 merchant, authenticated의 merchant 칸 권한 insert 있음·update 없음, anniversaries 새 칸 4개와 `anniversaries_repeat_check`, 카테고리 생일 8·기념일 5·추모 1·없음 2, 반복은 16건 모두 해마다.
+    - 됨: 마이그레이션 뒤 main fast-forward(ea8a3ab)·푸시, Pages 배포 성공. 운영 `version.json` `ea8a3ab · 10-26 16:39`, 첫 화면 묶음에 v2.11.0·repeat_every·"몇 년마다", CSS에 soon-flow, api 묶음 읽기 칸에 merchant.
+    - 확인 필요(사용자): 영수증을 상품별로 나눠 저장했을 때 내역 줄·어디서 샀나에 가게 이름이 나오는지, 기념일을 몇 년마다·매달로 넣고 카테고리를 적었을 때 달력·설정에 맞게 나오는지, PC에서 다가오는 기념일이 넘칠 때 흐르는지.
+    - 되돌리기: 화면은 main을 52eb87f(v2.10.1 기록)로 되돌린다. 새 칸은 그대로 둬도 옛 화면이 동작한다(옛 화면은 새 칸을 읽지 않고, 저장 함수는 merchant가 없으면 null).
+
 ### 사용자 할 일
 
 - ~~공공데이터포털 식품영양성분DB(15127578) 활용신청~~ 2026-10-20 마침(사용자). 같은 키로 통하는지는 성분 탭 첫 호출로 확인.
