@@ -82,6 +82,18 @@ describe('이번 달 살펴보기', () => {
   })
 })
 
+describe('살펴보기와 고정지출 예정분 (D-030 보충)', () => {
+  it('가장 큰 한 건은 실제로 나간 것 중에서, 고정지출 문장은 앞으로 나갈 몫을 밝힌다. 월말 예상은 오늘까지만 센다', () => {
+    const rent = tx({ occurred_on: '2026-10-25', amount: 500000, title: '월세', recurring_id: 'r', source: 'recurring', planned: { kind: 'fixed', round: null } })
+    const phone = tx({ occurred_on: '2026-10-05', amount: 55000, title: '휴대폰', recurring_id: 'p', source: 'recurring' })
+    const cur = [rent, phone, tx({ occurred_on: '2026-10-03', amount: 45000, title: '외식', category_id: 'food' })]
+    const facts = Object.fromEntries(monthFacts({ ...base, cur, prev: [] }).map((f) => [f.key, f.text]))
+    expect(facts.biggest).toBe('가장 큰 지출은 10월 5일 휴대폰 55,000원이에요.')
+    expect(facts.recurring).toBe('고정지출·구독이 555,000원(앞으로 나갈 500,000원 포함), 전체의 93%예요.')
+    expect(facts.pace).toBe('하루 평균 6,250원 썼어요. 이대로면 월말에 약 193,750원이에요.')
+  })
+})
+
 describe('이렇게 해 보면 (개선점)', () => {
   it('기타·분류 없음이 40% 이상이면 분류를 나누라고 한다', () => {
     const cur = [tx({ category_id: 'etc', amount: 60 }), tx({ category_id: null, amount: 10 }), tx({ category_id: 'food', amount: 30 })]

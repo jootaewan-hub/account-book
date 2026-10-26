@@ -111,9 +111,12 @@ export function monthFacts({ cur, prev, ym, today, categories }: InsightInput): 
   const top = cats[0]
   facts.push({ key: 'top', text: `${top.name}에 가장 많이 썼어요. ${won(top.amount)}원, 전체의 ${pct(top.amount, total)}%예요.` })
 
-  const biggest = cur.filter((t) => t.type === 'expense').sort((a, b) => b.amount - a.amount)[0]
-  const bName = biggest.title || cats.find((c) => c.id === biggest.category_id)?.name || '이름 없음'
-  facts.push({ key: 'biggest', text: `가장 큰 지출은 ${md(biggest.occurred_on)} ${bName} ${won(biggest.amount)}원이에요.` })
+  // 가장 큰 한 건은 실제로 나간 것 중에서 고른다(고정지출 예정분 D-030은 아직 내역이 아니다)
+  const biggest = cur.filter((t) => t.type === 'expense' && !t.planned).sort((a, b) => b.amount - a.amount)[0]
+  if (biggest) {
+    const bName = biggest.title || cats.find((c) => c.id === biggest.category_id)?.name || '이름 없음'
+    facts.push({ key: 'biggest', text: `가장 큰 지출은 ${md(biggest.occurred_on)} ${bName} ${won(biggest.amount)}원이에요.` })
+  }
 
   const proj = projectMonth(cur, ym, today)
   if (proj) {
@@ -131,7 +134,12 @@ export function monthFacts({ cur, prev, ym, today, categories }: InsightInput): 
   }
 
   const recurring = cur.filter((t) => t.type === 'expense' && t.recurring_id).reduce((s, t) => s + t.amount, 0)
-  if (recurring > 0) facts.push({ key: 'recurring', text: `고정지출·구독으로 들어간 돈이 ${won(recurring)}원, 전체의 ${pct(recurring, total)}%예요.` })
+  const ahead = cur.filter((t) => t.type === 'expense' && t.planned).reduce((s, t) => s + t.amount, 0)
+  if (recurring > 0) {
+    facts.push({ key: 'recurring', text: ahead > 0
+      ? `고정지출·구독이 ${won(recurring)}원(앞으로 나갈 ${won(ahead)}원 포함), 전체의 ${pct(recurring, total)}%예요.`
+      : `고정지출·구독으로 들어간 돈이 ${won(recurring)}원, 전체의 ${pct(recurring, total)}%예요.` })
+  }
 
   return facts
 }
