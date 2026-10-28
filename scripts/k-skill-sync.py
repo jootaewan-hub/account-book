@@ -6,6 +6,9 @@
 #   git clone https://github.com/NomaDamas/k-skill.git <폴더> && git -C <폴더> checkout <커밋>
 #   python3 -I scripts/k-skill-sync.py <폴더>
 # 새 커밋으로 올릴 때는 바뀐 instruction.md·scripts를 다시 읽고 아래 바꿀 줄이 맞는지 확인한다(못 찾으면 멈춘다).
+# 쇼핑 묶음 6개(D-034 보충)는 원본 안내문을 거의 다시 썼다: 본문은 scripts/k-skill-extra/<이름>/BODY.md, 이 프로젝트가 쓴
+# 도움 스크립트도 그 폴더에 있다. 원본 instruction.md·옮긴 패키지 파일이 바뀌면(sha256) 멈춰서 다시 읽게 한다.
+import hashlib
 import json
 import re
 import shutil
@@ -13,6 +16,7 @@ import subprocess
 import sys
 from pathlib import Path
 
+EXTRA = Path(__file__).resolve().parent / 'k-skill-extra'
 PROXY = 'https://k-skill-proxy.nomadamas.org'
 BASE_CURL = 'curl -fsS --get "${KSKILL_PROXY_BASE_URL:-' + PROXY + '}'
 
@@ -164,11 +168,47 @@ SKILLS = {
     'daangn-used-goods-search': (daangn, ['scripts', 'references'], False, ['`detail`에는 `https://www.daangn.com/`으로 시작하는 주소만 준다. 채팅·찜·거래 제안은 하지 않는다.']),
 }
 
+# 원본 안내문을 다시 쓴 스킬(D-034 보충, 2026-10-28 사용자: 쇼핑 묶음은 다 넣는다): 이름: (검토한 원본 instruction.md sha256, 복사할 폴더, 이 스킬에만 붙는 규칙)
+REWRITTEN = {
+    'danawa-price-search': ('83c675bffa729980ad3e492722f6393c7631504cd2e2535946197671fe054e37', ['references'], [
+        '다나와는 robots가 허용한 검색 페이지와 상품 페이지 `/info/?pcode=`만 부르고, 이 컴퓨터에서 두 호스트를 합쳐 10초에 한 번만 부른다(스크립트가 지킨다). 파서는 앱 서버 함수의 `supabase/functions/_shared/danawa.ts`를 그대로 불러 쓴다.']),
+    'market-kurly-search': ('191d7dcbabca8d13440a0faee4e997708e4223fa0c62ef00b579a131e246934e', ['references'], [
+        '컬리는 robots가 허용한 상품 페이지(`www.kurly.com/goods/<번호>`)만 스크립트로 부른다. 앱(장보기 탭)은 여전히 컬리 내부 API를 쓰지 않는다(`docs/grocery/data-sources.md`). 이 스킬은 대화에서 사용자가 물을 때만 쓴다.']),
+    'daiso-product-search': ('42369c51c69c6e3c4c973248e3e59fc60ac05e1ac252f4bf54c43780324a033a', ['references'], [
+        '매장 재고 수량용 비로그인 토큰을 만들지 않는다(다이소몰이 막은 것을 넘지 않는다). 다이소몰 호출은 robots Crawl-delay에 맞춰 이 컴퓨터에서 30초에 한 번이다(스크립트가 지킨다).']),
+    'olive-young-search': ('37fb0afba10e3a3837b67a1e28448098d09776f0e06036dfc8167ed9014fb3a5', ['references'], [
+        '조회는 제3자(hmmhmmhm) 서버 `mcp.aka.page`를 거친다. 그 서버는 검색어·지역과 이 컴퓨터의 IP를 보고, 원본 안내문에 따르면 올리브영 값을 Zyte로 봇 확인을 넘어 가져온다. 답변의 출처 줄에 이 경로를 숨기지 않는다.']),
+    'bunjang-search': ('7c1f414d42f0a5463e2f9cd3ff70bbd5a77544264b1cddba85f24eaf4a5975f9', ['references'], [
+        '읽기 전용이다. 로그인·찜·채팅·구매를 하지 않는다. 브라우저 도구로 `m.bunjang.co.kr`의 검색·상품 화면만 연다.']),
+    'consumer-price-safety-search': ('464f7a282374fc53d8bb5231319df58fbd303057eb663e357c2c80b5625c6cfd', [], [
+        '리콜 기록을 찾지 못하면 "안전함"이 아니라 확인한 분류·검색어·시각을 적어 "찾은 기록 없음"으로 쓴다.']),
+}
+
+# 원본 패키지에서 그대로 옮기는 파일(이 사본 경로: (원본 경로, 검토한 sha256)). 루트 package.json이 ESM이라 .cjs로 둔다
+PACKAGE_FILES = {
+    'market-kurly-search/scripts/parse.cjs': ('packages/market-kurly-search/src/parse.js', '877aa6806b60d84e6e5546eae4fb02e4c3f89ba59c121d12dd07748c7ad0f7e0'),
+    'daiso-product-search/scripts/parse.cjs': ('packages/daiso-product-search/src/parse.js', 'c5f75341d73ccc7276eb847c7be3a33e63ee02bfad7e81c28e4aa68d94e5213f'),
+}
+
+# 여러 스킬이 함께 쓰는 이 프로젝트 파일: k-skill-extra/_shared/<파일> → 각 스킬 scripts/
+SHARED_FILES = {'throttle.cjs': ['danawa-price-search', 'market-kurly-search', 'daiso-product-search']}
+
+# 원본에서 옮긴 글·코드에 다시 나오면 멈출 말(원격 실행, robots가 막은 경로, 다이소 토큰, 외부 CLI)
+BAD = ('@nomadamas', 'npx ', 'npm install', 'pip install', 'require("kakao-bar-nearby")', 'CloakBrowser', 'request_vault_credential',
+       '/info/ajax/', 'api.kurly.com', 'api.bunjang.co.kr', 'PRE_AUTH_ENC_KEY', 'auth/request', 'selStrPkupStck', 'bunjang-cli',
+       'require("market-kurly-search")')
+
 DOLSOI = re.compile(r'\s*돌쇠에서는[^.。\n]*[.。]?')
 
 # 돌쇠 문장을 빼면 문장이 끊기는 설명은 통째로 바꾼다
 DESCRIPTIONS = {
     'daangn-used-goods-search': '당근 중고거래 공개 웹 데이터로 지역·키워드 매물을 검색하고 상세를 읽는다. 읽기 전용(채팅·찜·거래 제안을 하지 않는다).',
+    'danawa-price-search': '다나와 공개 검색 페이지와 상품 페이지로 상품 후보, 수량별 최저가, 쇼핑몰별 상품가·배송비를 비교한다. robots가 허용한 경로만, 10초에 한 번.',
+    'market-kurly-search': '마켓컬리 상품 페이지로 현재 가격, 할인 여부, 품절 여부, 배송 유형을 조회한다. 상품은 웹 검색·브라우저 화면으로 찾는다.',
+    'daiso-product-search': 'Look up Daiso products and stores on Daiso Mall public search, and check which stores offer pickup for a product. 매장 재고 수량은 다이소몰이 막아 확인하지 않는다.',
+    'olive-young-search': '제3자 공개 서버(mcp.aka.page)로 올리브영 매장 검색, 상품 검색, 매장 재고 표시를 조회한다.',
+    'bunjang-search': '번개장터 모바일 웹 화면을 브라우저 도구로 열어 매물을 검색하고 상세를 읽는다. 읽기 전용(로그인·찜·채팅·구매를 하지 않는다).',
+    'consumer-price-safety-search': '소비자24 리콜정보 공개 화면에서 상품·사업자·모델명으로 리콜을 찾고 상세(위해 원인·행동요령)를 읽는다. 참가격 가격은 키가 필요해 다른 출처를 안내한다.',
 }
 
 # 복사한 도움 스크립트에서 이 프로젝트가 고친 곳(자동 보안 검토 2026-10-28): 원본이 바뀌어 못 찾으면 멈춘다
@@ -198,30 +238,7 @@ PATCHES = {
     )],
 }
 
-# 이 프로젝트가 더하는 파일
-EXTRA_FILES = {
-    'bccard-eatpl-search/scripts/rate-from-json.mjs': '''// 이 프로젝트에서 더함(D-034): eat.pl 응답에서 온 가맹점명·주소를 셸 인자로 넘기지 않으려고 JSON 파일로 받는다.
-// 사용: node rate-from-json.mjs <파일>  (파일: [{"name": "가맹점명", "address": "주소"}, …])
-import { readFileSync } from "node:fs";
-import { DEFAULT_PROXY_BASE_URL, lookupKakaoPlaceRating } from "./kakao-place-rating.mjs";
-
-const file = process.argv[2];
-if (!file) {
-  process.stderr.write("usage: rate-from-json.mjs <json 파일>\\n");
-  process.exit(2);
-}
-const rows = JSON.parse(readFileSync(file, "utf8"));
-if (!Array.isArray(rows)) {
-  process.stderr.write("JSON은 [{name, address}, …] 배열이어야 한다\\n");
-  process.exit(2);
-}
-const proxyBaseUrl = process.env.KSKILL_PROXY_BASE_URL || DEFAULT_PROXY_BASE_URL;
-for (const row of rows) {
-  const result = await lookupKakaoPlaceRating({ name: String(row?.name ?? ""), address: String(row?.address ?? ""), proxyBaseUrl });
-  process.stdout.write(`${JSON.stringify(result)}\\n`);
-}
-''',
-}
+# 이 프로젝트가 더하는 파일은 scripts/k-skill-extra/<스킬>/ 아래에 있다(BODY.md는 본문, _shared는 SHARED_FILES)
 
 
 def frontmatter(src: Path, name: str) -> str:
@@ -245,18 +262,28 @@ def tail(src: Path, name: str) -> str:
     return '\n' + t
 
 
+def sha256(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
 def main() -> None:
     src = Path(sys.argv[1]).resolve()
     out = Path(__file__).resolve().parent.parent / '.claude' / 'skills'
     commit = subprocess.run(['git', '-C', str(src), 'rev-parse', '--short', 'HEAD'], capture_output=True, text=True, check=True).stdout.strip()
+    jobs = []
     for name, (edit, dirs, proxy, rules) in SKILLS.items():
-        body = edit((src / name / 'instruction.md').read_text())
+        jobs.append((name, edit((src / name / 'instruction.md').read_text()), dirs, proxy, rules, True))
+    for name, (digest, dirs, rules) in REWRITTEN.items():
+        if sha256(src / name / 'instruction.md') != digest:
+            sys.exit(f'{name}: 원본 instruction.md가 검토한 판과 다르다. 다시 읽고 BODY.md와 해시를 고친다')
+        jobs.append((name, (EXTRA / name / 'BODY.md').read_text(), dirs, False, rules, False))
+    for name, body, dirs, proxy, rules, upstream in jobs:
         head = COMMON.format(commit=commit) + ('\n' + PROXY_NOTE if proxy else '') + ''.join(f'\n> - {r}' for r in rules)
         title_end = body.find('\n') + 1  # 첫 줄(# 제목) 바로 아래에 이 프로젝트 규칙을 둔다
         rest = body[title_end:].rstrip() + '\n' + tail(src, name)
         text = frontmatter(src, name) + '\n' + body[:title_end] + '\n' + head + '\n' + rest
-        # 맨 위 이 프로젝트 규칙(금지 예로 이 말들을 적었다)은 빼고 원본에서 옮긴 부분만 본다
-        bad = [w for w in ('@nomadamas', 'npx ', 'npm install', 'pip install', 'require("kakao-bar-nearby")', 'CloakBrowser', 'request_vault_credential') if w in rest]
+        # 맨 위 이 프로젝트 규칙(금지 예로 이 말들을 적었다)과 이 프로젝트가 쓴 BODY.md는 빼고 원본에서 옮긴 부분만 본다
+        bad = [w for w in BAD if w in (rest if upstream else tail(src, name))]
         if bad:
             sys.exit(f'{name}: 원격 실행·제외할 말이 남음 {bad}')
         dest = out / name
@@ -273,8 +300,23 @@ def main() -> None:
         for old, new in changes:
             code = fix(code, old, new)
         f.write_text(code)
-    for rel, code in EXTRA_FILES.items():
+    for rel, (orig, digest) in PACKAGE_FILES.items():
+        if sha256(src / orig) != digest:
+            sys.exit(f'{orig}: 원본이 검토한 판과 다르다. 다시 읽고 해시를 고친다')
+        code = (src / orig).read_text()
+        bad = [w for w in BAD if w in code]
+        if bad:
+            sys.exit(f'{orig}: 옮기지 않을 말이 있음 {bad}')
+        (out / rel).parent.mkdir(parents=True, exist_ok=True)
         (out / rel).write_text(code)
+    for f in sorted(EXTRA.rglob('*')):
+        rel = f.relative_to(EXTRA)
+        if f.is_file() and rel.parts[0] != '_shared' and rel.name != 'BODY.md':
+            (out / rel).parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(f, out / rel)
+    for file, names in SHARED_FILES.items():
+        for name in names:
+            shutil.copyfile(EXTRA / '_shared' / file, out / name / 'scripts' / file)
     shutil.copyfile(src / 'LICENSE', out / 'K-SKILL-LICENSE')
 
 
