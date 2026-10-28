@@ -10,3 +10,6 @@ screenshots
 !.env.example
 *.tsbuildinfo
 supabase/.temp/
+
+# Playwright MCP 브라우저 도구가 남기는 화면 기록(번개장터·컬리·참가격 스킬)
+.playwright-mcp/

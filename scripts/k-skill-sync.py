@@ -208,7 +208,7 @@ DESCRIPTIONS = {
     'daiso-product-search': 'Look up Daiso products and stores on Daiso Mall public search, and check which stores offer pickup for a product. 매장 재고 수량은 다이소몰이 막아 확인하지 않는다.',
     'olive-young-search': '제3자 공개 서버(mcp.aka.page)로 올리브영 매장 검색, 상품 검색, 매장 재고 표시를 조회한다.',
     'bunjang-search': '번개장터 모바일 웹 화면을 브라우저 도구로 열어 매물을 검색하고 상세를 읽는다. 읽기 전용(로그인·찜·채팅·구매를 하지 않는다).',
-    'consumer-price-safety-search': '소비자24 리콜정보 공개 화면에서 상품·사업자·모델명으로 리콜을 찾고 상세(위해 원인·행동요령)를 읽는다. 참가격 가격은 키가 필요해 다른 출처를 안내한다.',
+    'consumer-price-safety-search': '소비자24 리콜정보 공개 화면에서 상품·사업자·모델명으로 리콜을 찾고 상세(위해 원인·행동요령)를 읽는다. 참가격 판매점 가격은 브라우저 도구로 공개 화면을 연다.',
 }
 
 # 복사한 도움 스크립트에서 이 프로젝트가 고친 곳(자동 보안 검토 2026-10-28): 원본이 바뀌어 못 찾으면 멈춘다
