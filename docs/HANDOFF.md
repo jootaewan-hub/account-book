@@ -227,6 +227,14 @@ npm run screens
     - 확인 필요(첫 사용 뒤): Supabase 서버에서 컬리·다이소 검색이 막히지 않는지(`explore_shop_searches` 줄과 함수 로그로).
     - 되돌리기: 화면은 main을 049707d(배포 기록 29)로, 함수는 stub을 e814e0d로 다시 배포.
 
+31. 알아보기 가격 비교에 오늘의집, 중고 매물(번개장터·당근)(D-036 보충, v2.14.0) 운영 반영(2026-10-28 14:41~14:47 KST, 사용자 "진행해 당근 번개장터 오늘의집도 넣어"·"병합 배포해"): 브랜치 `claude/explore-used` → `ci.yml` 통과(e06b4fe).
+    - 됨(공유 DB, MCP `apply_migration`): `grocery_explore_finds`(20261108000000). 첫 호출은 "The operation timed out"이었고 DB에 표가 없음을 확인한 뒤 다시 적용했다(적용 기록 한 줄, 20261028054459). DB로 확인: RLS 켜짐, 권한은 service_role 넷뿐, `fetch_gate` 6줄(bunjang·daangn·daiso·danawa·kurly·ohou).
+    - 됨(함수): `explore-price` v3(커밋 고정 e06b4fe34a03fdbd2fe16def051c32dac66d26ce). 로그인 없는 POST 401, OPTIONS 204. v2.13.0 화면도 이 함수로 그대로 동작한다(출처를 더 받을 뿐).
+    - 됨: main fast-forward(e06b4fe)·푸시(처음 시도는 자동 모드 안전장치가 운영 배포로 막아 사용자 승인 뒤 다시), Pages 배포 성공, 운영 `version.json` `e06b4fe · 10-28 14:47`, 첫 화면 묶음에 2.14.0, `ExploreView` 묶음에 "중고 매물"·"동네 바꾸기"·"오늘의집 검색 중".
+    - 확인됨(v2.13.0 실제 사용, DB): 14:06·14:09 KST "s자 고리"·"욕실세정제" 검색에서 다나와·마켓컬리·다이소가 각 20개 → 컬리·다이소 검색은 Supabase 서버에서 막히지 않는다. 상품 시트(다나와 쇼핑몰별 가격)는 아직 열린 기록이 없다(price_checks 없음).
+    - 확인 필요(첫 사용 뒤): 오늘의집·번개장터·당근이 Supabase 서버에서 막히지 않는지(`explore_finds` 줄), 날씨는 활용신청 뒤.
+    - 되돌리기: 화면은 main을 9f8cc3a(배포 기록 30)로, 함수는 stub을 d1809c4로 다시 배포. `explore_finds`는 비어 있어도 무해하다.
+
 ### 사용자 할 일
 
 - ~~공공데이터포털 식품영양성분DB(15127578) 활용신청~~ 2026-10-20 마침(사용자). 같은 키로 통하는지는 성분 탭 첫 호출로 확인.

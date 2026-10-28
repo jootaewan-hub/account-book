@@ -282,7 +282,7 @@
 - robots 규칙을 없앤 뒤(D-036, 사용자 2026-10-28) 몰 자체 검색을 쓴다. 출처마다 전역 간격(`fetch_gate` 'kurly-search' 1초·'daiso-search' 2초)과 같은 날 캐시(`grocery.explore_shop_searches`)를 둔다.
 - 마켓컬리 앱 검색 `https://api.kurly.com/search/v4/sites/market/normal-search?keyword=<검색어>&page=1`(로그인 없음, robots `*` `Disallow: /`): 2026-10-28 실제 호출 200. `data.listSections[].data.items[]`에 `no`(상품 번호), `name`, `salesPrice`(정가), `discountedPrice`(할인가, 없으면 null), `discountRate`, `isSoldOut`, `reviewCount`("9,999+" 같은 글자), `deliveryTypeNames`, `adInfo`(광고 줄). 상품 페이지는 `https://www.kurly.com/goods/<no>`. 예: "[비비고] 왕교자 만두 대용량 1.05kg" 정가 11,480·할인가 10,480·8%(1-2 표의 goods/5082274와 같은 상품).
 - 다이소몰 상품 검색 `https://www.daisomall.co.kr/ssn/search/SearchGoods?searchTerm=<검색어>&…&cntPerPage=20`(로그인 없음, robots `*` Crawl-delay 30): 2026-10-28 실제 호출 200. `resultSet.result[]` 중 `resultDocuments`가 있는 묶음(첫 묶음은 비어 올 때가 있다)에 `pdNo`, `pdNm`·`exhPdNm`, `pdPrc`(글자), `avgStscVal`, `revwCnt`, `pkupOrPsblYn`(매장 픽업), `pdsOrPsblYn`(택배), `soldOutYn`. 상품 페이지 `https://www.daisomall.co.kr/pd/pdr/SCR_PDR_0001?pdNo=<pdNo>`의 제목 가격이 검색 값과 같았다(1049275 → 3,000원). `B`로 시작하는 상품 번호는 같은 이름에 값이 큰 묶음 상품이었다(B202503122133 → 108,000원, 택배만).
-- 확인 필요: Supabase 서버(서울 리전)에서 두 API가 막히지 않는지(첫 운영 호출로 확인), 다이소 매장 재고 수량은 인증 뒤라 쓰지 않는다(접근 통제, D-036 밖).
+- 확인된 사실(2026-10-28 14:06·14:09 KST, 운영 `explore_shop_searches`): Supabase 서버에서 컬리·다이소 검색 모두 결과 20개("s자 고리"·"욕실세정제"). 다이소 매장 재고 수량은 인증 뒤라 쓰지 않는다(접근 통제, D-036 밖).
 
 ## 12. 오늘의집·번개장터·당근 (알아보기 가격 비교·중고 매물, D-036 보충)
 

@@ -1,6 +1,6 @@
 # 현재 상태
 
-> **2026-10-28**: v2.13.0 배포(D-036 가격 비교에 마켓컬리·다이소, robots 규칙 폐기, `grocery_explore_shop_searches` 적용, `explore-price` v2, `docs/HANDOFF.md` 5절 30). 그 전 v2.12.0 배포(D-035 알아보기 탭: 날씨·미세먼지와 다나와 가격 비교, `grocery.explore_searches` 적용, 함수 `explore-price`·`explore-weather` v1, `docs/HANDOFF.md` 5절 29). 날씨는 공공데이터포털 활용신청 뒤에 보인다(열린 문제).
+> **2026-10-28**: v2.14.0 배포(D-036 보충 오늘의집·번개장터·당근, `grocery_explore_finds` 적용, `explore-price` v3, `docs/HANDOFF.md` 5절 31). 그 전 v2.13.0 배포(D-036 가격 비교에 마켓컬리·다이소, robots 규칙 폐기, `grocery_explore_shop_searches` 적용, `explore-price` v2, `docs/HANDOFF.md` 5절 30). 그 전 v2.12.0 배포(D-035 알아보기 탭: 날씨·미세먼지와 다나와 가격 비교, `grocery.explore_searches` 적용, 함수 `explore-price`·`explore-weather` v1, `docs/HANDOFF.md` 5절 29). 날씨는 공공데이터포털 활용신청 뒤에 보인다(열린 문제).
 > 같은 날 앞서: 앱은 v2.11.0 그대로, Claude Code용 k-skill 스킬 20개를 main에 넣었다(D-034·D-034 보충, `.claude/skills/K-SKILL-SOURCE.md`, 5절 28).
 > **2026-10-26**: v2.11.0 배포(D-032 가게 이름 칸, D-033 기념일 반복·카테고리·PC 흐르는 칩, 공유 DB 마이그레이션 2개 적용, `docs/HANDOFF.md` 5절 27). 그 전 v2.10.1(D-031 보충, 5절 26), v2.10.0(D-031, 5절 25), v2.9.1(D-030 보충 2 고정 탭 회차, 5절 24), v2.9.0(D-030 보충 고정지출 예정분을 쓴 돈·내역·통계에, 고정 탭 달 넘기기, 5절 23), v2.8.0(D-030 달력 예정분, 5절 22), v2.7.0(D-029 나눠 찍은 긴 영수증 잇기, `extract-entries` v16, 5절 21), v2.6.0(D-027·D-028, 5절 20). 아래는 그 전 장보기 상태.
 > **2026-10-24**: 상품명 → 식약처 품목 맞춤(D-026)까지 배포했다. 공유 DB에 `grocery_product_facts` 적용, `food-info` v10·`product-check` v6·`price-recheck` v4를 커밋 고정 stub으로 배포, main 병합은 사용자 승인으로 했다(`docs/HANDOFF.md` 5절 19). `clear_item_auto`는 아직 공유 DB에 없다(열린 문제). 남은 확인(사용자): 성분 탭 자동 맞춤.
