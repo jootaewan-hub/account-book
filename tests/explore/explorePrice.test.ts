@@ -6,7 +6,7 @@ const SEARCH_HTML = readFileSync(new URL('../grocery/fixtures/danawa/search-bibi
 const NOW = new Date('2026-10-28T02:30:00Z') // 한국 2026-10-28 11:30
 
 function deps(over: Partial<PriceDeps> = {}) {
-  const log = { urls: [] as string[], slept: [] as number[], saved: [] as [string, string, string, ExploreItem[]][], checks: [] as string[], fails: [] as string[], reserved: [] as number[] }
+  const log = { urls: [] as string[], slept: [] as number[], saved: [] as [string, string, string, ExploreItem[]][], checks: [] as string[], fails: [] as string[], reserved: [] as number[], inserted: [] as [string, string][] }
   const latest: LatestCheck = {
     checkedAt: '2026-10-28T02:31:00.000Z', pageQty: 3,
     quotes: [
@@ -31,7 +31,12 @@ function deps(over: Partial<PriceDeps> = {}) {
     saveSearch: async (k, day, q, items) => {
       log.saved.push([k, day, q, items])
     },
-    ensureProduct: async (pcode, name) => ({ id: 'p1', sourceId: pcode, name, rating: 4.8, reviewCount: 9217, ratedAt: '2026-10-28T02:31:00.000Z' }),
+    product: async () => null,
+    searchedName: async (pcode) => (pcode === '5643303' ? 'CJ제일제당 비비고 왕교자 1.05kg' : null),
+    insertProduct: async (pcode, name) => {
+      log.inserted.push([pcode, name])
+      return { id: 'p1', sourceId: pcode, name, rating: 4.8, reviewCount: 9217, ratedAt: '2026-10-28T02:31:00.000Z' }
+    },
     todayOk: async () => false,
     latest: async () => latest,
     save: async (id) => {
@@ -50,14 +55,14 @@ const post = (body: unknown) =>
   new Request('https://x/functions/v1/explore-price', { method: 'POST', body: typeof body === 'string' ? body : JSON.stringify(body) })
 
 describe('explore-price: 입력', () => {
-  it('405·400(짧거나 긴 검색어, 숫자가 아닌 pcode, 이름 없는 상품)이고 다나와를 부르지 않는다', async () => {
+  it('405·400(짧거나 긴 검색어, 숫자가 아닌 pcode)이고 다나와를 부르지 않는다', async () => {
     const { d, log } = deps()
     expect((await handle(new Request('https://x/', { method: 'GET' }), d)).status).toBe(405)
     expect((await handle(post('x'), d)).status).toBe(400)
     expect((await handle(post({ query: 'a' }), d)).status).toBe(400)
     expect((await handle(post({ query: 'x'.repeat(61) }), d)).status).toBe(400)
-    expect((await handle(post({ pcode: '12a4', name: '상품' }), d)).status).toBe(400)
-    expect((await handle(post({ pcode: '1234567' }), d)).status).toBe(400)
+    expect((await handle(post({ pcode: '12a4' }), d)).status).toBe(400)
+    expect((await handle(post({ pcode: 1234567 }), d)).status).toBe(400)
     expect(log.urls).toHaveLength(0)
   })
   it('검색어 키는 소문자·공백 정리', () => {
@@ -125,13 +130,15 @@ describe('explore-price: 상품 가격', () => {
         return { status: 200, text: pageHtml }
       },
     })
-    const res = await handle(post({ pcode: '5643303', name: '비비고 왕교자 1.05kg' }), d)
+    // 앱이 이름을 보내도 쓰지 않는다: 공용 상품 목록에는 서버가 저장한 검색 결과의 이름만 넣는다
+    const res = await handle(post({ pcode: '5643303', name: '<지어낸 이름>' }), d)
     const body = await res.json()
     expect(res.status).toBe(200)
+    expect(log.inserted).toEqual([['5643303', 'CJ제일제당 비비고 왕교자 1.05kg']])
     expect(log.urls).toEqual(['https://prod.danawa.com/info/?pcode=5643303'])
     expect(log.checks).toEqual(['p1'])
     expect(body.status).toBe('done')
-    expect(body.product).toEqual({ pcode: '5643303', name: '비비고 왕교자 1.05kg', rating: 4.8, reviewCount: 9217, ratedAt: '2026-10-28T02:31:00.000Z' })
+    expect(body.product).toEqual({ pcode: '5643303', name: 'CJ제일제당 비비고 왕교자 1.05kg', rating: 4.8, reviewCount: 9217, ratedAt: '2026-10-28T02:31:00.000Z' })
     expect(body.pageQty).toBe(3)
     expect(body.variants).toHaveLength(1)
     expect(body.offers.map((o: { seller: string }) => o.seller)).toEqual(['옥션', '11번가'])
@@ -139,16 +146,32 @@ describe('explore-price: 상품 가격', () => {
 
   it('오늘 확인이 있으면 다시 읽지 않고 cached', async () => {
     const { d, log } = deps({ todayOk: async (_id, day) => day === '2026-10-28' })
-    const body = await (await handle(post({ pcode: '5643303', name: '비비고 왕교자' }), d)).json()
+    const body = await (await handle(post({ pcode: '5643303' }), d)).json()
     expect(body.status).toBe('cached')
     expect(log.urls).toHaveLength(0)
   })
 
   it('상품 페이지를 못 읽으면 502와 이유, 실패를 기록한다', async () => {
     const { d, log } = deps({ fetchHtml: async () => ({ status: 404, text: '' }) })
-    const res = await handle(post({ pcode: '5643303', name: '비비고 왕교자' }), d)
+    const res = await handle(post({ pcode: '5643303' }), d)
     expect(res.status).toBe(502)
     expect(await res.json()).toEqual({ status: 'error', reason: 'http_404' })
     expect(log.fails).toEqual(['http_404'])
+  })
+
+  it('이미 공용 목록에 있는 상품은 그대로 쓰고 새로 넣지 않는다', async () => {
+    const { d, log } = deps({ product: async (pcode) => ({ id: 'p9', sourceId: pcode, name: '장보기에서 고른 이름', rating: null, reviewCount: null, ratedAt: null }), todayOk: async () => true })
+    const body = await (await handle(post({ pcode: '1111' }), d)).json()
+    expect(body.product.name).toBe('장보기에서 고른 이름')
+    expect(log.inserted).toHaveLength(0)
+  })
+
+  it('검색 결과에 없던 번호는 404이고 다나와를 부르지도 넣지도 않는다', async () => {
+    const { d, log } = deps()
+    const res = await handle(post({ pcode: '99999' }), d)
+    expect(res.status).toBe(404)
+    expect(await res.json()).toEqual({ status: 'not_found' })
+    expect(log.urls).toHaveLength(0)
+    expect(log.inserted).toHaveLength(0)
   })
 })

@@ -88,7 +88,7 @@ describe('알아보기 탭', () => {
 
     fireEvent.click(screen.getByText('CJ제일제당 비비고 왕교자 1.05kg'))
     expect(await screen.findByText('쇼핑몰별 최저가 (3개 묶음 기준)')).toBeTruthy()
-    expect(calls.at(-1)).toEqual({ name: 'explore-price', body: { pcode: '5643303', name: 'CJ제일제당 비비고 왕교자 1.05kg' } })
+    expect(calls.at(-1)).toEqual({ name: 'explore-price', body: { pcode: '5643303' } })
     const rows = [...document.querySelectorAll('.offer-table tbody tr')].map((r) => r.textContent)
     expect(rows).toEqual(['옥션28,800원무료28,800원', '11번가28,900원표시 없음-'])
     expect(screen.getByText(/다나와 상품 페이지, 오늘 \d\d:\d\d 확인/)).toBeTruthy()

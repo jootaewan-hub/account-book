@@ -18,8 +18,12 @@ export type PriceDeps = Pick<PriceCheckDeps, 'fetchHtml' | 'save' | 'fail'> & {
   sleep(ms: number): Promise<void>
   /** explore_searches에 넣고 30일 지난 줄은 지운다 */
   saveSearch(queryKey: string, day: string, query: string, items: ExploreItem[], foundAt: string): Promise<void>
-  /** (danawa, pcode) 상품. 없으면 이름으로 넣는다 */
-  ensureProduct(pcode: string, name: string): Promise<ProductRow>
+  /** (danawa, pcode) 상품, 없으면 null */
+  product(pcode: string): Promise<ProductRow | null>
+  /** 최근 30일 explore_searches 결과에 있던 그 상품의 이름(서버가 다나와에서 읽은 값), 없으면 null */
+  searchedName(pcode: string): Promise<string | null>
+  /** 공용 상품 목록에 넣는다(이름은 searchedName에서 온 것만) */
+  insertProduct(pcode: string, name: string): Promise<ProductRow>
   /** 오늘(한국 날짜) 성공한 다나와 확인이 있는가 */
   todayOk(productId: string, day: string): Promise<boolean>
   /** 가장 최근 성공 확인과 그 가격 줄 */
@@ -66,8 +70,14 @@ async function search(query: string, deps: PriceDeps): Promise<Response> {
   return json(200, { status: items.length ? 'done' : 'none', query, foundAt, items })
 }
 
-async function product(pcode: string, name: string, deps: PriceDeps): Promise<Response> {
-  const p = await deps.ensureProduct(pcode, name)
+async function product(pcode: string, deps: PriceDeps): Promise<Response> {
+  // 공용 상품 목록(grocery.products, 장보기와 함께 쓴다)에는 앱이 보낸 글을 넣지 않는다: 이름은 서버가 저장한 검색 결과에서만
+  let p = await deps.product(pcode)
+  if (!p) {
+    const name = await deps.searchedName(pcode)
+    if (!name) return json(404, { status: 'not_found' })
+    p = await deps.insertProduct(pcode, name)
+  }
   const day = kstDay(deps.now())
   let status: 'cached' | 'done' = 'cached'
   if (!(await deps.todayOk(p.id, day))) {
@@ -89,16 +99,15 @@ async function product(pcode: string, name: string, deps: PriceDeps): Promise<Re
 
 export async function handle(req: Request, deps: PriceDeps): Promise<Response> {
   if (req.method !== 'POST') return json(405, { error: 'method_not_allowed' })
-  let body: { query?: unknown; pcode?: unknown; name?: unknown }
+  let body: { query?: unknown; pcode?: unknown }
   try {
     body = await req.json()
   } catch {
     return json(400, { error: 'bad_request' })
   }
-  if (typeof body?.pcode === 'string') {
-    const name = typeof body.name === 'string' ? body.name.replace(/\s+/g, ' ').trim() : ''
-    if (!/^\d{4,12}$/.test(body.pcode) || !name || name.length > 200) return json(400, { error: 'bad_request' })
-    return product(body.pcode, name, deps)
+  if (body?.pcode !== undefined) {
+    if (typeof body.pcode !== 'string' || !/^\d{4,12}$/.test(body.pcode)) return json(400, { error: 'bad_request' })
+    return product(body.pcode, deps)
   }
   const query = typeof body?.query === 'string' ? body.query.replace(/\s+/g, ' ').trim() : ''
   if (query.length < 2 || query.length > 60) return json(400, { error: 'bad_request' })

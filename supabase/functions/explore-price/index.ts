@@ -5,6 +5,9 @@ import { danawaStore } from '../_shared/priceStore.ts'
 import { handle, type ExploreItem, type Quote } from './handle.ts'
 
 const g = () => admin.schema('grocery')
+const COLS = 'id, source_id, name, rating, review_count, rated_at'
+type Row = { id: string; source_id: string; name: string; rating: number | string | null; review_count: number | null; rated_at: string | null }
+const productRow = (r: Row) => ({ id: r.id, sourceId: r.source_id, name: r.name, rating: r.rating === null ? null : Number(r.rating), reviewCount: r.review_count, ratedAt: r.rated_at })
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors })
@@ -30,18 +33,24 @@ Deno.serve(async (req) => {
         const old = new Date(Date.parse(`${day}T00:00:00+09:00`) - 30 * 86_400_000).toISOString().slice(0, 10)
         await g().from('explore_searches').delete().lt('searched_on', old)
       },
-      ensureProduct: async (pcode, name) => {
-        const cols = 'id, source_id, name, rating, review_count, rated_at'
-        const found = await g().from('products').select(cols).eq('source', 'danawa').eq('source_id', pcode).maybeSingle()
-        if (found.error) throw found.error
-        const row = found.data ?? (await (async () => {
-          const ins = await g().from('products').upsert({ source: 'danawa', source_id: pcode, name }, { onConflict: 'source,source_id', ignoreDuplicates: true })
-          if (ins.error) throw ins.error
-          const again = await g().from('products').select(cols).eq('source', 'danawa').eq('source_id', pcode).single()
-          if (again.error) throw again.error
-          return again.data
-        })())
-        return { id: row.id, sourceId: row.source_id, name: row.name, rating: row.rating === null ? null : Number(row.rating), reviewCount: row.review_count, ratedAt: row.rated_at }
+      product: async (pcode) => {
+        const { data, error } = await g().from('products').select(COLS).eq('source', 'danawa').eq('source_id', pcode).maybeSingle()
+        if (error) throw error
+        return data ? productRow(data) : null
+      },
+      searchedName: async (pcode) => {
+        const { data, error } = await g().from('explore_searches').select('items').contains('items', [{ pcode }])
+          .order('found_at', { ascending: false }).limit(1).maybeSingle()
+        if (error) throw error
+        const hit = ((data?.items ?? []) as ExploreItem[]).find((i) => i.pcode === pcode)
+        return hit?.name ?? null
+      },
+      insertProduct: async (pcode, name) => {
+        const ins = await g().from('products').upsert({ source: 'danawa', source_id: pcode, name }, { onConflict: 'source,source_id', ignoreDuplicates: true })
+        if (ins.error) throw ins.error
+        const { data, error } = await g().from('products').select(COLS).eq('source', 'danawa').eq('source_id', pcode).single()
+        if (error) throw error
+        return productRow(data)
       },
       todayOk: async (id, day) => {
         const { data, error } = await g().from('price_checks').select('id').eq('product_id', id).eq('ok', true).eq('checked_on', day).limit(1)

@@ -236,7 +236,7 @@ function OfferSheet({ item, onClose }: { item: ExploreItem | null; onClose: () =
     let alive = true
     setData(null)
     setState('loading')
-    productPrices(sb(), item.pcode, item.name)
+    productPrices(sb(), item.pcode)
       .then((d) => { if (alive) { setData(d); setState('ready') } })
       .catch(() => { if (alive) setState('failed') })
     return () => { alive = false }

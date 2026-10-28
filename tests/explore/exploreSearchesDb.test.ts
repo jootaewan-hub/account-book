@@ -40,6 +40,12 @@ describe('grocery.explore_searches', () => {
     expect(await errorOf(as('service_role', `insert into grocery.explore_searches (query_key, searched_on, query) values ('비비고 왕교자', '2026-10-28', 'x')`))).toMatch(/duplicate key/)
   })
 
+  it('상품 번호로 그 상품이 든 검색 결과를 찾는다(explore-price searchedName의 items @> 조건)', async () => {
+    const hit = await as<{ n: number }>('service_role', `select count(*)::int as n from grocery.explore_searches where items @> '[{"pcode":"5643303"}]'::jsonb`)
+    const miss = await as<{ n: number }>('service_role', `select count(*)::int as n from grocery.explore_searches where items @> '[{"pcode":"99999"}]'::jsonb`)
+    expect([hit[0].n, miss[0].n]).toEqual([1, 0])
+  })
+
   it('로그인 사용자·익명은 읽지도 쓰지도 못한다', async () => {
     expect(await errorOf(as('authenticated', `select * from grocery.explore_searches`))).toMatch(/permission denied/)
     expect(await errorOf(as('anon', `select * from grocery.explore_searches`))).toMatch(/permission denied/)

@@ -31,9 +31,9 @@ k-skill 스킬은 컴퓨터의 Claude Code 대화에서만 쓰는 조회 도구�
 
 - **서버 함수 둘**(둘 다 `verify_jwt = true`, 키는 `DATA_GO_KR_SERVICE_KEY` 하나, 커밋 고정 stub 배포 D-023 보충).
   - `explore-weather`: `POST {lat, lng}`. 소수 둘째 자리로 자르고 한국 범위(위도 32.5~39, 경도 124~132.5) 밖이면 400. 기상청 격자(nx, ny)는 기상청 람베르트 변환 공식, 초단기실황은 지금에서 40분 뺀 시각의 정시, 단기예보는 오늘 02:00 발표(02:10 전이면 어제 23:00 발표)를 받아 오늘·내일 최저·최고·하늘·강수확률을 만든다. 에어코리아는 WGS84 → TM 변환(`fine-dust-location` 스킬의 MIT 코드를 옮김) → 근접측정소 목록의 첫 측정소 → 측정소별 실시간 측정(ver 1.3). 응답은 `{weather, air}`이고 각각 값 또는 `{status: 'not_registered' | 'error'}`. DB 캐시는 두지 않는다(두 사람 호출량은 공공데이터포털 하루 한도보다 훨씬 작다). 앱이 같은 위치 결과를 기기에 10분 둔다.
-  - `explore-price`: `POST {query}` 또는 `POST {pcode, name}`.
+  - `explore-price`: `POST {query}` 또는 `POST {pcode}`.
     - 검색: 공백 정리 2~60자. 한국 날짜가 같고 정규화한 검색어가 같으면 `grocery.explore_searches`의 결과를 돌려준다(같은 출처·같은 날 캐시 규칙). 없으면 `grocery.reserve_fetch('danawa-search', 10000, 30000)`로 장보기와 같은 전역 10초 자리를 잡는다(30초 넘게 밀리면 202 busy). 파서는 `_shared/danawa.ts` 그대로.
-    - 상품: pcode는 숫자 4~12자리. `grocery.products`에 (danawa, pcode)가 없으면 검색 결과 이름으로 넣는다. 오늘 성공한 `price_checks`가 있으면 그것을, 없으면 `_shared/priceCheck.ts`의 `checkDanawa`로 상품 페이지를 읽어 장보기와 같은 `price_checks`·`price_quotes`에 저장한다. 저장 코드는 `product-check`와 같은 것을 `_shared/priceStore.ts`로 옮겨 쓴다. 응답은 가장 최근 성공 확인의 가격 줄.
+    - 상품: `POST {pcode}`, pcode는 숫자 4~12자리. `grocery.products`(장보기와 함께 쓰는 공용 목록)에 (danawa, pcode)가 없으면 최근 30일 `explore_searches`에 서버가 저장한 그 상품의 이름으로 넣는다. 검색 결과에 없던 번호는 404(앱이 보낸 글은 공용 목록에 넣지 않는다, 2026-10-28 자동 보안 검토). 오늘 성공한 `price_checks`가 있으면 그것을, 없으면 `_shared/priceCheck.ts`의 `checkDanawa`로 상품 페이지를 읽어 장보기와 같은 `price_checks`·`price_quotes`에 저장한다. 저장 코드는 `product-check`와 같은 것을 `_shared/priceStore.ts`로 옮겨 쓴다. 응답은 가장 최근 성공 확인의 가격 줄.
   - 권한: 로그인한 사람이면 부를 수 있다(가구 데이터를 읽거나 쓰지 않는다). 가구 내역·품목은 보내지 않는다.
 - **DB**: 장보기 스키마에 `grocery.explore_searches(query_key, searched_on, query, items jsonb, found_at)` 하나(기본 키 query_key + searched_on). RLS 켜고 정책 없음, 서비스 롤만 읽고 쓴다. 30일 지난 줄은 새 검색을 넣을 때 지운다. 마이그레이션은 grocery 스키마만 바꾼다(D-003).
 - **화면**: `src/components/ExploreView.tsx`(늦게 불러오기, 장보기처럼 `prefetchChunks`), 호출·위치·글자 만들기는 `src/lib/explore.ts`, 가계부 `styles.css`의 `.explore` 아래 규칙(앱에 이미 다른 뜻의 `src/lib/lookup.ts`가 있어 이 기능의 코드 이름은 explore로 통일). 숫자는 모두 출처·기준 시각과 함께 쓴다. "AI"·반짝이·"분석 중" 같은 말은 쓰지 않는다.

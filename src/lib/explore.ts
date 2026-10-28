@@ -54,8 +54,9 @@ export type ProductPrices = {
   offers: Quote[]
 }
 
-export async function productPrices(client: SupabaseClient, pcode: string, name: string): Promise<ProductPrices> {
-  const { data, error } = await client.functions.invoke<ProductPrices>('explore-price', { body: { pcode, name } })
+/** 검색 결과에서 고른 상품의 쇼핑몰별 가격. 이름은 서버가 저장한 검색 결과에서 가져온다(앱이 보내지 않는다) */
+export async function productPrices(client: SupabaseClient, pcode: string): Promise<ProductPrices> {
+  const { data, error } = await client.functions.invoke<ProductPrices>('explore-price', { body: { pcode } })
   if (error || !data) throw error ?? new Error('no_data')
   return data
 }
