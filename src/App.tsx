@@ -22,6 +22,7 @@ import { plannedTotals, plannedTxs } from './lib/recurring'
 import { onUpdateReady, updateReady } from './lib/pwa'
 import { isConfigured, sb } from './lib/supabase'
 import type { Household, Spouse, Transaction, TxInput } from './lib/types'
+import { createWishStore, type WishTarget } from './lib/wishes'
 
 // 처음 여는 달력·내역 밖의 화면은 따로 묶어(코드 분할) 눌렀을 때 불러온다. 첫 화면이 빨리 뜨고, 새 버전도 바뀐 묶음만 받는다.
 // 장보기(화면·저장소·CSS)와 스마트 입력(모델 결과 다듬기·사진 자르기·장보기 비교)이 가장 크다.
@@ -32,6 +33,7 @@ const SettingsView = lazy(() => import('./components/SettingsView').then((m) => 
 const ExportCard = lazy(() => import('./components/ExportCard').then((m) => ({ default: m.ExportCard })))
 const SmartSheet = lazy(() => import('./components/SmartSheet').then((m) => ({ default: m.SmartSheet })))
 const ExploreView = lazy(() => import('./components/ExploreView').then((m) => ({ default: m.ExploreView })))
+const WishSheet = lazy(() => import('./components/WishSheet').then((m) => ({ default: m.WishSheet })))
 
 /** 첫 화면이 뜬 뒤 쉬는 틈에 나머지 묶음을 미리 받아 둔다(탭을 누를 때 기다리지 않게) */
 function prefetchChunks() {
@@ -140,6 +142,10 @@ function Ledger({ household, meta, userId, email }: {
   const [listFocus, setListFocus] = useState<ListFocus | null>(null)
   // 내역 탭에서 지울 내역을 고르는 중이면 기록하기 둥근 버튼을 숨긴다(고른 내역 줄이 그 자리에 뜬다)
   const [listPicking, setListPicking] = useState(false)
+  const wishStore = useMemo(() => createWishStore(sb(), household.id), [household.id])
+  const [wishTarget, setWishTarget] = useState<WishTarget | null>(null)
+  const [wishVersion, setWishVersion] = useState(0)
+  const [wishSearch, setWishSearch] = useState<{ query: string; key: number } | null>(null)
 
   const { txs, version: txVersion, loading: txLoading, error, reload } = useMonthTransactions(household.id, ym)
   const { events, reload: reloadEvents } = useMonthEvents(household.id, ym)
@@ -313,7 +319,12 @@ function Ledger({ household, meta, userId, email }: {
         )}
         {tab === 'grocery' && (
           <Screen name="장보기">
-            <GroceryTab userId={userId} members={meta.members} categories={meta.categories} onRecorded={() => void reload()} />
+            <GroceryTab userId={userId} members={meta.members} categories={meta.categories} onRecorded={() => void reload()}
+              wishes={{ store: wishStore, members: meta.members, version: wishVersion,
+                onNew: () => setWishTarget({ seed: { title: '', url: null, target_price: null, memo: null, quote: null } }),
+                onEdit: (wish) => setWishTarget({ wish }),
+                onSearch: (query) => { setWishSearch({ query, key: Date.now() }); setTab('explore') },
+              }} />
           </Screen>
         )}
         {tab === 'stats' && (
@@ -333,7 +344,7 @@ function Ledger({ household, meta, userId, email }: {
         )}
         {tab === 'explore' && (
           <Screen name="알아보기">
-            <ExploreView toast={toast} />
+            <ExploreView toast={toast} onKeep={(seed) => setWishTarget({ seed })} searchRequest={wishSearch} />
           </Screen>
         )}
         {tab === 'settings' && (
@@ -385,6 +396,13 @@ function Ledger({ household, meta, userId, email }: {
 
       <PlanSheet target={plan} householdId={household.id} today={today} annivs={meta.anniversaries} onEventsChanged={reloadEvents}
         onAnnivsChanged={meta.reload} onClose={() => setPlan(null)} toast={toast} />
+
+      {wishTarget && <ErrorBoundary name="물건 보관함">
+        <Suspense fallback={<p role="status">보관함 여는 중</p>}>
+          <WishSheet target={wishTarget} store={wishStore} onClose={() => setWishTarget(null)}
+            onSaved={(message) => { setWishTarget(null); setWishVersion((v) => v + 1); toast(message) }} />
+        </Suspense>
+      </ErrorBoundary>}
 
       <Toast msg={toastMsg} />
     </div>

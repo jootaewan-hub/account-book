@@ -1,5 +1,5 @@
 // 알아보기 탭(D-035): 날씨·미세먼지와 다나와 가격 비교. 숫자는 서버 함수가 준 값만 쓰고 출처·기준 시각을 붙인다.
-import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react'
+import { useEffect, useEffectEvent, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import {
   agoText, dayName, DEFAULT_PLACE, degree, failText, fetchWeather, isRegionName, loadDaangnRegion, loadPlace, offerTotal, productPrices, round2,
   saveDaangnRegion, savePlace, searchPrices, searchShop, sortOffers, variantText, whenText, won,
@@ -7,6 +7,7 @@ import {
 } from '../lib/explore'
 import { sb } from '../lib/supabase'
 import { Sheet } from './Sheet'
+import { seedFromSearch, type WishSeed } from '../lib/wishes'
 
 // 같은 위치는 10분 동안 다시 받지 않는다(탭을 오가도 기상청을 다시 부르지 않게)
 const WEATHER_TTL = 10 * 60_000
@@ -20,11 +21,13 @@ const imageOf = (url: string | null) => (url && /^https:\/\/img\.danuri\.io\//.t
 // 에어코리아 등급(그대로 보인다) → 색 이름
 const GRADE_CLASS: Record<string, string> = { 좋음: 'good', 보통: 'normal', 나쁨: 'bad', 매우나쁨: 'worst' }
 
-export function ExploreView({ toast }: { toast: (msg: string) => void }) {
+export function ExploreView({ toast, onKeep, searchRequest }: {
+  toast: (msg: string) => void; onKeep?: (seed: WishSeed) => void; searchRequest?: { query: string; key: number } | null
+}) {
   return (
     <div className="view explore">
       <WeatherCard toast={toast} />
-      <PriceCard />
+      <PriceCard onKeep={onKeep} searchRequest={searchRequest} />
     </div>
   )
 }
@@ -162,7 +165,7 @@ const SOURCES: { key: Source; label: string; searching: string; used?: true }[] 
 ]
 const FIRST = 5
 
-function PriceCard() {
+function PriceCard({ onKeep, searchRequest }: { onKeep?: (seed: WishSeed) => void; searchRequest?: { query: string; key: number } | null }) {
   const [text, setText] = useState('')
   const [query, setQuery] = useState<string | null>(null)
   const [states, setStates] = useState<Partial<Record<Source, SourceState>>>({})
@@ -185,15 +188,18 @@ function PriceCard() {
     }
   }
 
-  function submit(e: FormEvent) {
-    e.preventDefault()
-    const q = text.replace(/\s+/g, ' ').trim()
-    if (q.length < 2 || searching) return
+  function start(value: string) {
+    const q = value.replace(/\s+/g, ' ').trim().slice(0, 60)
+    if (q.length < 2) return
     const n = ++seq.current
     setQuery(q)
     setStates(Object.fromEntries(SOURCES.map((s) => [s.key, { state: 'searching' }])))
     for (const s of SOURCES) void run(s.key, q, n)
   }
+
+  function submit(e: FormEvent) { e.preventDefault(); if (!searching) start(text) }
+  const requested = useEffectEvent((query: string) => { setText(query.slice(0, 60)); start(query) })
+  useEffect(() => { if (searchRequest) requested(searchRequest.query) }, [searchRequest])
 
   function changeRegion(next: string) {
     saveDaangnRegion(next)
@@ -217,6 +223,7 @@ function PriceCard() {
         <div key={`${s.key}:${query}`}>
           {s.used && !SOURCES[i - 1]?.used && <h3 className="explore-group">중고 매물</h3>}
           <SourceBlock label={s.label} searchingText={s.searching} st={states[s.key]} onOpen={setOpen}
+            onKeep={onKeep}
             extra={s.key === 'daangn' ? <RegionPicker region={region} onChange={changeRegion} /> : null} />
         </div>
       ))}
@@ -245,8 +252,9 @@ function RegionPicker({ region, onChange }: { region: string; onChange: (v: stri
   )
 }
 
-function SourceBlock({ label, searchingText, st, onOpen, extra }: {
+function SourceBlock({ label, searchingText, st, onOpen, onKeep, extra }: {
   label: string; searchingText: string; st: SourceState | undefined; onOpen: (it: ExploreItem) => void; extra?: ReactNode
+  onKeep?: (seed: WishSeed) => void
 }) {
   const [all, setAll] = useState(false)
   if (!st) return null
@@ -266,9 +274,11 @@ function SourceBlock({ label, searchingText, st, onOpen, extra }: {
             ? <p className="empty">찾은 상품이 없어요</p>
             : (
               <div className="explore-list">
-                {shown.map((it) => ('pcode' in it
-                  ? <ResultRow key={it.pcode} item={it} onOpen={() => onOpen(it)} />
-                  : <ShopRow key={it.id} item={it} />))}
+                {shown.map((it) => <div key={'pcode' in it ? it.pcode : it.id} className="explore-result">
+                  {'pcode' in it ? <ResultRow item={it} onOpen={() => onOpen(it)} /> : <ShopRow item={it} />}
+                  {onKeep && <button className="link-btn explore-keep" aria-label={`${it.name} 보관하기`}
+                    onClick={() => onKeep(seedFromSearch(it, label, r.foundAt))}>보관하기</button>}
+                </div>)}
               </div>
             )}
           {items.length > FIRST && (

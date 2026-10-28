@@ -3,6 +3,7 @@ import { removeItemImages } from './itemImages'
 import { utilityItemForBill } from './bills'
 import { installmentPlan } from './recurring'
 import { sb } from './supabase'
+import { readAllPages } from '../../supabase/functions/_shared/pagination'
 import type {
   Anniversary, AnniversaryInput, CalEvent, EventInput, BillCharge, BillUsage, Category, FuelFill, Household, Member, MonthTotal, PaymentMethod, Recurring, RecurringInput,
   Scope, Spouse, Transaction, TxFuel, TxInput, UtilityBill,
@@ -104,16 +105,17 @@ export async function deleteEvent(id: string): Promise<void> {
 export async function fetchTwoMonths(householdId: string, ym: string): Promise<Transaction[]> {
   const start = monthRange(addMonths(ym, -1)).start
   const end = monthRange(ym).end
-  const rows = check(
-    await sb()
+  const rows = await readAllPages<TxRowWithItems>((from, to) =>
+    sb()
       .from('transactions')
-      .select(TX_WITH_ITEMS)
+      .select(TX_WITH_ITEMS, { count: from === 0 ? 'exact' : undefined })
       .eq('household_id', householdId)
       .gte('occurred_on', start)
       .lte('occurred_on', end)
       .order('occurred_on', { ascending: false })
-      .order('created_at', { ascending: false }),
-  ) as unknown as TxRowWithItems[]
+      .order('created_at', { ascending: false })
+      .order('id', { ascending: false }).range(from, to),
+  )
   return rows.map(withItems)
 }
 
@@ -250,12 +252,30 @@ export async function setCategoryArchived(id: string, archived: boolean): Promis
 
 /** 기간 내역 (통계·내보내기·구독 찾기) */
 export async function fetchRange(householdId: string, from: string, to: string): Promise<Transaction[]> {
-  const rows = check(
-    await sb().from('transactions').select(TX_COLUMNS).eq('household_id', householdId)
+  const rows = await readAllPages<Transaction>((start, end) =>
+    sb().from('transactions').select(TX_COLUMNS, { count: start === 0 ? 'exact' : undefined }).eq('household_id', householdId)
       .gte('occurred_on', from).lte('occurred_on', to)
-      .order('occurred_on', { ascending: true }).order('created_at', { ascending: true }),
+      .order('occurred_on', { ascending: true }).order('created_at', { ascending: true }).order('id', { ascending: true }).range(start, end),
   )
   return rows.map((r) => ({ ...r, amount: Number(r.amount) }))
+}
+
+type ExportTransaction = Pick<TxRowWithItems,
+  'occurred_on' | 'type' | 'amount' | 'title' | 'platform' | 'memo' | 'scope' | 'source' | 'created_by' | 'category_id'> & {
+  occurred_at: string | null
+  transaction_items: Omit<NonNullable<TxRowWithItems['transaction_items']>[number], 'id' | 'image_path'>[]
+}
+
+/** CSV 다운로드용 전체 내역. 기간·가구 필터를 모든 페이지에 적용한다. */
+export async function fetchExportTransactions(householdId: string, from?: string, to?: string): Promise<ExportTransaction[]> {
+  return readAllPages<ExportTransaction>((start, end) => {
+    let q = sb().from('transactions')
+      .select('id, occurred_on, occurred_at, created_at, type, amount, title, platform, memo, scope, source, created_by, category_id, transaction_items(name, quantity, unit_price, amount, pack_size, pack_unit, sort)', { count: start === 0 ? 'exact' : undefined })
+      .eq('household_id', householdId)
+    if (from) q = q.gte('occurred_on', from)
+    if (to) q = q.lte('occurred_on', to)
+    return q.order('occurred_on').order('created_at').order('id').range(start, end)
+  })
 }
 
 export async function fetchMonthlyTotals(householdId: string, from: string, to: string): Promise<MonthTotal[]> {

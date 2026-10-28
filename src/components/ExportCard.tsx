@@ -1,9 +1,8 @@
 import { useState } from 'react'
 import { itemText, toCsv, type ExportRow } from '../../supabase/functions/export-csv/csv'
-import { exportToken, friendlyError } from '../lib/api'
+import { exportToken, fetchExportTransactions, friendlyError } from '../lib/api'
 import { addMonths, monthRange } from '../lib/dates'
 import { SCOPE_LABEL, type Lookup } from '../lib/lookup'
-import { sb } from '../lib/supabase'
 
 interface Props {
   householdId: string
@@ -37,14 +36,8 @@ export function ExportCard({ householdId, today, lookup, toast }: Props) {
     setBusy(true)
     try {
       const { from, to } = range(period, today)
-      let q = sb().from('transactions')
-        .select('occurred_on, occurred_at, type, amount, title, platform, memo, scope, source, created_by, category_id, transaction_items(name, quantity, unit_price, amount, pack_size, pack_unit, sort)')
-        .eq('household_id', householdId)
-      if (from) q = q.gte('occurred_on', from)
-      if (to) q = q.lte('occurred_on', to)
-      const { data, error } = await q.order('occurred_on').order('created_at')
-      if (error) throw new Error(error.message)
-      const rows: ExportRow[] = (data ?? []).map((t) => {
+      const data = await fetchExportTransactions(householdId, from, to)
+      const rows: ExportRow[] = data.map((t) => {
         const role = lookup.roleOf(t.created_by)
         const items = [...(t.transaction_items ?? [])].sort((a, b) => a.sort - b.sort)
         return {

@@ -113,6 +113,15 @@ export const TABLES = {
     { household_id: HH, user_id: YOU, display_name: '배우자', role: 'partner', spouse_role: 'wife' },
   ],
   'public.payment_methods': [],
+  // 보관함의 화면 확인용 예시. 실제 가격 정보가 아니다.
+  'grocery.purchase_wishes': [
+    { id: 'wish1', household_id: HH, title: '거실에 둘 스탠드', url: 'https://shop.example/lamp', target_price: 120000, memo: '소파 옆에 두기. 둘이 색상을 골라 보자.',
+      saved_price: 148000, price_source: '다나와', price_checked_at: ago(120), price_note: '1개 기준 · 검색 표시 가격 · 배송비 확인 필요', bought_at: null, created_by: YOU, created_at: ago(125) },
+    { id: 'wish2', household_id: HH, title: '주말에 쓸 커피 머신', url: null, target_price: 300000, memo: '세척이 쉬운 것으로. 서두르지 않고 골라요.',
+      saved_price: null, price_source: null, price_checked_at: null, price_note: null, bought_at: null, created_by: ME, created_at: ago(200) },
+    { id: 'wish3', household_id: HH, title: '식탁 의자 두 개', url: null, target_price: null, memo: '식탁 색에 맞춰 골랐어요.',
+      saved_price: null, price_source: null, price_checked_at: null, price_note: null, bought_at: ago(1440), created_by: YOU, created_at: ago(2000) },
+  ],
   'public.categories': categories,
   // 기념일(D-033): 카테고리·반복(2년마다, 매달)이 있는 것까지. 10월 말 기준 30일 안에 넷이 와서 넓은 화면 칩 줄이 넘친다
   'public.anniversaries': [

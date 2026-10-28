@@ -71,6 +71,16 @@ beforeEach(() => {
 afterEach(cleanup)
 
 describe('알아보기 탭', () => {
+  it('보관함에서 다시 찾으면 검색을 열고 결과의 가격·출처·시각을 보관 창에 넘긴다', async () => {
+    const kept: unknown[] = []
+    render(<ExploreView toast={() => {}} searchRequest={{ query: '비비고 왕교자', key: 1 }} onKeep={(seed) => kept.push(seed)} />)
+    fireEvent.click(await screen.findByRole('button', { name: 'CJ제일제당 비비고 왕교자 1.05kg 보관하기' }))
+    expect(kept[0]).toMatchObject({ title: 'CJ제일제당 비비고 왕교자 1.05kg', url: 'https://prod.danawa.com/info/?pcode=5643303',
+      quote: { price: 10380, source: '다나와', checkedAt: SEARCH.foundAt } })
+    fireEvent.click(await screen.findByRole('button', { name: '[비비고] 왕교자 만두 대용량 1.05kg 보관하기' }))
+    expect(kept[1]).toMatchObject({ url: 'https://www.kurly.com/goods/5082274', quote: { price: 10480, source: '마켓컬리', checkedAt: KURLY.foundAt } })
+  })
+
   it('기본 위치(성남시청 근처)로 날씨·미세먼지를 받아 출처와 함께 보인다. 값이 없으면 확인 못 함, 등급이 없으면 등급 없음', async () => {
     render(<ExploreView toast={() => {}} />)
     expect(await screen.findByText('12.3°')).toBeTruthy()

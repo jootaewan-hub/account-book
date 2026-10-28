@@ -362,6 +362,26 @@
 /* 전환은 목록 화면과 같은 폭(760px) 맨 위에 둔다 */
 .grocery .view-switch { max-width: 760px; margin: 8px auto 0; }
 .grocery .seg-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.grocery .wish-page { max-width: 760px; margin: 20px auto 0; }
+.grocery .wish-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.grocery .wish-head h2 { margin: 0 0 4px; font-size: 20px; letter-spacing: -.02em; }
+.grocery .wish-head .btn-primary { flex-shrink: 0; }
+.grocery .wish-hint { font-size: 14px; color: var(--ink-2); }
+.grocery .wish-list { list-style: none; padding: 0; margin: 20px 0 16px; display: grid; gap: 12px; }
+.grocery .wish-card { background: var(--oat); border-radius: var(--r-md); padding: 16px; display: grid; gap: 10px; }
+.grocery .wish-title { padding: 0; min-height: 44px; border: 0; background: transparent; color: var(--ink); text-align: left; font: inherit; font-size: 18px; font-weight: 700; overflow-wrap: anywhere; cursor: pointer; }
+.grocery .wish-title:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; border-radius: 4px; }
+.grocery .wish-target { font-weight: 600; }
+.grocery .wish-target span, .grocery .wish-by { color: var(--ink-2); font-size: 13px; font-weight: 400; }
+.grocery .wish-target span { display: block; margin-top: 2px; }
+.grocery .wish-price { color: var(--ink-2); font-size: 13px; }
+.grocery .wish-price p:first-child { color: var(--ink); font-size: 15px; font-weight: 600; }
+.grocery .wish-memo { font-size: 15px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.grocery .wish-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 8px; }
+.grocery .wish-actions a { display: inline-flex; align-items: center; text-decoration: none; }
+.grocery .wish-actions .btn-secondary { margin-left: auto; }
+.grocery .wish-empty { margin: 28px 4px; color: var(--ink-2); font-size: 15px; }
+.grocery .wish-error { margin-top: 16px; padding: 12px; background: var(--clay-soft); border-radius: var(--r-sm); color: var(--clay); }
 .grocery .market-page { padding-top: 0; }
 .grocery .market-source { margin: 16px 0 0; font-size: 13px; color: var(--ink-2); }
 .grocery .market-empty { margin: 4px 0 0; font-size: 14px; color: var(--ink-2); }

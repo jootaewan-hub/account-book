@@ -118,6 +118,9 @@ const groceryShots = [
 const TAB_SLUG = { 달력: 'cal', 내역: 'list', 장보기: 'grocery', 통계: 'stats', 고정: 'fixed', 알아보기: 'explore', 설정: 'settings' }
 // 가계부 셸: 탭 이름(아래 탭·왼쪽 메뉴의 글자)으로 연다. 설정은 '설정' 버튼(휴대폰 톱니, 넓은 화면 메뉴 줄)
 const shellShots = [
+  ...each((w, c) => ({ name: `shell-wishes-${w}-${c}`, path: '/', w, c, shell: true, tab: '장보기', wishes: true, full: true })),
+  ...each((w, c) => ({ name: `shell-wish-edit-${w}-${c}`, path: '/', w, c, shell: true, tab: '장보기', wishes: true, wishEdit: true })),
+  ...each((w, c) => ({ name: `shell-wish-from-search-${w}-${c}`, path: '/', w, c, shell: true, tab: '알아보기', explore: { query: '비비고 왕교자', keep: true } })),
   ...['달력', '내역', '장보기', '통계', '고정', '알아보기', '설정'].flatMap((tab) =>
     each((w, c) => ({ name: `shell-${TAB_SLUG[tab]}-${w}-${c}`, path: '/', w, c, shell: true, tab, full: tab !== '장보기' }))),
   // 알아보기(D-035): 다나와 검색 결과, 상품을 눌러 연 쇼핑몰별 가격 시트, 공공데이터포털 활용신청 전
@@ -205,7 +208,7 @@ async function fakeSupabase(context, s = {}) {
   await context.route(`${SUPABASE}/**`, async (route) => {
     const req = route.request()
     const url = new URL(req.url())
-    const json = (body, status = 200) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) })
+    const json = (body, status = 200, headers = {}) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body), headers })
     if (url.pathname.startsWith('/auth/v1/user')) return json(USER)
     if (url.pathname.startsWith('/auth/v1/token')) return json(fakeSession())
     if (url.pathname.startsWith('/auth/v1/logout')) return route.fulfill({ status: 204 })
@@ -245,6 +248,15 @@ async function fakeSupabase(context, s = {}) {
     if ((req.headers()['accept'] ?? '').includes('vnd.pgrst.object')) {
       const one = Array.isArray(rows) ? rows[0] : rows
       return one == null ? json({ code: 'PGRST116', message: 'no rows' }, 406) : json(one)
+    }
+    // range 조회와 전체 개수를 실제 PostgREST처럼 응답한다(전체 조회가 같은 페이지를 반복하지 않게).
+    if (Array.isArray(rows) && url.searchParams.has('offset')) {
+      const total = rows.length
+      const offset = Number(url.searchParams.get('offset'))
+      const limit = Number(url.searchParams.get('limit') ?? 500)
+      const page = rows.slice(offset, offset + limit)
+      const count = (req.headers()['prefer'] ?? '').includes('count=exact') ? total : '*'
+      return json(page, 200, { 'content-range': page.length ? `${offset}-${offset + page.length - 1}/${count}` : `*/${count}` })
     }
     return json(rows)
   })
@@ -298,6 +310,14 @@ try {
       } else if (s.path === G) {
         await page.getByText('살 것', { exact: true }).waitFor()
       }
+      if (s.wishes) {
+        await page.getByRole('group', { name: '장보기 보기' }).getByRole('button', { name: '보관함' }).click()
+        await page.getByRole('button', { name: '거실에 둘 스탠드', exact: true }).waitFor()
+        if (s.wishEdit) {
+          await page.getByRole('button', { name: '거실에 둘 스탠드', exact: true }).click()
+          await page.getByRole('dialog', { name: '보관한 물건 고치기' }).waitFor()
+        }
+      }
       if (s.market) {
         await page.getByRole('group', { name: '장보기 보기' }).getByRole('button', { name: '시세' }).click()
         if (!s.wait) await page.getByText(/지켜보는 품목|아직 받은 시세가 없어요/).first().waitFor()
@@ -334,6 +354,11 @@ try {
           await page.locator('.explore-list .tx').first().click()
           await page.getByRole('dialog').first().waitFor()
           await page.locator('.offer-table').waitFor()
+        }
+        if (s.explore.keep) {
+          await page.locator('.explore-keep').first().click()
+          await page.getByRole('dialog', { name: '함께 살 물건 보관' }).waitFor()
+          await page.getByRole('button', { name: '보관하기', exact: true }).waitFor({ state: 'visible' })
         }
       }
       if (s.scroll) await page.locator(s.scroll).first().scrollIntoViewIfNeeded()
