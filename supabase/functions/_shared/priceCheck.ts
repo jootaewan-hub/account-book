@@ -25,7 +25,7 @@ export type ShopSummary = { done: number; cached: number; failed: number }
 export type DanawaOutcome = 'done' | 'network_error' | `http_${number}` | 'parse_failed' | 'parse_error' | 'parse_empty' | 'save_failed'
 
 /** 다나와 상품 페이지를 받아 저장한다. 실패는 price_checks에 남기고 그 이유를 돌려준다. */
-export async function checkDanawa(product: { id: string; sourceId: string }, deps: PriceCheckDeps, at: string): Promise<DanawaOutcome> {
+export async function checkDanawa(product: { id: string; sourceId: string }, deps: Pick<PriceCheckDeps, 'fetchHtml' | 'save' | 'fail'>, at: string): Promise<DanawaOutcome> {
   const failWith = async (reason: Exclude<DanawaOutcome, 'done'>) => {
     await deps.fail(product.id, reason, at)
     return reason

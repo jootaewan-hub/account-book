@@ -261,3 +261,56 @@ export const BILL = {
     ],
   },
 }
+
+// 알아보기 탭(D-035) 화면 캡처용 함수 응답(값은 캡처용으로 지은 것, 실제 기상청·에어코리아·다나와 값이 아니다)
+const kstNow = new Date(Date.now() + 9 * 3600_000)
+const kDate = (d) => d.toISOString().slice(0, 10)
+const kHour = (h) => `${kDate(kstNow)}T${String(h).padStart(2, '0')}:00:00+09:00`
+const hourAgo = Math.max(0, kstNow.getUTCHours() - 1)
+export const EXPLORE_WEATHER = {
+  lat: 37.42, lng: 127.13,
+  weather: {
+    status: 'ok',
+    now: { observedAt: kHour(hourAgo), temp: 12.3, humidity: 55, rain1h: 0, precip: '없음' },
+    issuedAt: kHour(2),
+    days: [
+      { date: kDate(kstNow), min: 6, max: 17, sky: '구름많음', rainChance: 30, precip: '없음' },
+      { date: kDate(new Date(kstNow.getTime() + 86_400_000)), min: 8, max: 14, sky: '흐림', rainChance: 80, precip: '비' },
+    ],
+  },
+  air: {
+    status: 'ok',
+    station: { name: '정자동', addr: '경기 성남시 분당구 정자일로 80', distanceKm: 1.4 },
+    measuredAt: kHour(hourAgo),
+    pm10: { value: 35, grade: '보통' },
+    pm25: { value: 12, grade: '좋음' },
+  },
+}
+export const EXPLORE_WEATHER_NOT_REGISTERED = { lat: 37.42, lng: 127.13, weather: { status: 'not_registered' }, air: { status: 'not_registered' } }
+export const EXPLORE_SEARCH = {
+  status: 'done', query: '비비고 왕교자', foundAt: new Date(Date.now() - 2 * 60_000).toISOString(),
+  items: [
+    { pcode: '76322327', name: 'CJ제일제당 비비고 왕교자 1.925kg', imageUrl: null, rating: 4.8, reviewCount: 30512,
+      variants: [{ qty: 1, price: 15105, unitPrice: 785, unitLabel: '100g', mallCount: 256 }, { qty: 2, price: 28300, unitPrice: 735, unitLabel: '100g', mallCount: 205 }] },
+    { pcode: '115991358', name: 'CJ제일제당 비비고 한식 왕교자 1.5kg', imageUrl: null, rating: 4.7, reviewCount: 1204,
+      variants: [{ qty: 1, price: 10580, unitPrice: 703, unitLabel: '100g', mallCount: 91 }] },
+    { pcode: '5643303', name: 'CJ제일제당 비비고 왕교자 1.05kg', imageUrl: null, rating: 4.8, reviewCount: 9217,
+      variants: [{ qty: 1, price: 10380, unitPrice: 989, unitLabel: '100g', mallCount: 33 }, { qty: 2, price: 19250, unitPrice: 917, unitLabel: '100g', mallCount: 132 }] },
+  ],
+}
+export const EXPLORE_PRODUCT = {
+  status: 'done',
+  product: { pcode: '76322327', name: 'CJ제일제당 비비고 왕교자 1.925kg', rating: 4.8, reviewCount: 30512, ratedAt: new Date().toISOString() },
+  checkedAt: new Date(Date.now() - 60_000).toISOString(),
+  pageQty: 1,
+  variants: [
+    { qty: 1, seller: null, price: 15105, delivery: null, unitPrice: 785, unitLabel: '100g', mallCount: 256 },
+    { qty: 2, seller: null, price: 28300, delivery: null, unitPrice: 735, unitLabel: '100g', mallCount: 205 },
+  ],
+  offers: [
+    { qty: 1, seller: '11번가', price: 15990, delivery: null, unitPrice: null, unitLabel: null, mallCount: null },
+    { qty: 1, seller: 'G마켓', price: 15105, delivery: 3000, unitPrice: null, unitLabel: null, mallCount: null },
+    { qty: 1, seller: '옥션', price: 15400, delivery: 0, unitPrice: null, unitLabel: null, mallCount: null },
+    { qty: 1, seller: '롯데ON', price: 16500, delivery: 0, unitPrice: null, unitLabel: null, mallCount: null },
+  ],
+}

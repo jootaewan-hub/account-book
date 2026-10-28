@@ -8,7 +8,7 @@
 import { existsSync, mkdirSync, readFileSync } from 'node:fs'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { chromium } from 'playwright'
-import { BILL, fakeSession, FUEL_RECEIPT, LONG_RECEIPT, RECEIPT, TABLES, USER } from './shell-fixtures.mjs'
+import { BILL, EXPLORE_PRODUCT, EXPLORE_SEARCH, EXPLORE_WEATHER, EXPLORE_WEATHER_NOT_REGISTERED, fakeSession, FUEL_RECEIPT, LONG_RECEIPT, RECEIPT, TABLES, USER } from './shell-fixtures.mjs'
 
 const BASE = process.env.BASE_URL ?? 'http://localhost:5188' // vite.config.ts server.port와 같다
 const OUT = process.env.OUT_DIR ? pathToFileURL(`${process.env.OUT_DIR.replace(/\/$/, '')}/`) : new URL('../screenshots/', import.meta.url)
@@ -115,11 +115,15 @@ const groceryShots = [
   { name: 'grocery-list-error-390-light', path: '/?demo=grocery-error', w: 390, c: 'light', wait: '목록을 불러오지 못했어요.' },
 ]
 
-const TAB_SLUG = { 달력: 'cal', 내역: 'list', 장보기: 'grocery', 통계: 'stats', 고정: 'fixed', 설정: 'settings' }
+const TAB_SLUG = { 달력: 'cal', 내역: 'list', 장보기: 'grocery', 통계: 'stats', 고정: 'fixed', 알아보기: 'explore', 설정: 'settings' }
 // 가계부 셸: 탭 이름(아래 탭·왼쪽 메뉴의 글자)으로 연다. 설정은 '설정' 버튼(휴대폰 톱니, 넓은 화면 메뉴 줄)
 const shellShots = [
-  ...['달력', '내역', '장보기', '통계', '고정', '설정'].flatMap((tab) =>
+  ...['달력', '내역', '장보기', '통계', '고정', '알아보기', '설정'].flatMap((tab) =>
     each((w, c) => ({ name: `shell-${TAB_SLUG[tab]}-${w}-${c}`, path: '/', w, c, shell: true, tab, full: tab !== '장보기' }))),
+  // 알아보기(D-035): 다나와 검색 결과, 상품을 눌러 연 쇼핑몰별 가격 시트, 공공데이터포털 활용신청 전
+  ...each((w, c) => ({ name: `shell-explore-search-${w}-${c}`, path: '/', w, c, shell: true, tab: '알아보기', full: true, explore: { query: '비비고 왕교자' } })),
+  ...each((w, c) => ({ name: `shell-explore-offers-${w}-${c}`, path: '/', w, c, shell: true, tab: '알아보기', explore: { query: '비비고 왕교자', open: true } })),
+  { name: 'shell-explore-notreg-390-light', path: '/', w: 390, c: 'light', shell: true, tab: '알아보기', weatherNotRegistered: true },
   // 다음 달(D-030): 고정지출 예정분이 나갈 돈에 들어가고 칸에는 점선 금액, 고른 날(15일)에 할부 예정 줄
   ...each((w, c) => ({ name: `shell-cal-next-${w}-${c}`, path: '/', w, c, shell: true, tab: '달력', full: true, next: true, calDay: 15 })),
   // 내역·통계·고정 탭 다음 달(D-030 보충): 예정 줄과 합계, 통계는 비교 문장 없이, 고정 탭은 그 달의 기록됨·예정·없음
@@ -209,6 +213,12 @@ async function fakeSupabase(context, s = {}) {
       let body = null
       try { body = req.postDataJSON() } catch { /* JSON이 아니면 영수증 응답 */ }
       return json(body?.mode === 'bill' ? BILL : s.fuel ? FUEL_RECEIPT : s.longReceipt ? LONG_RECEIPT : RECEIPT)
+    }
+    if (url.pathname === '/functions/v1/explore-weather') return json(s.weatherNotRegistered ? EXPLORE_WEATHER_NOT_REGISTERED : EXPLORE_WEATHER)
+    if (url.pathname === '/functions/v1/explore-price') {
+      let body = null
+      try { body = req.postDataJSON() } catch { /* 검색으로 본다 */ }
+      return json(body?.pcode ? EXPLORE_PRODUCT : EXPLORE_SEARCH)
     }
     if (url.pathname.startsWith('/functions/v1/')) return json({ status: 'skipped' })
     if (url.pathname.startsWith('/storage/v1/')) return json([])
@@ -312,6 +322,17 @@ try {
       if (s.calDay) {
         await page.getByRole('button', { name: new RegExp(`^\\d+월 ${s.calDay}일`) }).click()
         await page.locator('.tx.plan, .anniv-row').first().waitFor()
+      }
+      if (s.tab === '알아보기') await page.waitForFunction(() => document.querySelector('.explore-weather') && !document.body.innerText.includes('기상청 예보 받는 중'))
+      if (s.explore?.query) {
+        await page.getByRole('textbox', { name: '상품 이름' }).fill(s.explore.query)
+        await page.getByRole('button', { name: '찾기', exact: true }).click()
+        await page.locator('.explore-list .tx').first().waitFor()
+        if (s.explore.open) {
+          await page.locator('.explore-list .tx').first().click()
+          await page.getByRole('dialog').first().waitFor()
+          await page.locator('.offer-table').waitFor()
+        }
       }
       if (s.scroll) await page.locator(s.scroll).first().scrollIntoViewIfNeeded()
       if (s.press) await page.getByRole('button', { name: s.press, exact: true }).click()

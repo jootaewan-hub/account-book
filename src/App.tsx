@@ -3,7 +3,7 @@ import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type
 import { CalendarView } from './components/CalendarView'
 import { EntrySheet } from './components/EntrySheet'
 import { ErrorBoundary } from './components/ErrorBoundary'
-import { CalendarIcon, CartIcon, ChartIcon, ChevronLeft, ChevronRight, GearIcon, ListIcon, Plus, RepeatIcon } from './components/Icons'
+import { CalendarIcon, CartIcon, ChartIcon, ChevronLeft, ChevronRight, GearIcon, ListIcon, Plus, RepeatIcon, SearchIcon } from './components/Icons'
 import { ListView, type ListFocus } from './components/ListView'
 import { Soft, Toast } from './components/Motion'
 import { PlanSheet, type PlanTarget } from './components/PlanSheet'
@@ -31,12 +31,13 @@ const RecurringView = lazy(() => import('./components/RecurringView').then((m) =
 const SettingsView = lazy(() => import('./components/SettingsView').then((m) => ({ default: m.SettingsView })))
 const ExportCard = lazy(() => import('./components/ExportCard').then((m) => ({ default: m.ExportCard })))
 const SmartSheet = lazy(() => import('./components/SmartSheet').then((m) => ({ default: m.SmartSheet })))
+const ExploreView = lazy(() => import('./components/ExploreView').then((m) => ({ default: m.ExploreView })))
 
 /** 첫 화면이 뜬 뒤 쉬는 틈에 나머지 묶음을 미리 받아 둔다(탭을 누를 때 기다리지 않게) */
 function prefetchChunks() {
   void Promise.allSettled([
     import('./grocery/GroceryTab'), import('./components/StatsView'), import('./components/SmartSheet'),
-    import('./components/RecurringView'), import('./components/SettingsView'), import('./components/ExportCard'),
+    import('./components/RecurringView'), import('./components/SettingsView'), import('./components/ExportCard'), import('./components/ExploreView'),
   ])
 }
 
@@ -94,7 +95,7 @@ function Home({ userId, email }: { userId: string; email: string }) {
   return <Ledger household={meta.household} meta={meta} userId={userId} email={email} />
 }
 
-type Tab = 'cal' | 'list' | 'grocery' | 'stats' | 'fixed' | 'settings'
+type Tab = 'cal' | 'list' | 'grocery' | 'stats' | 'fixed' | 'explore' | 'settings'
 
 /** 처음 열 탭: ?tab=grocery(예전 장보기 주소의 안내 페이지가 여기로 보낸다). 다른 값은 무시한다. 설정에서 앱 파일을 다시 받았으면 설정 */
 function initialTab(): Tab {
@@ -102,7 +103,7 @@ function initialTab(): Tab {
   return new URLSearchParams(window.location.search).get('tab') === 'grocery' ? 'grocery' : 'cal'
 }
 
-const TITLE: Record<Tab, string> = { cal: '우리집', list: '내역', grocery: '장보기', stats: '통계', fixed: '고정 지출', settings: '설정' }
+const TITLE: Record<Tab, string> = { cal: '우리집', list: '내역', grocery: '장보기', stats: '통계', fixed: '고정 지출', explore: '알아보기', settings: '설정' }
 
 /** 따로 받는 화면이 오는 동안의 자리. 한 화면이 그리다 멈추면 그 자리에만 오류를 보이고, 다른 탭으로 옮기면(key) 풀린다 */
 function Screen({ name, children }: { name: string; children: ReactNode }) {
@@ -330,6 +331,11 @@ function Ledger({ household, meta, userId, email }: {
               categories={activeCats} onTxChanged={reload} toast={toast} />
           </Screen>
         )}
+        {tab === 'explore' && (
+          <Screen name="알아보기">
+            <ExploreView toast={toast} />
+          </Screen>
+        )}
         {tab === 'settings' && (
           <Screen name="설정">
             <SettingsView household={household} categories={meta.categories} annivs={meta.anniversaries} today={today}
@@ -353,6 +359,7 @@ function Ledger({ household, meta, userId, email }: {
           <button className="tab" aria-current={tab === 'grocery' ? 'page' : undefined} onClick={() => setTab('grocery')}><CartIcon />장보기</button>
           <button className="tab" aria-current={tab === 'stats' ? 'page' : undefined} onClick={() => setTab('stats')}><ChartIcon />통계</button>
           <button className="tab" aria-current={tab === 'fixed' ? 'page' : undefined} onClick={() => setTab('fixed')}><RepeatIcon />고정</button>
+          <button className="tab" aria-current={tab === 'explore' ? 'page' : undefined} onClick={() => setTab('explore')}><SearchIcon />알아보기</button>
           {/* 넓은 화면에서만 보인다. 휴대폰은 위쪽 톱니 버튼을 쓴다 */}
           <button className="tab side-settings" aria-current={tab === 'settings' ? 'page' : undefined} onClick={openSettings}><GearIcon />설정</button>
         </div>
