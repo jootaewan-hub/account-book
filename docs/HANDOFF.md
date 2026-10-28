@@ -235,6 +235,14 @@ npm run screens
     - 확인 필요(첫 사용 뒤): 오늘의집·번개장터·당근이 Supabase 서버에서 막히지 않는지(`explore_finds` 줄), 날씨는 활용신청 뒤.
     - 되돌리기: 화면은 main을 9f8cc3a(배포 기록 30)로, 함수는 stub을 d1809c4로 다시 배포. `explore_finds`는 비어 있어도 무해하다.
 
+32. 알아보기 함수는 로그인한 사용자만(v2.14.1) 운영 반영과 날씨 운영 확인(2026-10-28 14:56~15:34 KST, 사용자 "활용신청 했어 날씨 확인해"·"고쳐서 병합 배포해"): 브랜치 `claude/explore-weather-check` → `ci.yml` 통과(543ff83).
+    - 확인됨(날씨, 사용자 활용신청 뒤): 운영 `explore-weather`가 기상청 초단기실황·단기예보와 에어코리아 근접측정소·실시간을 정상으로 받는다. 예보 값은 같은 발표를 k-skill 중계 서버로 따로 받아 견줘 같았다. 미세먼지는 다른 경로 대조가 남았다(`data-sources.md` 10절).
+    - 고침: 확인하다가 두 함수가 공개 anon 키(JWT)로도 200을 주는 것을 찾았다(verify_jwt는 anon 키도 통과). `_shared/edge.ts` `isSignedIn`(getClaims, role authenticated·sub)으로 로그인 사용자만 받는다.
+    - 됨(함수, 커밋 고정 543ff830534d1279b63641e967c9ccaa51a3e39f): `explore-weather` v2, `explore-price` v4. 공개 anon 키로 부르면 401 `{"error":"unauthorized"}`, 키 없이 401, OPTIONS 204. 로그인한 사용자는 같은 방식(getClaims)의 `extract-entries`처럼 통과한다(추측: 앱으로 직접 확인하지 못함).
+    - 됨: main fast-forward(543ff83)·푸시, Pages 배포 성공, 운영 `version.json` `543ff83 · 10-28 15:34`, 묶음에 2.14.1.
+    - 확인 필요(사용자): 앱 알아보기 탭에서 날씨·가격 찾기가 그대로 되는지(로그인 사용자 통과), 에어코리아 앱의 성남대로(모란역) 값.
+    - 되돌리기: 함수 stub을 e814e0d(날씨)·e06b4fe(가격)로 다시 배포하면 로그인 확인 전으로 돌아간다. 화면은 main을 6664b2f(배포 기록 31)로.
+
 ### 사용자 할 일
 
 - ~~공공데이터포털 식품영양성분DB(15127578) 활용신청~~ 2026-10-20 마침(사용자). 같은 키로 통하는지는 성분 탭 첫 호출로 확인.
