@@ -39,6 +39,11 @@ const json = (status: number, body: unknown) =>
 
 const kstDay = (d: Date) => new Date(d.getTime() + 9 * 3600_000).toISOString().slice(0, 10)
 export const queryKey = (q: string) => q.toLowerCase().replace(/\s+/g, ' ').trim()
+/**
+ * explore_searches.items(jsonb 배열)에 그 상품이 들었는지 보는 PostgREST 조건 값(`cs` = `@>`).
+ * supabase-js의 contains()에 객체 배열을 넘기면 Postgres 배열 글자 "{[object Object]}"로 보내므로 JSON 글자로 준다.
+ */
+export const itemsWithPcode = (pcode: string) => JSON.stringify([{ pcode }])
 
 async function search(query: string, deps: PriceDeps): Promise<Response> {
   const now = deps.now()

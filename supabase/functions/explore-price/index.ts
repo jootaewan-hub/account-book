@@ -2,7 +2,7 @@
 // 검색 캐시·상품·가격 확인은 서비스 롤로 grocery 스키마에 쓴다(가구 데이터는 읽거나 쓰지 않는다).
 import { admin, cors, fetchHtml, withCors } from '../_shared/edge.ts'
 import { danawaStore } from '../_shared/priceStore.ts'
-import { handle, type ExploreItem, type Quote } from './handle.ts'
+import { handle, itemsWithPcode, type ExploreItem, type Quote } from './handle.ts'
 
 const g = () => admin.schema('grocery')
 const COLS = 'id, source_id, name, rating, review_count, rated_at'
@@ -39,7 +39,7 @@ Deno.serve(async (req) => {
         return data ? productRow(data) : null
       },
       searchedName: async (pcode) => {
-        const { data, error } = await g().from('explore_searches').select('items').contains('items', [{ pcode }])
+        const { data, error } = await g().from('explore_searches').select('items').filter('items', 'cs', itemsWithPcode(pcode))
           .order('found_at', { ascending: false }).limit(1).maybeSingle()
         if (error) throw error
         const hit = ((data?.items ?? []) as ExploreItem[]).find((i) => i.pcode === pcode)

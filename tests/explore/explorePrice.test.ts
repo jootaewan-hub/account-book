@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
-import { handle, MAX_WAIT_MS, queryKey, type LatestCheck, type ExploreItem, type PriceDeps } from '../../supabase/functions/explore-price/handle'
+import { createClient } from '@supabase/supabase-js'
+import { handle, itemsWithPcode, MAX_WAIT_MS, queryKey, type LatestCheck, type ExploreItem, type PriceDeps } from '../../supabase/functions/explore-price/handle'
 
 const SEARCH_HTML = readFileSync(new URL('../grocery/fixtures/danawa/search-bibigo.html', import.meta.url), 'utf8')
 const NOW = new Date('2026-10-28T02:30:00Z') // 한국 2026-10-28 11:30
@@ -175,3 +176,19 @@ describe('explore-price: 상품 가격', () => {
     expect(log.inserted).toHaveLength(0)
   })
 })
+
+describe('explore-price: 검색 결과에서 상품 찾기 조건', () => {
+  it('실제 supabase-js가 items=cs.[{"pcode":"…"}](jsonb @>)로 보낸다', async () => {
+    const urls: string[] = []
+    const client = createClient('https://x.supabase.co', 'k', {
+      global: { fetch: (async (u: string | URL | Request) => {
+        urls.push(String(u))
+        return new Response('[]', { status: 200, headers: { 'content-type': 'application/json' } })
+      }) as typeof fetch },
+      auth: { persistSession: false, autoRefreshToken: false },
+    })
+    await client.schema('grocery').from('explore_searches').select('items').filter('items', 'cs', itemsWithPcode('5643303')).limit(1)
+    expect(decodeURIComponent(urls[0])).toContain('items=cs.[{"pcode":"5643303"}]')
+  })
+})
+

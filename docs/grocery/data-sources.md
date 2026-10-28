@@ -269,6 +269,14 @@
 
 - (2026-10-19 로컬, P4) `grocery-photo` 함수는 `claude-sonnet-5-5`로 포장·캡처를 읽는다(구조화 출력). WIF 교환은 배포 뒤 첫 호출로 확인한다. 2026-10-19 밤 기준 Anthropic 모델 목록: Opus 5.5·Sonnet 5.5·Haiku 5.5(claude-api 스킬로 확인).
 
+## 10. 날씨·미세먼지 — 기상청·에어코리아 (알아보기 탭, D-035)
+
+- 쓰는 API(공공데이터포털, 같은 `DATA_GO_KR_SERVICE_KEY`, 활용신청이 필요하다):
+  - 기상청 단기예보 조회서비스 15084084: `https://apis.data.go.kr/1360000/VilageFcstInfoService_2.0/getUltraSrtNcst`(초단기실황), `getVilageFcst`(단기예보). 위경도 → 격자는 기상청 람베르트 변환식(서울시청 → 60, 127 시험).
+  - 에어코리아 측정소정보 15073877 `https://apis.data.go.kr/B552584/MsrstnInfoInqireSvc/getNearbyMsrstnList`(TM 좌표, ver 1.1), 대기오염정보 15073861 `…/ArpltnInforInqireSvc/getMsrstnAcctoRltmMesureDnsty`(ver 1.3, 1시간 등급 `pm10Grade1h`·`pm25Grade1h`). WGS84 → TM 식은 k-skill `fine-dust-location`(MIT)에서 옮겼고 그 파이썬과 값이 같음을 시험했다.
+- 확인된 사실(2026-10-28): 네 주소 모두 https로 응답하고, 등록 전 키에는 `SERVICE_KEY_IS_NOT_REGISTERED_ERROR`(returnReasonCode 30)를 준다. 기상청 키 없는 동네예보 RSS(`www.kma.go.kr/wid/queryDFSRSS.jsp`)는 403.
+- **확인 필요**: 실제 응답 모양. 응답 읽기 시험은 활용가이드의 JSON 예시를 본뜬 사본으로만 했다(근접측정소 목록의 `tm`(거리 km), 1시간 등급 칸, 자정 "24:00" 표기 포함). 활용신청 뒤 첫 호출 한 번을 같은 장소·시각의 기상청 날씨누리·에어코리아 화면과 견줘 확인하고 여기에 적는다.
+
 ## 조사에 쓴 도구 (2026-10-16)
 
 - 잘 된 것: Exa(검색·페이지 읽기, 네이버 문서와 robots.txt까지 읽힘), WebFetch(식품안전나라 sample 호출), curl(컬리·CJ더마켓·다나와·홈플러스 원본 HTML).
