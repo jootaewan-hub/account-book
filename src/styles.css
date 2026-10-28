@@ -629,6 +629,10 @@ input[type="search"].input { -webkit-appearance: none; appearance: none; }
 .offer-table th:first-child, .offer-table td:first-child { text-align: left; white-space: normal; }
 .explore-variants { margin: 0; padding-left: 18px; font-size: 14px; line-height: 1.7; }
 .explore-offers > .link-btn { display: inline-block; margin-top: 12px; }
+.explore-source + .explore-source { margin-top: 8px; }
+.explore-list a.tx { color: inherit; text-decoration: none; }
+.explore-list .tx.sold-out .tx-title, .explore-list .tx.sold-out .tx-amt { color: var(--ink-3); }
+.explore-more { display: inline-block; margin-top: 8px; }
 
 @media (min-width: 960px) {
   .app.ledger { max-width: 1200px; display: grid; grid-template-columns: 216px minmax(0, 1fr); grid-template-rows: auto 1fr; column-gap: 40px; padding: 0 24px; }

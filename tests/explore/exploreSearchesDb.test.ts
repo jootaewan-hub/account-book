@@ -57,3 +57,16 @@ describe('grocery.explore_searches', () => {
     expect(await errorOf(as('service_role', `insert into grocery.explore_searches (query_key, searched_on, query, items) values ('ab', '2026-10-28', 'ab', '{}')`))).toMatch(/check/)
   })
 })
+
+describe('grocery.explore_shop_searches(D-036)', () => {
+  it('서비스 롤만 쓰고, 출처는 kurly·daiso만, 출처별 전역 간격 자리가 있다', async () => {
+    await as('service_role', `insert into grocery.explore_shop_searches (source, query_key, searched_on, query) values ('kurly', '우유', '2026-10-28', '우유'), ('daiso', '우유', '2026-10-28', '우유')`)
+    expect(await errorOf(as('service_role', `insert into grocery.explore_shop_searches (source, query_key, searched_on, query) values ('coupang', '우유', '2026-10-28', '우유')`))).toMatch(/check/)
+    expect(await errorOf(as('authenticated', `select * from grocery.explore_shop_searches`))).toMatch(/permission denied/)
+    const gates = await as<{ key: string }>('service_role', `select key from grocery.fetch_gate order by key`)
+    expect(gates.map((g) => g.key)).toEqual(['daiso-search', 'danawa-search', 'kurly-search'])
+    const wait = await as<{ w: number }>('service_role', `select grocery.reserve_fetch('kurly-search', 1000, 30000) as w`)
+    expect(wait[0].w).toBe(0)
+  })
+})
+

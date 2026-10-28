@@ -1,9 +1,13 @@
 // 알아보기 탭 가격 비교(D-035): 검색어로 다나와 상품 후보를, 고른 상품의 다나와 상품 페이지 가격 줄을 돌려준다.
+// source가 kurly·daiso면(D-036) 마켓컬리 앱 검색·다이소몰 상품 검색 결과를 같은 날 캐시(explore_shop_searches)와 출처별 전역 간격으로 돌려준다.
 // 검색은 장보기와 같은 전역 10초 자리(reserve_fetch 'danawa-search', robots Crawl-delay 10)를 쓰고, 한국 날짜·검색어가 같으면
 // grocery.explore_searches의 결과를 돌려준다. 상품 가격은 장보기와 같은 price_checks(같은 상품 같은 날 한 번)를 쓴다.
 // 가구 데이터를 읽거나 쓰지 않는다. Deno 전용 API를 쓰지 않아 Vitest로 시험한다.
 import { danawaSearchUrl, DanawaParseError, parseDanawaSearch, type DanawaVariant } from '../_shared/danawa.ts'
 import { checkDanawa, type PriceCheckDeps } from '../_shared/priceCheck.ts'
+import { parseShopSearch, ShopSearchError, shopSearchUrl, type ShopItem, type ShopSource } from '../_shared/shopSearch.ts'
+
+export type { ShopItem, ShopSource }
 
 export type ExploreItem = { pcode: string; name: string; imageUrl: string | null; rating: number | null; reviewCount: number | null; variants: DanawaVariant[] }
 export type Quote = { qty: number; seller: string | null; price: number; delivery: number | null; unitPrice: number | null; unitLabel: string | null; mallCount: number | null }
@@ -28,6 +32,13 @@ export type PriceDeps = Pick<PriceCheckDeps, 'fetchHtml' | 'save' | 'fail'> & {
   todayOk(productId: string, day: string): Promise<boolean>
   /** 가장 최근 성공 확인과 그 가격 줄 */
   latest(productId: string): Promise<LatestCheck | null>
+  /** 몰 검색(D-036): 그 한국 날짜에 같은 출처·검색어로 찾은 결과 */
+  cachedShop(source: ShopSource, queryKey: string, day: string): Promise<{ items: ShopItem[]; foundAt: string } | null>
+  /** reserve_fetch('<출처>-search', 간격, maxWaitMs) */
+  reserveShop(source: ShopSource, maxWaitMs: number): Promise<number>
+  /** JSON API를 받는다(본문 글자) */
+  fetchJson(url: string): Promise<{ status: number; text: string }>
+  saveShop(source: ShopSource, queryKey: string, day: string, query: string, items: ShopItem[], foundAt: string): Promise<void>
   now(): Date
 }
 
@@ -75,6 +86,32 @@ async function search(query: string, deps: PriceDeps): Promise<Response> {
   return json(200, { status: items.length ? 'done' : 'none', query, foundAt, items })
 }
 
+async function shopSearch(source: ShopSource, query: string, deps: PriceDeps): Promise<Response> {
+  const day = kstDay(deps.now())
+  const key = queryKey(query)
+  const hit = await deps.cachedShop(source, key, day)
+  if (hit) return json(200, { status: 'cached', source, query, foundAt: hit.foundAt, items: hit.items })
+  const wait = await deps.reserveShop(source, MAX_WAIT_MS)
+  if (wait < 0) return json(202, { status: 'busy', source })
+  if (wait > 0) await deps.sleep(wait)
+  let res: { status: number; text: string }
+  try {
+    res = await deps.fetchJson(shopSearchUrl(source, query))
+  } catch {
+    return json(502, { status: 'error', source, reason: 'network_error' })
+  }
+  if (res.status !== 200) return json(502, { status: 'error', source, reason: `http_${res.status}` })
+  let items: ShopItem[]
+  try {
+    items = parseShopSearch(source, res.text).slice(0, MAX_ITEMS)
+  } catch (e) {
+    return json(502, { status: 'error', source, reason: e instanceof ShopSearchError ? e.code : 'parse_error' })
+  }
+  const foundAt = deps.now().toISOString()
+  await deps.saveShop(source, key, day, query, items, foundAt).catch(() => {})
+  return json(200, { status: items.length ? 'done' : 'none', source, query, foundAt, items })
+}
+
 async function product(pcode: string, deps: PriceDeps): Promise<Response> {
   // 공용 상품 목록(grocery.products, 장보기와 함께 쓴다)에는 앱이 보낸 글을 넣지 않는다: 이름은 서버가 저장한 검색 결과에서만
   let p = await deps.product(pcode)
@@ -104,7 +141,7 @@ async function product(pcode: string, deps: PriceDeps): Promise<Response> {
 
 export async function handle(req: Request, deps: PriceDeps): Promise<Response> {
   if (req.method !== 'POST') return json(405, { error: 'method_not_allowed' })
-  let body: { query?: unknown; pcode?: unknown }
+  let body: { query?: unknown; pcode?: unknown; source?: unknown }
   try {
     body = await req.json()
   } catch {
@@ -115,6 +152,7 @@ export async function handle(req: Request, deps: PriceDeps): Promise<Response> {
     return product(body.pcode, deps)
   }
   const query = typeof body?.query === 'string' ? body.query.replace(/\s+/g, ' ').trim() : ''
-  if (query.length < 2 || query.length > 60) return json(400, { error: 'bad_request' })
-  return search(query, deps)
+  const source = body?.source ?? 'danawa'
+  if (query.length < 2 || query.length > 60 || (source !== 'danawa' && source !== 'kurly' && source !== 'daiso')) return json(400, { error: 'bad_request' })
+  return source === 'danawa' ? search(query, deps) : shopSearch(source, query, deps)
 }

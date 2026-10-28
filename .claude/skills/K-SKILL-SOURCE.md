@@ -56,6 +56,10 @@ robots가 막은 경로·접근 통제를 넘는 부분을 빼면 원본 안내�
 
 프록시 `k-skill-proxy.nomadamas.org`는 NomaDamas가 운영하는 제3자 서버다. 저장소의 프록시 코드는 요청 기록을 끄고 오류일 때만 쿼리 해시를 남기지만, 실제 배포본이 같은지는 확인 필요다.
 
+### robots를 어기는 스킬 (D-036)
+
+2026-10-28 다시 확인: `daangn-used-goods-search`가 부르는 당근 중고거래 검색 `/kr/buy-sell/s/`는 robots `User-agent: *`가 막고, Claude-User 등 AI 에이전트 묶음은 사이트 전체(`/`)를 막는다. `ohou-today-deal`이 읽는 오늘의집은 `*`에 `Disallow: /`(2026-10-16 기록, 지금은 robots.txt도 접근 거부). 처음 넣을 때(D-034) 이 둘의 robots를 확인하지 않았다. 사용자가 "가져와서 쓰도록해 프로젝트 규칙은 폐기함"으로 robots 규칙을 없애(D-036) 그대로 쓴다. 쇼핑 묶음 6개에서 robots 때문에 뺀 부분(다나와 몰별 AJAX, 컬리 검색 API, 번개장터 API)은 아직 되살리지 않았다.
+
 ## 넣지 않은 것 (같은 다섯 묶음)
 
 | 스킬 | 까닭 |

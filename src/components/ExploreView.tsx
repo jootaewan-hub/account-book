@@ -2,8 +2,8 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import {
   dayName, DEFAULT_PLACE, degree, failText, fetchWeather, loadPlace, offerTotal, productPrices, round2, savePlace, searchPrices,
-  sortOffers, variantText, whenText, won,
-  type ExploreItem, type Place, type ProductPrices, type SearchResult, type WeatherResult,
+  searchShop, sortOffers, variantText, whenText, won,
+  type ExploreItem, type Place, type ProductPrices, type SearchResult, type ShopItem, type ShopResult, type ShopSource, type WeatherResult,
 } from '../lib/explore'
 import { sb } from '../lib/supabase'
 import { Sheet } from './Sheet'
@@ -147,31 +147,44 @@ function WeatherCard({ toast }: { toast: (msg: string) => void }) {
   )
 }
 
-type Search =
-  | { state: 'idle' }
-  | { state: 'searching'; query: string }
-  | { state: 'busy' | 'failed'; query: string }
-  | { state: 'done'; result: Extract<SearchResult, { items: ExploreItem[] }> }
+type Source = 'danawa' | ShopSource
+type Found = Extract<SearchResult, { items: ExploreItem[] }> | Extract<ShopResult, { items: ShopItem[] }>
+type SourceState = { state: 'searching' | 'busy' | 'failed' } | { state: 'done'; result: Found }
+
+// 한 번 찾으면 세 곳을 함께 찾는다(D-036). 순서는 다나와(가격비교) → 마켓컬리 → 다이소
+const SOURCES: { key: Source; label: string; searching: string }[] = [
+  { key: 'danawa', label: '다나와', searching: '다나와 검색 중(다른 검색이 있으면 10초씩 기다려요)' },
+  { key: 'kurly', label: '마켓컬리', searching: '마켓컬리 검색 중' },
+  { key: 'daiso', label: '다이소', searching: '다이소몰 검색 중' },
+]
+const FIRST = 5
 
 function PriceCard() {
   const [text, setText] = useState('')
-  const [search, setSearch] = useState<Search>({ state: 'idle' })
+  const [query, setQuery] = useState<string | null>(null)
+  const [states, setStates] = useState<Partial<Record<Source, SourceState>>>({})
   const [open, setOpen] = useState<ExploreItem | null>(null)
   const seq = useRef(0)
+  const searching = Object.values(states).some((s) => s?.state === 'searching')
 
-  async function submit(e: FormEvent) {
-    e.preventDefault()
-    const query = text.replace(/\s+/g, ' ').trim()
-    if (query.length < 2 || search.state === 'searching') return
-    const n = ++seq.current
-    setSearch({ state: 'searching', query })
+  async function run(source: Source, q: string, n: number) {
+    const set = (st: SourceState) => { if (n === seq.current) setStates((cur) => ({ ...cur, [source]: st })) }
     try {
-      const r = await searchPrices(sb(), query)
-      if (n !== seq.current) return
-      setSearch(r.status === 'busy' ? { state: 'busy', query } : { state: 'done', result: r })
+      const r = source === 'danawa' ? await searchPrices(sb(), q) : await searchShop(sb(), source, q)
+      set(r.status === 'busy' ? { state: 'busy' } : { state: 'done', result: r })
     } catch {
-      if (n === seq.current) setSearch({ state: 'failed', query })
+      set({ state: 'failed' })
     }
+  }
+
+  function submit(e: FormEvent) {
+    e.preventDefault()
+    const q = text.replace(/\s+/g, ' ').trim()
+    if (q.length < 2 || searching) return
+    const n = ++seq.current
+    setQuery(q)
+    setStates({ danawa: { state: 'searching' }, kurly: { state: 'searching' }, daiso: { state: 'searching' } })
+    for (const s of SOURCES) void run(s.key, q, n)
   }
 
   return (
@@ -180,27 +193,67 @@ function PriceCard() {
       <form className="explore-search" onSubmit={submit}>
         <input className="input" aria-label="상품 이름" placeholder="예: 비비고 왕교자 1.05kg" maxLength={60}
           value={text} onChange={(e) => setText(e.target.value)} enterKeyHint="search" />
-        <button className="primary" disabled={text.trim().length < 2 || search.state === 'searching'}>찾기</button>
+        <button className="primary" disabled={text.trim().length < 2 || searching}>찾기</button>
       </form>
 
-      {search.state === 'idle' && <p className="explore-src">다나와 검색 결과의 수량별 최저가를 보여 주고, 상품을 누르면 쇼핑몰별 가격을 보여 줘요.</p>}
-      {search.state === 'searching' && <p className="lead">다나와 검색 중(다른 검색이 있으면 10초씩 기다려요)</p>}
-      {search.state === 'busy' && <p className="lead">다나와 검색이 밀려 있어요. 잠시 뒤 다시 찾아 주세요</p>}
-      {search.state === 'failed' && <p className="lead">다나와 검색 결과를 받지 못했어요</p>}
-      {search.state === 'done' && (
-        <>
-          <p className="explore-src">다나와 검색 “{search.result.query}”, {whenText(search.result.foundAt)} 확인</p>
-          {search.result.items.length === 0
-            ? <p className="empty">찾은 상품이 없어요. 상품 이름을 바꿔 찾아 주세요</p>
-            : (
-              <div className="explore-list">
-                {search.result.items.map((it) => <ResultRow key={it.pcode} item={it} onOpen={() => setOpen(it)} />)}
-              </div>
-            )}
-        </>
-      )}
+      {query === null && <p className="explore-src">다나와·마켓컬리·다이소를 함께 찾아요. 다나와 상품을 누르면 쇼핑몰별 가격을, 컬리·다이소 상품을 누르면 그 상품 페이지를 열어요.</p>}
+      {query !== null && SOURCES.map((s) => (
+        <SourceBlock key={`${s.key}:${query}`} label={s.label} searchingText={s.searching} st={states[s.key]} onOpen={setOpen} />
+      ))}
       <OfferSheet item={open} onClose={() => setOpen(null)} />
     </section>
+  )
+}
+
+function SourceBlock({ label, searchingText, st, onOpen }: { label: string; searchingText: string; st: SourceState | undefined; onOpen: (it: ExploreItem) => void }) {
+  const [all, setAll] = useState(false)
+  if (!st) return null
+  const r = st.state === 'done' ? st.result : null
+  const items: (ExploreItem | ShopItem)[] = r ? r.items : []
+  const shown = all ? items : items.slice(0, FIRST)
+  return (
+    <div className="explore-source" aria-label={`${label} 결과`}>
+      <h3 className="explore-sub">{label}</h3>
+      {st.state === 'searching' && <p className="lead">{searchingText}</p>}
+      {st.state === 'busy' && <p className="lead">{label} 검색이 밀려 있어요. 잠시 뒤 다시 찾아 주세요</p>}
+      {st.state === 'failed' && <p className="lead">{label} 검색 결과를 받지 못했어요</p>}
+      {r && (
+        <>
+          <p className="explore-src">{label} 검색 “{r.query}”, {whenText(r.foundAt)} 확인</p>
+          {items.length === 0
+            ? <p className="empty">찾은 상품이 없어요</p>
+            : (
+              <div className="explore-list">
+                {shown.map((it) => ('pcode' in it
+                  ? <ResultRow key={it.pcode} item={it} onOpen={() => onOpen(it)} />
+                  : <ShopRow key={it.id} item={it} />))}
+              </div>
+            )}
+          {items.length > FIRST && (
+            <button className="link-btn explore-more" onClick={() => setAll((v) => !v)}>{all ? '접기' : `${items.length - FIRST}개 더 보기`}</button>
+          )}
+        </>
+      )}
+    </div>
+  )
+}
+
+/** 마켓컬리·다이소 상품 한 줄: 누르면 그 몰 상품 페이지(새 창). 할인이면 정가와 할인율, 품절이면 품절 */
+function ShopRow({ item }: { item: ShopItem }) {
+  const meta = [
+    ...(item.soldOut ? ['품절'] : []),
+    ...(item.listPrice !== null ? [`정가 ${won(item.listPrice)}${item.discountRate !== null ? ` · ${item.discountRate}% 할인` : ''}`] : []),
+    ...item.tags,
+    ...(item.rating !== null ? [`평점 ${item.rating}${item.reviews ? `(${item.reviews})` : ''}`] : item.reviews ? [`후기 ${item.reviews}`] : []),
+  ]
+  return (
+    <a className={`tx${item.soldOut ? ' sold-out' : ''}`} href={item.url} target="_blank" rel="noopener noreferrer">
+      <span>
+        <span className="tx-title explore-name">{item.name}</span>
+        {meta.length > 0 && <span className="tx-meta num">{meta.join(' · ')}</span>}
+      </span>
+      <span className="tx-amt num">{item.price === null ? '가격 표시 없음' : won(item.price)}</span>
+    </a>
   )
 }
 

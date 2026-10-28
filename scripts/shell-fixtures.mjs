@@ -314,3 +314,15 @@ export const EXPLORE_PRODUCT = {
     { qty: 1, seller: '롯데ON', price: 16500, delivery: 0, unitPrice: null, unitLabel: null, mallCount: null },
   ],
 }
+// 알아보기 몰 검색(D-036) 캡처용: 컬리 응답은 2026-10-28 실제 검색 결과의 모양과 값, 다이소는 캡처용으로 지은 상품
+export const EXPLORE_KURLY = {
+  status: 'done', source: 'kurly', query: '비비고 왕교자', foundAt: new Date(Date.now() - 2 * 60_000).toISOString(),
+  items: [
+    { id: '5082274', name: '[비비고] 왕교자 만두 대용량 1.05kg', price: 10480, listPrice: 11480, discountRate: 8, soldOut: false, url: 'https://www.kurly.com/goods/5082274', reviews: '9,999+', rating: null, tags: ['샛별배송'] },
+    { id: '1001970794', name: '[비비고] 왕교자 1.4KG', price: 13470, listPrice: 15480, discountRate: 12, soldOut: false, url: 'https://www.kurly.com/goods/1001970794', reviews: '9,999+', rating: null, tags: ['샛별배송'] },
+    { id: '1000229616', name: '[비비고] 왕교자 455gx2개입', price: 9480, listPrice: 9980, discountRate: 5, soldOut: false, url: 'https://www.kurly.com/goods/1000229616', reviews: '9,999+', rating: null, tags: ['샛별배송'] },
+  ],
+}
+export const EXPLORE_DAISO = {
+  status: 'none', source: 'daiso', query: '비비고 왕교자', foundAt: new Date(Date.now() - 2 * 60_000).toISOString(), items: [],
+}

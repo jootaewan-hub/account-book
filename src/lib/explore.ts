@@ -3,10 +3,10 @@
 // (앱에 다른 뜻의 lib/lookup.ts가 있어 이 기능의 이름은 explore로 쓴다)
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { AirPart, WeatherPart } from '../../supabase/functions/explore-weather/handle'
-import type { ExploreItem, Quote } from '../../supabase/functions/explore-price/handle'
+import type { ExploreItem, Quote, ShopItem, ShopSource } from '../../supabase/functions/explore-price/handle'
 import { lsGet, lsSet } from './localPrefs'
 
-export type { AirPart, ExploreItem, Quote, WeatherPart }
+export type { AirPart, ExploreItem, Quote, ShopItem, ShopSource, WeatherPart }
 
 export type Place = { lat: number; lng: number; kind: 'default' | 'here' }
 /** 기본 위치: 성남시청 근처(장보기의 참가격·시세 지역과 같은 성남) */
@@ -41,6 +41,17 @@ export type SearchResult =
 
 export async function searchPrices(client: SupabaseClient, query: string): Promise<SearchResult> {
   const { data, error } = await client.functions.invoke<SearchResult>('explore-price', { body: { query } })
+  if (error || !data) throw error ?? new Error('no_data')
+  return data
+}
+
+export type ShopResult =
+  | { status: 'done' | 'cached' | 'none'; source: ShopSource; query: string; foundAt: string; items: ShopItem[] }
+  | { status: 'busy'; source: ShopSource }
+
+/** 마켓컬리·다이소 검색(D-036). 다나와와 같은 함수에 출처를 붙여 부른다 */
+export async function searchShop(client: SupabaseClient, source: ShopSource, query: string): Promise<ShopResult> {
+  const { data, error } = await client.functions.invoke<ShopResult>('explore-price', { body: { query, source } })
   if (error || !data) throw error ?? new Error('no_data')
   return data
 }

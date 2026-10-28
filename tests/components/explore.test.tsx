@@ -34,6 +34,14 @@ const SEARCH = {
   items: [{ pcode: '5643303', name: 'CJ제일제당 비비고 왕교자 1.05kg', imageUrl: 'https://evil.example/x.jpg', rating: 4.8, reviewCount: 9217,
     variants: [{ qty: 1, price: 10380, unitPrice: 989, unitLabel: '100g', mallCount: 33 }, { qty: 2, price: 19250, unitPrice: 917, unitLabel: '100g', mallCount: 132 }] }],
 }
+const KURLY = {
+  status: 'done', source: 'kurly', query: '비비고 왕교자', foundAt: new Date().toISOString(),
+  items: [{ id: '5082274', name: '[비비고] 왕교자 만두 대용량 1.05kg', price: 10480, listPrice: 11480, discountRate: 8, soldOut: false, url: 'https://www.kurly.com/goods/5082274', reviews: '9,999+', rating: null, tags: ['샛별배송'] }],
+}
+const DAISO = {
+  status: 'done', source: 'daiso', query: '비비고 왕교자', foundAt: new Date().toISOString(),
+  items: Array.from({ length: 7 }, (_, i) => ({ id: String(100 + i), name: `다이소 상품 ${i + 1}`, price: 1000 * (i + 1), listPrice: null, discountRate: null, soldOut: i === 1, url: `https://www.daisomall.co.kr/pd/pdr/SCR_PDR_0001?pdNo=${100 + i}`, reviews: '12', rating: 4.5, tags: ['매장 픽업'] })),
+}
 const PRODUCT = {
   status: 'cached',
   product: { pcode: '5643303', name: 'CJ제일제당 비비고 왕교자 1.05kg', rating: 4.8, reviewCount: 9217, ratedAt: null },
@@ -49,7 +57,7 @@ beforeEach(() => {
   calls.length = 0
   clearWeatherCache()
   localStorage.clear()
-  responses = { 'explore-weather': () => WEATHER, 'explore-price': (b) => (b.pcode ? PRODUCT : SEARCH) }
+  responses = { 'explore-weather': () => WEATHER, 'explore-price': (b) => (b.pcode ? PRODUCT : b.source === 'kurly' ? KURLY : b.source === 'daiso' ? DAISO : SEARCH) }
 })
 afterEach(cleanup)
 
@@ -92,6 +100,26 @@ describe('알아보기 탭', () => {
     const rows = [...document.querySelectorAll('.offer-table tbody tr')].map((r) => r.textContent)
     expect(rows).toEqual(['옥션28,800원무료28,800원', '11번가28,900원표시 없음-'])
     expect(screen.getByText(/다나와 상품 페이지, 오늘 \d\d:\d\d 확인/)).toBeTruthy()
+  })
+
+  it('한 번 찾으면 다나와·마켓컬리·다이소를 함께 부르고, 컬리·다이소 줄은 그 몰 상품 페이지로 연결한다(앞 5개, 더 보기)', async () => {
+    render(<ExploreView toast={() => {}} />)
+    fireEvent.change(screen.getByRole('textbox', { name: '상품 이름' }), { target: { value: '비비고 왕교자' } })
+    fireEvent.click(screen.getByRole('button', { name: '찾기' }))
+    expect(await screen.findByText('[비비고] 왕교자 만두 대용량 1.05kg')).toBeTruthy()
+    const bodies = calls.filter((c) => c.name === 'explore-price').map((c) => c.body)
+    expect(bodies).toEqual([{ query: '비비고 왕교자' }, { query: '비비고 왕교자', source: 'kurly' }, { query: '비비고 왕교자', source: 'daiso' }])
+    const kurly = screen.getByText('[비비고] 왕교자 만두 대용량 1.05kg').closest('a')
+    expect(kurly?.getAttribute('href')).toBe('https://www.kurly.com/goods/5082274')
+    expect(kurly?.textContent).toContain('정가 11,480원 · 8% 할인 · 샛별배송 · 후기 9,999+')
+    expect(kurly?.textContent).toContain('10,480원')
+    expect(screen.getByText(/마켓컬리 검색 “비비고 왕교자”, 오늘 \d\d:\d\d 확인/)).toBeTruthy()
+    // 다이소는 7개 중 앞 5개, 품절 표시, 더 보기
+    expect(screen.getByText('다이소 상품 5')).toBeTruthy()
+    expect(screen.queryByText('다이소 상품 6')).toBeNull()
+    expect(screen.getByText('다이소 상품 2').closest('a')?.textContent).toContain('품절')
+    fireEvent.click(screen.getByRole('button', { name: '2개 더 보기' }))
+    expect(screen.getByText('다이소 상품 7')).toBeTruthy()
   })
 
   it('다나와가 밀려 있으면 그렇게 말한다', async () => {

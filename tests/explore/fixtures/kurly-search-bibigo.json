@@ -1,0 +1,115 @@
+{
+ "success": true,
+ "message": null,
+ "data": {
+  "listSections": [
+   {
+    "view": {
+     "sectionCode": "PRODUCT_LIST",
+     "version": "v1"
+    },
+    "data": {
+     "items": [
+      {
+       "no": 5082274,
+       "name": "[비비고] 왕교자 만두 대용량 1.05kg",
+       "shortDescription": "넉넉하게 누리는 만두의 정석",
+       "listImageUrl": "https://product-image.kurly.com/product/image/6b5b8a11-d6fd-475b-a830-8f3313b3c6a7.jpg",
+       "salesPrice": 11480,
+       "discountedPrice": 10480,
+       "discountRate": 8.0,
+       "isPurchaseStatus": true,
+       "isSoldOut": false,
+       "soldOutText": "",
+       "deliveryTypeNames": [
+        "샛별배송"
+       ],
+       "adInfo": null,
+       "reviewCount": "9,999+"
+      },
+      {
+       "no": 1001970794,
+       "name": "[비비고] 왕교자 1.4KG",
+       "shortDescription": "넉넉하게 누리는 만두의 정석",
+       "listImageUrl": "https://product-image.kurly.com/product/image/146a1cda-3eb7-40e8-972f-a1d39eb14fc8.jpg",
+       "salesPrice": 15480,
+       "discountedPrice": 13470,
+       "discountRate": 12.0,
+       "isPurchaseStatus": true,
+       "isSoldOut": false,
+       "soldOutText": "",
+       "deliveryTypeNames": [
+        "샛별배송"
+       ],
+       "adInfo": null,
+       "reviewCount": "9,999+"
+      },
+      {
+       "no": 1000229616,
+       "name": "[비비고] 왕교자 455gx2개입",
+       "shortDescription": "풍성한 식감의 만두의 정석",
+       "listImageUrl": "https://product-image.kurly.com/product/image/410de09c-72d5-4e5d-b2b0-d62b33ce2395.jpg",
+       "salesPrice": 9980,
+       "discountedPrice": 9480,
+       "discountRate": 5.0,
+       "isPurchaseStatus": true,
+       "isSoldOut": false,
+       "soldOutText": "",
+       "deliveryTypeNames": [
+        "샛별배송"
+       ],
+       "adInfo": null,
+       "reviewCount": "9,999+"
+      },
+      {
+       "no": 5082275,
+       "name": "[비비고] 김치 왕교자 만두 대용량 1.05kg",
+       "shortDescription": "넉넉하게 즐기는 매콤한 왕교자",
+       "listImageUrl": "https://product-image.kurly.com/product/image/aaff4e11-d72c-45b8-ac17-fc140e7b4634.jpg",
+       "salesPrice": 12980,
+       "discountedPrice": 11480,
+       "discountRate": 11.0,
+       "isPurchaseStatus": true,
+       "isSoldOut": false,
+       "soldOutText": "",
+       "deliveryTypeNames": [
+        "샛별배송"
+       ],
+       "adInfo": null,
+       "reviewCount": "9,999+"
+      }
+     ]
+    }
+   }
+  ],
+  "meta": {
+   "pagination": {
+    "total": 55,
+    "count": 55,
+    "perPage": 96,
+    "currentPage": 1,
+    "totalPages": 1
+   },
+   "queryId": "d2906f84-6f9b-41aa-8839-335bc33fe519",
+   "actualSite": "market",
+   "targetSite": "market",
+   "actualKeyword": "비비고 왕교자",
+   "adProductNos": [],
+   "isSemanticRetryResult": false,
+   "queryGroups": [
+    {
+     "type": "brand",
+     "value": [
+      "br-440"
+     ]
+    },
+    {
+     "type": "vertical_group",
+     "value": [
+      "FOOD"
+     ]
+    }
+   ]
+  }
+ }
+}

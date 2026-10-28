@@ -39,3 +39,8 @@ k-skill 스킬은 컴퓨터의 Claude Code 대화에서만 쓰는 조회 도구�
 - **화면**: `src/components/ExploreView.tsx`(늦게 불러오기, 장보기처럼 `prefetchChunks`), 호출·위치·글자 만들기는 `src/lib/explore.ts`, 가계부 `styles.css`의 `.explore` 아래 규칙(앱에 이미 다른 뜻의 `src/lib/lookup.ts`가 있어 이 기능의 코드 이름은 explore로 통일). 숫자는 모두 출처·기준 시각과 함께 쓴다. "AI"·반짝이·"분석 중" 같은 말은 쓰지 않는다.
 - **버전**: v2.12.0(기능 추가).
 - **운영 반영 순서**(사용자 확인 뒤): ① 사용자가 공공데이터포털에서 같은 계정으로 활용신청 3개(기상청 단기예보 15084084, 에어코리아 대기오염정보 15073861, 에어코리아 측정소정보 15073877) ② MCP `apply_migration` ③ 함수 2개 배포 ④ main 병합. 화면이 먼저 나가도 함수가 없거나 활용신청 전이면 실패 문구만 보인다.
+
+## 보충: 마켓컬리·다이소 (D-036, 2026-10-28)
+
+사용자가 robots 규칙을 없애고 앱에 마켓컬리·다이소를 더하기로 골랐다. `explore-price`가 `{query, source: 'kurly' | 'daiso'}`도 받아 컬리 앱 검색 API·다이소몰 상품 검색(`_shared/shopSearch.ts`, 실제 응답 사본으로 시험)을 부르고, 같은 날 캐시는 `grocery.explore_shop_searches`(출처·검색어·한국 날짜), 전역 간격은 `fetch_gate` 'kurly-search' 1초·'daiso-search' 2초. 화면은 한 번 찾으면 세 곳을 함께 찾아 구획마다 앞 5개와 더 보기, 컬리·다이소 줄은 몰 상품 페이지 링크. 쿠팡·네이버 쇼핑·올리브영은 robots와 상관없이 서버가 읽을 수 없어 넣지 않았다.
+

@@ -1,0 +1,204 @@
+{
+ "version": 43,
+ "responseTime": "9 ms",
+ "returnCode": 1,
+ "status": 200,
+ "resultSet": {
+  "resultSize": 2,
+  "errorCode": 0,
+  "result": [
+   {
+    "errorCode": 0,
+    "resultFieldSize": 1,
+    "redirect": "NO REDIRECT.",
+    "data": {
+     "typo-result": "리들샷",
+     "typo-correct-result": "리들샷",
+     "relationKeyword": "리들,브이티,시카,앰플,시카앰플,마일,케어,브이티리들,스피큘,스틱"
+    },
+    "totalSize": 38,
+    "realSize": 1,
+    "resultDocuments": []
+   },
+   {
+    "errorCode": 0,
+    "resultFieldSize": 72,
+    "redirect": "NO REDIRECT.",
+    "data": {
+     "typo-result": "리들샷",
+     "typo-correct-result": "리들샷"
+    },
+    "cfRecommendResultSet": {
+     "resultSize": 1,
+     "cfRecommendResult": [
+      {
+       "keyword": "리들샷",
+       "cfRecommendItem": {
+        "neighborResult": [
+         {
+          "recommendKeyword": "VT 콜라겐 리들샷 S50",
+          "transmitScore": "1.0",
+          "similarityScore": 1.0
+         },
+         {
+          "recommendKeyword": "[03 소프트핑크]VT 리들샷 에센스 립플럼퍼",
+          "transmitScore": "1.0",
+          "similarityScore": 1.0
+         },
+         {
+          "recommendKeyword": "VT 리들샷 립플럼퍼",
+          "transmitScore": "1.0",
+          "similarityScore": 1.0
+         },
+         {
+          "recommendKeyword": "VT 소프트 바디로션",
+          "transmitScore": "1.0",
+          "similarityScore": 1.0
+         },
+         {
+          "recommendKeyword": "VT 리들샷 비 클리어 소프트 바디로션 200 ML",
+          "transmitScore": "1.0",
+          "similarityScore": 1.0
+         },
+         {
+          "recommendKeyword": "VT 플럼핑",
+          "transmitScore": "1.0",
+          "similarityScore": 1.0
+         },
+         {
+          "recommendKeyword": "VT 리들샷 바디로션",
+          "transmitScore": "1.0",
+          "similarityScore": 1.0
+         },
+         {
+          "recommendKeyword": "1072857",
+          "transmitScore": "1.0",
+          "similarityScore": 1.0
+         },
+         {
+          "recommendKeyword": "리들샷플럼퍼",
+          "transmitScore": "1.0",
+          "similarityScore": 1.0
+         },
+         {
+          "recommendKeyword": "등드름 바디워시",
+          "transmitScore": "1.0",
+          "similarityScore": 1.0
+         }
+        ],
+        "recommendDocResult": [
+         {
+          "recommendDocId": "1056647",
+          "transmitScore": "0.86",
+          "recommendScore": 0.86
+         },
+         {
+          "recommendDocId": "1072854",
+          "transmitScore": "0.57",
+          "recommendScore": 0.57
+         },
+         {
+          "recommendDocId": "1075311",
+          "transmitScore": "0.29",
+          "recommendScore": 0.29
+         },
+         {
+          "recommendDocId": "1072857",
+          "transmitScore": "0.29",
+          "recommendScore": 0.29
+         }
+        ],
+        "neighborSize": 10,
+        "recommendDocSize": 4
+       }
+      }
+     ]
+    },
+    "totalSize": 38,
+    "realSize": 5,
+    "resultDocuments": [
+     {
+      "pdNo": "B202503122133",
+      "pdNm": "VT 리들샷 100 페이셜 부스팅 퍼스트 앰플 2ml*6개입",
+      "exhPdNm": "VT 리들샷 100 페이셜 부스팅 퍼스트 앰플 2ml*6개입",
+      "pdPrc": "108000",
+      "brndNm": "VT>00044>VT",
+      "avgStscVal": "4.9",
+      "revwCnt": "17392",
+      "newPdYn": "N",
+      "massOrPsblYn": "N",
+      "pdsOrPsblYn": "Y",
+      "pkupOrPsblYn": "N",
+      "totOrQy": "139028",
+      "exhLargeCtgrNm": "뷰티/위생",
+      "exhMiddleCtgrNm": "스킨케어",
+      "exhSmallCtgrNm": "에센스/세럼/앰플",
+      "pdImgUrl": "/file/PD/20251226/0XsdymYj3PJyHpuxNOsm1049275_00_010XsdymYj3PJyHpuxNOsm.jpg",
+      "soldOutYn": "N",
+      "QUICK_OR_PSBL_YN": "N"
+     },
+     {
+      "pdNo": "1049275",
+      "pdNm": "[피부결케어]VT 리들샷 100 페이셜 부스팅 퍼스트 앰플 2 ml*6개입",
+      "exhPdNm": "[피부결케어]VT 리들샷 100 페이셜 부스팅 퍼스트 앰플 2 ml*6개입",
+      "pdPrc": "3000",
+      "brndNm": "VT>00044>VT",
+      "avgStscVal": "4.9",
+      "revwCnt": "17392",
+      "newPdYn": "N",
+      "massOrPsblYn": "Y",
+      "pdsOrPsblYn": "Y",
+      "pkupOrPsblYn": "Y",
+      "totOrQy": "139026",
+      "exhLargeCtgrNm": "뷰티/위생",
+      "exhMiddleCtgrNm": "스킨케어",
+      "exhSmallCtgrNm": "에센스/세럼/앰플",
+      "pdImgUrl": "/file/PD/20251226/0XsdymYj3PJyHpuxNOsm1049275_00_010XsdymYj3PJyHpuxNOsm.jpg",
+      "soldOutYn": "N",
+      "QUICK_OR_PSBL_YN": "Y"
+     },
+     {
+      "pdNo": "1056652",
+      "pdNm": "[탄력보습]VT 리들샷 리프팅 펩타이드 랩핑 스팀 마스크팩 22 g",
+      "exhPdNm": "[탄력보습]VT 리들샷 리프팅 펩타이드 랩핑 스팀 마스크팩 22 g",
+      "pdPrc": "2000",
+      "brndNm": "VT>00044>VT",
+      "avgStscVal": "4.8",
+      "revwCnt": "575",
+      "newPdYn": "N",
+      "massOrPsblYn": "Y",
+      "pdsOrPsblYn": "Y",
+      "pkupOrPsblYn": "Y",
+      "totOrQy": "10328",
+      "exhLargeCtgrNm": "뷰티/위생",
+      "exhMiddleCtgrNm": "마스크팩",
+      "exhSmallCtgrNm": "페이셜팩",
+      "pdImgUrl": "/file/PD/20250929/FY7uf2qK2LkSCRjDEuZF1056652_00_01FY7uf2qK2LkSCRjDEuZF.jpg",
+      "soldOutYn": "N",
+      "QUICK_OR_PSBL_YN": "Y"
+     },
+     {
+      "pdNo": "B202608127042",
+      "pdNm": "VT 리들샷 리프팅 펩타이드 랩핑 스팀 마스크팩 22 g",
+      "exhPdNm": "VT 리들샷 리프팅 펩타이드 랩핑 스팀 마스크팩 22 g",
+      "pdPrc": "40000",
+      "brndNm": "",
+      "avgStscVal": "4.8",
+      "revwCnt": "575",
+      "newPdYn": "N",
+      "massOrPsblYn": "N",
+      "pdsOrPsblYn": "Y",
+      "pkupOrPsblYn": "N",
+      "totOrQy": "10328",
+      "exhLargeCtgrNm": "뷰티/위생",
+      "exhMiddleCtgrNm": "마스크팩",
+      "exhSmallCtgrNm": "페이셜팩",
+      "pdImgUrl": "/file/PD/20250929/FY7uf2qK2LkSCRjDEuZF1056652_00_01FY7uf2qK2LkSCRjDEuZF.jpg",
+      "soldOutYn": "N",
+      "QUICK_OR_PSBL_YN": "N"
+     }
+    ]
+   }
+  ]
+ }
+}

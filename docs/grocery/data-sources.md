@@ -42,7 +42,7 @@
 
 - 원칙(제안): robots.txt가 막는 곳과 약관이 자동 수집을 금지하는 곳은 수집하지 않는다. 허용된 곳도 품목 확인 때 한 번씩만 받고 캐시한다.
 - **상품 주소 찾기(2026-10-19, 이 작업 환경에서 curl, 검색 1건씩)**:
-  - 컬리 `www.kurly.com/search?sword=`: robots 허용(별표 그룹 Allow /). 서버 HTML(76KB)의 `__NEXT_DATA__`에 검색 결과 상품이 없다 → 브라우저에서 따로 불러오는 구조. 서버에서 주소를 찾으려면 컬리 내부 API를 불러야 한다(쓰지 않음).
+  - 컬리 `www.kurly.com/search?sword=`: robots 허용(별표 그룹 Allow /). 서버 HTML(76KB)의 `__NEXT_DATA__`에 검색 결과 상품이 없다 → 브라우저에서 따로 불러오는 구조. 서버에서 주소를 찾으려면 컬리 내부 API를 불러야 한다(장보기는 쓰지 않음. 알아보기는 D-036부터 그 API를 쓴다, 11절).
   - 홈플러스 `mfront.homeplus.co.kr/search?keyword=`: robots 허용. 서버 HTML 7.5KB로 상품 없음(브라우저에서 그림).
   - CJ더마켓: 첫 화면이 `/the/pc/main`(Vue 앱, 850KB). 검색 결과는 브라우저에서 그린다(검색 주소를 서버 HTML에서 찾지 못함).
   - 에누리 `price.enuri.com/search?keyword=`: robots 허용(`/api/*` 금지, Crawl-delay 1). 서버 HTML(1.4MB)에 JSON-LD `ItemList` → `Product`(이름, `sku`=에누리 모델번호, `AggregateOffer` lowPrice·highPrice·offerCount, `aggregateRating`). 예: "CJ제일제당 비비고 왕교자 1.05kg" lowPrice 27,090·판매처 284·평점 4.8(8,956). lowPrice는 묶음 수량일 수 있다(다나와와 같은 문제).
@@ -276,6 +276,13 @@
   - 에어코리아 측정소정보 15073877 `https://apis.data.go.kr/B552584/MsrstnInfoInqireSvc/getNearbyMsrstnList`(TM 좌표, ver 1.1), 대기오염정보 15073861 `…/ArpltnInforInqireSvc/getMsrstnAcctoRltmMesureDnsty`(ver 1.3, 1시간 등급 `pm10Grade1h`·`pm25Grade1h`). WGS84 → TM 식은 k-skill `fine-dust-location`(MIT)에서 옮겼고 그 파이썬과 값이 같음을 시험했다.
 - 확인된 사실(2026-10-28): 네 주소 모두 https로 응답하고, 등록 전 키에는 `SERVICE_KEY_IS_NOT_REGISTERED_ERROR`(returnReasonCode 30)를 준다. 기상청 키 없는 동네예보 RSS(`www.kma.go.kr/wid/queryDFSRSS.jsp`)는 403.
 - **확인 필요**: 실제 응답 모양. 응답 읽기 시험은 활용가이드의 JSON 예시를 본뜬 사본으로만 했다(근접측정소 목록의 `tm`(거리 km), 1시간 등급 칸, 자정 "24:00" 표기 포함). 활용신청 뒤 첫 호출 한 번을 같은 장소·시각의 기상청 날씨누리·에어코리아 화면과 견줘 확인하고 여기에 적는다.
+
+## 11. 마켓컬리·다이소 검색 (알아보기 가격 비교, D-036)
+
+- robots 규칙을 없앤 뒤(D-036, 사용자 2026-10-28) 몰 자체 검색을 쓴다. 출처마다 전역 간격(`fetch_gate` 'kurly-search' 1초·'daiso-search' 2초)과 같은 날 캐시(`grocery.explore_shop_searches`)를 둔다.
+- 마켓컬리 앱 검색 `https://api.kurly.com/search/v4/sites/market/normal-search?keyword=<검색어>&page=1`(로그인 없음, robots `*` `Disallow: /`): 2026-10-28 실제 호출 200. `data.listSections[].data.items[]`에 `no`(상품 번호), `name`, `salesPrice`(정가), `discountedPrice`(할인가, 없으면 null), `discountRate`, `isSoldOut`, `reviewCount`("9,999+" 같은 글자), `deliveryTypeNames`, `adInfo`(광고 줄). 상품 페이지는 `https://www.kurly.com/goods/<no>`. 예: "[비비고] 왕교자 만두 대용량 1.05kg" 정가 11,480·할인가 10,480·8%(1-2 표의 goods/5082274와 같은 상품).
+- 다이소몰 상품 검색 `https://www.daisomall.co.kr/ssn/search/SearchGoods?searchTerm=<검색어>&…&cntPerPage=20`(로그인 없음, robots `*` Crawl-delay 30): 2026-10-28 실제 호출 200. `resultSet.result[]` 중 `resultDocuments`가 있는 묶음(첫 묶음은 비어 올 때가 있다)에 `pdNo`, `pdNm`·`exhPdNm`, `pdPrc`(글자), `avgStscVal`, `revwCnt`, `pkupOrPsblYn`(매장 픽업), `pdsOrPsblYn`(택배), `soldOutYn`. 상품 페이지 `https://www.daisomall.co.kr/pd/pdr/SCR_PDR_0001?pdNo=<pdNo>`의 제목 가격이 검색 값과 같았다(1049275 → 3,000원). `B`로 시작하는 상품 번호는 같은 이름에 값이 큰 묶음 상품이었다(B202503122133 → 108,000원, 택배만).
+- 확인 필요: Supabase 서버(서울 리전)에서 두 API가 막히지 않는지(첫 운영 호출로 확인), 다이소 매장 재고 수량은 인증 뒤라 쓰지 않는다(접근 통제, D-036 밖).
 
 ## 조사에 쓴 도구 (2026-10-16)
 
