@@ -192,7 +192,7 @@
 ## 열린 문제
 
 - (2026-10-28, D-035 알아보기 탭) 날씨는 활용신청 뒤 운영 호출로 확인했다(예보 값이 따로 받은 같은 발표와 같음, `data-sources.md` 10절). 미세먼지 값만 다른 경로와 아직 견주지 못했다(중계 서버 429).
-- (2026-10-28, D-035) `explore-weather`·`explore-price`는 `verify_jwt`만 보고 로그인 사용자인지는 확인하지 않아, 공개 anon 키(JWT)로도 부를 수 있다(2026-10-28 14:56 실제로 200). 가구 데이터는 읽거나 쓰지 않지만 공공데이터포털 하루 한도·몰 호출을 남이 쓸 수 있다. 함수 안에서 `auth.getUser()`로 로그인 사용자만 받게 고칠 것.
+- ~~(2026-10-28, D-035) `explore-weather`·`explore-price`가 공개 anon 키(JWT)로도 불렸다(14:56 실제로 200).~~ v2.14.1에서 고침: 두 함수가 `_shared/edge.ts` `isSignedIn`(getClaims로 role authenticated·sub 확인)으로 로그인 사용자만 받는다(`docs/HANDOFF.md` 5절 32).
 - (2026-10-24, D-026 운영 반영) `grocery.clear_item_auto`(마이그레이션 `20261103010000_grocery_clear_item_auto.sql`)가 공유 DB에 없다. Supabase MCP의 `apply_migration`·`execute_sql`이 `delete`가 든 문장마다
   (지우는 줄이 0개인 `delete … where false`도) 사용자 확인 단계에서 `Invalid or expired requestState`로 실패해(2026-10-23~24, 네 번, 승인 창은 뜨지 않음) `delete`가 없는 `20261103000000_grocery_product_facts.sql`만 적용했다.
   - 그동안 `food-info`는 `PGRST202`(함수 없음)를 받으면 지우기를 건너뛴다. 새 맞춤이 덮어쓸 것을 찾지 못한 옛 자동 줄(`v` 없음)은 그대로 남고, 그 품목은 성분 탭을 열 때마다 `product_auto`를 다시 부른다.

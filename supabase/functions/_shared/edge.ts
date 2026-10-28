@@ -36,6 +36,18 @@ export function userClient(req: Request): SupabaseClient {
   })
 }
 
+/**
+ * 요청의 로그인 토큰이 로그인한 사용자 것인지(role authenticated, sub 있음). verify_jwt는 공개 anon 키(JWT)도 통과시키므로
+ * 가구 데이터를 RLS로 거르지 않는 함수(알아보기 explore-*)는 이것으로 막는다. extract-entries와 같은 getClaims 방식
+ */
+export async function isSignedIn(req: Request): Promise<boolean> {
+  const jwt = req.headers.get('Authorization')?.replace(/^Bearer\s+/i, '') ?? ''
+  if (!jwt) return false
+  const { data, error } = await userClient(req).auth.getClaims(jwt)
+  const c = data?.claims
+  return !error && Boolean(c?.sub) && c?.role === 'authenticated'
+}
+
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36'
 
 /** 다나와 페이지를 받는다(20초 제한). 리다이렉트는 따라간다(검색 dsearch.php → /?query=). */

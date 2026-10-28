@@ -7,6 +7,7 @@ const NOW = new Date('2026-10-28T02:30:00Z') // 한국 11:30
 function deps(over: Partial<WeatherDeps> = {}, route: (url: string) => { status: number; text: string } = ok) {
   const urls: string[] = []
   const d: WeatherDeps = {
+    signedIn: async () => true,
     key: 'k',
     get: async (url) => {
       urls.push(url)
@@ -36,6 +37,14 @@ describe('explore-weather: 입력', () => {
     expect((await handle(post('x'), d)).status).toBe(400)
     expect((await handle(post({ lat: '37', lng: 127 }), d)).status).toBe(400)
     expect((await handle(post({ lat: 51.5, lng: -0.1 }), d)).status).toBe(400)
+    expect(urls).toHaveLength(0)
+  })
+
+  it('로그인한 사용자가 아니면(공개 anon 키) 401이고 아무것도 부르지 않는다', async () => {
+    const { d, urls } = deps({ signedIn: async () => false })
+    const res = await handle(post({ lat: 37.42, lng: 127.13 }), d)
+    expect(res.status).toBe(401)
+    expect(await res.json()).toEqual({ error: 'unauthorized' })
     expect(urls).toHaveLength(0)
   })
 

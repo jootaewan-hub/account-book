@@ -5,6 +5,8 @@ import { AirError, measureUrl, nearbyUrl, readMeasure, readNearest, toAirKoreaTm
 import { fcstBase, KmaError, kmaItems, kmaUrl, ncstBase, readDays, readNow, todayTomorrow, toGrid, type WeatherDay, type WeatherNow } from '../_shared/kma.ts'
 
 export type WeatherDeps = {
+  /** 로그인한 사용자의 요청인가(공개 anon 키는 아님) */
+  signedIn(): Promise<boolean>
   /** 공공데이터포털 키(없으면 not_configured) */
   key: string | undefined
   get(url: string): Promise<{ status: number; text: string }>
@@ -64,6 +66,8 @@ async function air(deps: WeatherDeps, key: string, lat: number, lng: number): Pr
 
 export async function handle(req: Request, deps: WeatherDeps): Promise<Response> {
   if (req.method !== 'POST') return json(405, { error: 'method_not_allowed' })
+  // verify_jwt는 공개 anon 키도 통과시킨다: 로그인한 사용자만 공공데이터포털 한도·몰 호출을 쓰게 한다
+  if (!(await deps.signedIn())) return json(401, { error: 'unauthorized' })
   let body: { lat?: unknown; lng?: unknown }
   try {
     body = await req.json()

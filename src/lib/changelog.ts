@@ -22,6 +22,12 @@ export const KIND_LABEL: Record<ReleaseKind, string> = { major: '큰 업데이�
 /** 최신이 맨 앞 */
 export const RELEASES: Release[] = [
   {
+    version: '2.14.1', date: '2026-10-28', kind: 'fix', title: '알아보기는 로그인한 사람만',
+    items: [
+      '알아보기 탭의 날씨·가격 찾기 서버가 로그인하지 않은 요청도 받던 것을 막았어요. 앱에서 쓰는 방법은 그대로예요.',
+    ],
+  },
+  {
     version: '2.14.0', date: '2026-10-28', kind: 'minor', title: '가격 비교에 오늘의집, 중고 매물(번개장터·당근)',
     items: [
       '알아보기 탭에서 상품을 찾으면 오늘의집(판매가·정가·할인율·후기)도 함께 찾아요.',

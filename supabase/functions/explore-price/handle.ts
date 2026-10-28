@@ -18,6 +18,8 @@ export type LatestCheck = { checkedAt: string; pageQty: number | null; quotes: Q
 export type ProductRow = { id: string; sourceId: string; name: string; rating: number | null; reviewCount: number | null; ratedAt: string | null }
 
 export type PriceDeps = Pick<PriceCheckDeps, 'fetchHtml' | 'save' | 'fail'> & {
+  /** 로그인한 사용자의 요청인가(공개 anon 키는 아님) */
+  signedIn(): Promise<boolean>
   /** 그 한국 날짜에 같은 검색어로 찾은 결과 */
   cached(queryKey: string, day: string): Promise<{ items: ExploreItem[]; foundAt: string } | null>
   /** reserve_fetch('danawa-search', 10000, maxWaitMs): 기다릴 ms, 한도를 넘으면 -1 */
@@ -159,6 +161,8 @@ async function product(pcode: string, deps: PriceDeps): Promise<Response> {
 
 export async function handle(req: Request, deps: PriceDeps): Promise<Response> {
   if (req.method !== 'POST') return json(405, { error: 'method_not_allowed' })
+  // verify_jwt는 공개 anon 키도 통과시킨다: 로그인한 사용자만 공공데이터포털 한도·몰 호출을 쓰게 한다
+  if (!(await deps.signedIn())) return json(401, { error: 'unauthorized' })
   let body: { query?: unknown; pcode?: unknown; source?: unknown; region?: unknown }
   try {
     body = await req.json()

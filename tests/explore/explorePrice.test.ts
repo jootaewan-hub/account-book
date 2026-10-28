@@ -20,6 +20,7 @@ function deps(over: Partial<PriceDeps> = {}) {
     ],
   }
   const d: PriceDeps = {
+    signedIn: async () => true,
     cached: async () => null,
     reserve: async (max) => {
       log.reserved.push(max)
@@ -83,6 +84,16 @@ describe('explore-price: 입력', () => {
     expect((await handle(post({ pcode: 1234567 }), d)).status).toBe(400)
     expect(log.urls).toHaveLength(0)
   })
+  it('로그인한 사용자가 아니면(공개 anon 키) 401이고 다나와·몰을 부르지 않는다', async () => {
+    const { d, log } = deps({ signedIn: async () => false })
+    for (const body of [{ query: '우유' }, { query: '우유', source: 'kurly' }, { pcode: '5643303' }]) {
+      const res = await handle(post(body), d)
+      expect(res.status).toBe(401)
+    }
+    expect(log.urls).toHaveLength(0)
+    expect(log.reserved).toHaveLength(0)
+  })
+
   it('검색어 키는 소문자·공백 정리', () => {
     expect(queryKey('  Bibigo   왕교자 ')).toBe('bibigo 왕교자')
   })

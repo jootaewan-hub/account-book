@@ -1,6 +1,6 @@
 // Edge Function 진입점: 알아보기 탭 가격 비교(D-035). 로그인한 사용자만 부른다(verify_jwt, config.toml).
 // 검색 캐시·상품·가격 확인은 서비스 롤로 grocery 스키마에 쓴다(가구 데이터는 읽거나 쓰지 않는다).
-import { admin, cors, fetchHtml, withCors } from '../_shared/edge.ts'
+import { admin, cors, fetchHtml, isSignedIn, withCors } from '../_shared/edge.ts'
 import { danawaStore } from '../_shared/priceStore.ts'
 import { handle, itemsWithPcode, type ExploreItem, type Quote, type ShopItem, type ShopSource } from './handle.ts'
 
@@ -17,6 +17,7 @@ Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors })
   try {
     const res = await handle(req, {
+      signedIn: () => isSignedIn(req),
       ...danawaStore(admin),
       fetchHtml,
       cached: async (key, day) => {
