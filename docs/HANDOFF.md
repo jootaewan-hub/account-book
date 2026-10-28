@@ -209,8 +209,16 @@ npm run screens
     - 됨: main fast-forward(9493658)·푸시, Pages 배포 성공, 운영 `version.json` `9493658 · 10-28 11:48`. 앱 코드·DB 변경 없음(D-028: 문서·도구만 바뀐 배포는 릴리스 번호를 올리지 않는다).
     - 들어간 것: `.claude/skills/` 20개(날씨·생활·먹거리·쇼핑·검색), 옮기기 `scripts/k-skill-sync.py`, 다시 쓴 본문·도움 스크립트 `scripts/k-skill-extra/`, 출처·바꾼 점 `.claude/skills/K-SKILL-SOURCE.md`, `.gitignore`에 `.playwright-mcp/`.
     - 확인 필요(사용자): 다른 컴퓨터(PC·맥북)에서 `git pull` 뒤 Claude Code 스킬 목록에 잡히는지, 다나와 스킬용 Node 23.6 이상인지.
-    - 남은 결정(사용자): 올리브영 스킬(제3자 서버가 Zyte로 봇 확인을 넘어 가져옴)을 둘지, 이 기능들을 앱 탭으로 넣을지.
+    - 남은 결정(사용자): 올리브영 스킬(제3자 서버가 Zyte로 봇 확인을 넘어 가져옴)을 둘지. 앱 탭으로 넣을지는 사용자가 "앱에서 직접 조회"로 정했다(29, D-035).
     - 되돌리기: main을 38a833d(배포 기록 27)로 되돌린다(앱 화면은 같다).
+
+29. 알아보기 탭: 날씨·미세먼지와 다나와 가격 비교(D-035, v2.12.0) 운영 반영(2026-10-28 12:35~12:37 KST, 사용자 승인 "진행해"): 브랜치 `claude/lookup-tab` → `ci.yml` 통과(e814e0d, Deno 타입 검사 포함).
+    - 됨(공유 DB, MCP `apply_migration`): `grocery_explore_searches`(20261106000000). DB로 확인: `grocery.explore_searches` 있음, RLS 켜짐·정책 0개, 권한은 service_role(select·insert·update·delete)과 postgres뿐(anon·authenticated 없음), `fetch_gate`의 `danawa-search` 줄 있음.
+    - 됨(함수, MCP `deploy_edge_function`, 커밋 고정 stub e814e0d122892717cf8a80d64d9cb8e4c16d91ed): `explore-price` v1·`explore-weather` v1, 둘 다 `verify_jwt` true. 로그인 없는 POST 401, OPTIONS 204 `POST, OPTIONS`(고정 커밋 코드를 불러옴).
+    - 됨: main fast-forward(e814e0d)·푸시, Pages 배포 성공, 운영 `version.json` `e814e0d · 10-28 12:37`, 첫 화면 묶음에 2.12.0·알아보기, `ExploreView` 묶음에 explore-price·explore-weather·성남시청 근처.
+    - 확인 필요(사용자): 공공데이터포털 활용신청 3개(기상청 단기예보 15084084, 에어코리아 대기오염정보 15073861, 측정소정보 15073877). 신청 전에는 날씨 칸에 "활용신청 뒤에 보여요". 신청 뒤 첫 날씨 응답을 기상청·에어코리아 화면과 견준다(`data-sources.md` 10절, status 열린 문제).
+    - 확인 필요(첫 사용 뒤): 첫 가격 검색 뒤 `grocery.explore_searches` 줄, 상품을 연 뒤 그 pcode의 `price_checks` 줄을 읽기 SQL로 확인.
+    - 되돌리기: 화면은 main을 e68b038(배포 기록 28)로 되돌린다. 함수는 그대로 둬도 앱이 부르지 않는다. 표는 비어 있어도 무해하다.
 
 ### 사용자 할 일
 
