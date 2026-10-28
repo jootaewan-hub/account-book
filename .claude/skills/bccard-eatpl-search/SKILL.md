@@ -64,9 +64,10 @@ curl -fsS --get "${KSKILL_PROXY_BASE_URL:-https://k-skill-proxy.nomadamas.org}/v
 5. 표에 넣을 각 매장의 카카오맵 평점을 번들 헬퍼로 조회한다. 가맹점명과 주소는 eat.pl 응답값을 그대로 넘긴다.
 
 ```bash
-node .claude/skills/bccard-eatpl-search/scripts/kakao-place-rating.mjs \
-  --name '{merNm}' --address '{addr}'
-# 가맹점명·주소에 작은따옴표가 있으면 '\'' 로 바꿔 넣는다(응답에서 온 값이라 셸 따옴표가 깨질 수 있다)
+# 가맹점명·주소는 eat.pl 응답에서 온 값이라 셸 명령에 넣지 않는다. 파일 쓰기 도구로 JSON 파일을 만든 뒤 넘긴다:
+#   ${TMPDIR:-/tmp}/eatpl-rate.json = [{"name": "<merNm>", "address": "<addr>"}, …]
+node .claude/skills/bccard-eatpl-search/scripts/rate-from-json.mjs "${TMPDIR:-/tmp}/eatpl-rate.json"
+# 매장마다 한 줄씩 JSON(원본 kakao-place-rating.mjs와 같은 모양)이 나온다
 ```
 
 - 출력 JSON의 `status`가 `ok`일 때만 `rating`과 `reviewCount`를 사용한다.

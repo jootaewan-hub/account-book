@@ -80,6 +80,11 @@ def _to_float(value: Any) -> float | None:
 
 
 def fetch_html(url: str = DEFAULT_URL, timeout: int = 20) -> str:
+    # 이 프로젝트에서 더함(D-034): 오늘의집 https://ohou.se 주소만 부른다
+    from urllib.parse import urlparse
+    parsed = urlparse(url)
+    if parsed.scheme != "https" or parsed.hostname != "ohou.se":
+        raise SystemExit("--url에는 https://ohou.se 주소만 준다")
     # ohou.se Akamai 정책: 익명 UA(`python-urllib`, `Mozilla/5.0` 단독)는 403,
     # 봇 이름+contact URL이 포함된 well-formed UA는 허용. 우회가 아닌 자기소개.
     request = urllib.request.Request(

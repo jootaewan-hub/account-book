@@ -355,7 +355,8 @@ def get_required_secret() -> str:
 def get_proxy_base_url() -> str | None:
     value = os.environ.get(PROXY_BASE_URL_NAME)
     if value and value.lower() in {"off", "false", "0", "disable", "disabled", "none"}:
-        return None
+        # 이 프로젝트에서 바꿈(D-034): 직접 조회는 공공데이터 키를 http로 보내므로 쓰지 않는다
+        raise SystemExit("이 사본은 직접 조회(KSKILL_PROXY_BASE_URL=off)를 쓰지 않는다")
     if value and value != "replace-me":
         return value.rstrip("/")
     return DEFAULT_PROXY_BASE_URL

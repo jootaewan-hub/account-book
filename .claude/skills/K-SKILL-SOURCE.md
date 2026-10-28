@@ -22,14 +22,21 @@
 | household-waste-info | 프록시 → 행정안전부 (시군구) | 없음 | curl을 `KSKILL_PROXY_BASE_URL` 기준으로 |
 | kamis-food-price | 프록시 → KAMIS (분류·지역 코드·날짜) | 없음 | 직접 조회 스크립트 제외(키 파일을 읽음), 앱의 KAMIS 키 사용 금지 |
 | kakao-bar-nearby | 프록시 → 카카오 Local (위치, `<위치> 술집`) | 없음 | npm 패키지 `require("kakao-bar-nearby")` → 같은 프록시 경로 curl 두 번 |
-| bccard-eatpl-search | 프록시 → BC카드 eat.pl (주소·업종·가맹점명), m.map.kakao.com (가맹점명) | 없음 | `npx … exec` → `node scripts/kakao-place-rating.mjs`, **프록시·실패 원인을 사용자에게 숨기라는 지시를 투명하게 고침**, 운영자 시크릿 설명 삭제, 없는 `kakao-map` 스킬 대신 프록시 curl |
+| bccard-eatpl-search | 프록시 → BC카드 eat.pl (주소·업종·가맹점명), m.map.kakao.com (가맹점명) | 없음 | `npx … exec` → `node scripts/rate-from-json.mjs <JSON 파일>`, **프록시·실패 원인을 사용자에게 숨기라는 지시를 투명하게 고침**, 운영자 시크릿 설명 삭제, 없는 `kakao-map` 스킬 대신 프록시 curl |
 | naver-news-search | 프록시 → 네이버 검색 API (검색어) | 없음(프록시 운영자 키) | 없음 |
 | naver-blog-research | search.naver.com, m.blog.naver.com, 네이버 이미지 서버 (검색어·글 주소) | 없음 | `npx … exec` → `python3 -I scripts/…`, 이미지는 임시 폴더로, `--insecure` 금지 |
 | coupang-product-search | 프록시 → 쿠팡 파트너스 API (검색어) | 없음 | `subId=k-skill` 삭제, 장바구니·구매·로그인(vault) 절 삭제, 링크가 파트너스 링크(구매 시 운영자 수수료)임을 알림 |
 | naver-shopping-search | 프록시 → 네이버 쇼핑 (검색어) | 없음 | 없음 |
 | ohou-today-deal | ohou.se 공개 페이지 (없음, 필터는 로컬) | 없음 | `npx … exec` → `python3 -I scripts/ohou_today_deal.py`, `--url` 금지 |
 | delivery-tracking | cjlogistics.com, service.epost.go.kr (송장 번호) | 없음 | 송장 자릿수 확인, 보낸·받는 사람 이름을 답에 옮기지 않음 |
-| daangn-used-goods-search | www.daangn.com (지역명·검색어) | 없음 | `npx … exec` → `python3 -I scripts/daangn_used_goods.py`, `detail`은 daangn.com 주소만 |
+| daangn-used-goods-search | www.daangn.com (지역명·검색어) | 없음 | `npx … exec` → `python3 -I scripts/daangn_used_goods.py`, `detail`은 daangn.com 주소만(스크립트에서도 막음), 설명을 읽기 전용으로 |
+
+### 도움 스크립트에서 고친 곳 (자동 보안 검토 반영, `scripts/k-skill-sync.py`의 PATCHES·EXTRA_FILES)
+
+- `daangn-used-goods-search/scripts/daangn_used_goods.py`: `detail`은 `https://www.daangn.com` 주소만 부른다(다른 주소를 부르던 SSRF).
+- `ohou-today-deal/scripts/ohou_today_deal.py`: `--url`은 `https://ohou.se`만(다른 호스트를 부르던 SSRF).
+- `fine-dust-location/scripts/fine_dust.py`: `KSKILL_PROXY_BASE_URL=off` 직접 조회를 막는다(공공데이터 키를 http로 보냄).
+- `bccard-eatpl-search/scripts/rate-from-json.mjs`(더함): eat.pl 응답의 가맹점명·주소를 셸 인자로 넘기지 않고 JSON 파일로 받아 원본 `lookupKakaoPlaceRating`을 부른다. 위 세 막음과 이 감싸개는 실제로 돌려 확인했다(`$(…)`가 든 이름도 글자로만 다룸).
 
 프록시 `k-skill-proxy.nomadamas.org`는 NomaDamas가 운영하는 제3자 서버다. 저장소의 프록시 코드는 요청 기록을 끄고 오류일 때만 쿼리 해시를 남기지만, 실제 배포본이 같은지는 확인 필요다.
 
@@ -57,6 +64,7 @@
 - 공휴일: 2026년 공휴일 22일이 앱의 공휴일 표(`src/lib/holidays.ts`)와 날짜까지 같다.
 - KAMIS: 그날 값이 없으면 `error_code` 001, `p_regday=2026-10-27`로 22품목 응답(당일·1일 전·1주 전·1년 전·평년). 분류 200(채소류)에 쌀이 먼저 나온 까닭은 확인 필요.
 - 카카오 키워드 검색: 응답이 `documents[]`(`place_name`, `place_url`, `x`, `y` 등).
+- 이 세션의 스킬 목록에 14개가 바로 잡혔다(다른 컴퓨터·다른 브랜치에서는 이 파일들이 있어야 한다).
 - 그 밖의 스킬은 실제로 부르지 않았다.
 
 ## 새 커밋으로 올리기

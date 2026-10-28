@@ -110,7 +110,10 @@ def bccard(t: str) -> str:
     t = fix(t, '`kakao-map` 스킬을 우선 사용한다. 이 경로는 k-skill-proxy가 중계하는 **카카오 공식 Local REST API** (`GET /v1/kakao-map/search/keyword`, `coord2address` 등)이다.',
             '이 사본에는 `kakao-map` 스킬이 없으므로 같은 프록시의 **카카오 공식 Local REST API**를 curl로 부른다: `' + BASE_CURL + '/v1/kakao-map/search/keyword" --data-urlencode \'q=<장소>\' --data-urlencode \'size=5\'`.')
     t = fix(t, "npx -y @nomadamas/k-skill@0 exec bccard-eatpl-search scripts/kakao-place-rating.mjs -- \\\n  --name '{merNm}' --address '{addr}'",
-            "node .claude/skills/bccard-eatpl-search/scripts/kakao-place-rating.mjs \\\n  --name '{merNm}' --address '{addr}'\n# 가맹점명·주소에 작은따옴표가 있으면 '\\'' 로 바꿔 넣는다(응답에서 온 값이라 셸 따옴표가 깨질 수 있다)")
+            "# 가맹점명·주소는 eat.pl 응답에서 온 값이라 셸 명령에 넣지 않는다. 파일 쓰기 도구로 JSON 파일을 만든 뒤 넘긴다:\n"
+            "#   ${TMPDIR:-/tmp}/eatpl-rate.json = [{\"name\": \"<merNm>\", \"address\": \"<addr>\"}, …]\n"
+            "node .claude/skills/bccard-eatpl-search/scripts/rate-from-json.mjs \"${TMPDIR:-/tmp}/eatpl-rate.json\"\n"
+            "# 매장마다 한 줄씩 JSON(원본 kakao-place-rating.mjs와 같은 모양)이 나온다")
     t = fix(t, '사용자가 말한 장소를 먼저 `kakao-map`으로 정확한 도로명주소로 해석한 뒤', '사용자가 말한 장소를 먼저 카카오 공식 Local API(프록시 경유)로 정확한 도로명주소로 해석한 뒤')
     t = fix(t, '- 사용자 답변에 endpoint, 프록시, 환경변수, 내부 필드명이 없다.', '- 사용자 답변에 endpoint, 환경변수, 내부 필드명이 없다(출처 줄의 제3자 중계 서버 경유 표기는 남긴다).')
     return cut(t, '## Credentials and proxy operations', '## Important interpretation')
@@ -163,10 +166,69 @@ SKILLS = {
 
 DOLSOI = re.compile(r'\s*돌쇠에서는[^.。\n]*[.。]?')
 
+# 돌쇠 문장을 빼면 문장이 끊기는 설명은 통째로 바꾼다
+DESCRIPTIONS = {
+    'daangn-used-goods-search': '당근 중고거래 공개 웹 데이터로 지역·키워드 매물을 검색하고 상세를 읽는다. 읽기 전용(채팅·찜·거래 제안을 하지 않는다).',
+}
+
+# 복사한 도움 스크립트에서 이 프로젝트가 고친 곳(자동 보안 검토 2026-10-28): 원본이 바뀌어 못 찾으면 멈춘다
+PATCHES = {
+    'daangn-used-goods-search/scripts/daangn_used_goods.py': [(
+        "def cmd_detail(args):\n    u = args.url",
+        "def cmd_detail(args):\n    # 이 프로젝트에서 더함(D-034): https://www.daangn.com 주소만 부른다\n"
+        "    pu = urllib.parse.urlparse(args.url)\n"
+        "    if pu.scheme != 'https' or pu.hostname != 'www.daangn.com':\n"
+        "        sys.exit('detail에는 https://www.daangn.com/ 주소만 준다')\n"
+        "    u = args.url",
+    )],
+    'ohou-today-deal/scripts/ohou_today_deal.py': [(
+        'def fetch_html(url: str = DEFAULT_URL, timeout: int = 20) -> str:\n',
+        'def fetch_html(url: str = DEFAULT_URL, timeout: int = 20) -> str:\n'
+        '    # 이 프로젝트에서 더함(D-034): 오늘의집 https://ohou.se 주소만 부른다\n'
+        '    from urllib.parse import urlparse\n'
+        '    parsed = urlparse(url)\n'
+        '    if parsed.scheme != "https" or parsed.hostname != "ohou.se":\n'
+        '        raise SystemExit("--url에는 https://ohou.se 주소만 준다")\n',
+    )],
+    'fine-dust-location/scripts/fine_dust.py': [(
+        '    if value and value.lower() in {"off", "false", "0", "disable", "disabled", "none"}:\n        return None\n',
+        '    if value and value.lower() in {"off", "false", "0", "disable", "disabled", "none"}:\n'
+        '        # 이 프로젝트에서 바꿈(D-034): 직접 조회는 공공데이터 키를 http로 보내므로 쓰지 않는다\n'
+        '        raise SystemExit("이 사본은 직접 조회(KSKILL_PROXY_BASE_URL=off)를 쓰지 않는다")\n',
+    )],
+}
+
+# 이 프로젝트가 더하는 파일
+EXTRA_FILES = {
+    'bccard-eatpl-search/scripts/rate-from-json.mjs': '''// 이 프로젝트에서 더함(D-034): eat.pl 응답에서 온 가맹점명·주소를 셸 인자로 넘기지 않으려고 JSON 파일로 받는다.
+// 사용: node rate-from-json.mjs <파일>  (파일: [{"name": "가맹점명", "address": "주소"}, …])
+import { readFileSync } from "node:fs";
+import { DEFAULT_PROXY_BASE_URL, lookupKakaoPlaceRating } from "./kakao-place-rating.mjs";
+
+const file = process.argv[2];
+if (!file) {
+  process.stderr.write("usage: rate-from-json.mjs <json 파일>\\n");
+  process.exit(2);
+}
+const rows = JSON.parse(readFileSync(file, "utf8"));
+if (!Array.isArray(rows)) {
+  process.stderr.write("JSON은 [{name, address}, …] 배열이어야 한다\\n");
+  process.exit(2);
+}
+const proxyBaseUrl = process.env.KSKILL_PROXY_BASE_URL || DEFAULT_PROXY_BASE_URL;
+for (const row of rows) {
+  const result = await lookupKakaoPlaceRating({ name: String(row?.name ?? ""), address: String(row?.address ?? ""), proxyBaseUrl });
+  process.stdout.write(`${JSON.stringify(result)}\\n`);
+}
+''',
+}
+
 
 def frontmatter(src: Path, name: str) -> str:
     fm = json.loads((src / name / 'skill.json').read_text())['frontmatter']
     fm = DOLSOI.sub('', fm)
+    if name in DESCRIPTIONS:
+        fm = re.sub(r'^description: .*$', 'description: ' + DESCRIPTIONS[name], fm, count=1, flags=re.M)
     if not fm.startswith(f'name: {name}\n'):
         sys.exit(f'{name}: frontmatter name이 폴더 이름과 다름')
     return f'---\n{fm}\n---\n'
@@ -205,6 +267,14 @@ def main() -> None:
         for d in dirs:
             shutil.copytree(src / name / d, dest / d, ignore=shutil.ignore_patterns('__pycache__', '.gitignore'))
         print(f'{name}: SKILL.md {len(text.splitlines())}줄' + (f', {", ".join(dirs)}' if dirs else ''))
+    for rel, changes in PATCHES.items():
+        f = out / rel
+        code = f.read_text()
+        for old, new in changes:
+            code = fix(code, old, new)
+        f.write_text(code)
+    for rel, code in EXTRA_FILES.items():
+        (out / rel).write_text(code)
     shutil.copyfile(src / 'LICENSE', out / 'K-SKILL-LICENSE')
 
 

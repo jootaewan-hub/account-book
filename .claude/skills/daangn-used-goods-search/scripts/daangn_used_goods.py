@@ -69,6 +69,10 @@ def cmd_search(args):
     })
 
 def cmd_detail(args):
+    # 이 프로젝트에서 더함(D-034): https://www.daangn.com 주소만 부른다
+    pu = urllib.parse.urlparse(args.url)
+    if pu.scheme != 'https' or pu.hostname != 'www.daangn.com':
+        sys.exit('detail에는 https://www.daangn.com/ 주소만 준다')
     u = args.url.rstrip('/') + '/?_data=routes%2Fkr.buy-sell.%24buy_sell_id'
     data = fetch_json(u); p = data.get('product') or data.get('article') or data
     print_json({'source': u, 'product': p})

@@ -1,6 +1,6 @@
 ---
 name: daangn-used-goods-search
-description: 당근 중고거래 공개 웹 데이터로 매물을 검색하고,
+description: 당근 중고거래 공개 웹 데이터로 지역·키워드 매물을 검색하고 상세를 읽는다. 읽기 전용(채팅·찜·거래 제안을 하지 않는다).
 license: MIT
 metadata:
   category: marketplace
