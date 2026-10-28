@@ -1,8 +1,8 @@
 // 알아보기 탭(D-035): 날씨·미세먼지와 다나와 가격 비교. 숫자는 서버 함수가 준 값만 쓰고 출처·기준 시각을 붙인다.
-import { useEffect, useRef, useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import {
-  dayName, DEFAULT_PLACE, degree, failText, fetchWeather, loadPlace, offerTotal, productPrices, round2, savePlace, searchPrices,
-  searchShop, sortOffers, variantText, whenText, won,
+  agoText, dayName, DEFAULT_PLACE, degree, failText, fetchWeather, isRegionName, loadDaangnRegion, loadPlace, offerTotal, productPrices, round2,
+  saveDaangnRegion, savePlace, searchPrices, searchShop, sortOffers, variantText, whenText, won,
   type ExploreItem, type Place, type ProductPrices, type SearchResult, type ShopItem, type ShopResult, type ShopSource, type WeatherResult,
 } from '../lib/explore'
 import { sb } from '../lib/supabase'
@@ -151,11 +151,14 @@ type Source = 'danawa' | ShopSource
 type Found = Extract<SearchResult, { items: ExploreItem[] }> | Extract<ShopResult, { items: ShopItem[] }>
 type SourceState = { state: 'searching' | 'busy' | 'failed' } | { state: 'done'; result: Found }
 
-// 한 번 찾으면 세 곳을 함께 찾는다(D-036). 순서는 다나와(가격비교) → 마켓컬리 → 다이소
-const SOURCES: { key: Source; label: string; searching: string }[] = [
+// 한 번 찾으면 여러 곳을 함께 찾는다(D-036). 새 상품: 다나와(가격비교) → 마켓컬리 → 다이소 → 오늘의집, 중고: 번개장터 → 당근
+const SOURCES: { key: Source; label: string; searching: string; used?: true }[] = [
   { key: 'danawa', label: '다나와', searching: '다나와 검색 중(다른 검색이 있으면 10초씩 기다려요)' },
   { key: 'kurly', label: '마켓컬리', searching: '마켓컬리 검색 중' },
   { key: 'daiso', label: '다이소', searching: '다이소몰 검색 중' },
+  { key: 'ohou', label: '오늘의집', searching: '오늘의집 검색 중' },
+  { key: 'bunjang', label: '번개장터', searching: '번개장터 검색 중', used: true },
+  { key: 'daangn', label: '당근', searching: '당근 검색 중', used: true },
 ]
 const FIRST = 5
 
@@ -164,13 +167,18 @@ function PriceCard() {
   const [query, setQuery] = useState<string | null>(null)
   const [states, setStates] = useState<Partial<Record<Source, SourceState>>>({})
   const [open, setOpen] = useState<ExploreItem | null>(null)
+  const [region, setRegion] = useState(loadDaangnRegion)
   const seq = useRef(0)
+  const daangnSeq = useRef(0)
   const searching = Object.values(states).some((s) => s?.state === 'searching')
 
-  async function run(source: Source, q: string, n: number) {
-    const set = (st: SourceState) => { if (n === seq.current) setStates((cur) => ({ ...cur, [source]: st })) }
+  async function run(source: Source, q: string, n: number, area = region) {
+    // 당근은 동네만 바꿔 다시 찾을 수 있어 따로 센다
+    const ref = source === 'daangn' ? daangnSeq : seq
+    const mine = source === 'daangn' ? ++daangnSeq.current : n
+    const set = (st: SourceState) => { if (mine === ref.current && n === seq.current) setStates((cur) => ({ ...cur, [source]: st })) }
     try {
-      const r = source === 'danawa' ? await searchPrices(sb(), q) : await searchShop(sb(), source, q)
+      const r = source === 'danawa' ? await searchPrices(sb(), q) : await searchShop(sb(), source, q, area)
       set(r.status === 'busy' ? { state: 'busy' } : { state: 'done', result: r })
     } catch {
       set({ state: 'failed' })
@@ -183,8 +191,16 @@ function PriceCard() {
     if (q.length < 2 || searching) return
     const n = ++seq.current
     setQuery(q)
-    setStates({ danawa: { state: 'searching' }, kurly: { state: 'searching' }, daiso: { state: 'searching' } })
+    setStates(Object.fromEntries(SOURCES.map((s) => [s.key, { state: 'searching' }])))
     for (const s of SOURCES) void run(s.key, q, n)
+  }
+
+  function changeRegion(next: string) {
+    saveDaangnRegion(next)
+    setRegion(next)
+    if (query === null) return
+    setStates((cur) => ({ ...cur, daangn: { state: 'searching' } }))
+    void run('daangn', query, seq.current, next)
   }
 
   return (
@@ -196,16 +212,42 @@ function PriceCard() {
         <button className="primary" disabled={text.trim().length < 2 || searching}>찾기</button>
       </form>
 
-      {query === null && <p className="explore-src">다나와·마켓컬리·다이소를 함께 찾아요. 다나와 상품을 누르면 쇼핑몰별 가격을, 컬리·다이소 상품을 누르면 그 상품 페이지를 열어요.</p>}
-      {query !== null && SOURCES.map((s) => (
-        <SourceBlock key={`${s.key}:${query}`} label={s.label} searchingText={s.searching} st={states[s.key]} onOpen={setOpen} />
+      {query === null && <p className="explore-src">다나와·마켓컬리·다이소·오늘의집과 중고(번개장터·당근)를 함께 찾아요. 다나와 상품을 누르면 쇼핑몰별 가격을, 다른 곳은 그 상품·매물 페이지를 열어요.</p>}
+      {query !== null && SOURCES.map((s, i) => (
+        <div key={`${s.key}:${query}`}>
+          {s.used && !SOURCES[i - 1]?.used && <h3 className="explore-group">중고 매물</h3>}
+          <SourceBlock label={s.label} searchingText={s.searching} st={states[s.key]} onOpen={setOpen}
+            extra={s.key === 'daangn' ? <RegionPicker region={region} onChange={changeRegion} /> : null} />
+        </div>
       ))}
       <OfferSheet item={open} onClose={() => setOpen(null)} />
     </section>
   )
 }
 
-function SourceBlock({ label, searchingText, st, onOpen }: { label: string; searchingText: string; st: SourceState | undefined; onOpen: (it: ExploreItem) => void }) {
+/** 당근 동네: "여수동 근처 · 동네 바꾸기" → 한글 동 이름 칸 */
+function RegionPicker({ region, onChange }: { region: string; onChange: (v: string) => void }) {
+  const [editing, setEditing] = useState(false)
+  const [text, setText] = useState(region)
+  if (!editing) {
+    return (
+      <span className="explore-region">
+        {region} 근처 · <button className="link-btn" onClick={() => { setText(region); setEditing(true) }}>동네 바꾸기</button>
+      </span>
+    )
+  }
+  const v = text.trim()
+  return (
+    <form className="explore-region-form" onSubmit={(e) => { e.preventDefault(); if (isRegionName(v)) { onChange(v); setEditing(false) } }}>
+      <input className="input" aria-label="당근 동네" placeholder="예: 정자동" maxLength={20} value={text} onChange={(e) => setText(e.target.value)} />
+      <button className="ghost" disabled={!isRegionName(v)}>바꾸기</button>
+    </form>
+  )
+}
+
+function SourceBlock({ label, searchingText, st, onOpen, extra }: {
+  label: string; searchingText: string; st: SourceState | undefined; onOpen: (it: ExploreItem) => void; extra?: ReactNode
+}) {
   const [all, setAll] = useState(false)
   if (!st) return null
   const r = st.state === 'done' ? st.result : null
@@ -213,13 +255,13 @@ function SourceBlock({ label, searchingText, st, onOpen }: { label: string; sear
   const shown = all ? items : items.slice(0, FIRST)
   return (
     <div className="explore-source" aria-label={`${label} 결과`}>
-      <h3 className="explore-sub">{label}</h3>
+      <div className="explore-sub-head"><h3 className="explore-sub">{label}</h3>{extra}</div>
       {st.state === 'searching' && <p className="lead">{searchingText}</p>}
       {st.state === 'busy' && <p className="lead">{label} 검색이 밀려 있어요. 잠시 뒤 다시 찾아 주세요</p>}
       {st.state === 'failed' && <p className="lead">{label} 검색 결과를 받지 못했어요</p>}
       {r && (
         <>
-          <p className="explore-src">{label} 검색 “{r.query}”, {whenText(r.foundAt)} 확인</p>
+          <p className="explore-src">{label} 검색 “{r.query}”{'region' in r && r.region ? `(${r.region} 기준)` : ''}, {whenText(r.foundAt)} 확인</p>
           {items.length === 0
             ? <p className="empty">찾은 상품이 없어요</p>
             : (
@@ -238,12 +280,14 @@ function SourceBlock({ label, searchingText, st, onOpen }: { label: string; sear
   )
 }
 
-/** 마켓컬리·다이소 상품 한 줄: 누르면 그 몰 상품 페이지(새 창). 할인이면 정가와 할인율, 품절이면 품절 */
+/** 몰 상품·중고 매물 한 줄: 누르면 그 페이지(새 창). 할인이면 정가와 할인율, 품절이면 품절, 중고는 동네·올린 지 */
 function ShopRow({ item }: { item: ShopItem }) {
   const meta = [
     ...(item.soldOut ? ['품절'] : []),
+    ...(item.place ? [item.place] : []),
+    ...(item.postedAt ? [agoText(item.postedAt)] : []),
     ...(item.listPrice !== null ? [`정가 ${won(item.listPrice)}${item.discountRate !== null ? ` · ${item.discountRate}% 할인` : ''}`] : []),
-    ...item.tags,
+    ...item.tags.filter((t) => !(t === '나눔' && item.price === null)),
     ...(item.rating !== null ? [`평점 ${item.rating}${item.reviews ? `(${item.reviews})` : ''}`] : item.reviews ? [`후기 ${item.reviews}`] : []),
   ]
   return (
@@ -252,7 +296,7 @@ function ShopRow({ item }: { item: ShopItem }) {
         <span className="tx-title explore-name">{item.name}</span>
         {meta.length > 0 && <span className="tx-meta num">{meta.join(' · ')}</span>}
       </span>
-      <span className="tx-amt num">{item.price === null ? '가격 표시 없음' : won(item.price)}</span>
+      <span className="tx-amt num">{item.price !== null ? won(item.price) : item.tags.includes('나눔') ? '나눔' : '가격 표시 없음'}</span>
     </a>
   )
 }

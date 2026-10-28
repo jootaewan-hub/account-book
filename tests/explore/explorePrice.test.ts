@@ -6,10 +6,11 @@ import { handle, itemsWithPcode, MAX_WAIT_MS, queryKey, type LatestCheck, type E
 const SEARCH_HTML = readFileSync(new URL('../grocery/fixtures/danawa/search-bibigo.html', import.meta.url), 'utf8')
 const KURLY_JSON = readFileSync(new URL('./fixtures/kurly-search-bibigo.json', import.meta.url), 'utf8')
 const DAISO_JSON = readFileSync(new URL('./fixtures/daiso-search-riddleshot.json', import.meta.url), 'utf8')
+const fixture = (n: string) => readFileSync(new URL(`./fixtures/${n}`, import.meta.url), 'utf8')
 const NOW = new Date('2026-10-28T02:30:00Z') // 한국 2026-10-28 11:30
 
 function deps(over: Partial<PriceDeps> = {}) {
-  const log = { urls: [] as string[], slept: [] as number[], saved: [] as [string, string, string, ExploreItem[]][], checks: [] as string[], fails: [] as string[], reserved: [] as number[], inserted: [] as [string, string][], shopReserved: [] as [ShopSource, number][], shopSaved: [] as [ShopSource, string, string, ShopItem[]][] }
+  const log = { urls: [] as string[], slept: [] as number[], saved: [] as [string, string, string, ExploreItem[]][], checks: [] as string[], fails: [] as string[], reserved: [] as number[], inserted: [] as [string, string][], shopReserved: [] as [ShopSource, number][], shopSaved: [] as [ShopSource, string, string, string, ShopItem[], string | undefined][] }
   const latest: LatestCheck = {
     checkedAt: '2026-10-28T02:31:00.000Z', pageQty: 3,
     quotes: [
@@ -53,12 +54,14 @@ function deps(over: Partial<PriceDeps> = {}) {
       log.shopReserved.push([source, max])
       return 0
     },
-    fetchJson: async (url) => {
+    fetchText: async (url) => {
       log.urls.push(url)
-      return { status: 200, text: url.includes('kurly') ? KURLY_JSON : DAISO_JSON }
+      const text = url.includes('kurly') ? KURLY_JSON : url.includes('daisomall') ? DAISO_JSON : url.includes('ohou.se') ? fixture('ohou-search-storage.html')
+        : url.includes('bunjang') ? fixture('bunjang-search-ipad.json') : url.includes('regions/keyword') ? fixture('daangn-region-yeosu.json') : fixture('daangn-search-ipad.html')
+      return { status: 200, text }
     },
-    saveShop: async (source, k, day, _q, items) => {
-      log.shopSaved.push([source, k, day, items])
+    saveShop: async (source, scope, k, day, _q, items, _at, region) => {
+      log.shopSaved.push([source, scope, k, day, items, region])
     },
     now: () => NOW,
     ...over,
@@ -226,7 +229,7 @@ describe('explore-price: 몰 검색(D-036)', () => {
       id: '5082274', name: '[비비고] 왕교자 만두 대용량 1.05kg', price: 10480, listPrice: 11480, discountRate: 8, soldOut: false,
       url: 'https://www.kurly.com/goods/5082274', reviews: '9,999+', rating: null, tags: ['샛별배송'],
     })
-    expect(log.shopSaved[0].slice(0, 3)).toEqual(['kurly', '비비고 왕교자', '2026-10-28'])
+    expect(log.shopSaved[0].slice(0, 4)).toEqual(['kurly', '', '비비고 왕교자', '2026-10-28'])
   })
 
   it('다이소: 상품 문서가 있는 결과 묶음에서 가격·평점·픽업 여부, 상품 페이지 주소', async () => {
@@ -241,7 +244,7 @@ describe('explore-price: 몰 검색(D-036)', () => {
 
   it('같은 날 같은 출처·검색어는 부르지 않고 cached, 자리가 밀리면 busy, 모양이 다르면 502', async () => {
     const items: ShopItem[] = [{ id: '1', name: 'x', price: 1, listPrice: null, discountRate: null, soldOut: false, url: 'u', reviews: null, rating: null, tags: [] }]
-    const { d, log } = deps({ cachedShop: async (s, k, day) => (s === 'kurly' && k === '우유' && day === '2026-10-28' ? { items, foundAt: 'f' } : null) })
+    const { d, log } = deps({ cachedShop: async (s, scope, k, day) => (s === 'kurly' && scope === '' && k === '우유' && day === '2026-10-28' ? { items, foundAt: 'f' } : null) })
     expect(await (await handle(post({ query: '우유', source: 'kurly' }), d)).json()).toEqual({ status: 'cached', source: 'kurly', query: '우유', foundAt: 'f', items })
     expect(log.urls).toHaveLength(0)
 
@@ -250,12 +253,62 @@ describe('explore-price: 몰 검색(D-036)', () => {
     expect(busy.status).toBe(202)
     expect(await busy.json()).toEqual({ status: 'busy', source: 'daiso' })
 
-    const { d: d3, log: log3 } = deps({ fetchJson: async () => ({ status: 200, text: '{"data":{}}' }) })
+    const { d: d3, log: log3 } = deps({ fetchText: async () => ({ status: 200, text: '{"data":{}}' }) })
     expect(await (await handle(post({ query: '우유', source: 'kurly' }), d3)).json()).toEqual({ status: 'error', source: 'kurly', reason: 'parse_failed' })
     expect(log3.shopSaved).toHaveLength(0)
 
-    const { d: d4 } = deps({ fetchJson: async () => ({ status: 403, text: '' }) })
+    const { d: d4 } = deps({ fetchText: async () => ({ status: 403, text: '' }) })
     expect(await (await handle(post({ query: '우유', source: 'daiso' }), d4)).json()).toEqual({ status: 'error', source: 'daiso', reason: 'http_403' })
+  })
+})
+
+describe('explore-price: 오늘의집·번개장터·당근(D-036 보충)', () => {
+  it('오늘의집: 검색 화면의 압축 데이터(turbo-stream)에서 상품 카드의 판매가·정가·할인율·후기·브랜드', async () => {
+    const { d, log } = deps()
+    const body = await (await handle(post({ query: '수납장', source: 'ohou' }), d)).json()
+    expect(log.urls).toEqual(['https://ohou.se/search/index?query=%EC%88%98%EB%82%A9%EC%9E%A5'])
+    expect(log.shopReserved).toEqual([['ohou', MAX_WAIT_MS]])
+    expect(body.items[0]).toEqual({
+      id: '3320009', name: '[오늘의집 단독] E0 에이미 1200 2단/3단 서랍장 시스템 선반장 수납 책장', price: 144900, listPrice: 194000, discountRate: 25, soldOut: false,
+      url: 'https://store.ohou.se/goods/3320009', reviews: '1,249', rating: 4.7, tags: ['리샘', '특가', '무료배송'],
+    })
+    expect(body.items.map((i: ShopItem) => i.id)).toEqual(['3320009', '3987839', '2281959'])
+  })
+
+  it('번개장터: 본 목록 블록의 매물(광고 표시, 올린 시각), 상품 페이지 주소', async () => {
+    const { d } = deps()
+    const body = await (await handle(post({ query: '아이패드', source: 'bunjang' }), d)).json()
+    expect(body.items[0]).toEqual({
+      id: '442132021', name: '[미개봉 새상품] 애플 아이패드 11세대 WIFI전용 128G (색상 선택가능) 1년 무상AS', price: 679000, listPrice: null, discountRate: null, soldOut: false,
+      url: 'https://m.bunjang.co.kr/products/442132021', reviews: null, rating: null, tags: ['광고'], place: null, postedAt: '2026-10-22T06:49:25Z',
+    })
+  })
+
+  it('당근: 동네(기본 여수동)를 찾아 그 동네로 찾고, 동네 이름·매물 동네·끌어올린 시각을 돌려준다. 캐시 범위는 동네', async () => {
+    const { d, log } = deps()
+    const body = await (await handle(post({ query: '아이패드', source: 'daangn' }), d)).json()
+    expect(log.urls).toEqual([
+      'https://www.daangn.com/kr/api/v1/regions/keyword?keyword=%EC%97%AC%EC%88%98%EB%8F%99',
+      'https://www.daangn.com/kr/buy-sell/?in=%EC%97%AC%EC%88%98%EB%8F%99-4522&search=%EC%95%84%EC%9D%B4%ED%8C%A8%EB%93%9C&only_on_sale=true',
+    ])
+    expect(body.region).toBe('경기도 성남시 중원구 여수동')
+    expect(body.items[0]).toMatchObject({ id: 'b2v3w6r6vh1i', name: '아이패드 8세대 스그 애플펜슬 포함 32기가', price: 170000, place: '행암동', postedAt: '2026-10-28T03:25:53.464Z' })
+    expect(body.items[0].url).toMatch(/^https:\/\/www\.daangn\.com\/kr\/buy-sell\//)
+    expect(log.shopSaved[0].slice(0, 4)).toEqual(['daangn', '여수동', '아이패드', '2026-10-28'])
+    expect(log.shopSaved[0][5]).toBe('경기도 성남시 중원구 여수동')
+  })
+
+  it('당근 동네는 한글·숫자 1~20자만, 동네를 못 찾으면 502 no_region', async () => {
+    const { d, log } = deps()
+    expect((await handle(post({ query: '아이패드', source: 'daangn', region: 'a&b' }), d)).status).toBe(400)
+    expect(log.urls).toHaveLength(0)
+    const { d: d2 } = deps({ fetchText: async () => ({ status: 200, text: '{"locations":[]}' }) })
+    expect(await (await handle(post({ query: '아이패드', source: 'daangn', region: '없는동' }), d2)).json()).toEqual({ status: 'error', source: 'daangn', reason: 'no_region' })
+  })
+
+  it('오늘의집 화면 데이터가 없으면 parse_failed', async () => {
+    const { d } = deps({ fetchText: async () => ({ status: 200, text: '<html>바뀐 화면</html>' }) })
+    expect(await (await handle(post({ query: '수납장', source: 'ohou' }), d)).json()).toEqual({ status: 'error', source: 'ohou', reason: 'parse_failed' })
   })
 })
 

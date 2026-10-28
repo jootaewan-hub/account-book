@@ -8,7 +8,7 @@
 import { existsSync, mkdirSync, readFileSync } from 'node:fs'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { chromium } from 'playwright'
-import { BILL, EXPLORE_DAISO, EXPLORE_KURLY, EXPLORE_PRODUCT, EXPLORE_SEARCH, EXPLORE_WEATHER, EXPLORE_WEATHER_NOT_REGISTERED, fakeSession, FUEL_RECEIPT, LONG_RECEIPT, RECEIPT, TABLES, USER } from './shell-fixtures.mjs'
+import { BILL, EXPLORE_BUNJANG, EXPLORE_DAANGN, EXPLORE_DAISO, EXPLORE_KURLY, EXPLORE_OHOU, EXPLORE_PRODUCT, EXPLORE_SEARCH, EXPLORE_WEATHER, EXPLORE_WEATHER_NOT_REGISTERED, fakeSession, FUEL_RECEIPT, LONG_RECEIPT, RECEIPT, TABLES, USER } from './shell-fixtures.mjs'
 
 const BASE = process.env.BASE_URL ?? 'http://localhost:5188' // vite.config.ts server.port와 같다
 const OUT = process.env.OUT_DIR ? pathToFileURL(`${process.env.OUT_DIR.replace(/\/$/, '')}/`) : new URL('../screenshots/', import.meta.url)
@@ -218,7 +218,8 @@ async function fakeSupabase(context, s = {}) {
     if (url.pathname === '/functions/v1/explore-price') {
       let body = null
       try { body = req.postDataJSON() } catch { /* 검색으로 본다 */ }
-      return json(body?.pcode ? EXPLORE_PRODUCT : body?.source === 'kurly' ? EXPLORE_KURLY : body?.source === 'daiso' ? EXPLORE_DAISO : EXPLORE_SEARCH)
+      const bySource = { kurly: EXPLORE_KURLY, daiso: EXPLORE_DAISO, ohou: EXPLORE_OHOU, bunjang: EXPLORE_BUNJANG, daangn: EXPLORE_DAANGN }
+      return json(body?.pcode ? EXPLORE_PRODUCT : bySource[body?.source] ?? EXPLORE_SEARCH)
     }
     if (url.pathname.startsWith('/functions/v1/')) return json({ status: 'skipped' })
     if (url.pathname.startsWith('/storage/v1/')) return json([])

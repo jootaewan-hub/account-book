@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 // 알아보기 탭(D-035) 화면 글자와 기기 위치 저장
 import { afterEach, describe, expect, it } from 'vitest'
-import { dayName, DEFAULT_PLACE, degree, failText, loadPlace, offerTotal, savePlace, sortOffers, variantText, whenText, type Quote } from '../../src/lib/explore'
+import { agoText, dayName, DEFAULT_PLACE, degree, failText, loadDaangnRegion, loadPlace, offerTotal, saveDaangnRegion, savePlace, sortOffers, variantText, whenText, type Quote } from '../../src/lib/explore'
 
 afterEach(() => localStorage.clear())
 
@@ -56,3 +56,21 @@ describe('위치 저장(기기마다)', () => {
     expect(loadPlace()).toEqual(DEFAULT_PLACE)
   })
 })
+
+describe('중고 매물 글자와 당근 동네', () => {
+  const now = new Date('2026-10-28T03:00:00Z')
+  it('올린 지: 분·시간·일 전, 일주일이 넘으면 날짜(한국)', () => {
+    expect(agoText('2026-10-28T02:48:00Z', now)).toBe('12분 전')
+    expect(agoText('2026-10-27T23:00:00Z', now)).toBe('4시간 전')
+    expect(agoText('2026-10-25T03:00:00Z', now)).toBe('3일 전')
+    expect(agoText('2026-10-01T16:00:00Z', now)).toBe('10월 2일')
+  })
+  it('당근 동네는 한글·숫자만 저장하고, 없으면 여수동', () => {
+    expect(loadDaangnRegion()).toBe('여수동')
+    saveDaangnRegion('정자동')
+    expect(loadDaangnRegion()).toBe('정자동')
+    saveDaangnRegion('a&b')
+    expect(loadDaangnRegion()).toBe('정자동')
+  })
+})
+

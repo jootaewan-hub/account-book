@@ -284,6 +284,13 @@
 - 다이소몰 상품 검색 `https://www.daisomall.co.kr/ssn/search/SearchGoods?searchTerm=<검색어>&…&cntPerPage=20`(로그인 없음, robots `*` Crawl-delay 30): 2026-10-28 실제 호출 200. `resultSet.result[]` 중 `resultDocuments`가 있는 묶음(첫 묶음은 비어 올 때가 있다)에 `pdNo`, `pdNm`·`exhPdNm`, `pdPrc`(글자), `avgStscVal`, `revwCnt`, `pkupOrPsblYn`(매장 픽업), `pdsOrPsblYn`(택배), `soldOutYn`. 상품 페이지 `https://www.daisomall.co.kr/pd/pdr/SCR_PDR_0001?pdNo=<pdNo>`의 제목 가격이 검색 값과 같았다(1049275 → 3,000원). `B`로 시작하는 상품 번호는 같은 이름에 값이 큰 묶음 상품이었다(B202503122133 → 108,000원, 택배만).
 - 확인 필요: Supabase 서버(서울 리전)에서 두 API가 막히지 않는지(첫 운영 호출로 확인), 다이소 매장 재고 수량은 인증 뒤라 쓰지 않는다(접근 통제, D-036 밖).
 
+## 12. 오늘의집·번개장터·당근 (알아보기 가격 비교·중고 매물, D-036 보충)
+
+- 오늘의집 검색 `https://ohou.se/search/index?query=<검색어>`: 브라우저 흉내 UA는 Akamai가 403, 자기를 밝힌 UA(`account-book-explore/1.0 (+저장소 주소)`)는 200(2026-10-28, k-skill ohou-today-deal 원본 설명과 같음). 검색 결과는 브라우저 요청 없이 HTML 안 React Router turbo-stream(`streamController.enqueue("…")`, 납작한 배열)에 들어 있다. 상품 카드: `type` Production·Deal, `id`, `name`, `price.sellingPrice`·`originalPrice`·`discountRate`(글자), `isSoldOut`, `brand.name`, `badgeProperties.isFreeDelivery·isSpecialPrice·isSelling·isDiscontinued`, `reviewStatistic.reviewCount·reviewAverage`, `link.landingUrl`(`https://store.ohou.se/goods/<id>`). "수납장" 실제 응답에서 카드 84개(style grid_carousel 69·carousel_compact 20·Deal 1).
+- 번개장터 검색 API `https://api.bunjang.co.kr/api/search/v8/pw/product/specs/keyword?q=<검색어>`(모바일 웹이 부르는 것, 2026-10-28 브라우저 네트워크로 찾음. 예전 `find_v2.json`은 404): `data.searchSpec.uiBlockList[]` 중 `blockType` productList.grid.main 블록의 `searchResponse.data[]`에 `pid`, `name`, `price`, `status`(SELLING·RESERVED 등), `updatedAt`, `ad`(광고), `type` PRODUCT. 매물 페이지 `https://m.bunjang.co.kr/products/<pid>`. "아이패드" 실제 응답 53개(앞쪽에 광고).
+- 당근 동네 `https://www.daangn.com/kr/api/v1/regions/keyword?keyword=<동 이름>`(`locations[]` id·name·name1~3; 여수동 → 4522 경기도 성남시 중원구), 검색 화면 `https://www.daangn.com/kr/buy-sell/?in=<동>-<id>&search=<검색어>&only_on_sale=true`(옛 `/kr/buy-sell/all/`은 301로 여기로, 예전 `_data=` JSON은 204). 매물은 HTML의 `window.__remixContext` → `state.loaderData['routes/kr.search.buy-sell._index'].buySellArticles[]`(`href`, `title`, `price` 글자, `status` Ongoing·Reserved·Closed, `createdAt`, `boostedAt`, `region.name`). 같은 화면에 JSON-LD ItemList도 있다(동네·시각 없음). 정자동으로 찾은 "아이패드" 267개는 서초·역삼 등 넓은 곳이 섞여 와서 매물마다 동네를 보인다.
+- 확인 필요: Supabase 서버에서 세 곳이 막히지 않는지(첫 운영 호출), 오늘의집 carousel_compact 카드가 광고·추천인지.
+
 ## 조사에 쓴 도구 (2026-10-16)
 
 - 잘 된 것: Exa(검색·페이지 읽기, 네이버 문서와 robots.txt까지 읽힘), WebFetch(식품안전나라 sample 호출), curl(컬리·CJ더마켓·다나와·홈플러스 원본 HTML).

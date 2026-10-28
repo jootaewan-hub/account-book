@@ -1,11 +1,14 @@
 // 알아보기 탭 가격 비교(D-035): 검색어로 다나와 상품 후보를, 고른 상품의 다나와 상품 페이지 가격 줄을 돌려준다.
-// source가 kurly·daiso면(D-036) 마켓컬리 앱 검색·다이소몰 상품 검색 결과를 같은 날 캐시(explore_shop_searches)와 출처별 전역 간격으로 돌려준다.
+// source가 kurly·daiso·ohou·bunjang·daangn이면(D-036) 그 몰·중고 검색 결과를 같은 날 캐시와 출처별 전역 간격으로 돌려준다.
+// 당근은 동네(region, 기본 여수동 = 성남시청 근처)를 먼저 찾아 그 동네로 찾는다.
 // 검색은 장보기와 같은 전역 10초 자리(reserve_fetch 'danawa-search', robots Crawl-delay 10)를 쓰고, 한국 날짜·검색어가 같으면
 // grocery.explore_searches의 결과를 돌려준다. 상품 가격은 장보기와 같은 price_checks(같은 상품 같은 날 한 번)를 쓴다.
 // 가구 데이터를 읽거나 쓰지 않는다. Deno 전용 API를 쓰지 않아 Vitest로 시험한다.
 import { danawaSearchUrl, DanawaParseError, parseDanawaSearch, type DanawaVariant } from '../_shared/danawa.ts'
 import { checkDanawa, type PriceCheckDeps } from '../_shared/priceCheck.ts'
-import { parseShopSearch, ShopSearchError, shopSearchUrl, type ShopItem, type ShopSource } from '../_shared/shopSearch.ts'
+import {
+  daangnRegionUrl, daangnSearchUrl, parseDaangnRegion, parseShopSearch, SHOP_SOURCES, ShopSearchError, shopSearchUrl, type ShopItem, type ShopSource,
+} from '../_shared/shopSearch.ts'
 
 export type { ShopItem, ShopSource }
 
@@ -32,13 +35,13 @@ export type PriceDeps = Pick<PriceCheckDeps, 'fetchHtml' | 'save' | 'fail'> & {
   todayOk(productId: string, day: string): Promise<boolean>
   /** 가장 최근 성공 확인과 그 가격 줄 */
   latest(productId: string): Promise<LatestCheck | null>
-  /** 몰 검색(D-036): 그 한국 날짜에 같은 출처·검색어로 찾은 결과 */
-  cachedShop(source: ShopSource, queryKey: string, day: string): Promise<{ items: ShopItem[]; foundAt: string } | null>
+  /** 몰 검색(D-036): 그 한국 날짜에 같은 출처·범위(당근 동네, 그 밖은 '')·검색어로 찾은 결과 */
+  cachedShop(source: ShopSource, scope: string, queryKey: string, day: string): Promise<{ items: ShopItem[]; foundAt: string; region?: string } | null>
   /** reserve_fetch('<출처>-search', 간격, maxWaitMs) */
   reserveShop(source: ShopSource, maxWaitMs: number): Promise<number>
-  /** JSON API를 받는다(본문 글자) */
-  fetchJson(url: string): Promise<{ status: number; text: string }>
-  saveShop(source: ShopSource, queryKey: string, day: string, query: string, items: ShopItem[], foundAt: string): Promise<void>
+  /** 몰 응답 본문(JSON 또는 HTML 글자) */
+  fetchText(url: string): Promise<{ status: number; text: string }>
+  saveShop(source: ShopSource, scope: string, queryKey: string, day: string, query: string, items: ShopItem[], foundAt: string, region?: string): Promise<void>
   now(): Date
 }
 
@@ -86,30 +89,45 @@ async function search(query: string, deps: PriceDeps): Promise<Response> {
   return json(200, { status: items.length ? 'done' : 'none', query, foundAt, items })
 }
 
-async function shopSearch(source: ShopSource, query: string, deps: PriceDeps): Promise<Response> {
+export const DEFAULT_DAANGN_REGION = '여수동' // 성남시청이 있는 동(날씨 기본 위치와 같은 곳)
+
+async function shopSearch(source: ShopSource, query: string, region: string, deps: PriceDeps): Promise<Response> {
   const day = kstDay(deps.now())
   const key = queryKey(query)
-  const hit = await deps.cachedShop(source, key, day)
-  if (hit) return json(200, { status: 'cached', source, query, foundAt: hit.foundAt, items: hit.items })
+  const scope = source === 'daangn' ? region : ''
+  const hit = await deps.cachedShop(source, scope, key, day)
+  if (hit) return json(200, { status: 'cached', source, query, foundAt: hit.foundAt, items: hit.items, ...(hit.region ? { region: hit.region } : {}) })
   const wait = await deps.reserveShop(source, MAX_WAIT_MS)
   if (wait < 0) return json(202, { status: 'busy', source })
   if (wait > 0) await deps.sleep(wait)
-  let res: { status: number; text: string }
-  try {
-    res = await deps.fetchJson(shopSearchUrl(source, query))
-  } catch {
-    return json(502, { status: 'error', source, reason: 'network_error' })
+  const fail = (reason: string) => json(502, { status: 'error', source, reason })
+  const get = async (url: string) => {
+    let res: { status: number; text: string }
+    try {
+      res = await deps.fetchText(url)
+    } catch {
+      throw new ShopSearchError('network_error')
+    }
+    if (res.status !== 200) throw new ShopSearchError(`http_${res.status}`)
+    return res.text
   }
-  if (res.status !== 200) return json(502, { status: 'error', source, reason: `http_${res.status}` })
   let items: ShopItem[]
+  let regionName: string | undefined
   try {
-    items = parseShopSearch(source, res.text).slice(0, MAX_ITEMS)
+    if (source === 'daangn') {
+      const r = parseDaangnRegion(await get(daangnRegionUrl(region)), region)
+      regionName = r.fullName
+      items = parseShopSearch(source, await get(daangnSearchUrl(r, query)))
+    } else {
+      items = parseShopSearch(source, await get(shopSearchUrl(source, query)))
+    }
+    items = items.slice(0, MAX_ITEMS)
   } catch (e) {
-    return json(502, { status: 'error', source, reason: e instanceof ShopSearchError ? e.code : 'parse_error' })
+    return fail(e instanceof ShopSearchError ? e.code : 'parse_error')
   }
   const foundAt = deps.now().toISOString()
-  await deps.saveShop(source, key, day, query, items, foundAt).catch(() => {})
-  return json(200, { status: items.length ? 'done' : 'none', source, query, foundAt, items })
+  await deps.saveShop(source, scope, key, day, query, items, foundAt, regionName).catch(() => {})
+  return json(200, { status: items.length ? 'done' : 'none', source, query, foundAt, items, ...(regionName ? { region: regionName } : {}) })
 }
 
 async function product(pcode: string, deps: PriceDeps): Promise<Response> {
@@ -141,7 +159,7 @@ async function product(pcode: string, deps: PriceDeps): Promise<Response> {
 
 export async function handle(req: Request, deps: PriceDeps): Promise<Response> {
   if (req.method !== 'POST') return json(405, { error: 'method_not_allowed' })
-  let body: { query?: unknown; pcode?: unknown; source?: unknown }
+  let body: { query?: unknown; pcode?: unknown; source?: unknown; region?: unknown }
   try {
     body = await req.json()
   } catch {
@@ -153,6 +171,10 @@ export async function handle(req: Request, deps: PriceDeps): Promise<Response> {
   }
   const query = typeof body?.query === 'string' ? body.query.replace(/\s+/g, ' ').trim() : ''
   const source = body?.source ?? 'danawa'
-  if (query.length < 2 || query.length > 60 || (source !== 'danawa' && source !== 'kurly' && source !== 'daiso')) return json(400, { error: 'bad_request' })
-  return source === 'danawa' ? search(query, deps) : shopSearch(source, query, deps)
+  const region = typeof body?.region === 'string' ? body.region.trim() : DEFAULT_DAANGN_REGION
+  if (query.length < 2 || query.length > 60) return json(400, { error: 'bad_request' })
+  if (source === 'danawa') return search(query, deps)
+  // 동네 이름은 한글·숫자 1~20자(당근 지역 검색에 그대로 넘긴다)
+  if (!SHOP_SOURCES.includes(source as ShopSource) || !/^[가-힣0-9]{1,20}$/.test(region)) return json(400, { error: 'bad_request' })
+  return shopSearch(source as ShopSource, query, region, deps)
 }

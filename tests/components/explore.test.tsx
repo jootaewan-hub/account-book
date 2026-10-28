@@ -42,6 +42,12 @@ const DAISO = {
   status: 'done', source: 'daiso', query: '비비고 왕교자', foundAt: new Date().toISOString(),
   items: Array.from({ length: 7 }, (_, i) => ({ id: String(100 + i), name: `다이소 상품 ${i + 1}`, price: 1000 * (i + 1), listPrice: null, discountRate: null, soldOut: i === 1, url: `https://www.daisomall.co.kr/pd/pdr/SCR_PDR_0001?pdNo=${100 + i}`, reviews: '12', rating: 4.5, tags: ['매장 픽업'] })),
 }
+const NONE = (source: string) => ({ status: 'none', source, query: '비비고 왕교자', foundAt: new Date().toISOString(), items: [] })
+const DAANGN = (region: string) => ({
+  status: 'done', source: 'daangn', query: '비비고 왕교자', foundAt: new Date().toISOString(), region: `경기도 성남시 ${region}`,
+  items: [{ id: 'abc123', name: '왕교자 미개봉 2봉', price: 9000, listPrice: null, discountRate: null, soldOut: false, url: 'https://www.daangn.com/kr/buy-sell/x-abc123/',
+    reviews: null, rating: null, tags: ['예약 중'], place: '수진동', postedAt: new Date(Date.now() - 3 * 3600_000).toISOString() }],
+})
 const PRODUCT = {
   status: 'cached',
   product: { pcode: '5643303', name: 'CJ제일제당 비비고 왕교자 1.05kg', rating: 4.8, reviewCount: 9217, ratedAt: null },
@@ -57,7 +63,10 @@ beforeEach(() => {
   calls.length = 0
   clearWeatherCache()
   localStorage.clear()
-  responses = { 'explore-weather': () => WEATHER, 'explore-price': (b) => (b.pcode ? PRODUCT : b.source === 'kurly' ? KURLY : b.source === 'daiso' ? DAISO : SEARCH) }
+  responses = {
+    'explore-weather': () => WEATHER,
+    'explore-price': (b) => (b.pcode ? PRODUCT : b.source === 'kurly' ? KURLY : b.source === 'daiso' ? DAISO : b.source === 'daangn' ? DAANGN(String(b.region)) : b.source ? NONE(String(b.source)) : SEARCH),
+  }
 })
 afterEach(cleanup)
 
@@ -108,7 +117,10 @@ describe('알아보기 탭', () => {
     fireEvent.click(screen.getByRole('button', { name: '찾기' }))
     expect(await screen.findByText('[비비고] 왕교자 만두 대용량 1.05kg')).toBeTruthy()
     const bodies = calls.filter((c) => c.name === 'explore-price').map((c) => c.body)
-    expect(bodies).toEqual([{ query: '비비고 왕교자' }, { query: '비비고 왕교자', source: 'kurly' }, { query: '비비고 왕교자', source: 'daiso' }])
+    expect(bodies).toEqual([
+      { query: '비비고 왕교자' }, { query: '비비고 왕교자', source: 'kurly' }, { query: '비비고 왕교자', source: 'daiso' },
+      { query: '비비고 왕교자', source: 'ohou' }, { query: '비비고 왕교자', source: 'bunjang' }, { query: '비비고 왕교자', source: 'daangn', region: '여수동' },
+    ])
     const kurly = screen.getByText('[비비고] 왕교자 만두 대용량 1.05kg').closest('a')
     expect(kurly?.getAttribute('href')).toBe('https://www.kurly.com/goods/5082274')
     expect(kurly?.textContent).toContain('정가 11,480원 · 8% 할인 · 샛별배송 · 후기 9,999+')
@@ -120,6 +132,23 @@ describe('알아보기 탭', () => {
     expect(screen.getByText('다이소 상품 2').closest('a')?.textContent).toContain('품절')
     fireEvent.click(screen.getByRole('button', { name: '2개 더 보기' }))
     expect(screen.getByText('다이소 상품 7')).toBeTruthy()
+  })
+
+  it('중고 매물: 당근은 동네 기준과 매물 동네·올린 지를 보이고, 동네를 바꾸면 당근만 그 동네로 다시 찾는다(기기에 저장)', async () => {
+    render(<ExploreView toast={() => {}} />)
+    fireEvent.change(screen.getByRole('textbox', { name: '상품 이름' }), { target: { value: '비비고 왕교자' } })
+    fireEvent.click(screen.getByRole('button', { name: '찾기' }))
+    expect(await screen.findByText('왕교자 미개봉 2봉')).toBeTruthy()
+    expect(screen.getByText('중고 매물')).toBeTruthy()
+    expect(screen.getByText('왕교자 미개봉 2봉').closest('a')?.textContent).toContain('수진동 · 3시간 전 · 예약 중')
+    expect(screen.getByText(/당근 검색 “비비고 왕교자”\(경기도 성남시 여수동 기준\)/)).toBeTruthy()
+    const before = calls.length
+    fireEvent.click(screen.getByRole('button', { name: '동네 바꾸기' }))
+    fireEvent.change(screen.getByRole('textbox', { name: '당근 동네' }), { target: { value: '정자동' } })
+    fireEvent.click(screen.getByRole('button', { name: '바꾸기' }))
+    expect(await screen.findByText(/경기도 성남시 정자동 기준/)).toBeTruthy()
+    expect(calls.slice(before).map((c) => c.body)).toEqual([{ query: '비비고 왕교자', source: 'daangn', region: '정자동' }])
+    expect(localStorage.getItem('ab:daangnRegion')).toBe('정자동')
   })
 
   it('다나와가 밀려 있으면 그렇게 말한다', async () => {

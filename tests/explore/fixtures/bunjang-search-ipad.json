@@ -1,0 +1,227 @@
+{
+ "data": {
+  "searchSpec": {
+   "policyKey": "pw.product.keyword",
+   "version": "v1",
+   "mandatoryFilters": [
+    {
+     "key": "q",
+     "values": [
+      "아이패드"
+     ]
+    }
+   ],
+   "additionalFilters": [],
+   "uiBlocks": null,
+   "uiBlockList": [
+    {
+     "id": "pwKeywordHeader",
+     "blockType": "productList.header.pwKeyword",
+     "visibility": {
+      "conditionGroups": [
+       {
+        "include": [
+         "SEARCH_SUCCESS"
+        ]
+       },
+       {
+        "include": [
+         "SEARCH_EMPTY",
+         "CTX_FILTER_APPLIED"
+        ]
+       }
+      ]
+     },
+     "adGuideMessage": "‘AD’가 표시된 상품은 광고서비스를 구매한 판매자의 상품이며,\n회원별 특성에 따라 추천하는 상품과 함께 노출됩니다.",
+     "keywordHeaderResponse": {
+      "keywordHeader": "'아이패드' 검색결과"
+     }
+    },
+    {
+     "id": "mainGridSortCount",
+     "blockType": "productList.grid.sortCount",
+     "visibility": {
+      "conditionGroups": [
+       {
+        "include": [
+         "SEARCH_SUCCESS"
+        ]
+       }
+      ]
+     },
+     "sort": {
+      "key": "sort",
+      "options": [
+       {
+        "value": "score",
+        "name": "정확도순"
+       },
+       {
+        "value": "latest",
+        "name": "최신순"
+       },
+       {
+        "value": "price_asc",
+        "name": "낮은 가격순"
+       },
+       {
+        "value": "price_desc",
+        "name": "높은 가격순"
+       }
+      ],
+      "selected": "score",
+      "default": "score",
+      "guideMessage": "‘AD’가 표시된 상품은 입찰가와 검색 연관도를 고려하여 노출 위치가 결정되는 검색광고 상품입니다."
+     },
+     "searchCountResponse": {
+      "totalCount": 8902
+     },
+     "searchSortResponse": null
+    },
+    {
+     "id": "mainGrid",
+     "blockType": "productList.grid.main",
+     "visibility": {
+      "conditionGroups": [
+       {
+        "include": [
+         "SEARCH_SUCCESS"
+        ]
+       }
+      ]
+     },
+     "countText": null,
+     "searchResponse": {
+      "data": [
+       {
+        "pid": 442132021,
+        "name": "[미개봉 새상품] 애플 아이패드 11세대 WIFI전용 128G (색상 선택가능) 1년 무상AS",
+        "price": 679000,
+        "status": "SELLING",
+        "productImage": "https://media.bunjang.co.kr/product/442132021_1_1792651765_w{res}.jpg",
+        "shop": {
+         "uid": 77201917
+        },
+        "faved": false,
+        "favoriteCount": 3,
+        "buntalkCount": 0,
+        "updatedAt": "2026-10-22T06:49:25Z",
+        "care": false,
+        "video": false,
+        "ad": true,
+        "type": "PRODUCT"
+       },
+       {
+        "pid": 388087712,
+        "name": "아이패드매입 아이패드.갤럭시탭.갤럭시워치.애플워치.갤탑.버즈프로.에어팟",
+        "price": 999000,
+        "status": "SELLING",
+        "productImage": "https://media.bunjang.co.kr/product/388087712_1_1791177292_w{res}.jpg",
+        "shop": {
+         "uid": 5845889
+        },
+        "faved": false,
+        "favoriteCount": 64,
+        "buntalkCount": 367,
+        "updatedAt": "2026-10-27T07:03:10Z",
+        "care": false,
+        "video": false,
+        "ad": true,
+        "type": "PRODUCT"
+       },
+       {
+        "pid": 443368189,
+        "name": "아이패드 에어5 wifi + 펜슬2 일괄판매합니다",
+        "price": 480000,
+        "status": "SELLING",
+        "productImage": "https://media.bunjang.co.kr/product/443368189_1_1793108519_w{res}.jpg",
+        "shop": {
+         "uid": 8470336,
+         "isOfficialSeller": false
+        },
+        "faved": false,
+        "favoriteCount": 3,
+        "buntalkCount": 1,
+        "updatedAt": "2026-10-28T04:02:19Z",
+        "updatedBefore": "3분 전",
+        "care": false,
+        "video": true,
+        "ad": false,
+        "type": "PRODUCT"
+       },
+       {
+        "pid": 443229394,
+        "name": "아이패드 프로 m4/m5 매직키보드 11인치",
+        "price": 270000,
+        "status": "SELLING",
+        "productImage": "https://media.bunjang.co.kr/product/443229394_1_1792977168_w{res}.jpg",
+        "shop": {
+         "uid": 13000748,
+         "isOfficialSeller": false
+        },
+        "faved": false,
+        "favoriteCount": 5,
+        "buntalkCount": 0,
+        "updatedAt": "2026-10-28T03:56:08Z",
+        "updatedBefore": "9분 전",
+        "care": false,
+        "video": false,
+        "ad": false,
+        "type": "PRODUCT"
+       }
+      ],
+      "cursor": "eyJyaWQiOiIwMWExODBhZi1iMGY3LTc4ZDctYmM4OS0yMjRiZDZkMzY0ZjQiLCJjIjoiZXlKbmNDSTZOakFzSW5KcElqb3lNQ3dpYzJNaU9uc2lVRkpQUkZWRFZDSTZJbVY1U25wa2FVazJWM3BOTTB4cVZUTk9SRlUxVG1sM01FNUVUVEJPUkVsNFQxUk9aRXhEU25KSmFtOXBZekpPZG1OdFZXbE1RMHA2U1dwdk1rMURkMmxrYVVrMlRWTjNhV05ITkdsUGFrSTVJaXdpUlZoVVgwRkVJam9pWlhsS2VtUnBTVFpYZW1Sa1RFTktja2xxYjJsYVdHZ3dURmRHYTB4WE9XMWFiazVzWkVOSmMwbHVUV2xQYW1OelNXNVphVTlxUlhOSmJrSjFTV3B2ZDJaUklpd2lRVVJmVUZKUFJGVkRWQ0k2SW1WNVNucGthVWsyVjNwUmMwNUdNSE5KYlhOcFQybEthRnBETVhkamJUbHJaRmRPTUV4WE9XMWFiazVzWkVOSmMwbHVUV2xQYWxGelNXNVphVTlxUlhOSmJrSjFTV3B2ZDJaUklpd2lRVVJmUkZWUVgxQlNUMFJWUTFRaU9pSmxlVXA2WkdsSk5sZDZiR1JNUTBweVNXcHZhVmxYVVhSYVNGWjNURmhDZVdJeVVqRlpNMUYwWWpKYWJXTXlWakJKYVhkcFkzbEpOazFVVVhOSmJsbHBUMnBGYzBsdVFuVkphbTkzWmxFaWZTd2ljR1lpT201MWJHd3NJbkJzSWpwdWRXeHNMQ0pqYkNJNmJuVnNiSDAiLCJwbiI6MX0",
+      "totalCount": 8902,
+      "loggingContext": {
+       "requestId": "01a180af-b0f7-78d7-bc89-224bd6d364f4",
+       "searchTerm": "아이패드",
+       "pageNumber": 0,
+       "totalElements": 8898,
+       "searchOptions": "{\"sort\":\"score\"}"
+      },
+      "nextCursor": "eyJyaWQiOiIwMWExODBhZi1iMGY3LTc4ZDctYmM4OS0yMjRiZDZkMzY0ZjQiLCJjIjoiZXlKbmNDSTZOakFzSW5KcElqb3lNQ3dpYzJNaU9uc2lVRkpQUkZWRFZDSTZJbVY1U25wa2FVazJWM3BOTTB4cVZUTk9SRlUxVG1sM01FNUVUVEJPUkVsNFQxUk9aRXhEU25KSmFtOXBZekpPZG1OdFZXbE1RMHA2U1dwdk1rMURkMmxrYVVrMlRWTjNhV05ITkdsUGFrSTVJaXdpUlZoVVgwRkVJam9pWlhsS2VtUnBTVFpYZW1Sa1RFTktja2xxYjJsYVdHZ3dURmRHYTB4WE9XMWFiazVzWkVOSmMwbHVUV2xQYW1OelNXNVphVTlxUlhOSmJrSjFTV3B2ZDJaUklpd2lRVVJmVUZKUFJGVkRWQ0k2SW1WNVNucGthVWsyVjNwUmMwNUdNSE5KYlhOcFQybEthRnBETVhkamJUbHJaRmRPTUV4WE9XMWFiazVzWkVOSmMwbHVUV2xQYWxGelNXNVphVTlxUlhOSmJrSjFTV3B2ZDJaUklpd2lRVVJmUkZWUVgxQlNUMFJWUTFRaU9pSmxlVXA2WkdsSk5sZDZiR1JNUTBweVNXcHZhVmxYVVhSYVNGWjNURmhDZVdJeVVqRlpNMUYwWWpKYWJXTXlWakJKYVhkcFkzbEpOazFVVVhOSmJsbHBUMnBGYzBsdVFuVkphbTkzWmxFaWZTd2ljR1lpT201MWJHd3NJbkJzSWpwdWRXeHNMQ0pqYkNJNmJuVnNiSDAiLCJwbiI6MX0"
+     }
+    },
+    {
+     "id": "searchGeneralEmpty",
+     "blockType": "productList.empty.general",
+     "visibility": {
+      "conditionGroups": [
+       {
+        "include": [
+         "SEARCH_FORBIDDEN"
+        ]
+       },
+       {
+        "include": [
+         "SEARCH_EMPTY"
+        ]
+       },
+       {
+        "include": [
+         "SEARCH_JUNK"
+        ]
+       }
+      ]
+     },
+     "emptyPageResponse": null
+    },
+    {
+     "id": "recProductList",
+     "blockType": "productList.rec.product",
+     "visibility": {
+      "conditionGroups": [
+       {
+        "include": [
+         "HAS_REC_PRODUCTS"
+        ]
+       }
+      ]
+     },
+     "title": null,
+     "searchRecProductResponse": null
+    }
+   ]
+  }
+ }
+}

@@ -46,12 +46,13 @@ export async function searchPrices(client: SupabaseClient, query: string): Promi
 }
 
 export type ShopResult =
-  | { status: 'done' | 'cached' | 'none'; source: ShopSource; query: string; foundAt: string; items: ShopItem[] }
+  | { status: 'done' | 'cached' | 'none'; source: ShopSource; query: string; foundAt: string; items: ShopItem[]; region?: string }
   | { status: 'busy'; source: ShopSource }
 
-/** 마켓컬리·다이소 검색(D-036). 다나와와 같은 함수에 출처를 붙여 부른다 */
-export async function searchShop(client: SupabaseClient, source: ShopSource, query: string): Promise<ShopResult> {
-  const { data, error } = await client.functions.invoke<ShopResult>('explore-price', { body: { query, source } })
+/** 몰·중고 검색(D-036). 다나와와 같은 함수에 출처를 붙여 부른다. 당근은 동네 이름도 */
+export async function searchShop(client: SupabaseClient, source: ShopSource, query: string, region?: string): Promise<ShopResult> {
+  const body = source === 'daangn' && region ? { query, source, region } : { query, source }
+  const { data, error } = await client.functions.invoke<ShopResult>('explore-price', { body })
   if (error || !data) throw error ?? new Error('no_data')
   return data
 }
@@ -70,6 +71,18 @@ export async function productPrices(client: SupabaseClient, pcode: string): Prom
   const { data, error } = await client.functions.invoke<ProductPrices>('explore-price', { body: { pcode } })
   if (error || !data) throw error ?? new Error('no_data')
   return data
+}
+
+/** 당근 동네(기기마다). 기본은 성남시청이 있는 여수동(날씨 기본 위치와 같은 곳) */
+export const DEFAULT_DAANGN_REGION = '여수동'
+const DAANGN_KEY = 'ab:daangnRegion'
+export const isRegionName = (v: string) => /^[가-힣0-9]{1,20}$/.test(v)
+export function loadDaangnRegion(): string {
+  const v = lsGet(DAANGN_KEY)
+  return v && isRegionName(v) ? v : DEFAULT_DAANGN_REGION
+}
+export function saveDaangnRegion(v: string) {
+  if (isRegionName(v)) lsSet(DAANGN_KEY, v)
 }
 
 // ---- 글자 만들기 ----
@@ -94,6 +107,18 @@ export function dayName(date: string, now: Date = new Date()): string {
 }
 
 export const won = (n: number) => `${n.toLocaleString('ko-KR')}원`
+
+/** 중고 매물을 올린 지: "12분 전", "3시간 전", "2일 전", 일주일이 넘으면 "10월 2일" */
+export function agoText(iso: string, now: Date = new Date()): string {
+  const ms = now.getTime() - new Date(iso).getTime()
+  if (!Number.isFinite(ms)) return ''
+  const min = Math.max(0, Math.floor(ms / 60_000))
+  if (min < 60) return `${min}분 전`
+  if (min < 24 * 60) return `${Math.floor(min / 60)}시간 전`
+  if (min < 7 * 24 * 60) return `${Math.floor(min / (24 * 60))}일 전`
+  const k = kst(iso)
+  return `${k.getUTCMonth() + 1}월 ${k.getUTCDate()}일`
+}
 export const degree = (n: number | null) => (n === null ? '확인 못 함' : `${Number.isInteger(n) ? n : n.toFixed(1)}°`)
 
 /** 실패 상태 → 사람이 읽는 말(무엇을 받지 못했는지 그대로) */

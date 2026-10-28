@@ -44,3 +44,7 @@ k-skill 스킬은 컴퓨터의 Claude Code 대화에서만 쓰는 조회 도구�
 
 사용자가 robots 규칙을 없애고 앱에 마켓컬리·다이소를 더하기로 골랐다. `explore-price`가 `{query, source: 'kurly' | 'daiso'}`도 받아 컬리 앱 검색 API·다이소몰 상품 검색(`_shared/shopSearch.ts`, 실제 응답 사본으로 시험)을 부르고, 같은 날 캐시는 `grocery.explore_shop_searches`(출처·검색어·한국 날짜), 전역 간격은 `fetch_gate` 'kurly-search' 1초·'daiso-search' 2초. 화면은 한 번 찾으면 세 곳을 함께 찾아 구획마다 앞 5개와 더 보기, 컬리·다이소 줄은 몰 상품 페이지 링크. 쿠팡·네이버 쇼핑·올리브영은 robots와 상관없이 서버가 읽을 수 없어 넣지 않았다.
 
+## 보충 2: 오늘의집·번개장터·당근 (D-036 보충, 2026-10-28)
+
+사용자 "당근 번개장터 오늘의집도 넣어". `explore-price`의 source에 ohou·bunjang·daangn을 더했다. 오늘의집은 검색 HTML 안 React Router turbo-stream을 풀어(`_shared/shopSearch.ts` `decodeTurboStream`) 상품 카드를 읽고, 번개장터는 모바일 웹의 검색 API, 당근은 동네 API로 동네 id를 찾은 뒤 검색 화면의 `__remixContext`를 읽는다. 캐시는 `grocery.explore_finds`(범위 = 당근 동네). 화면은 "중고 매물" 제목 아래 번개장터·당근, 당근 구획에 동네 바꾸기(기기마다, 기본 여수동).
+

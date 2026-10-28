@@ -326,3 +326,24 @@ export const EXPLORE_KURLY = {
 export const EXPLORE_DAISO = {
   status: 'none', source: 'daiso', query: '비비고 왕교자', foundAt: new Date(Date.now() - 2 * 60_000).toISOString(), items: [],
 }
+// 오늘의집·번개장터·당근(D-036 보충) 캡처용: 2026-10-28 실제 응답의 모양(상품명·값은 캡처용으로 고른 것)
+const hoursAgo = (h) => new Date(Date.now() - h * 3600_000).toISOString()
+export const EXPLORE_OHOU = {
+  status: 'done', source: 'ohou', query: '비비고 왕교자', foundAt: new Date(Date.now() - 2 * 60_000).toISOString(),
+  items: [
+    { id: '3320009', name: '[오늘의집 단독] 만두 보관 냉동 밀폐용기 4종 세트', price: 14900, listPrice: 19400, discountRate: 23, soldOut: false, url: 'https://store.ohou.se/goods/3320009', reviews: '1,249', rating: 4.7, tags: ['리샘', '특가', '무료배송'] },
+  ],
+}
+export const EXPLORE_BUNJANG = {
+  status: 'done', source: 'bunjang', query: '비비고 왕교자', foundAt: new Date(Date.now() - 2 * 60_000).toISOString(),
+  items: [
+    { id: '442132021', name: '비비고 왕교자 1.05kg 2봉 미개봉', price: 15000, listPrice: null, discountRate: null, soldOut: false, url: 'https://m.bunjang.co.kr/products/442132021', reviews: null, rating: null, tags: [], place: null, postedAt: hoursAgo(5) },
+  ],
+}
+export const EXPLORE_DAANGN = {
+  status: 'done', source: 'daangn', query: '비비고 왕교자', foundAt: new Date(Date.now() - 2 * 60_000).toISOString(), region: '경기도 성남시 중원구 여수동',
+  items: [
+    { id: 'b2v3w6r6vh1i', name: '비비고 왕교자 냉동 1봉 나눔해요', price: null, listPrice: null, discountRate: null, soldOut: false, url: 'https://www.daangn.com/kr/buy-sell/x-b2v3w6r6vh1i/', reviews: null, rating: null, tags: ['나눔'], place: '수진동', postedAt: hoursAgo(2) },
+    { id: 'a5i8e4z16yng', name: '왕교자 만두 3봉 (유통기한 넉넉)', price: 12000, listPrice: null, discountRate: null, soldOut: false, url: 'https://www.daangn.com/kr/buy-sell/x-a5i8e4z16yng/', reviews: null, rating: null, tags: ['예약 중'], place: '여수동', postedAt: hoursAgo(30) },
+  ],
+}

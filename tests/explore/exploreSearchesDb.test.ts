@@ -64,9 +64,19 @@ describe('grocery.explore_shop_searches(D-036)', () => {
     expect(await errorOf(as('service_role', `insert into grocery.explore_shop_searches (source, query_key, searched_on, query) values ('coupang', '우유', '2026-10-28', '우유')`))).toMatch(/check/)
     expect(await errorOf(as('authenticated', `select * from grocery.explore_shop_searches`))).toMatch(/permission denied/)
     const gates = await as<{ key: string }>('service_role', `select key from grocery.fetch_gate order by key`)
-    expect(gates.map((g) => g.key)).toEqual(['daiso-search', 'danawa-search', 'kurly-search'])
+    expect(gates.map((g) => g.key)).toEqual(['bunjang-search', 'daangn-search', 'daiso-search', 'danawa-search', 'kurly-search', 'ohou-search'])
     const wait = await as<{ w: number }>('service_role', `select grocery.reserve_fetch('kurly-search', 1000, 30000) as w`)
     expect(wait[0].w).toBe(0)
+  })
+})
+
+describe('grocery.explore_finds(D-036 보충)', () => {
+  it('출처는 ohou·bunjang·daangn, 범위(당근 동네)마다 따로, 서비스 롤만', async () => {
+    await as('service_role', `insert into grocery.explore_finds (source, scope, query_key, searched_on, query, region) values ('daangn', '여수동', '아이패드', '2026-10-28', '아이패드', '경기도 성남시 중원구 여수동'), ('daangn', '정자동', '아이패드', '2026-10-28', '아이패드', null), ('bunjang', '', '아이패드', '2026-10-28', '아이패드', null)`)
+    expect(await errorOf(as('service_role', `insert into grocery.explore_finds (source, query_key, searched_on, query) values ('kurly', '우유', '2026-10-28', '우유')`))).toMatch(/check/)
+    expect(await errorOf(as('authenticated', `select * from grocery.explore_finds`))).toMatch(/permission denied/)
+    const rows = await as<{ n: number }>('service_role', `select count(*)::int as n from grocery.explore_finds`)
+    expect(rows[0].n).toBe(3)
   })
 })
 
