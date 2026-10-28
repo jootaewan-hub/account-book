@@ -220,6 +220,13 @@ npm run screens
     - 확인 필요(첫 사용 뒤): 첫 가격 검색 뒤 `grocery.explore_searches` 줄, 상품을 연 뒤 그 pcode의 `price_checks` 줄을 읽기 SQL로 확인.
     - 되돌리기: 화면은 main을 e68b038(배포 기록 28)로 되돌린다. 함수는 그대로 둬도 앱이 부르지 않는다. 표는 비어 있어도 무해하다.
 
+30. 알아보기 가격 비교에 마켓컬리·다이소, robots 규칙 폐기(D-036, v2.13.0) 운영 반영(2026-10-28 13:03~13:06 KST, 사용자 승인 "진행해"): 브랜치 `claude/explore-shops` → `ci.yml` 통과(d1809c4).
+    - 됨(공유 DB, MCP `apply_migration`): `grocery_explore_shop_searches`(20261107000000). DB로 확인: 표 있음, RLS 켜짐, 권한은 service_role 넷뿐, `fetch_gate`에 daiso-search·danawa-search·kurly-search.
+    - 됨(함수): `explore-price` v2(커밋 고정 d1809c4f036debb494ca6591a002a72543aa4b0b). 로그인 없는 POST 401, OPTIONS 204. `explore-weather`는 바뀌지 않아 v1 그대로.
+    - 됨: main fast-forward(d1809c4)·푸시, Pages 배포 성공, 운영 `version.json` `d1809c4 · 10-28 13:06`, 첫 화면 묶음에 2.13.0, `ExploreView` 묶음에 "마켓컬리 검색 중"·"다이소몰 검색 중".
+    - 확인 필요(첫 사용 뒤): Supabase 서버에서 컬리·다이소 검색이 막히지 않는지(`explore_shop_searches` 줄과 함수 로그로).
+    - 되돌리기: 화면은 main을 049707d(배포 기록 29)로, 함수는 stub을 e814e0d로 다시 배포.
+
 ### 사용자 할 일
 
 - ~~공공데이터포털 식품영양성분DB(15127578) 활용신청~~ 2026-10-20 마침(사용자). 같은 키로 통하는지는 성분 탭 첫 호출로 확인.
