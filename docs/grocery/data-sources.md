@@ -275,7 +275,8 @@
   - 기상청 단기예보 조회서비스 15084084: `https://apis.data.go.kr/1360000/VilageFcstInfoService_2.0/getUltraSrtNcst`(초단기실황), `getVilageFcst`(단기예보). 위경도 → 격자는 기상청 람베르트 변환식(서울시청 → 60, 127 시험).
   - 에어코리아 측정소정보 15073877 `https://apis.data.go.kr/B552584/MsrstnInfoInqireSvc/getNearbyMsrstnList`(TM 좌표, ver 1.1), 대기오염정보 15073861 `…/ArpltnInforInqireSvc/getMsrstnAcctoRltmMesureDnsty`(ver 1.3, 1시간 등급 `pm10Grade1h`·`pm25Grade1h`). WGS84 → TM 식은 k-skill `fine-dust-location`(MIT)에서 옮겼고 그 파이썬과 값이 같음을 시험했다.
 - 확인된 사실(2026-10-28): 네 주소 모두 https로 응답하고, 등록 전 키에는 `SERVICE_KEY_IS_NOT_REGISTERED_ERROR`(returnReasonCode 30)를 준다. 기상청 키 없는 동네예보 RSS(`www.kma.go.kr/wid/queryDFSRSS.jsp`)는 403.
-- **확인 필요**: 실제 응답 모양. 응답 읽기 시험은 활용가이드의 JSON 예시를 본뜬 사본으로만 했다(근접측정소 목록의 `tm`(거리 km), 1시간 등급 칸, 자정 "24:00" 표기 포함). 활용신청 뒤 첫 호출 한 번을 같은 장소·시각의 기상청 날씨누리·에어코리아 화면과 견줘 확인하고 여기에 적는다.
+- 확인된 사실(2026-10-28 14:56 KST, 사용자 활용신청 뒤 운영 `explore-weather`를 공개 anon 키로 한 번 부름, 성남시청 근처 37.42, 127.13 → 격자 62, 124): 기상청 두 API와 에어코리아 두 API 모두 정상 응답. 지금 12.3°·습도 20%·비 없음(14:00 관측), 오늘 3°/13°·맑음·강수확률 0%, 내일 4°/14°·맑음·강수확률 60%·비(02:00 발표). 같은 격자·발표의 단기예보를 k-skill 중계 서버(운영자 키)로 따로 받아 TMN·TMX·12시 SKY·최대 POP·PTY가 모두 같았다. 근접측정소는 성남대로(모란역)(약 1.9km, `tm` 칸이 거리), 14:00 미세먼지 29·초미세먼지 8, 1시간 등급 둘 다 좋음.
+- 확인 필요: 미세먼지 값을 다른 경로와 견주지 못했다(중계 서버의 에어코리아 키가 HTTP 429, 에어코리아 누리집 측정소 화면 주소를 찾지 못함). 에어코리아 앱·누리집의 성남대로(모란역) 같은 시각 값과 견주면 끝난다.
 
 ## 11. 마켓컬리·다이소 검색 (알아보기 가격 비교, D-036)
 
