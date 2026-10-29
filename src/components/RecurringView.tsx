@@ -6,6 +6,7 @@ import { SCOPE_LABEL, type Lookup } from '../lib/lookup'
 import { historyRange, KIND_LABEL, monthItem, pastAmounts, pendingInputs, phaseAt, subscriptionCandidates, termAt, type MonthItem, type TermPhase } from '../lib/recurring'
 import type { Category, Recurring, RecurringKind, Transaction } from '../lib/types'
 import { draftFrom, RecurringSheet, type RecurringDraft } from './RecurringSheet'
+import { CardWait, RowsWait, useAppear, Waiting } from './Loading'
 import { RecurringIcon } from './RecurringIcon'
 import { ServiceLogo } from './ServiceLogo'
 
@@ -62,7 +63,19 @@ export function RecurringView({ householdId, ym, today, monthTxs, monthLoading, 
   const candidates = useMemo(() => (list ? subscriptionCandidates(history, list) : []), [history, list])
   const items = useMemo(() => new Map((list ?? []).map((r) => [r.id, monthItem(r, monthTxs, history, ym, today)])), [list, monthTxs, history, ym, today])
 
-  if (!list) return <section className="view"><p className="lead">{err || '불러오는 중…'}</p></section>
+  const appear = useAppear(!list && !err)
+  if (!list) {
+    return (
+      <section className="view">
+        {err ? <p className="lead">{err}</p> : (
+          <Waiting label="고정 지출 불러오는 중" className="view">
+            <CardWait title={6} lines={['88%', '56%']} />
+            <RowsWait rows={4} />
+          </Waiting>
+        )}
+      </section>
+    )
+  }
 
   // 고른 달에 나가는 돈(D-030 보충). 달력·통계와 같은 기준: 그 달에 들어간 내역 + 오늘 뒤에 나갈 정해진 금액.
   // 금액을 매달 넣는 항목(관리비 등)의 지난번 금액은 짐작이라 합계에 넣지 않고 따로 적는다
@@ -83,7 +96,7 @@ export function RecurringView({ householdId, ym, today, monthTxs, monthLoading, 
   const v = (n: number) => (monthLoading ? '…' : won(n))
 
   return (
-    <section className="view">
+    <section className={`view${appear ? ` ${appear}` : ''}`}>
       {err && <p className="banner" role="alert">{err}</p>}
       <div className="card">
         <div className={`summary${installment > 0 ? ' four' : ''}`}>

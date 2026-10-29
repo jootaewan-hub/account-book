@@ -7,6 +7,7 @@ import { SCOPE_LABEL, SCOPES, type Lookup } from '../lib/lookup'
 import { storeOfTx } from '../lib/categorize'
 import { OTHER_PLATFORM, platformOfTx } from '../lib/platform'
 import type { Scope, Transaction } from '../lib/types'
+import { Bar, RowsWait, useAppear } from './Loading'
 import { TxRow } from './TxRow'
 
 const DOT: Record<Scope, string> = { shared: 'var(--who-shared)', husband: 'var(--who-husband)', wife: 'var(--who-wife)', child: 'var(--who-child)' }
@@ -37,6 +38,7 @@ interface Props {
 
 export function ListView({ cur, future = false, loading = false, lookup, focus, onClearFocus, onEdit, onDeleteMany, onPickingChange }: Props) {
   const [filter, setFilter] = useState<'all' | Scope>('all')
+  const appear = useAppear(loading)
   const [q, setQ] = useState('')
   const needle = q.trim().toLowerCase()
   // 고르기(D-027): 지울 내역을 행·날짜 단위로 고른다. 찾기·거르기를 바꾸면 고른 것을 비워 안 보이는 내역이 지워지지 않게 한다
@@ -106,8 +108,9 @@ export function ListView({ cur, future = false, loading = false, lookup, focus, 
   return (
     <section className="view">
       <div className="month-sum num">
-        <span>{future ? '나갈 돈' : '쓴 돈'} <b>{won(sumType(list, 'expense'))}원</b></span>
-        <span className="in">들어온 돈 <b>{won(sumType(list, 'income'))}원</b></span>
+        {/* 이 달 내역이 오기 전에는 0원 대신 숫자 자리만 보인다 */}
+        <span>{future ? '나갈 돈' : '쓴 돈'} <b>{loading ? <Bar w={5} /> : `${won(sumType(list, 'expense'))}원`}</b></span>
+        <span className="in">들어온 돈 <b>{loading ? <Bar w={5} /> : `${won(sumType(list, 'income'))}원`}</b></span>
         {narrowed && <span>{list.length}건</span>}
         {(real.length > 0 || picking) && (
           <button className="link-btn pick-toggle" aria-pressed={picking} onClick={togglePicking}>{picking ? '고르기 취소' : '고르기'}</button>
@@ -130,7 +133,8 @@ export function ListView({ cur, future = false, loading = false, lookup, focus, 
           </button>
         ))}
       </div>
-      {dates.length === 0 && <div className="empty">{loading ? '불러오는 중…' : narrowed ? '조건에 맞는 내역이 없어요.' : '이 달에는 해당하는 내역이 없어요.'}</div>}
+      {dates.length === 0 && (loading ? <RowsWait label="이 달 내역 불러오는 중" rows={4} day />
+        : <div className="empty">{narrowed ? '조건에 맞는 내역이 없어요.' : '이 달에는 해당하는 내역이 없어요.'}</div>)}
       {dates.map((d) => {
         const arr = groups.get(d)!
         const e = sumType(arr, 'expense')
@@ -139,7 +143,7 @@ export function ListView({ cur, future = false, loading = false, lookup, focus, 
         const ids = arr.map((t) => t.id)
         const n = ids.filter((id) => picked.has(id)).length
         return (
-          <div key={d} className="day-group">
+          <div key={d} className={`day-group${appear ? ` ${appear}` : ''}`}>
             <div className="day-head">
               <h2>
                 {picking ? (

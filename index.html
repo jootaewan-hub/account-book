@@ -14,7 +14,8 @@
     <title>우리집 가계부</title>
   </head>
   <body>
-    <div id="root"></div>
+    <!-- 앱 코드가 오기 전 첫 화면. src/components/Loading.tsx BootScreen과 같은 모양(그려지면 바로 바뀐다) -->
+    <div id="root"><div class="app wrap center boot"><svg class="boot-mark" viewBox="0 0 64 64" aria-hidden="true"><rect class="mark-bg" width="64" height="64" rx="14" /><rect class="mark-line" x="14" y="17" width="36" height="32" rx="6" fill="none" stroke-width="4" /><path class="mark-line" d="M14 27h36M24 12v9M40 12v9" stroke-width="4" stroke-linecap="round" /><rect class="mark-dot" x="34" y="34" width="9" height="8" rx="2" /></svg><p class="boot-name">우리집 가계부</p><p class="boot-status shimmer">가계부 불러오는 중</p></div></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

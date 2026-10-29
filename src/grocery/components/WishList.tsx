@@ -47,9 +47,12 @@ export function WishList({ store, members, version, onNew, onEdit, onSearch }: {
         <button aria-pressed={bought} onClick={() => setBought(true)}>산 물건{rows ? ` ${rows.filter((r) => r.bought_at).length}` : ''}</button>
       </div>
       {error && <div className="wish-error" role="alert"><p>{error}</p><button className="btn-text" onClick={() => void reload()}>다시 불러오기</button></div>}
-      {rows === null && !error && <p className="wish-empty" role="status">보관한 물건 불러오는 중</p>}
+      {rows === null && !error && <>
+        <div className="skeleton" aria-hidden="true"><div className="sk sk-wish" /><div className="sk sk-wish" /></div>
+        <p className="sr-only" role="status">보관한 물건 불러오는 중</p>
+      </>}
       {rows !== null && shown.length === 0 && <p className="wish-empty">{bought ? '아직 산 물건이 없어요.' : '고민 중인 물건을 보관해 보세요. 알아보기의 검색 결과에서도 바로 보관할 수 있어요.'}</p>}
-      <ul className="wish-list">
+      <ul className={`wish-list${rows !== null ? ' fade-in' : ''}`}>
         {shown.map((wish) => <li key={wish.id} className="wish-card">
           <button className="wish-title" onClick={() => onEdit(wish)}>{wish.title}</button>
           {wish.target_price !== null && <p className="wish-target num">목표 {won(wish.target_price)} <span>직접 정한 금액</span></p>}

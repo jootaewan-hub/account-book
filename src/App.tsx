@@ -5,6 +5,7 @@ import { EntrySheet } from './components/EntrySheet'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { CalendarIcon, CartIcon, ChartIcon, ChevronLeft, ChevronRight, GearIcon, ListIcon, NoteIcon, Plus, RepeatIcon, SearchIcon } from './components/Icons'
 import { ListView, type ListFocus } from './components/ListView'
+import { BootScreen, ScreenWait } from './components/Loading'
 import { Soft, Toast } from './components/Motion'
 import { NotesCard } from './components/NotesCard'
 import { PlanSheet, type PlanTarget } from './components/PlanSheet'
@@ -82,7 +83,7 @@ function AuthGate() {
     })
     return () => data.subscription.unsubscribe()
   }, [])
-  if (session === undefined) return <div className="app wrap center"><p className="lead">불러오는 중…</p></div>
+  if (session === undefined) return <BootScreen />
   if (recovery && session) return <NewPassword onDone={() => setRecovery(false)} />
   if (!session) return <Login />
   return <Home userId={session.user.id} email={session.user.email ?? ''} />
@@ -92,12 +93,7 @@ function Home({ userId, email }: { userId: string; email: string }) {
   const meta = useLedgerMeta()
   if (meta.household === undefined) {
     // 처음 불러오기가 실패하면 가입 화면 대신 오류와 다시 시도를 보여 준다 (가구가 있는 사람을 '새 가계부 만들기'로 보내지 않는다)
-    return (
-      <div className="app wrap center">
-        <p className="lead">{meta.error ? '가계부를 불러오지 못했어요' : '불러오는 중…'}</p>
-        {meta.error && <><p className="err">{meta.error}</p><button className="ghost" onClick={() => void meta.reload()}>다시 시도</button></>}
-      </div>
-    )
+    return <BootScreen error={meta.error || undefined} onRetry={() => void meta.reload()} />
   }
   if (meta.household === null) return <Onboarding onDone={meta.reload} />
   return <Ledger household={meta.household} meta={meta} userId={userId} email={email} />
@@ -120,7 +116,7 @@ const TITLE: Record<Tab, string> = { cal: '우리집', list: '내역', grocery: 
 function Screen({ name, children }: { name: string; children: ReactNode }) {
   return (
     <ErrorBoundary key={name} name={name}>
-      <Suspense fallback={<p className="lead">불러오는 중…</p>}>{children}</Suspense>
+      <Suspense fallback={<ScreenWait />}>{children}</Suspense>
     </ErrorBoundary>
   )
 }

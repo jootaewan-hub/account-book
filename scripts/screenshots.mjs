@@ -127,6 +127,18 @@ const shellShots = [
   ...both(390, (w, c) => ({ name: `shell-notes-empty-${w}-${c}`, path: '/', w, c, shell: true, notes: true, noNotes: true, full: true })),
   { name: 'shell-cal-notes-empty-390-light', path: '/', w: 390, c: 'light', shell: true, noNotes: true, center: '.remember-card' },
   { name: 'shell-cal-notes-390-dark', path: '/', w: 390, c: 'dark', shell: true, center: '.remember-card' },
+  // 불러오는 중(자리 표시): hold의 표는 응답하지 않아 그 화면이 기다리는 모습으로 남는다. holdWait가 보이면 나타나는 움직임(200ms 늦게)이 끝난 뒤 찍는다
+  ...each((w, c) => ({ name: `shell-wait-boot-${w}-${c}`, path: '/', w, c, hold: ['public.households'], holdWait: '.boot' })),
+  ...each((w, c) => ({ name: `shell-wait-cal-${w}-${c}`, path: '/', w, c, shell: true, hold: ['public.transactions'], holdWait: '.hero-wait' })),
+  ...both(390, (w, c) => ({ name: `shell-wait-list-${w}-${c}`, path: '/', w, c, shell: true, tab: '내역', hold: ['public.transactions'], holdWait: '.wait-tx' })),
+  ...each((w, c) => ({ name: `shell-wait-stats-${w}-${c}`, path: '/', w, c, shell: true, tab: '통계', hold: ['public.transactions'], holdWait: '.wait .card' })),
+  ...both(390, (w, c) => ({ name: `shell-wait-fuel-${w}-${c}`, path: '/', w, c, shell: true, tab: '통계', hold: ['public.fuel_fills'], holdWait: '.fuel-card .wait', center: '.fuel-card' })),
+  ...both(390, (w, c) => ({ name: `shell-wait-fixed-${w}-${c}`, path: '/', w, c, shell: true, tab: '고정', hold: ['public.recurring'], holdWait: '.wait-tx' })),
+  ...both(390, (w, c) => ({ name: `shell-wait-cal-notes-${w}-${c}`, path: '/', w, c, shell: true, hold: ['public.notes'], holdWait: '.remember-card .wait', center: '.remember-card' })),
+  ...each((w, c) => ({ name: `shell-wait-notes-${w}-${c}`, path: '/', w, c, shell: true, notes: true, hold: ['public.notes'], holdWait: '.remember-item' })),
+  ...both(390, (w, c) => ({ name: `shell-wait-wishes-${w}-${c}`, path: '/', w, c, shell: true, tab: '장보기', wishes: true, hold: ['grocery.purchase_wishes'], holdWait: '.wish-page .skeleton' })),
+  // 따로 받는 화면 파일이 아직 안 왔을 때(Suspense): 통계 화면 파일을 잡아 둔다
+  ...both(390, (w, c) => ({ name: `shell-wait-screen-${w}-${c}`, path: '/', w, c, shell: true, tab: '통계', holdUrl: '**/src/components/StatsView.tsx*', holdWait: '.wait .card' })),
   ...['달력', '내역', '장보기', '통계', '고정', '알아보기', '설정'].flatMap((tab) =>
     each((w, c) => ({ name: `shell-${TAB_SLUG[tab]}-${w}-${c}`, path: '/', w, c, shell: true, tab, full: tab !== '장보기' }))),
   // 알아보기(D-035): 다나와 검색 결과, 상품을 눌러 연 쇼핑몰별 가격 시트, 공공데이터포털 활용신청 전
@@ -241,6 +253,8 @@ async function fakeSupabase(context, s = {}) {
     const key = `${schema}.${m[1]}`
     const method = req.method()
     if (method !== 'GET' && method !== 'HEAD' && !m[1].startsWith('rpc/')) return json([], method === 'POST' ? 201 : 200)
+    // 불러오는 중 장면: 응답하지 않고 둔다
+    if (s.hold?.includes(key)) return
     if (process.env.DEBUG_SHOTS && !(key in TABLES)) console.log('[no fixture]', key, url.search.slice(0, 120))
     let rows = key in TABLES ? TABLES[key] : []
     // noUtility: 고정 탭에 관리비·공과금 항목이 없는 가구(고지서가 '관리비' 항목을 만드는 안내를 본다)
@@ -304,7 +318,10 @@ try {
         page.on('response', (r) => { if (r.status() >= 400) problems.push(`${s.name} [${r.status()}] ${r.request().method()} ${r.url().slice(0, 200)}`) })
         page.on('requestfailed', (r) => problems.push(`${s.name} [failed] ${r.method()} ${r.url().slice(0, 200)} ${r.failure()?.errorText ?? ''}`))
       }
-      await page.goto(BASE + s.path, { waitUntil: 'networkidle' })
+      if (s.holdUrl) await page.route(s.holdUrl, () => {})
+      // 응답을 잡아 둔 장면은 네트워크가 조용해지지 않는다
+      const waiting = Boolean(s.hold || s.holdUrl)
+      await page.goto(BASE + s.path, { waitUntil: waiting ? 'load' : 'networkidle' })
       await page.evaluate(() => document.fonts.ready)
       if (s.shell) {
         await page.locator('.tabbar').waitFor()
@@ -313,13 +330,13 @@ try {
           else await page.locator('.tabbar .tab', { hasText: s.tab }).click()
         }
         if (s.tab === '장보기' || s.path.includes('tab=grocery')) await page.getByText('살 것', { exact: true }).waitFor()
-        else await page.waitForLoadState('networkidle')
+        else if (!waiting) await page.waitForLoadState('networkidle')
       } else if (s.path === G) {
         await page.getByText('살 것', { exact: true }).waitFor()
       }
       if (s.wishes) {
         await page.getByRole('group', { name: '장보기 보기' }).getByRole('button', { name: '보관함' }).click()
-        await page.getByRole('button', { name: '거실에 둘 스탠드', exact: true }).waitFor()
+        if (!waiting) await page.getByRole('button', { name: '거실에 둘 스탠드', exact: true }).waitFor()
         if (s.wishEdit) {
           await page.getByRole('button', { name: '거실에 둘 스탠드', exact: true }).click()
           await page.getByRole('dialog', { name: '보관한 물건 고치기' }).waitFor()
@@ -392,6 +409,10 @@ try {
         await page.locator('.release-notes').evaluate((el) => el.scrollIntoView({ block: 'start' }))
       }
       if (s.newRelease) await page.locator('.toast.on').waitFor()
+      if (s.holdWait) {
+        await page.locator(s.holdWait).first().waitFor()
+        await page.waitForTimeout(800) // 자리 표시가 200ms 늦게 나타나는 움직임이 끝날 때까지
+      }
       if (s.center) await page.locator(s.center).first().evaluate((el) => el.scrollIntoView({ block: 'center' }))
       if (s.where) await page.getByRole('button', { name: '어디서 살지' }).click()
       if (s.record) {

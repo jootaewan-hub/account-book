@@ -20,6 +20,7 @@
   --who-shared: #36733a; --who-child: #ca9d42; --who-husband: #1c588e; --who-wife: #c67261;
   --chart-exp: var(--sage); --chart-inc: var(--who-husband);
   --scrim: rgba(51, 49, 45, .42);
+  --wait-glow: rgba(255, 255, 255, .7); /* 불러오는 중 자리 표시 위를 지나가는 빛 */
   /* 휴대폰 아래 탭 높이: .tab 최소 60px + 윗선 1px (safe-area 제외). 장보기의 담기 바·알림이 이 위에 놓인다 */
   --tabbar-h: 61px;
   --font-ui: 'SUIT', 'Apple SD Gothic Neo', 'Malgun Gothic', 'Noto Sans KR', system-ui, sans-serif;
@@ -44,6 +45,7 @@
     --warn-bg: #3a3220; --warn-ink: #f3d58a;
     --who-shared: #357a3a; --who-child: #ab9017; --who-husband: #4284c5; --who-wife: #ca6e5d;
     --scrim: rgba(0, 0, 0, .55);
+    --wait-glow: rgba(255, 255, 255, .06);
     color-scheme: dark;
   }
 }
@@ -367,6 +369,33 @@ select.input { padding: 9px 10px; }
 .shimmer { background: linear-gradient(90deg, var(--ink-3) 0 40%, var(--ink) 50%, var(--ink-3) 60% 100%); background-size: 400% 100%;
   -webkit-background-clip: text; background-clip: text; color: transparent; animation: shimmer 1.6s linear infinite; }
 @keyframes shimmer { from { background-position: 100% 0; } to { background-position: 0% 0; } }
+
+/* 불러오는 중 (DESIGN.md 상태). 앱을 열 때는 앱 마크·이름·상태 문장, 화면 안에서는 실제 내용 모양을 따른 자리 표시 */
+.boot { align-items: center; text-align: center; gap: 10px; min-height: 100dvh; }
+.boot-mark { width: 72px; height: 72px; margin-bottom: 6px; }
+.boot-mark .mark-bg { fill: var(--oat); }
+.boot-mark .mark-line { stroke: var(--ink); }
+.boot-mark .mark-dot { fill: var(--sage); }
+.boot-name { margin: 0; font-size: 22px; font-weight: 800; letter-spacing: -.02em; }
+.boot-status { margin: 0; font-size: 14px; font-weight: 600; }
+.boot .lead { margin-top: 8px; font-weight: 700; color: var(--ink); }
+/* 자리 하나: 짙은 귀리 면(바탕 위·귀리 면 안 모두 보이게). 200ms 안에 오면 보이지 않게 늦게 나타나고, 빛이 천천히 지나간다 */
+.wait-bar {
+  display: inline-block; vertical-align: middle; max-width: 100%; height: .72em; border-radius: clamp(4px, .22em, 12px);
+  background: linear-gradient(90deg, transparent 0 35%, var(--wait-glow) 50%, transparent 65% 100%) 100% 0 / 300% 100% no-repeat, var(--oat-deep);
+  animation: wait-in var(--dur-quick) var(--ease-out) 200ms both, wait-sweep 1.6s linear 200ms infinite;
+}
+.wait-bar.block { display: block; border-radius: var(--r-sm); }
+@keyframes wait-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes wait-sweep { to { background-position: 0% 0; } }
+.wait-sr { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+.wait-line { margin: 0; padding: 4px 0; font-size: 15px; line-height: 1.5; }
+.wait-tx { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 12px 4px; border-bottom: 1px solid var(--line); }
+.wait-tx .tx-meta { display: block; }
+.wait-day { margin: 0; font-size: 17px; line-height: 1.5; }
+/* 자리 표시를 보였던 화면만 내용이 흐림 교차로 들어온다(400ms) */
+.wait-done { animation: wait-done var(--dur-sheet) var(--ease-out); }
+@keyframes wait-done { from { opacity: 0; filter: blur(2px); } to { opacity: 1; filter: none; } }
 .draft { display: flex; flex-direction: column; gap: 10px; }
 /* 저장하지 않을 초안: 흐리게(opacity) 대신 바탕을 비우고 점선 테두리로 구별한다(글자 대비는 그대로) */
 .card.draft.off { background: var(--canvas); border: 1.5px dashed var(--ink-3); color: var(--ink-2); }
@@ -717,6 +746,8 @@ input[type="search"].input { -webkit-appearance: none; appearance: none; }
   .toast.on { transform: translate(-50%, 0); }
   .soft > span { transition: opacity 150ms ease; filter: none !important; }
   .shimmer { animation: none; color: var(--ink-2); background: none; }
+  .wait-bar { animation: wait-in var(--dur-quick) linear 200ms both; background: var(--oat-deep); }
+  .wait-done { animation: wait-in var(--dur-sheet) linear; }
 }
 
 /* 함께 기억할 것(D-038): 달력 화면 묶음, 기억할 것 화면, 적기 시트 */

@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import type { Lookup } from '../lib/lookup'
 import { matchNotes, noteByline, type Note } from '../lib/notes'
 import { Plus } from './Icons'
+import { Bar, useAppear, Waiting } from './Loading'
 
 /** 함께 기억할 것 화면(D-038). 아래 탭이 아니라 달력 화면 묶음·넓은 화면 왼쪽 메뉴에서 연다 */
 export function NotesView({ rows, error, lookup, onRetry, onNew, onOpen, onTogglePin }: {
@@ -11,6 +12,7 @@ export function NotesView({ rows, error, lookup, onRetry, onNew, onOpen, onToggl
   const [q, setQ] = useState('')
   const [busy, setBusy] = useState<string | null>(null)
   const shown = useMemo(() => (rows ? matchNotes(rows, q) : []), [rows, q])
+  const appear = useAppear(rows === null && !error)
 
   async function pin(n: Note) {
     if (busy) return
@@ -33,13 +35,23 @@ export function NotesView({ rows, error, lookup, onRetry, onNew, onOpen, onToggl
           <div className="error-actions"><button className="ghost" onClick={onRetry}>다시 불러오기</button></div>
         </div>
       )}
-      {rows === null && !error && <p className="empty" role="status">불러오는 중</p>}
+      {rows === null && !error && (
+        <Waiting label="기억할 것 불러오는 중" className="remember-list">
+          {[['38%', '92%', '64%'], ['52%', '80%', ''], ['30%', '88%', '46%']].map(([t, a, b]) => (
+            <div key={t} className="card remember-item">
+              <span className="remember-title"><Bar w={t} /></span>
+              <span className="remember-body"><Bar w={a} />{b && <><br /><Bar w={b} /></>}</span>
+              <span className="remember-by"><Bar w={9} /></span>
+            </div>
+          ))}
+        </Waiting>
+      )}
       {rows !== null && rows.length === 0 && (
         <p className="empty">아직 적어 둔 것이 없어요. 관리사무소 번호, 정수기 필터 바꾸는 때, 양가 선물 취향처럼 둘이 기억할 것을 적어 두세요.</p>
       )}
       {rows !== null && rows.length > 0 && shown.length === 0 && <p className="empty">‘{q.trim()}’ 들어간 메모가 없어요.</p>}
       {shown.length > 0 && (
-        <ul className="remember-list">
+        <ul className={`remember-list${appear ? ` ${appear}` : ''}`}>
           {shown.map((n) => (
             <li key={n.id} className="card remember-item">
               <button className="remember-open" onClick={() => onOpen(n)}>

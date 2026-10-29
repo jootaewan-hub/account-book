@@ -4,6 +4,7 @@ import { addMonths } from '../lib/dates'
 import { won } from '../lib/format'
 import { fillLine, fuelDelta, fuelInterval, fuelKind, fuelMonth, fuelTrend, litersText } from '../lib/fuel'
 import type { FuelFill } from '../lib/types'
+import { Bar, Waiting } from './Loading'
 import { PriceDelta } from './PriceDelta'
 
 const md = (date: string) => `${Number(date.slice(5, 7))}월 ${Number(date.slice(8, 10))}일`
@@ -38,7 +39,13 @@ export function FuelCard({ householdId, version, ym, onAdd }: {
     <div className="card fuel-card">
       <h2 className="section-title">주유</h2>
       {err && <p className="err">{err}</p>}
-      {fills === null && !err && <p className="lead">불러오는 중…</p>}
+      {fills === null && !err && (
+        <Waiting label="주유 기록 불러오는 중">
+          <p className="fuel-big"><Bar w={4} /></p>
+          <p className="wait-line"><Bar w="58%" /></p>
+          <Bar w="100%" h={120} />
+        </Waiting>
+      )}
       {fills && fills.length === 0 && (
         <p className="empty">주유소 영수증을 찍어 넣으면 리터당 가격 변동과 주유량을 모아 보여 드려요.</p>
       )}

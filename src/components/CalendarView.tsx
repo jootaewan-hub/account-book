@@ -7,6 +7,7 @@ import { dailyTotals, samePeriodDiff, sumType } from '../lib/ledger'
 import type { Lookup } from '../lib/lookup'
 import type { Anniversary, CalEvent, Transaction } from '../lib/types'
 import { AnnivIcon, CalendarIcon, Plus } from './Icons'
+import { Bar, RowsWait, useAppear } from './Loading'
 import type { PlanTarget } from './PlanSheet'
 import { Soft, useSlideIn } from './Motion'
 import { TxRow } from './TxRow'
@@ -49,6 +50,7 @@ export function CalendarView({ ym, today, sel, cur, prev, loading = false, looku
   const exp = sumType(cur, 'expense')
   const thisMonth = today.slice(0, 7)
   const gridRef = useSlideIn<HTMLDivElement>(ym)
+  const appear = useAppear(loading)
 
   let compare: React.ReactNode = null
   // 지난달 지출 기록이 없으면 전액이 '더 썼어요'로 보이므로 비교하지 않는다
@@ -91,24 +93,37 @@ export function CalendarView({ ym, today, sel, cur, prev, loading = false, looku
       <div className="cal-main">
         {/* aria-live를 두지 않는다: 달 표시(App)가 이미 읽히고, 배우자 내역이 들어올 때마다 전부 다시 읽히면 시끄럽다 */}
         <div className="hero">
-          <p className="hero-label"><Soft value={hasIncome ? `${m}월에 ${future ? '남을' : '남은'} 돈` : `${m}월에 ${future ? '나갈' : '쓴'} 돈`} /></p>
-          <p className={`hero-num num${hasIncome && left < 0 ? ' neg' : ''}`}>
-            <Soft value={loading ? '…' : hasIncome ? `${left < 0 ? '-' : ''}${won(Math.abs(left))}` : won(exp)} /><small>원</small>
-          </p>
-          {hasIncome && (
-            <div className="spend-bar" role="img" aria-label={`들어온 돈의 ${Math.round((exp / inc) * 100)}%를 썼어요`}>
-              <i style={{ transform: `scaleX(${ratio})` }} />
+          {loading ? (
+            // 이 달 내역이 오기 전에는 0원 대신 숫자 자리만 보인다
+            <div className="hero-wait">
+              <p className="wait-sr" role="status">{m}월 내역 불러오는 중</p>
+              <p className="hero-label"><Bar w={7} /></p>
+              <p className="hero-num"><Bar w={5.4} /></p>
+              <div className="spend-bar" />
+              <div className="hero-legend"><Bar w={8} /><Bar w={8} /></div>
             </div>
-          )}
-          <div className="hero-legend num">
-            <span>{future ? '나갈 돈' : '쓴 돈'} <b><Soft value={won(exp)} /></b></span>
-            <span className="in">들어온 돈 <b><Soft value={won(inc)} /></b></span>
-          </div>
-          {compare && <p className="compare">{compare}</p>}
-          {monthPlan > 0 && (
-            <p className="compare plan-sum">
-              고정지출 예정 <b className="num">{won(monthPlan)}원</b><span className="num">, {planned.length}건</span> 포함
-            </p>
+          ) : (
+            <div className={appear || undefined}>
+              <p className="hero-label"><Soft value={hasIncome ? `${m}월에 ${future ? '남을' : '남은'} 돈` : `${m}월에 ${future ? '나갈' : '쓴'} 돈`} /></p>
+              <p className={`hero-num num${hasIncome && left < 0 ? ' neg' : ''}`}>
+                <Soft value={hasIncome ? `${left < 0 ? '-' : ''}${won(Math.abs(left))}` : won(exp)} /><small>원</small>
+              </p>
+              {hasIncome && (
+                <div className="spend-bar" role="img" aria-label={`들어온 돈의 ${Math.round((exp / inc) * 100)}%를 썼어요`}>
+                  <i style={{ transform: `scaleX(${ratio})` }} />
+                </div>
+              )}
+              <div className="hero-legend num">
+                <span>{future ? '나갈 돈' : '쓴 돈'} <b><Soft value={won(exp)} /></b></span>
+                <span className="in">들어온 돈 <b><Soft value={won(inc)} /></b></span>
+              </div>
+              {compare && <p className="compare">{compare}</p>}
+              {monthPlan > 0 && (
+                <p className="compare plan-sum">
+                  고정지출 예정 <b className="num">{won(monthPlan)}원</b><span className="num">, {planned.length}건</span> 포함
+                </p>
+              )}
+            </div>
           )}
         </div>
 
@@ -177,7 +192,7 @@ export function CalendarView({ ym, today, sel, cur, prev, loading = false, looku
           <button className="day-add" onClick={() => onPlan({ kind: 'new', date: sel })}><Plus />일정·기념일 넣기</button>
           <div className="tx-list">
             {dayTx.map((t) => <TxRow key={t.id} t={t} lookup={lookup} onClick={() => onEdit(t)} />)}
-            {!dayTx.length && <div className="empty">{loading ? '불러오는 중…' : '이 날 기록이 없어요. 기록하기로 추가해 보세요.'}</div>}
+            {!dayTx.length && (loading ? <RowsWait rows={2} /> : <div className="empty">이 날 기록이 없어요. 기록하기로 추가해 보세요.</div>)}
           </div>
         </div>
       )}

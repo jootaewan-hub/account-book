@@ -9,6 +9,7 @@ import { categoryBreakdown, monthSeries, OTHER_PLATFORM, pctChange, platformBrea
 import type { Category, Household, MonthTotal, Transaction } from '../lib/types'
 import { BillCard } from './BillCard'
 import { FuelCard } from './FuelCard'
+import { Bar, StatsWait, useAppear } from './Loading'
 
 interface Props {
   household: Household
@@ -47,6 +48,7 @@ export function StatsView({ household, ym, today, cur, prev, planTotals, loading
   // 펼친 분류 (undefined: 없음, null: '분류 없음')
   const [openCat, setOpenCat] = useState<string | null | undefined>(undefined)
   const [err, setErr] = useState('')
+  const appear = useAppear(loading)
 
   useEffect(() => { setSel(ym); setOpenCat(undefined) }, [ym])
 
@@ -103,10 +105,11 @@ export function StatsView({ household, ym, today, cur, prev, planTotals, loading
   const maxPlat = Math.max(0, ...platforms.map((p) => p.amount))
   const maxWeek = Math.max(0, ...weeks.map((w) => w.amount))
 
-  if (loading) return <section className="view"><p className="lead">불러오는 중…</p></section>
+  // key: 다른 달을 처음 불러올 때마다 내용이 새로 그려져 흐림 교차가 다시 일어난다
+  if (loading) return <section key="wait" className="view"><StatsWait /></section>
 
   return (
-    <section className="view">
+    <section key="ready" className={`view${appear ? ` ${appear}` : ''}`}>
       {err && <p className="banner" role="alert">{err}</p>}
 
       <div className="card">
@@ -169,7 +172,7 @@ export function StatsView({ household, ym, today, cur, prev, planTotals, loading
           <span><i className="sw exp" />지출</span>
           <span><i className="sw inc" />수입</span>
         </div>
-        {totals ? <MonthChart points={series} sel={sel} onSelect={setSel} /> : <p className="lead">불러오는 중…</p>}
+        {totals ? <MonthChart points={series} sel={sel} onSelect={setSel} /> : <><Bar w="100%" h={160} /><p className="wait-sr" role="status">12개월 합계 불러오는 중</p></>}
         {selPoint && <p className="readout num">{readout(selPoint, today.slice(0, 7))}</p>}
         <details className="table-view">
           <summary>표로 보기</summary>
