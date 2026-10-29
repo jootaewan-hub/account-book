@@ -266,7 +266,7 @@ main.wrap { padding-block: 4px calc(150px + env(safe-area-inset-bottom, 0px)); }
 .tab svg { width: 24px; height: 24px; stroke-width: 1.75; }
 .tab[aria-current="page"] { color: var(--ink); font-weight: 700; }
 .tab[aria-current="page"] svg { stroke-width: 2.1; }
-.side-record, .tab.side-settings { display: none; } /* 넓은 화면의 세로 메뉴에서만 보인다 */
+.side-record, .tab.side-notes, .tab.side-settings { display: none; } /* 넓은 화면의 세로 메뉴에서만 보인다 */
 
 /* 바닥 시트: 열 때 400ms, 닫을 때 250ms, 손잡이를 끌어 닫는다 */
 .scrim { position: fixed; inset: 0; background: var(--scrim); z-index: 40; opacity: 0; transition: opacity var(--dur-sheet) var(--ease-drawer); }
@@ -661,7 +661,8 @@ input[type="search"].input { -webkit-appearance: none; appearance: none; }
   .ledger .tab { flex-direction: row; justify-content: flex-start; gap: 12px; min-height: 48px; padding: 0 14px; border-radius: var(--r-btn); font-size: 15px; }
   .ledger .tab[aria-current="page"] { background: var(--oat); }
   .side-record { display: flex; align-items: center; justify-content: center; gap: 6px; margin-bottom: 16px; }
-  .ledger .tab.side-settings { display: flex; margin-top: 12px; }
+  .ledger .tab.side-notes, .ledger .tab.side-settings { display: flex; }
+  .ledger .tab.side-notes { margin-top: 12px; } /* 아래 탭 여섯과 나눈다. 설정 줄은 바로 아래에 붙는다 */
   .narrow-only { display: none; } /* 위쪽 줄의 톱니·돌아가기: 넓은 화면은 세로 메뉴의 설정 줄을 쓴다 */
   .side-record svg { width: 20px; height: 20px; }
   .pick-bar { bottom: 16px; flex-direction: row; align-items: center; }
@@ -717,3 +718,34 @@ input[type="search"].input { -webkit-appearance: none; appearance: none; }
   .soft > span { transition: opacity 150ms ease; filter: none !important; }
   .shimmer { animation: none; color: var(--ink-2); background: none; }
 }
+
+/* 함께 기억할 것(D-038): 달력 화면 묶음, 기억할 것 화면, 적기 시트 */
+.remember-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.remember-head .section-title { margin: 0; }
+.remember-head .link-btn { flex: none; }
+.remember-hint { margin: 8px 0 0; color: var(--ink-2); font-size: 14px; line-height: 1.5; }
+.remember-card .day-add { margin: 4px 0 -6px; }
+.remember-pins { list-style: none; margin: 10px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.remember-pin { width: 100%; border: 0; background: var(--canvas); border-radius: var(--r-sm); padding: 10px 12px; min-height: 44px;
+  display: flex; flex-direction: column; align-items: flex-start; gap: 2px; text-align: left; color: var(--ink); }
+.remember-pin b, .remember-pin span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.remember-pin b { font-size: 15px; font-weight: 700; }
+.remember-pin span { font-size: 13px; color: var(--ink-2); }
+.remember-intro { display: flex; flex-direction: column; gap: 12px; }
+.remember-intro .lead { font-size: 14px; line-height: 1.5; }
+.remember-new { display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
+.remember-new svg { width: 20px; height: 20px; }
+.remember-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.remember-item { display: flex; flex-direction: column; gap: 8px; padding: 14px 16px 12px; }
+.remember-open { border: 0; background: none; padding: 0; margin: 0; text-align: left; color: var(--ink); display: flex; flex-direction: column; gap: 6px; width: 100%; }
+.remember-title { font-size: 16px; font-weight: 700; line-height: 1.4; display: flex; align-items: baseline; gap: 6px; word-break: keep-all; overflow-wrap: anywhere; }
+.remember-title .tag:where(:not(.grocery *)) { flex: none; background: var(--primary); color: var(--on-primary); }
+.remember-body { font-size: 14px; line-height: 1.55; color: var(--ink); white-space: pre-line; overflow-wrap: anywhere;
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 5; line-clamp: 5; overflow: hidden; }
+.remember-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.remember-by { font-size: 13px; color: var(--ink-2); }
+.remember-pin-btn { flex: none; min-height: 36px; padding: 6px 12px; background: var(--canvas); }
+.remember-pin-btn[aria-pressed="true"] { background: var(--primary); color: var(--on-primary); }
+.remember-editor { display: flex; flex-direction: column; gap: 16px; }
+.remember-editor textarea { resize: vertical; min-height: 140px; line-height: 1.55; }
+.remember-note { margin: 0; color: var(--ink-2); font-size: 13px; line-height: 1.5; }

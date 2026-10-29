@@ -3,21 +3,24 @@ import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type
 import { CalendarView } from './components/CalendarView'
 import { EntrySheet } from './components/EntrySheet'
 import { ErrorBoundary } from './components/ErrorBoundary'
-import { CalendarIcon, CartIcon, ChartIcon, ChevronLeft, ChevronRight, GearIcon, ListIcon, Plus, RepeatIcon, SearchIcon } from './components/Icons'
+import { CalendarIcon, CartIcon, ChartIcon, ChevronLeft, ChevronRight, GearIcon, ListIcon, NoteIcon, Plus, RepeatIcon, SearchIcon } from './components/Icons'
 import { ListView, type ListFocus } from './components/ListView'
 import { Soft, Toast } from './components/Motion'
+import { NotesCard } from './components/NotesCard'
 import { PlanSheet, type PlanTarget } from './components/PlanSheet'
 import { PlatformDatalist } from './components/PlatformInput'
 import { Login, NewPassword } from './components/Login'
 import { Onboarding } from './components/Onboarding'
 import type { SmartMode } from './components/SmartSheet'
 import { useLedgerMeta, useLiveUpdates, useMonthEvents, useMonthTransactions, useRecurringList } from './hooks/useLedger'
+import { useNotes } from './hooks/useNotes'
 import { deleteTransaction, deleteTransactions, friendlyError, generateRecurring, insertInstallmentPurchase, insertTransaction, updateSpouseRole, updateTransaction } from './lib/api'
 import { wasRefreshed } from './lib/appUpdate'
 import { takeNewRelease } from './lib/changelog'
 import { addMonths, parseYM, todayLocal } from './lib/dates'
 import { lsGet, lsSet } from './lib/localPrefs'
 import { makeLookup, SCOPE_LABEL } from './lib/lookup'
+import { createNoteStore, type Note } from './lib/notes'
 import { plannedTotals, plannedTxs } from './lib/recurring'
 import { onUpdateReady, updateReady } from './lib/pwa'
 import { isConfigured, sb } from './lib/supabase'
@@ -34,12 +37,15 @@ const ExportCard = lazy(() => import('./components/ExportCard').then((m) => ({ d
 const SmartSheet = lazy(() => import('./components/SmartSheet').then((m) => ({ default: m.SmartSheet })))
 const ExploreView = lazy(() => import('./components/ExploreView').then((m) => ({ default: m.ExploreView })))
 const WishSheet = lazy(() => import('./components/WishSheet').then((m) => ({ default: m.WishSheet })))
+const NotesView = lazy(() => import('./components/NotesView').then((m) => ({ default: m.NotesView })))
+const NoteSheet = lazy(() => import('./components/NoteSheet').then((m) => ({ default: m.NoteSheet })))
 
 /** 첫 화면이 뜬 뒤 쉬는 틈에 나머지 묶음을 미리 받아 둔다(탭을 누를 때 기다리지 않게) */
 function prefetchChunks() {
   void Promise.allSettled([
     import('./grocery/GroceryTab'), import('./components/StatsView'), import('./components/SmartSheet'),
     import('./components/RecurringView'), import('./components/SettingsView'), import('./components/ExportCard'), import('./components/ExploreView'),
+    import('./components/NotesView'), import('./components/NoteSheet'),
   ])
 }
 
@@ -97,7 +103,10 @@ function Home({ userId, email }: { userId: string; email: string }) {
   return <Ledger household={meta.household} meta={meta} userId={userId} email={email} />
 }
 
-type Tab = 'cal' | 'list' | 'grocery' | 'stats' | 'fixed' | 'explore' | 'settings'
+type Tab = 'cal' | 'list' | 'grocery' | 'stats' | 'fixed' | 'explore' | 'notes' | 'settings'
+/** 아래 탭에 없고 다른 곳에서 여는 화면(설정: 톱니, 기억할 것: 달력 화면 묶음). 넓은 화면은 왼쪽 메뉴 아래 줄 */
+type Aside = 'notes' | 'settings'
+const isAside = (t: Tab): t is Aside => t === 'notes' || t === 'settings'
 
 /** 처음 열 탭: ?tab=grocery(예전 장보기 주소의 안내 페이지가 여기로 보낸다). 다른 값은 무시한다. 설정에서 앱 파일을 다시 받았으면 설정 */
 function initialTab(): Tab {
@@ -105,7 +114,7 @@ function initialTab(): Tab {
   return new URLSearchParams(window.location.search).get('tab') === 'grocery' ? 'grocery' : 'cal'
 }
 
-const TITLE: Record<Tab, string> = { cal: '우리집', list: '내역', grocery: '장보기', stats: '통계', fixed: '고정 지출', explore: '알아보기', settings: '설정' }
+const TITLE: Record<Tab, string> = { cal: '우리집', list: '내역', grocery: '장보기', stats: '통계', fixed: '고정 지출', explore: '알아보기', notes: '함께 기억할 것', settings: '설정' }
 
 /** 따로 받는 화면이 오는 동안의 자리. 한 화면이 그리다 멈추면 그 자리에만 오류를 보이고, 다른 탭으로 옮기면(key) 풀린다 */
 function Screen({ name, children }: { name: string; children: ReactNode }) {
@@ -126,9 +135,10 @@ function Ledger({ household, meta, userId, email }: {
   const [ym, setYm] = useState(today.slice(0, 7))
   const [sel, setSel] = useState(today)
   const [tab, setTab] = useState<Tab>(initialTab)
-  // 설정은 아래 탭이 아니라 위쪽 톱니 버튼으로 연다. 돌아가기는 설정을 연 탭으로
-  const [beforeSettings, setBeforeSettings] = useState<Exclude<Tab, 'settings'>>('cal')
-  const openSettings = () => { if (tab !== 'settings') setBeforeSettings(tab); setTab('settings') }
+  // 설정·기억할 것은 아래 탭이 아니라 톱니 버튼·달력 화면 묶음으로 연다. 돌아가기는 그 화면을 연 아래 탭으로
+  const [beforeAside, setBeforeAside] = useState<Exclude<Tab, Aside>>('cal')
+  const openAside = (t: Aside) => { if (!isAside(tab)) setBeforeAside(tab); setTab(t) }
+  const openSettings = () => openAside('settings')
   const [sheet, setSheet] = useState<{ open: boolean; editing: Transaction | null }>({ open: false, editing: null })
   const [smart, setSmart] = useState<{ open: boolean; mode: SmartMode }>({ open: false, mode: 'text' })
   // 스마트 입력 시트는 처음 열 때 불러오고, 그 뒤로는 닫히는 움직임을 위해 화면에 남겨 둔다
@@ -146,6 +156,10 @@ function Ledger({ household, meta, userId, email }: {
   const [wishTarget, setWishTarget] = useState<WishTarget | null>(null)
   const [wishVersion, setWishVersion] = useState(0)
   const [wishSearch, setWishSearch] = useState<{ query: string; key: number } | null>(null)
+  // 함께 기억할 것(D-038): 달력 화면 묶음과 기억할 것 화면이 같은 목록을 쓴다. note가 null이면 새로 적기
+  const noteStore = useMemo(() => createNoteStore(sb(), household.id), [household.id])
+  const notes = useNotes(noteStore)
+  const [noteTarget, setNoteTarget] = useState<{ note: Note | null } | null>(null)
 
   const { txs, version: txVersion, loading: txLoading, error, reload } = useMonthTransactions(household.id, ym)
   const { events, reload: reloadEvents } = useMonthEvents(household.id, ym)
@@ -239,6 +253,14 @@ function Ledger({ household, meta, userId, email }: {
     toast(msg ?? `${count}건 저장했어요`)
   }
 
+  async function toggleNotePin(n: Note) {
+    try {
+      await noteStore.setPinned(n.id, !n.pinned)
+      await notes.reload()
+      toast(n.pinned ? '고정을 풀었어요' : '맨 위에 고정했어요')
+    } catch (e) { toast(friendlyError(e)) }
+  }
+
   async function remove(id: string) {
     await deleteTransaction(id)
     setSheet({ open: false, editing: null })
@@ -264,8 +286,8 @@ function Ledger({ household, meta, userId, email }: {
       <header className="topbar">
         <div className="wrap">
           <div className="top-left">
-            {tab === 'settings' && (
-              <button className="icon-btn narrow-only back-btn" onClick={() => setTab(beforeSettings)} aria-label="돌아가기"><ChevronLeft /></button>
+            {isAside(tab) && (
+              <button className="icon-btn narrow-only back-btn" onClick={() => setTab(beforeAside)} aria-label="돌아가기"><ChevronLeft /></button>
             )}
             <h1 className={tab === 'cal' ? 'brand-mark' : undefined}>{TITLE[tab]}</h1>
           </div>
@@ -308,7 +330,9 @@ function Ledger({ household, meta, userId, email }: {
         {tab === 'cal' && (
           <Screen name="달력">
             <CalendarView ym={ym} today={today} sel={sel} cur={curAll} prev={prevAll} loading={txLoading} lookup={lookup} annivs={meta.anniversaries} events={events}
-              onSelect={setSel} onPlan={setPlan} onJump={(d) => { setYm(d.slice(0, 7)); setSel(d) }} onEdit={editTx} />
+              onSelect={setSel} onPlan={setPlan} onJump={(d) => { setYm(d.slice(0, 7)); setSel(d) }} onEdit={editTx}
+              notes={<NotesCard rows={notes.rows} error={notes.error} onOpenAll={() => openAside('notes')}
+                onOpen={(note) => setNoteTarget({ note })} onNew={() => setNoteTarget({ note: null })} onRetry={() => void notes.reload()} />} />
           </Screen>
         )}
         {tab === 'list' && (
@@ -347,6 +371,12 @@ function Ledger({ household, meta, userId, email }: {
             <ExploreView toast={toast} onKeep={(seed) => setWishTarget({ seed })} searchRequest={wishSearch} />
           </Screen>
         )}
+        {tab === 'notes' && (
+          <Screen name="함께 기억할 것">
+            <NotesView rows={notes.rows} error={notes.error} lookup={lookup} onRetry={() => void notes.reload()}
+              onNew={() => setNoteTarget({ note: null })} onOpen={(note) => setNoteTarget({ note })} onTogglePin={toggleNotePin} />
+          </Screen>
+        )}
         {tab === 'settings' && (
           <Screen name="설정">
             <SettingsView household={household} categories={meta.categories} annivs={meta.anniversaries} today={today}
@@ -371,7 +401,8 @@ function Ledger({ household, meta, userId, email }: {
           <button className="tab" aria-current={tab === 'stats' ? 'page' : undefined} onClick={() => setTab('stats')}><ChartIcon />통계</button>
           <button className="tab" aria-current={tab === 'fixed' ? 'page' : undefined} onClick={() => setTab('fixed')}><RepeatIcon />고정</button>
           <button className="tab" aria-current={tab === 'explore' ? 'page' : undefined} onClick={() => setTab('explore')}><SearchIcon />알아보기</button>
-          {/* 넓은 화면에서만 보인다. 휴대폰은 위쪽 톱니 버튼을 쓴다 */}
+          {/* 넓은 화면에서만 보인다. 휴대폰은 달력 화면의 함께 기억할 것 묶음과 위쪽 톱니 버튼을 쓴다 */}
+          <button className="tab side-notes" aria-current={tab === 'notes' ? 'page' : undefined} onClick={() => openAside('notes')}><NoteIcon />기억할 것</button>
           <button className="tab side-settings" aria-current={tab === 'settings' ? 'page' : undefined} onClick={openSettings}><GearIcon />설정</button>
         </div>
       </nav>
@@ -401,6 +432,13 @@ function Ledger({ household, meta, userId, email }: {
         <Suspense fallback={<p role="status">보관함 여는 중</p>}>
           <WishSheet target={wishTarget} store={wishStore} onClose={() => setWishTarget(null)}
             onSaved={(message) => { setWishTarget(null); setWishVersion((v) => v + 1); toast(message) }} />
+        </Suspense>
+      </ErrorBoundary>}
+
+      {noteTarget && <ErrorBoundary name="기억할 것">
+        <Suspense fallback={<p role="status">여는 중</p>}>
+          <NoteSheet note={noteTarget.note} store={noteStore} onClose={() => setNoteTarget(null)}
+            onSaved={(message) => { setNoteTarget(null); void notes.reload(); toast(message) }} />
         </Suspense>
       </ErrorBoundary>}
 

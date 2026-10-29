@@ -132,6 +132,19 @@ export const TABLES = {
     { id: 'a5', household_id: HH, name: '아이 용돈', kind: 'other', category: '용돈', lunar: false, month: 1, day: 1, repeat_unit: 'month', repeat_every: 1, start_year: 2026 },
   ],
   'public.events': [],
+  // 함께 기억할 것(D-038): 고정 둘(달력 화면 묶음에 보인다)과 고정 안 한 셋. 화면 확인용 예시 번호다
+  'public.notes': [
+    { id: 'n1', household_id: HH, title: '관리사무소 전화번호', body: '031-000-0000\n평일 9시~18시, 점심 12시~13시는 안 받아요.', pinned: true,
+      created_by: ME, updated_by: YOU, created_at: ago(60 * 24 * 40), updated_at: ago(60 * 26) },
+    { id: 'n2', household_id: HH, title: '정수기 필터 바꾸는 때', body: '석 달마다. 지난번은 8월 말에 바꿨어요.\n필터 모델: 앞면 스티커 참고', pinned: true,
+      created_by: YOU, updated_by: YOU, created_at: ago(60 * 24 * 12), updated_at: ago(60 * 24 * 12) },
+    { id: 'n3', household_id: HH, title: '양가 선물 취향', body: '어머님: 꽃보다 과일, 단 것은 덜 좋아하심\n장모님: 스카프, 밝은 색\n아버님: 등산 양말', pinned: false,
+      created_by: YOU, updated_by: ME, created_at: ago(60 * 24 * 30), updated_at: ago(60 * 3) },
+    { id: 'n4', household_id: HH, title: '자동차 타이어 공기압', body: '앞 36, 뒤 36 (운전석 문 안쪽 표시)', pinned: false,
+      created_by: ME, updated_by: ME, created_at: ago(60 * 24 * 50), updated_at: ago(60 * 24 * 50) },
+    { id: 'n5', household_id: HH, title: '분리수거 요일', body: null, pinned: false,
+      created_by: YOU, updated_by: YOU, created_at: ago(60 * 24 * 70), updated_at: ago(60 * 24 * 70) },
+  ],
   'public.transactions': transactions,
   // 고정 탭: 계속 내는 구독 하나와 기간(6개월)을 정한 고정지출 하나(취득세 할부). 금액은 캡처 확인용 예시
   'public.recurring': [

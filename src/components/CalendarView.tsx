@@ -28,11 +28,13 @@ interface Props {
   onPlan: (t: PlanTarget) => void
   /** 다른 달의 날짜로 옮겨 가서 고른다 (다가오는 기념일) */
   onJump: (date: string) => void
+  /** 다가오는 기념일 아래 묶음(함께 기억할 것, D-038) */
+  notes?: ReactNode
   /** 내역을 누를 때. 예정 내역이면 부르는 쪽이 고정 탭으로 보낸다 */
   onEdit: (t: Transaction) => void
 }
 
-export function CalendarView({ ym, today, sel, cur, prev, loading = false, lookup, annivs, events, onSelect, onPlan, onJump, onEdit }: Props) {
+export function CalendarView({ ym, today, sel, cur, prev, loading = false, lookup, annivs, events, onSelect, onPlan, onJump, onEdit, notes }: Props) {
   // 고정지출 예정분(D-030)은 쓴 돈·남은 돈에 넣되(이미 정해진 지출), 칸에서는 점선 금액으로 따로 보인다
   const totals = useMemo(() => dailyTotals(cur.filter((t) => !t.planned)), [cur])
   const planned = useMemo(() => cur.filter((t) => t.planned), [cur])
@@ -142,6 +144,7 @@ export function CalendarView({ ym, today, sel, cur, prev, loading = false, looku
             </button>
           ))} />
         )}
+        {notes}
       </div>
 
       {sel.startsWith(ym) && (

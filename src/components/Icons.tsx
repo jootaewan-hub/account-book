@@ -44,3 +44,7 @@ export const AnnivIcon = ({ kind }: { kind: AnnivKind }) => (
     {kind === 'other' && <path d="M12 3.8l2.5 5.1 5.6.8-4.1 4 1 5.6-5-2.7-5 2.7 1-5.6-4.1-4 5.6-.8z" />}
   </svg>
 )
+/** 함께 기억할 것(D-038): 귀퉁이를 접은 메모지 */
+export const NoteIcon = () => (
+  <svg {...base} strokeWidth={1.8}><path d="M5.5 3.5h13v11l-6 6h-7z" /><path d="M12.5 20.5v-6h6" /><path d="M8.5 8h7M8.5 11.5h4" /></svg>
+)

@@ -121,6 +121,12 @@ const shellShots = [
   ...each((w, c) => ({ name: `shell-wishes-${w}-${c}`, path: '/', w, c, shell: true, tab: '장보기', wishes: true, full: true })),
   ...each((w, c) => ({ name: `shell-wish-edit-${w}-${c}`, path: '/', w, c, shell: true, tab: '장보기', wishes: true, wishEdit: true })),
   ...each((w, c) => ({ name: `shell-wish-from-search-${w}-${c}`, path: '/', w, c, shell: true, tab: '알아보기', explore: { query: '비비고 왕교자', keep: true } })),
+  // 함께 기억할 것(D-038): 달력 화면 묶음의 "모두 보기"로 연 화면, 메모를 눌러 연 고치기 시트, 아직 적은 것이 없을 때
+  ...each((w, c) => ({ name: `shell-notes-${w}-${c}`, path: '/', w, c, shell: true, notes: true, full: true })),
+  ...each((w, c) => ({ name: `shell-note-edit-${w}-${c}`, path: '/', w, c, shell: true, notes: true, noteEdit: '양가 선물 취향' })),
+  ...both(390, (w, c) => ({ name: `shell-notes-empty-${w}-${c}`, path: '/', w, c, shell: true, notes: true, noNotes: true, full: true })),
+  { name: 'shell-cal-notes-empty-390-light', path: '/', w: 390, c: 'light', shell: true, noNotes: true, center: '.remember-card' },
+  { name: 'shell-cal-notes-390-dark', path: '/', w: 390, c: 'dark', shell: true, center: '.remember-card' },
   ...['달력', '내역', '장보기', '통계', '고정', '알아보기', '설정'].flatMap((tab) =>
     each((w, c) => ({ name: `shell-${TAB_SLUG[tab]}-${w}-${c}`, path: '/', w, c, shell: true, tab, full: tab !== '장보기' }))),
   // 알아보기(D-035): 다나와 검색 결과, 상품을 눌러 연 쇼핑몰별 가격 시트, 공공데이터포털 활용신청 전
@@ -239,6 +245,7 @@ async function fakeSupabase(context, s = {}) {
     let rows = key in TABLES ? TABLES[key] : []
     // noUtility: 고정 탭에 관리비·공과금 항목이 없는 가구(고지서가 '관리비' 항목을 만드는 안내를 본다)
     if (s.noUtility && key === 'public.recurring') rows = rows.filter((r) => r.kind !== 'utility')
+    if (s.noNotes && key === 'public.notes') rows = []
     // 같음 조건(id=eq.g5 등)은 적용한다: 한 건 조회(maybeSingle)는 행이 하나여야 하고, 상세는 그 품목·상품의 행만 봐야 한다
     if (Array.isArray(rows)) {
       for (const [k, v] of url.searchParams) {
@@ -316,6 +323,15 @@ try {
         if (s.wishEdit) {
           await page.getByRole('button', { name: '거실에 둘 스탠드', exact: true }).click()
           await page.getByRole('dialog', { name: '보관한 물건 고치기' }).waitFor()
+        }
+      }
+      if (s.notes) {
+        await page.locator('.remember-card .link-btn').click()
+        await page.getByRole('heading', { name: '함께 기억할 것', level: 1 }).waitFor()
+        await page.locator('.remember-item, .remember-view .empty').first().waitFor()
+        if (s.noteEdit) {
+          await page.getByRole('button', { name: new RegExp(s.noteEdit) }).click()
+          await page.getByRole('dialog', { name: '기억할 것 고치기' }).waitFor()
         }
       }
       if (s.market) {
