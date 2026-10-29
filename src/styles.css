@@ -20,7 +20,7 @@
   --who-shared: #36733a; --who-child: #ca9d42; --who-husband: #1c588e; --who-wife: #c67261;
   --chart-exp: var(--sage); --chart-inc: var(--who-husband);
   --scrim: rgba(51, 49, 45, .42);
-  --wait-glow: rgba(255, 255, 255, .7); /* 불러오는 중 자리 표시 위를 지나가는 빛 */
+  --wait-glow: rgba(255, 255, 255, .55); /* 불러오는 중 자리 표시 위를 지나가는 빛 */
   /* 휴대폰 아래 탭 높이: .tab 최소 60px + 윗선 1px (safe-area 제외). 장보기의 담기 바·알림이 이 위에 놓인다 */
   --tabbar-h: 61px;
   --font-ui: 'SUIT', 'Apple SD Gothic Neo', 'Malgun Gothic', 'Noto Sans KR', system-ui, sans-serif;
@@ -383,6 +383,7 @@ select.input { padding: 9px 10px; }
 .wait-bar {
   display: inline-block; vertical-align: middle; max-width: 100%; height: .72em; border-radius: clamp(4px, .22em, 12px);
   background: linear-gradient(90deg, transparent 0 35%, var(--wait-glow) 50%, transparent 65% 100%) 100% 0 / 300% 100% no-repeat, var(--oat-deep);
+  background-attachment: fixed; /* 화면 기준이라 모든 자리에 한 줄기 빛이 함께 지나간다(지원하지 않는 브라우저는 자리마다) */
   animation: wait-in var(--dur-quick) var(--ease-out) 200ms both, wait-sweep 1.6s linear 200ms infinite;
 }
 .wait-bar.block { display: block; border-radius: var(--r-sm); }

@@ -1,4 +1,4 @@
-import { useState, type CSSProperties, type ReactNode } from 'react'
+import { useEffect, useState, type CSSProperties, type ReactNode } from 'react'
 
 /*
  * 불러오는 중 화면(DESIGN.md 상태·Motion). 두 가지를 쓴다.
@@ -106,11 +106,18 @@ export function StatsWait() {
 }
 
 /**
- * 이 화면이 자리 표시를 보였을 때만 뒤에 온 내용을 흐림 교차로 들인다(400ms). 붙일 요소는 내용이 온 뒤에 새로 그려지는 것이어야 한다.
- * 탭을 옮겨 이미 받은 내용을 다시 그릴 때는 움직이지 않는다(아래 탭 전환은 움직임 없음)
+ * 자리 표시를 보였다가 내용이 온 그때 한 번만 내용을 흐림 교차로 들인다(400ms). 붙일 요소는 내용이 온 뒤에 새로 그려지는 것이어야 한다.
+ * 들어온 뒤(450ms)에는 클래스를 떼어, 찾기·거르기·이미 받은 달로 옮겨 다시 그리는 줄은 움직이지 않는다(자주 하는 동작은 움직임 없음).
+ * 탭을 옮겨 이미 받은 내용을 다시 그릴 때도 움직이지 않는다
  */
 export function useAppear(loading: boolean) {
-  const [waited, setWaited] = useState(loading)
-  if (loading && !waited) setWaited(true)
-  return waited && !loading ? 'wait-done' : ''
+  const [phase, setPhase] = useState<'idle' | 'waiting' | 'appearing'>(loading ? 'waiting' : 'idle')
+  if (loading && phase !== 'waiting') setPhase('waiting')
+  if (!loading && phase === 'waiting') setPhase('appearing')
+  useEffect(() => {
+    if (phase !== 'appearing') return
+    const t = window.setTimeout(() => setPhase('idle'), 450)
+    return () => window.clearTimeout(t)
+  }, [phase])
+  return phase === 'appearing' ? 'wait-done' : ''
 }

@@ -132,6 +132,8 @@ const shellShots = [
   ...each((w, c) => ({ name: `shell-wait-cal-${w}-${c}`, path: '/', w, c, shell: true, hold: ['public.transactions'], holdWait: '.hero-wait' })),
   ...both(390, (w, c) => ({ name: `shell-wait-list-${w}-${c}`, path: '/', w, c, shell: true, tab: '내역', hold: ['public.transactions'], holdWait: '.wait-tx' })),
   ...each((w, c) => ({ name: `shell-wait-stats-${w}-${c}`, path: '/', w, c, shell: true, tab: '통계', hold: ['public.transactions'], holdWait: '.wait .card' })),
+  // 움직임을 켠 화면: 자리 표시 위를 지나가는 빛이 밝게·어둡게 모두 보이는지
+  ...both(390, (w, c) => ({ name: `shell-wait-stats-motion-${w}-${c}`, path: '/', w, c, shell: true, tab: '통계', hold: ['public.transactions'], holdWait: '.wait .card', motion: 'no-preference' })),
   ...both(390, (w, c) => ({ name: `shell-wait-fuel-${w}-${c}`, path: '/', w, c, shell: true, tab: '통계', hold: ['public.fuel_fills'], holdWait: '.fuel-card .wait', center: '.fuel-card' })),
   ...both(390, (w, c) => ({ name: `shell-wait-fixed-${w}-${c}`, path: '/', w, c, shell: true, tab: '고정', hold: ['public.recurring'], holdWait: '.wait-tx' })),
   ...both(390, (w, c) => ({ name: `shell-wait-cal-notes-${w}-${c}`, path: '/', w, c, shell: true, hold: ['public.notes'], holdWait: '.remember-card .wait', center: '.remember-card' })),
