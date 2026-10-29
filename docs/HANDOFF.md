@@ -243,6 +243,14 @@ npm run screens
     - 확인 필요(사용자): 앱 알아보기 탭에서 날씨·가격 찾기가 그대로 되는지(로그인 사용자 통과), 에어코리아 앱의 성남대로(모란역) 값.
     - 되돌리기: 함수 stub을 e814e0d(날씨)·e06b4fe(가격)로 다시 배포하면 로그인 확인 전으로 돌아간다. 화면은 main을 6664b2f(배포 기록 31)로.
 
+33. 함께 살 물건 보관함·CSV 전체 조회(D-037, v2.15.0)와 함께 기억할 것(D-038, v2.16.0) 운영 반영(2026-10-29 12:33~12:45 KST, 사용자 "진행해 DB 적용하고 배포까지"): 브랜치 `codex/shared-wishlist-pagination`(c44d5fe) 위에 쌓은 `claude/couple-notes` → `ci.yml` 통과(8f51217).
+    - 됨(공유 DB, MCP `apply_migration`, 파일 순서대로 각각 한 번에 통과): `export_stable_order`(20261109000000), `grocery_purchase_wishes`(20261110000000), `household_notes`(20261111000000). `grant … delete`·`for delete` 정책이 든 마이그레이션도 requestState 오류 없이 통과했다(막히는 것은 delete 문장으로 보인다).
+    - DB로 확인: `export_rows_v2` 정렬에 `t.created_at, t.id`. `public.notes`·`grocery.purchase_wishes` RLS 켜짐, 정책 넷씩(select·insert·update·delete), 트리거(`notes_touch`, `purchase_wishes_touch_updated_at`·`purchase_wishes_clear_old_price`), authenticated 업데이트는 칸 단위(notes: title·body·pinned, wishes: title·url·target_price·memo·bought_at), anon 권한 0, 둘 다 `supabase_realtime`에 있음. 공개 키로 REST를 부르면 둘 다 401 42501. 보안 점검(get_advisors)에 새 표 관련 경고 없음(전부터 있던 것만).
+    - 됨(함수): `export-csv` v9(커밋 고정 stub 8f51217097e810a84943137567842510d67e033d, verify_jwt false, deno.json). 짧은 토큰 400, POST 405, 없는 48자 토큰은 머리 줄만 200. `private.export_tokens`에 행이 없어(시트 주소를 만든 적 없음) 실제 내역 내려받기는 확인하지 못했다.
+    - 됨: main fast-forward(8f51217)·푸시, Pages 배포 성공, 운영 `version.json` `8f51217 · 10-29 12:38`, 첫 화면 묶음에 2.16.0·"함께 기억할 것".
+    - 확인 필요(사용자): 앱 달력 화면의 함께 기억할 것 묶음에서 메모를 적고 배우자 기기에 바로 보이는지, 장보기 보관함 저장. 동시 수정 확인(`updated_at=eq.` 필터)은 시험용 저장소·PGlite로만 확인했다.
+    - 되돌리기: 화면은 main을 7e51179(배포 기록 32)로, 함수는 v8 코드(직접 올린 파일, 페이지를 1,000행씩 읽던 것)로. 새 표 둘은 비어 있어도 무해하다.
+
 ### 사용자 할 일
 
 - ~~공공데이터포털 식품영양성분DB(15127578) 활용신청~~ 2026-10-20 마침(사용자). 같은 키로 통하는지는 성분 탭 첫 호출로 확인.

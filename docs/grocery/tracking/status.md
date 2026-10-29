@@ -1,8 +1,6 @@
 # 현재 상태
 
-> **2026-10-29 작업 브랜치(운영 미반영)**: `claude/couple-notes`에서 v2.16.0 ‘함께 기억할 것’(D-038) 준비. `codex/shared-wishlist-pagination`(v2.15.0) 위에 쌓아서 그 브랜치와 함께 병합해야 한다. 새 DB 변경 `20261111000000_household_notes.sql`은 공유 DB에 아직 적용하지 않았다(적용 전에는 달력 화면 묶음이 "불러오지 못했어요"로 보인다). 설계 `docs/superpowers/specs/2026-10-29-couple-notes-design.md`.
-
-> **2026-10-28 작업 브랜치(운영 미반영)**: `codex/shared-wishlist-pagination`에서 v2.15.0 준비. 사용자가 ‘함께 살 물건 보관함’과 CSV·기간 조회 누락 방지를 선택했고, 보관함 위치는 장보기 안으로 지정했다(D-037). 설계·계획은 `docs/superpowers/{specs,plans}/2026-10-28-wishlist-pagination*`. 새 DB 변경 2개(`export_stable_order`, `grocery_purchase_wishes`)와 `export-csv` 재배포, main 병합·배포는 아직 하지 않았다. 독립 리뷰에서 상품 링크가 바뀌어도 옛 가격이 붙는 문제와 금액 단위 중복을 발견해 재현 테스트 뒤 고쳤다. 로컬 검증·화면 확인을 끝낸 뒤 사용자에게 구체적인 변경을 확인받는다.
+> **2026-10-29**: v2.16.0 배포(D-038 함께 기억할 것, `public.notes`)와 그 아래 v2.15.0(D-037 보관함·CSV 전체 조회)을 함께 운영 반영했다. 공유 DB에 `export_stable_order`·`grocery_purchase_wishes`·`household_notes` 적용, `export-csv` v9(8f51217 고정), main 8f51217 Pages 배포(`docs/HANDOFF.md` 5절 33). 남은 확인(사용자): 앱에서 메모 적기·배우자 기기 반영, 보관함 저장.
 
 > **2026-10-28**: v2.14.1 배포(알아보기 함수는 로그인한 사용자만, 날씨 운영 확인, `docs/HANDOFF.md` 5절 32). 그 전 v2.14.0 배포(D-036 보충 오늘의집·번개장터·당근, `grocery_explore_finds` 적용, `explore-price` v3, `docs/HANDOFF.md` 5절 31). 그 전 v2.13.0 배포(D-036 가격 비교에 마켓컬리·다이소, robots 규칙 폐기, `grocery_explore_shop_searches` 적용, `explore-price` v2, `docs/HANDOFF.md` 5절 30). 그 전 v2.12.0 배포(D-035 알아보기 탭: 날씨·미세먼지와 다나와 가격 비교, `grocery.explore_searches` 적용, 함수 `explore-price`·`explore-weather` v1, `docs/HANDOFF.md` 5절 29). 날씨는 공공데이터포털 활용신청 뒤에 보인다(열린 문제).
 > 같은 날 앞서: 앱은 v2.11.0 그대로, Claude Code용 k-skill 스킬 20개를 main에 넣었다(D-034·D-034 보충, `.claude/skills/K-SKILL-SOURCE.md`, 5절 28).
