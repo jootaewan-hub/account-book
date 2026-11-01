@@ -86,7 +86,8 @@ export function resolveEventDate(
   if (p.month === null || p.day === null) return { date: null, warnings: ['날짜를 읽지 못했어요. 날짜를 넣어 주세요.'] }
   let date: string | null = null
   if (p.year !== null) {
-    date = validDate(p.year, p.month, p.day)
+    // 예약 문자에 흔한 두 자리 연도('26.11.15)는 2000년대로 본다
+    date = validDate(p.year >= 0 && p.year < 100 ? 2000 + p.year : p.year, p.month, p.day)
     if (date && shown && weekdayOf(date) !== shown) {
       warnings.push(`화면의 요일(${shown})과 날짜(${monthDay(date)}, ${weekdayOf(date)}요일)가 안 맞아요. 날짜를 확인해 주세요.`)
     }

@@ -48,6 +48,8 @@ describe('날짜 정하기 (resolveEventDate)', () => {
 
   it('연도가 적혀 있으면 그대로 쓰고, 요일이 다르면 알린다', () => {
     expect(resolveEventDate({ year: 2027, month: 1, day: 9, weekday: '토' }, TODAY)).toEqual({ date: '2027-01-09', warnings: [] })
+    // 두 자리 연도('27.01.09)
+    expect(resolveEventDate({ year: 27, month: 1, day: 9, weekday: null }, TODAY)).toEqual({ date: '2027-01-09', warnings: [] })
     expect(resolveEventDate({ year: 2026, month: 11, day: 15, weekday: '토' }, TODAY).warnings)
       .toEqual(['화면의 요일(토)과 날짜(11월 15일, 일요일)가 안 맞아요. 날짜를 확인해 주세요.'])
   })

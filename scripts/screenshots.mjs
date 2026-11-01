@@ -216,6 +216,9 @@ const shellShots = [
   // 캡처로 일정 넣기(D-039): 달력 고른 날 아래 버튼 두 개, 확인 화면(식당 예약·이미 있는 치과는 빼 둠·결혼식). 가짜 응답(EVENT_CAPTURE)
   ...both(390, (w, c) => ({ name: `shell-cal-day-adds-${w}-${c}`, path: '/', w, c, shell: true, tab: '달력', center: '.day-adds' })),
   ...each((w, c) => ({ name: `shell-event-capture-${w}-${c}`, path: '/', w, c, shell: true, tab: '달력', eventCapture: true })),
+  // 읽기 전: 고른 캡처 미리 보기와 "캡처 1장 읽기"·"캡처 더 넣기"
+  ...both(390, (w, c) => ({ name: `shell-event-capture-input-${w}-${c}`, path: '/', w, c, shell: true, tab: '달력', eventCapture: 'input' })),
+  { name: 'shell-event-capture-input-1280-light', path: '/', w: 1280, c: 'light', shell: true, tab: '달력', eventCapture: 'input' },
   ...both(390, (w, c) => ({ name: `shell-event-capture-dup-${w}-${c}`, path: '/', w, c, shell: true, tab: '달력', eventCapture: true, scrollTo: '.ev-draft.off .draft-head' })),
   ...both(390, (w, c) => ({ name: `shell-event-capture-foot-${w}-${c}`, path: '/', w, c, shell: true, tab: '달력', eventCapture: true, scrollTo: '.sheet .link-btn' })),
 ]
@@ -498,10 +501,13 @@ try {
     if (s.eventCapture) {
       await page.getByRole('button', { name: '캡처로 일정 넣기' }).click()
       await page.locator('input[type=file]').setInputFiles({ name: 'cap.jpg', mimeType: 'image/jpeg', buffer: TINY_JPEG })
+      if (s.eventCapture === 'input') await page.getByRole('button', { name: '캡처 1장 읽기' }).waitFor()
+      else {
       await page.getByRole('button', { name: '캡처 1장 읽기' }).click()
       await page.getByRole('button', { name: /^일정 \d+건 넣기$/ }).waitFor()
       if (s.scrollTo) await page.locator(s.scrollTo).first().evaluate((el) => el.scrollIntoView({ block: 'center' }))
       else await page.locator('.ev-draft').first().evaluate((el) => el.closest('.sheet')?.scrollTo({ top: 0 }))
+      }
     }
     if (s.sheet !== undefined) {
         await page.getByRole('button', { name: '담기', exact: true }).locator('visible=true').first().click()
