@@ -1,4 +1,5 @@
 // 카드 문자·알림톡 텍스트 또는 영수증·캡처 사진에서 가계부 내역을 뽑는 Edge Function.
+// 일정·예약 캡처에서 달력 일정을 뽑는 일(kind: 'event', D-039)도 맡는다.
 //
 // Claude API 인증은 Workload Identity Federation(WIF)을 쓴다: 로그인한 사용자의 Supabase JWT를
 // Anthropic 토큰 엔드포인트에서 짧게 사는 액세스 토큰으로 교환하므로 저장해 둘 API 키가 없다.
@@ -13,6 +14,8 @@ import {
   MAX_IMAGE_BASE64_CHARS, MAX_IMAGES, MAX_TEXT_CHARS, MAX_TOTAL_IMAGE_CHARS, preferRetry, ResultSchema, SYSTEM_PROMPT, type CheckedEntry,
   type ImageSize,
 } from './extract.ts'
+import { checkEvents } from './eventCheck.ts'
+import { buildEventText, EVENT_IMAGES_MAX, EVENT_PROMPT, EventResultSchema } from './events.ts'
 import { WIF } from './wif-config.ts'
 
 // 모델은 코드에서만 정한다 (Secrets로 바뀌지 않게)
@@ -23,6 +26,8 @@ const RETRY_MODEL = 'claude-sonnet-5-5'
 const SHOP_MODEL = 'claude-sonnet-5-5'
 // 관리비 고지서: 작은 글씨의 표를 정확히 읽어야 해서 Sonnet 5.5
 const BILL_MODEL = 'claude-sonnet-5-5'
+// 일정·예약 캡처: 글자가 또렷한 화면 캡처라 Haiku 5.5
+const EVENT_MODEL = 'claude-haiku-5-5'
 
 // Edge Function 시간 제한(무료 요금제 150초)보다 먼저 스스로 멈춘다. 플랫폼이 끊으면 CORS 없는 응답이 가서 앱에는 원인 모를 오류로 보인다.
 // 마감은 요청 시작부터 잰다(SDK의 한 번 재시도까지 포함). 큰 모델로 다시 읽기는 남은 시간이 넉넉할 때만 한다.
@@ -82,6 +87,8 @@ type Img = { media_type: MediaType; data: string; width: number; height: number 
 type Input =
   | { kind: 'text'; text: string; today: string }
   | { kind: 'image'; images: Img[]; mode: 'receipt' | 'shop' | 'bill'; today: string }
+  // 새 kind로 둔다: 이 기능 전의 서버는 모르는 kind를 거절해(400) 영수증으로 잘못 읽지 않는다
+  | { kind: 'event'; images: Img[]; today: string }
 
 function parseImage(v: unknown): Img | string {
   const img = v as Record<string, unknown> | undefined
@@ -106,10 +113,11 @@ function parseInput(body: unknown): Input | string {
     if (text.length > MAX_TEXT_CHARS) return `한 번에 ${MAX_TEXT_CHARS.toLocaleString()}자까지 보낼 수 있어요.`
     return { kind: 'text', text, today }
   }
-  if (b.kind === 'image') {
+  if (b.kind === 'image' || b.kind === 'event') {
     const raw = Array.isArray(b.images) ? b.images : b.image ? [b.image] : []
+    const max = b.kind === 'event' ? EVENT_IMAGES_MAX : MAX_IMAGES
     if (!raw.length) return '사진이 없어요.'
-    if (raw.length > MAX_IMAGES) return `사진은 한 번에 ${MAX_IMAGES}장까지 보낼 수 있어요.`
+    if (raw.length > max) return `사진은 한 번에 ${max}장까지 보낼 수 있어요.`
     const images: Img[] = []
     for (const r of raw) {
       const img = parseImage(r)
@@ -117,12 +125,13 @@ function parseInput(body: unknown): Input | string {
       images.push(img)
     }
     if (images.reduce((s, i) => s + i.data.length, 0) > MAX_TOTAL_IMAGE_CHARS) return '사진이 너무 커요. 장수를 줄여 주세요.'
+    if (b.kind === 'event') return { kind: 'event', images, today }
     return { kind: 'image', images, mode: b.mode === 'shop' || b.mode === 'bill' ? b.mode : 'receipt', today }
   }
   return '요청 형식이 잘못됐어요.'
 }
 
-async function extract(client: Anthropic, model: string, input: Input, categories: string[], signal: AbortSignal) {
+async function extract(client: Anthropic, model: string, input: Exclude<Input, { kind: 'event' }>, categories: string[], signal: AbortSignal) {
   const sizes: ImageSize[] = input.kind === 'image' ? input.images.map(({ width, height }) => ({ width, height })) : []
   const shop = input.kind === 'image' && input.mode === 'shop'
   const userText = buildUserText({
@@ -149,6 +158,20 @@ async function extract(client: Anthropic, model: string, input: Input, categorie
 
 function imageBlocks(images: Img[]): Anthropic.ContentBlockParam[] {
   return images.map((im) => ({ type: 'image', source: { type: 'base64', media_type: im.media_type, data: im.data } }))
+}
+
+async function extractEvents(client: Anthropic, input: Extract<Input, { kind: 'event' }>, signal: AbortSignal) {
+  const res = await client.messages.parse({
+    model: EVENT_MODEL,
+    max_tokens: 4000,
+    system: EVENT_PROMPT,
+    messages: [{ role: 'user', content: [...imageBlocks(input.images), { type: 'text', text: buildEventText(input.images.length) }] }],
+    output_config: { effort: 'low', format: zodOutputFormat(EventResultSchema) },
+  }, { signal })
+  if (res.stop_reason === 'refusal') return null
+  if (!res.parsed_output) throw new Error(`no_parsed_output (stop_reason=${res.stop_reason})`)
+  console.log('event_ok', EVENT_MODEL, '->', res.model, res.usage.input_tokens, res.usage.output_tokens)
+  return { events: checkEvents(res.parsed_output.events, input.today, input.images.length), note: res.parsed_output.note, model: res.model }
 }
 
 async function extractBill(client: Anthropic, input: Extract<Input, { kind: 'image' }>, signal: AbortSignal) {
@@ -203,19 +226,25 @@ Deno.serve(async (req) => {
   // RLS로 본인 가구만 보인다
   const { data: member } = await supabase.from('members').select('household_id').eq('user_id', userId).maybeSingle()
   if (!member) return fail('no_household', '가계부에 참여한 뒤 쓸 수 있어요.', 403)
-  const { data: cats } = await supabase.from('categories').select('name, type').eq('archived', false).order('sort')
-  const categories = [...new Set((cats ?? []).map((c) => c.name as string))]
 
   const client = anthropicFor(userId, jwt)
   if (!client) return fail('ai_not_configured', 'AI 연결 설정이 아직 안 됐어요.', 503)
 
   const signal = AbortSignal.timeout(Math.max(1_000, left()))
   try {
+    if (input.kind === 'event') {
+      const out = await extractEvents(client, input, signal)
+      if (!out) return fail('refused', '이 사진은 읽을 수 없어요. 직접 넣어 주세요.', 422)
+      return json(out)
+    }
     if (input.kind === 'image' && input.mode === 'bill') {
       const out = await extractBill(client, input, signal)
       if (!out) return fail('refused', '이 사진은 읽을 수 없어요. 직접 입력해 주세요.', 422)
       return json(out)
     }
+    // 분류 목록은 내역을 뽑을 때만 쓴다
+    const { data: cats } = await supabase.from('categories').select('name, type').eq('archived', false).order('sort')
+    const categories = [...new Set((cats ?? []).map((c) => c.name as string))]
     const first = input.kind === 'image' && input.mode === 'shop' ? SHOP_MODEL : PRIMARY_MODEL
     let out = await extract(client, first, input, categories, signal)
     // 품목 합계가 결제 금액과 안 맞으면 더 큰 모델로 한 번 더 읽는다. 둘 다 안 맞아도(원단위 절사 등) 큰 모델 결과를 쓴다.

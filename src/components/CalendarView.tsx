@@ -6,7 +6,7 @@ import { HOLIDAYS } from '../lib/holidays'
 import { dailyTotals, samePeriodDiff, sumType } from '../lib/ledger'
 import type { Lookup } from '../lib/lookup'
 import type { Anniversary, CalEvent, Transaction } from '../lib/types'
-import { AnnivIcon, CalendarIcon, Plus } from './Icons'
+import { AnnivIcon, CalendarIcon, CameraIcon, Plus } from './Icons'
 import { Bar, RowsWait, useAppear } from './Loading'
 import type { PlanTarget } from './PlanSheet'
 import { Soft, useSlideIn } from './Motion'
@@ -27,6 +27,8 @@ interface Props {
   onSelect: (date: string) => void
   /** 일정·기념일 넣기·고치기 시트를 연다 */
   onPlan: (t: PlanTarget) => void
+  /** 캡처로 일정 넣기 시트를 연다(D-039) */
+  onCapture?: () => void
   /** 다른 달의 날짜로 옮겨 가서 고른다 (다가오는 기념일) */
   onJump: (date: string) => void
   /** 다가오는 기념일 아래 묶음(함께 기억할 것, D-038) */
@@ -35,7 +37,7 @@ interface Props {
   onEdit: (t: Transaction) => void
 }
 
-export function CalendarView({ ym, today, sel, cur, prev, loading = false, lookup, annivs, events, onSelect, onPlan, onJump, onEdit, notes }: Props) {
+export function CalendarView({ ym, today, sel, cur, prev, loading = false, lookup, annivs, events, onSelect, onPlan, onCapture, onJump, onEdit, notes }: Props) {
   // 고정지출 예정분(D-030)은 쓴 돈·남은 돈에 넣되(이미 정해진 지출), 칸에서는 점선 금액으로 따로 보인다
   const totals = useMemo(() => dailyTotals(cur.filter((t) => !t.planned)), [cur])
   const planned = useMemo(() => cur.filter((t) => t.planned), [cur])
@@ -189,7 +191,10 @@ export function CalendarView({ ym, today, sel, cur, prev, loading = false, looku
               ))}
             </div>
           )}
-          <button className="day-add" onClick={() => onPlan({ kind: 'new', date: sel })}><Plus />일정·기념일 넣기</button>
+          <div className="day-adds">
+            <button className="day-add" onClick={() => onPlan({ kind: 'new', date: sel })}><Plus />일정·기념일 넣기</button>
+            {onCapture && <button className="day-add" onClick={onCapture}><CameraIcon />캡처로 일정 넣기</button>}
+          </div>
           <div className="tx-list">
             {dayTx.map((t) => <TxRow key={t.id} t={t} lookup={lookup} onClick={() => onEdit(t)} />)}
             {!dayTx.length && (loading ? <RowsWait rows={2} /> : <div className="empty">이 날 기록이 없어요. 기록하기로 추가해 보세요.</div>)}

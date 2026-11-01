@@ -36,6 +36,7 @@ const RecurringView = lazy(() => import('./components/RecurringView').then((m) =
 const SettingsView = lazy(() => import('./components/SettingsView').then((m) => ({ default: m.SettingsView })))
 const ExportCard = lazy(() => import('./components/ExportCard').then((m) => ({ default: m.ExportCard })))
 const SmartSheet = lazy(() => import('./components/SmartSheet').then((m) => ({ default: m.SmartSheet })))
+const EventCaptureSheet = lazy(() => import('./components/EventCaptureSheet').then((m) => ({ default: m.EventCaptureSheet })))
 const ExploreView = lazy(() => import('./components/ExploreView').then((m) => ({ default: m.ExploreView })))
 const WishSheet = lazy(() => import('./components/WishSheet').then((m) => ({ default: m.WishSheet })))
 const NotesView = lazy(() => import('./components/NotesView').then((m) => ({ default: m.NotesView })))
@@ -46,7 +47,7 @@ function prefetchChunks() {
   void Promise.allSettled([
     import('./grocery/GroceryTab'), import('./components/StatsView'), import('./components/SmartSheet'),
     import('./components/RecurringView'), import('./components/SettingsView'), import('./components/ExportCard'), import('./components/ExploreView'),
-    import('./components/NotesView'), import('./components/NoteSheet'),
+    import('./components/NotesView'), import('./components/NoteSheet'), import('./components/EventCaptureSheet'),
   ])
 }
 
@@ -162,6 +163,10 @@ function Ledger({ household, meta, userId, email }: {
   // 고정지출 예정분(D-030)에 쓰는 반복 항목. 고정 탭에서 다른 탭으로 올 때마다 다시 읽어 고친 것이 바로 보인다
   const recurring = useRecurringList(household.id, tab === 'cal' || tab === 'list' || tab === 'stats')
   const [plan, setPlan] = useState<PlanTarget | null>(null)
+  // 캡처로 일정 넣기(D-039). 처음 열 때 불러오고, 닫히는 움직임을 위해 그 뒤로는 남겨 둔다
+  const [capture, setCapture] = useState({ open: false, mounted: false })
+  const openCapture = () => setCapture({ open: true, mounted: true })
+  const closeCapture = () => setCapture((c) => ({ ...c, open: false }))
   useLiveUpdates(household.id, reload, meta.reload, reloadEvents)
 
   // 자정이 지나 앱을 다시 열면 '오늘'을 갱신
@@ -326,7 +331,7 @@ function Ledger({ household, meta, userId, email }: {
         {tab === 'cal' && (
           <Screen name="달력">
             <CalendarView ym={ym} today={today} sel={sel} cur={curAll} prev={prevAll} loading={txLoading} lookup={lookup} annivs={meta.anniversaries} events={events}
-              onSelect={setSel} onPlan={setPlan} onJump={(d) => { setYm(d.slice(0, 7)); setSel(d) }} onEdit={editTx}
+              onSelect={setSel} onPlan={setPlan} onCapture={openCapture} onJump={(d) => { setYm(d.slice(0, 7)); setSel(d) }} onEdit={editTx}
               notes={<NotesCard rows={notes.rows} error={notes.error} onOpenAll={() => openAside('notes')}
                 onOpen={(note) => setNoteTarget({ note })} onNew={() => setNoteTarget({ note: null })} onRetry={() => void notes.reload()} />} />
           </Screen>
@@ -417,6 +422,21 @@ function Ledger({ household, meta, userId, email }: {
               lookup={lookup} categories={activeCats} existing={txs}
               onSaved={smartSaved} onClose={closeSmart}
               onManual={() => { closeSmart(); setSheet({ open: true, editing: null }) }} />
+          </Suspense>
+        </ErrorBoundary>
+      )}
+
+      {capture.mounted && (
+        <ErrorBoundary name="캡처로 일정 넣기">
+          <Suspense fallback={null}>
+            <EventCaptureSheet open={capture.open} today={today} householdId={household.id} onClose={closeCapture}
+              onManual={() => { closeCapture(); setPlan({ kind: 'new', date: sel.startsWith(ym) ? sel : today }) }}
+              onSaved={async (n, first) => {
+                // 넣은 일정이 보이게 가장 이른 날짜로 옮긴다(다른 달이면 그 달 일정을 새로 읽는다)
+                closeCapture(); setYm(first.slice(0, 7)); setSel(first)
+                await reloadEvents()
+                toast(`일정 ${n}건을 넣었어요`)
+              }} />
           </Suspense>
         </ErrorBoundary>
       )}

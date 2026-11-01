@@ -8,7 +8,7 @@
 import { existsSync, mkdirSync, readFileSync } from 'node:fs'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { chromium } from 'playwright'
-import { BILL, EXPLORE_BUNJANG, EXPLORE_DAANGN, EXPLORE_DAISO, EXPLORE_KURLY, EXPLORE_OHOU, EXPLORE_PRODUCT, EXPLORE_SEARCH, EXPLORE_WEATHER, EXPLORE_WEATHER_NOT_REGISTERED, fakeSession, FUEL_RECEIPT, LONG_RECEIPT, RECEIPT, TABLES, USER } from './shell-fixtures.mjs'
+import { BILL, EVENT_CAPTURE, EVENT_EXISTING, EXPLORE_BUNJANG, EXPLORE_DAANGN, EXPLORE_DAISO, EXPLORE_KURLY, EXPLORE_OHOU, EXPLORE_PRODUCT, EXPLORE_SEARCH, EXPLORE_WEATHER, EXPLORE_WEATHER_NOT_REGISTERED, fakeSession, FUEL_RECEIPT, LONG_RECEIPT, RECEIPT, TABLES, USER } from './shell-fixtures.mjs'
 
 const BASE = process.env.BASE_URL ?? 'http://localhost:5188' // vite.config.ts server.port와 같다
 const OUT = process.env.OUT_DIR ? pathToFileURL(`${process.env.OUT_DIR.replace(/\/$/, '')}/`) : new URL('../screenshots/', import.meta.url)
@@ -213,6 +213,11 @@ const shellShots = [
   // 관리비 고지서 확인 화면(D-019): 고정 탭에 관리비 항목이 없으면 '관리비' 항목을 만든다는 안내, 있으면 그 항목에 연결한다는 안내. 가짜 고지서 응답(BILL)
   ...each((w, c) => ({ name: `shell-bill-review-${w}-${c}`, path: '/', w, c, shell: true, tab: '내역', bill: true, noUtility: true })),
   ...both(390, (w, c) => ({ name: `shell-bill-review-linked-${w}-${c}`, path: '/', w, c, shell: true, tab: '내역', bill: true })),
+  // 캡처로 일정 넣기(D-039): 달력 고른 날 아래 버튼 두 개, 확인 화면(식당 예약·이미 있는 치과는 빼 둠·결혼식). 가짜 응답(EVENT_CAPTURE)
+  ...both(390, (w, c) => ({ name: `shell-cal-day-adds-${w}-${c}`, path: '/', w, c, shell: true, tab: '달력', center: '.day-adds' })),
+  ...each((w, c) => ({ name: `shell-event-capture-${w}-${c}`, path: '/', w, c, shell: true, tab: '달력', eventCapture: true })),
+  ...both(390, (w, c) => ({ name: `shell-event-capture-dup-${w}-${c}`, path: '/', w, c, shell: true, tab: '달력', eventCapture: true, scrollTo: '.ev-draft.off .draft-head' })),
+  ...both(390, (w, c) => ({ name: `shell-event-capture-foot-${w}-${c}`, path: '/', w, c, shell: true, tab: '달력', eventCapture: true, scrollTo: '.sheet .link-btn' })),
 ]
 
 const shots = [...groceryShots, ...shellShots]
@@ -235,6 +240,7 @@ async function fakeSupabase(context, s = {}) {
     if (url.pathname === '/functions/v1/extract-entries') {
       let body = null
       try { body = req.postDataJSON() } catch { /* JSON이 아니면 영수증 응답 */ }
+      if (body?.kind === 'event') return json(EVENT_CAPTURE)
       return json(body?.mode === 'bill' ? BILL : s.fuel ? FUEL_RECEIPT : s.longReceipt ? LONG_RECEIPT : RECEIPT)
     }
     if (url.pathname === '/functions/v1/explore-weather') return json(s.weatherNotRegistered ? EXPLORE_WEATHER_NOT_REGISTERED : EXPLORE_WEATHER)
@@ -262,6 +268,7 @@ async function fakeSupabase(context, s = {}) {
     // noUtility: 고정 탭에 관리비·공과금 항목이 없는 가구(고지서가 '관리비' 항목을 만드는 안내를 본다)
     if (s.noUtility && key === 'public.recurring') rows = rows.filter((r) => r.kind !== 'utility')
     if (s.noNotes && key === 'public.notes') rows = []
+    if (s.eventCapture && key === 'public.events') rows = EVENT_EXISTING
     // 같음 조건(id=eq.g5 등)은 적용한다: 한 건 조회(maybeSingle)는 행이 하나여야 하고, 상세는 그 품목·상품의 행만 봐야 한다
     if (Array.isArray(rows)) {
       for (const [k, v] of url.searchParams) {
@@ -487,6 +494,14 @@ try {
       await page.locator('#bill-date').waitFor()
       // 날짜 아래의 안내 문구(항목을 만든다/연결한다)까지 보이게 저장 버튼을 화면에 넣는다
       await page.getByRole('button', { name: '저장', exact: true }).scrollIntoViewIfNeeded()
+    }
+    if (s.eventCapture) {
+      await page.getByRole('button', { name: '캡처로 일정 넣기' }).click()
+      await page.locator('input[type=file]').setInputFiles({ name: 'cap.jpg', mimeType: 'image/jpeg', buffer: TINY_JPEG })
+      await page.getByRole('button', { name: '캡처 1장 읽기' }).click()
+      await page.getByRole('button', { name: /^일정 \d+건 넣기$/ }).waitFor()
+      if (s.scrollTo) await page.locator(s.scrollTo).first().evaluate((el) => el.scrollIntoView({ block: 'center' }))
+      else await page.locator('.ev-draft').first().evaluate((el) => el.closest('.sheet')?.scrollTo({ top: 0 }))
     }
     if (s.sheet !== undefined) {
         await page.getByRole('button', { name: '담기', exact: true }).locator('visible=true').first().click()

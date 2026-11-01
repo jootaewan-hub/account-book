@@ -369,3 +369,17 @@ export const EXPLORE_DAANGN = {
     { id: 'a5i8e4z16yng', name: '왕교자 만두 3봉 (유통기한 넉넉)', price: 12000, listPrice: null, discountRate: null, soldOut: false, url: 'https://www.daangn.com/kr/buy-sell/x-a5i8e4z16yng/', reviews: null, rating: null, tags: ['예약 중'], place: '여수동', postedAt: hoursAgo(30) },
   ],
 }
+
+// 캡처로 일정 넣기 응답(가짜, D-039): 식당 예약(메모가 긴 것), 이미 달력에 있는 치과(EVENT_EXISTING과 겹쳐 빠짐), 결혼식
+export const EVENT_CAPTURE = {
+  model: 'claude-haiku-5-5',
+  note: null,
+  events: [
+    { title: '을지로 정육식당 저녁 예약', date: `${ym}-24`, time: '18:30', notice: 'booking', warnings: [], images: [1],
+      memo: '18:30~20:30 · 4명 · 서울 중구 을지로 123 · 예약번호 A1234 · 02-123-4567 · 창가 자리, 예약금 1만 원' },
+    { title: '연세밝은치과 정기 검진', date: `${ym}-27`, time: '10:00', notice: 'booking', warnings: [], images: [1], memo: '스케일링 · 02-555-0101' },
+    { title: '지수 결혼식', date: `${ym}-28`, time: '12:30', notice: 'booking', warnings: [], images: [1], memo: '더채플앳청담 3층 · 서울 강남구 선릉로 757' },
+  ],
+}
+// 그 달에 이미 넣어 둔 일정(가구 칸 없이: 가짜 응답의 같음 조건을 그대로 통과한다)
+export const EVENT_EXISTING = [{ id: 'ev-dentist', date: `${ym}-27`, time: '10:00', title: '연세밝은치과', memo: null }]

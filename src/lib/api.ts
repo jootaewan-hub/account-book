@@ -93,6 +93,12 @@ export async function insertEvent(householdId: string, e: EventInput): Promise<v
   check(await sb().from('events').insert({ ...e, household_id: householdId }))
 }
 
+/** 일정 여러 건을 한 문장으로 넣는다(캡처로 넣기, D-039). 한 건이라도 검사에 걸리면 아무것도 들어가지 않는다 */
+export async function insertEvents(householdId: string, list: EventInput[]): Promise<void> {
+  if (!list.length) return
+  check(await sb().from('events').insert(list.map((e) => ({ ...e, household_id: householdId }))))
+}
+
 export async function updateEvent(id: string, e: EventInput): Promise<void> {
   check(await sb().from('events').update(e).eq('id', id))
 }

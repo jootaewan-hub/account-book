@@ -156,6 +156,9 @@ main.wrap { padding-block: 4px calc(150px + env(safe-area-inset-bottom, 0px)); }
 .ev-dot { position: absolute; top: -1px; left: -5px; width: 6px; height: 6px; border-radius: 50%; background: var(--sage); pointer-events: none; }
 .day-add { align-self: flex-start; border: 0; background: none; display: inline-flex; align-items: center; gap: 4px; padding: 8px 4px; margin-bottom: 2px; font-size: 14px; font-weight: 700; color: var(--sage-ink); }
 .day-add svg { width: 16px; height: 16px; }
+/* 고른 날의 넣기 버튼 줄: 일정·기념일 넣기, 캡처로 일정 넣기(D-039). 좁으면 두 줄로 */
+.day-adds { display: flex; flex-wrap: wrap; column-gap: 16px; margin-bottom: 2px; }
+.day-adds .day-add { min-height: 44px; margin-bottom: 0; }
 .sheet:where(:not(.grocery *)) .anniv-form { border-top: 0; padding-top: 0; }
 .anniv-row svg { width: 20px; height: 20px; flex: none; }
 .anniv-row b { font-size: 15px; font-weight: 700; color: var(--ink); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -362,6 +365,8 @@ select.input { padding: 9px 10px; }
 
 /* 문자·사진 입력 */
 .smart-text { min-height: 150px; resize: vertical; line-height: 1.5; font-size: 16px; }
+.ev-memo { min-height: 76px; resize: vertical; line-height: 1.5; }
+.ev-draft:not(.off) .draft-head b { color: var(--ink); }
 .smart-preview { display: block; max-width: 100%; max-height: 220px; margin: 0 auto; border-radius: var(--r-sm); object-fit: contain; }
 .smart-loading { display: flex; flex-direction: column; gap: 10px; align-items: center; padding: 20px 0 28px; text-align: center; }
 .smart-loading .lead { font-size: 16px; font-weight: 700; color: var(--ink); }

@@ -383,6 +383,8 @@ async function errorPayload(error: unknown): Promise<{ code?: string; message?: 
 export type AnalyzeBody =
   | { kind: 'text'; text: string; today: string }
   | { kind: 'image'; mode: 'receipt' | 'shop' | 'bill'; images: { media_type: 'image/jpeg'; data: string; width: number; height: number }[]; today: string }
+  // 일정·예약 캡처(D-039, eventCapture.ts)
+  | { kind: 'event'; images: { media_type: 'image/jpeg'; data: string; width: number; height: number }[]; today: string }
 
 export function analyze(body: AnalyzeBody): Promise<AnalyzeResult> {
   return invoke<AnalyzeResult>(body)
@@ -398,7 +400,8 @@ export function analyzeBill(images: { media_type: 'image/jpeg'; data: string; wi
   return invoke<BillResult>({ kind: 'image', mode: 'bill', images, today })
 }
 
-async function invoke<T>(body: AnalyzeBody): Promise<T> {
+/** extract-entries를 부른다. 로그인 토큰 문제면 한 번 새로 고쳐 다시 부르고, 서버가 준 오류 문장은 SmartError로 */
+export async function invoke<T>(body: AnalyzeBody): Promise<T> {
   for (let attempt = 0; ; attempt++) {
     const { data, error } = await sb().functions.invoke<T>('extract-entries', { body })
     if (!error && data) return data
