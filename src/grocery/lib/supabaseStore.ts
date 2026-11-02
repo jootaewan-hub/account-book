@@ -344,7 +344,7 @@ export function createSupabaseStore(client: SupabaseClient, me: Membership): Lis
       // 최근 1년. 가계부 public 표는 읽기만 한다(D-003). 가격 캡처를 못 읽어도 가계부 기록은 보인다(실패는 가계부 쪽만 던진다)
       const from = kstDay(new Date(Date.now() - 365 * 86_400_000).toISOString())
       const [txs, caps] = await Promise.all([
-        client.from('transactions').select('occurred_on, platform, title, merchant, source, transaction_items!inner(name, quantity, unit_price, amount, pack_size, pack_unit)')
+        client.from('transactions').select('occurred_on, platform, title, merchant, source, memo, transaction_items!inner(name, quantity, unit_price, amount, pack_size, pack_unit)')
           .eq('household_id', me.householdId).eq('type', 'expense').gte('occurred_on', from).order('occurred_on', { ascending: false }).limit(1000),
         g().from('captured_quotes').select('seller, price, qty, delivery, captured_on, products(name)')
           .eq('household_id', me.householdId).gte('captured_on', from).order('captured_at', { ascending: false }).limit(500),

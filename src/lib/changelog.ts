@@ -22,6 +22,12 @@ export const KIND_LABEL: Record<ReleaseKind, string> = { major: '큰 업데이�
 /** 최신이 맨 앞 */
 export const RELEASES: Release[] = [
   {
+    version: '2.19.1', date: '2026-11-02', kind: 'fix', title: '장보기 기록의 산 곳',
+    items: [
+      '장보기에서 "기록"으로 넣은 구매도 지난 기록에 산 곳(가게·쇼핑몰)과 함께 "장보기 기록"으로 보여요. 전에는 산 곳이 비어 보였어요.',
+    ],
+  },
+  {
     version: '2.19.0', date: '2026-11-02', kind: 'minor', title: '담을 때 지난 기록 비교',
     items: [
       '장보기에서 살 것을 적으면, 지난 1년 영수증·쇼핑 주문·가격 캡처에서 비슷한 상품을 찾아 이름·용량·값·날짜·어디서를 보여 줘요.',

@@ -113,15 +113,21 @@ describe('가계부 내역 → 지난 기록 (ledgerSeen)', () => {
       { occurred_on: '2026-10-14', platform: null, title: '이마트 분당점', source: 'photo', transaction_items: [item('서울우유 1L'), item('배송비'), item('봉투', 100), item('할인', 0)] },
       { occurred_on: '2026-10-20', platform: '쿠팡', title: '비비고 왕교자', source: 'photo', transaction_items: [item('비비고 왕교자 1.05kg')] },
       { occurred_on: '2026-10-21', platform: null, title: '깐대파 500g', merchant: '이마트 분당점', source: 'photo', transaction_items: [item('깐대파 500g')] },
-      { occurred_on: '2026-10-22', platform: null, title: '비비고 왕교자 1.05kg', source: 'manual', transaction_items: [item('비비고 왕교자 1.05kg')] },
+      // 장보기 '기록'(품목마다 금액)으로 넣은 매장 구매: 가게 이름은 메모에만 있다
+      { occurred_on: '2026-10-22', platform: null, title: '비비고 왕교자 1.05kg', memo: '산 곳: 이마트 분당점', source: 'manual', transaction_items: [item('비비고 왕교자 1.05kg')] },
+      { occurred_on: '2026-10-22', platform: '쿠팡', title: '우유 900ml', source: 'manual', transaction_items: [item('우유 900ml')] },
       { occurred_on: '2026-10-23', platform: null, title: '이마트24', source: 'text', transaction_items: null },
+      { occurred_on: '2026-10-24', platform: null, title: '동네 반찬가게', source: 'manual', transaction_items: [item('멸치볶음')] },
     ])
     expect(rows.map((r) => [r.source, r.where, r.name])).toEqual([
       ['receipt', '이마트 분당점', '서울우유 1L'],
       ['order', '쿠팡', '비비고 왕교자 1.05kg'],
       ['receipt', '이마트 분당점', '깐대파 500g'],
-      ['ledger', '', '비비고 왕교자 1.05kg'],
+      ['list', '이마트 분당점', '비비고 왕교자 1.05kg'],
+      ['list', '쿠팡', '우유 900ml'],
+      ['ledger', '동네 반찬가게', '멸치볶음'],
     ])
-    expect(seenWhen(rows[3])).toBe('10월 22일 가계부 기록')
+    expect(seenWhen(rows[3])).toBe('10월 22일 이마트 분당점 장보기 기록')
+    expect(seenWhen(rows[5])).toBe('10월 24일 동네 반찬가게 가계부 기록')
   })
 })

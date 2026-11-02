@@ -4,8 +4,8 @@
 import { parsePack } from './purchase'
 import { formatUnitPrice, perUnit } from '../../lib/units'
 
-/** receipt: 사진으로 넣은 매장 영수증, order: 사진으로 넣은 쇼핑 주문, capture: 가격 캡처, ledger: 그 밖의 가계부 기록(직접·문자·장보기 기록) */
-export type SeenSource = 'receipt' | 'order' | 'capture' | 'ledger'
+/** receipt: 사진으로 넣은 매장 영수증, order: 사진으로 넣은 쇼핑 주문, capture: 가격 캡처, list: 장보기 '기록'으로 넣은 구매, ledger: 그 밖의 가계부 기록(직접·문자) */
+export type SeenSource = 'receipt' | 'order' | 'capture' | 'list' | 'ledger'
 
 /** 지난 기록 한 줄. 숫자는 기록에 적힌 값만 */
 export type SeenRecord = {
@@ -124,7 +124,7 @@ export function seenFor(itemName: string, records: SeenRecord[], limit = 20): Se
   return matched.slice(0, limit)
 }
 
-const SOURCE_LABEL: Record<SeenSource, string> = { receipt: '영수증', order: '주문', capture: '캡처', ledger: '가계부 기록' }
+const SOURCE_LABEL: Record<SeenSource, string> = { receipt: '영수증', order: '주문', capture: '캡처', list: '장보기 기록', ledger: '가계부 기록' }
 
 /** '10월 14일 이마트 영수증' */
 export function seenWhen(r: Pick<SeenRecord, 'date' | 'where' | 'source'>): string {
@@ -151,20 +151,25 @@ export type LedgerTx = {
   title: string
   merchant?: string | null
   source?: string | null
+  /** 장보기 '기록'으로 넣은 매장 구매는 가게 이름이 메모의 '산 곳: …'에만 있다(purchase.ts buildEntries) */
+  memo?: string | null
   transaction_items?: { name: string; quantity: number; unit_price: number | null; amount: number; pack_size: number | null; pack_unit: string | null }[] | null
 }
 
 /**
- * 가계부 내역 → 지난 기록. 사진으로 넣은 것만 영수증(플랫폼 없음)·주문(플랫폼 있음)으로 부르고, 그 밖(직접·문자·장보기 기록)은 '가계부 기록'.
- * 어디서: 플랫폼 → 가게 이름 칸 → 내역 이름(상품명과 같으면 비움). 배송비·봉투 줄과 금액 없는 줄은 뺀다
+ * 가계부 내역 → 지난 기록. 사진으로 넣은 것은 영수증(플랫폼 없음)·주문(플랫폼 있음), 장보기 '기록'으로 넣은 것(직접 입력, 내역 이름 = 상품 줄 이름)은
+ * '장보기 기록', 그 밖(직접·문자)은 '가계부 기록'.
+ * 어디서: 플랫폼 → 가게 이름 칸 → 메모의 '산 곳: …' → 내역 이름(상품명과 같으면 비움). 배송비·봉투 줄과 금액 없는 줄은 뺀다
  */
 export function ledgerSeen(txs: LedgerTx[]): SeenRecord[] {
   const out: SeenRecord[] = []
   for (const t of txs) {
     for (const it of t.transaction_items ?? []) {
       if (!(it.amount > 0) || /^(배송비|봉투|종량제|쇼핑백|비닐)/.test(it.name.trim())) continue
-      const source: SeenSource = t.source === 'photo' ? (t.platform ? 'order' : 'receipt') : 'ledger'
-      const where = t.platform || t.merchant?.trim() || (t.title.trim() !== it.name.trim() ? t.title.trim() : '')
+      const sameTitle = t.title.trim() === it.name.trim()
+      const memoPlace = /^산 곳: (.+)$/m.exec(t.memo ?? '')?.[1].trim()
+      const source: SeenSource = t.source === 'photo' ? (t.platform ? 'order' : 'receipt') : t.source === 'manual' && sameTitle ? 'list' : 'ledger'
+      const where = t.platform || t.merchant?.trim() || memoPlace || (!sameTitle ? t.title.trim() : '')
       out.push({ source, date: t.occurred_on, where, name: it.name, quantity: Number(it.quantity) || 1, amount: it.amount, unitPrice: it.unit_price,
         packSize: it.pack_size === null ? null : Number(it.pack_size), packUnit: it.pack_unit })
     }
