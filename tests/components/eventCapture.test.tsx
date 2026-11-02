@@ -68,7 +68,7 @@ describe('캡처로 일정 넣기 시트', () => {
     fireEvent.change(screen.getByDisplayValue('치과 진료'), { target: { value: '치과 스케일링' } })
     fireEvent.click(screen.getByRole('button', { name: '일정 2건 넣기' }))
     await waitFor(() => expect(onSaved).toHaveBeenCalledWith(2, '2026-11-03'))
-    const none = { place: null, address: null, lat: null, lng: null }
+    const none = { place: null, address: null, lat: null, lng: null, scope: 'shared' }
     expect(state.inserted).toEqual([[
       { title: '을지로 정육식당 저녁 예약', date: '2026-11-15', time: '18:30', memo: '4명 · 예약번호 A1234', ...none },
       { title: '치과 스케일링', date: '2026-11-03', time: null, memo: null, ...none },
@@ -77,7 +77,7 @@ describe('캡처로 일정 넣기 시트', () => {
 
   it('이미 달력에 있는 일정은 빼 두고 까닭을 보인다. 체크를 켜면 넣을 수 있다', async () => {
     state.events = [checked({})]
-    state.existing = [{ id: 'e1', household_id: 'h', date: '2026-11-15', time: '18:30', title: '정육식당', memo: null, place: null, address: null, lat: null, lng: null }]
+    state.existing = [{ id: 'e1', household_id: 'h', date: '2026-11-15', time: '18:30', title: '정육식당', memo: null, place: null, address: null, lat: null, lng: null, scope: 'shared' }]
     await readCapture()
     expect(await screen.findByText('같은 날 "정육식당"(18:30) 일정이 이미 있어서 빼 두었어요.')).toBeTruthy()
     expect((screen.getByRole('button', { name: '넣을 일정을 고르세요' }) as HTMLButtonElement).disabled).toBe(true)
@@ -134,7 +134,7 @@ describe('달력의 캡처로 일정 넣기 버튼', () => {
 
   it('장소가 있는 일정은 장소 줄을 누르면 네이버 지도(좌표가 있으면 길찾기, 없으면 검색)를 새 탭으로 연다', () => {
     const ev = (p: Partial<import('../../src/lib/types').CalEvent>) => ({ id: 'e', household_id: 'h', date: '2026-11-11', time: '18:00', title: '라세느 예약', memo: null,
-      place: null, address: null, lat: null, lng: null, ...p })
+      place: null, address: null, lat: null, lng: null, scope: 'shared' as const, ...p })
     const onPlan = vi.fn()
     render(<CalendarView ym="2026-11" today="2026-11-02" sel="2026-11-11" cur={[]} prev={[]} lookup={makeLookup('u1', [], [], [])} annivs={[]}
       events={[ev({ id: 'a', place: '더그랜드롯데 서울 라세느', lat: 37.5653, lng: 126.981 }), ev({ id: 'b', title: '치과', time: '10:00', address: '서울 서초구 강남대로 1' }), ev({ id: 'c', title: '모임' })]}

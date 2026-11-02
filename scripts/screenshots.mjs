@@ -224,6 +224,9 @@ const shellShots = [
   ...both(390, (w, c) => ({ name: `shell-event-capture-dup-${w}-${c}`, path: '/', w, c, shell: true, tab: '달력', eventCapture: true, scrollTo: '.ev-draft.off .draft-head' })),
   // 일정 장소(D-041): 고른 날 일정 줄 아래 장소 줄(좌표 있음 → 길찾기, 주소만 → 지도), 일정 고치기 시트의 장소·주소 칸과 길찾기 링크
   ...each((w, c) => ({ name: `shell-cal-event-place-${w}-${c}`, path: '/', w, c, shell: true, tab: '달력', eventPlaces: true, center: '.anniv-list' })),
+  // 달력 칸의 일정·기념일 이름(두 줄까지, D-043·D-044)과 다가오는 일정·기념일(모두, 손가락 화면은 줄바꿈)
+  ...each((w, c) => ({ name: `shell-cal-grid-events-${w}-${c}`, path: '/', w, c, shell: true, tab: '달력', eventPlaces: true, center: '.cal-card' })),
+  ...both(390, (w, c) => ({ name: `shell-cal-soon-all-${w}-${c}`, path: '/', w, c, shell: true, tab: '달력', eventPlaces: true, center: '.anniv-soon' })),
   ...each((w, c) => ({ name: `shell-plan-event-place-${w}-${c}`, path: '/', w, c, shell: true, tab: '달력', eventPlaces: true, openEvent: '더그랜드롯데 서울 라세느 뷔페 예약' })),
   ...both(390, (w, c) => ({ name: `shell-event-capture-foot-${w}-${c}`, path: '/', w, c, shell: true, tab: '달력', eventCapture: true, scrollTo: '.sheet .link-btn' })),
 ]

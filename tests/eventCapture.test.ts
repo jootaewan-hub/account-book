@@ -118,7 +118,7 @@ describe('일정 정리 (checkEvents)', () => {
 })
 
 const ev = (p: Partial<CalEvent>): CalEvent => ({ id: 'e1', household_id: 'h', date: '2026-11-15', time: '18:30', title: '을지로 정육식당 예약', memo: null,
-  place: null, address: null, lat: null, lng: null, ...p })
+  place: null, address: null, lat: null, lng: null, scope: 'shared', ...p })
 
 describe('초안과 중복 (toEventDrafts)', () => {
   it('같은 날 비슷한 제목이면 같은 일정으로 본다', () => {
@@ -152,8 +152,8 @@ describe('초안과 중복 (toEventDrafts)', () => {
 
 describe('저장 전 검사 (eventInput)', () => {
   const d = (p: Partial<EventDraft>): EventDraft => ({ key: '0', include: true, title: '치과 진료', date: '2026-11-20', time: '10:00', memo: '',
-    place: '', address: '', lat: null, lng: null, warnings: [], ...p })
-  const none = { place: null, address: null, lat: null, lng: null }
+    place: '', address: '', lat: null, lng: null, scope: 'shared', warnings: [], ...p })
+  const none = { place: null, address: null, lat: null, lng: null, scope: 'shared' }
 
   it('표에 넣을 값으로 바꾼다: 제목 공백 정리, 빈 메모·장소는 null', () => {
     expect(eventInput(d({ title: '  치과   진료 ', memo: '  ' }))).toEqual({ title: '치과 진료', date: '2026-11-20', time: '10:00', memo: null, ...none })

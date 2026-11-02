@@ -4,6 +4,7 @@ import { formatDateLong } from '../lib/dates'
 import { annivCategories, annivInput, newAnnivInput } from '../lib/anniversaries'
 import type { Anniversary, CalEvent, EventInput } from '../lib/types'
 import { annivFromDate, AnniversaryForm } from './AnniversaryForm'
+import { EventScopeSeg } from './EventScope'
 import { PlaceFields } from './PlaceFields'
 import { Sheet } from './Sheet'
 
@@ -47,7 +48,7 @@ export function PlanSheet({ target, householdId, today, annivs, onEventsChanged,
       )}
       {target && mode === 'event' && target.kind !== 'anniv' && (
         <EventForm key={target.kind === 'event' ? target.event.id : `new-${target.date}`}
-          initial={target.kind === 'event' ? target.event : { date: target.date, time: null, title: '', memo: null, place: null, address: null, lat: null, lng: null }}
+          initial={target.kind === 'event' ? target.event : { date: target.date, time: null, title: '', memo: null, place: null, address: null, lat: null, lng: null, scope: 'shared' }}
           editing={target.kind === 'event'}
           onCancel={onClose}
           onSave={(v) => run(() => (target.kind === 'event' ? updateEvent(target.event.id, v) : insertEvent(householdId, v)),
@@ -76,7 +77,7 @@ function EventForm({ initial, editing, onSave, onCancel, onDelete }: {
   onDelete?: () => Promise<void>
 }) {
   const [v, setV] = useState<EventInput>({ date: initial.date, time: initial.time, title: initial.title, memo: initial.memo,
-    place: initial.place ?? null, address: initial.address ?? null, lat: initial.lat ?? null, lng: initial.lng ?? null })
+    place: initial.place ?? null, address: initial.address ?? null, lat: initial.lat ?? null, lng: initial.lng ?? null, scope: initial.scope ?? 'shared' })
   const [busy, setBusy] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
 
@@ -102,6 +103,7 @@ function EventForm({ initial, editing, onSave, onCancel, onDelete }: {
         <input id="ev-title" className="input" placeholder="예: 치과 예약, 친구 결혼식" maxLength={40}
           value={v.title} onChange={(e) => setV({ ...v, title: e.target.value })} />
       </div>
+      <EventScopeSeg value={v.scope} onChange={(scope) => setV({ ...v, scope })} />
       <div className="row2">
         <div className="field">
           <label htmlFor="ev-date">날짜</label>

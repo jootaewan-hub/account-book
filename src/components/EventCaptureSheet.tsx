@@ -5,6 +5,7 @@ import { analyzeEvents, EVENT_PHOTOS_MAX, eventDateRange, eventInput, toEventDra
 import { fileToJpeg, type PreparedImage } from '../lib/image'
 import { modelLabel, SmartError } from '../lib/smart'
 import type { EventInput } from '../lib/types'
+import { EventScopeSeg } from './EventScope'
 import { PlaceFields } from './PlaceFields'
 import { Sheet } from './Sheet'
 
@@ -189,6 +190,7 @@ function EventDraftCard({ d, onChange }: { d: EventDraft; onChange: (p: Partial<
         <label htmlFor={id('title')}>무엇을</label>
         <input id={id('title')} className="input" maxLength={40} value={d.title} onChange={(e) => onChange({ title: e.target.value })} />
       </div>
+      <EventScopeSeg value={d.scope} onChange={(scope) => onChange({ scope })} />
       <div className="row2">
         <div className="field">
           <label htmlFor={id('date')}>날짜</label>

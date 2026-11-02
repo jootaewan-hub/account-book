@@ -545,6 +545,14 @@ describe('일정 (20261015150000_events)', () => {
     expect(await as(A, `select address, lat from public.events where title = '라세느 예약'`)).toEqual([{ address: '서울 중구 을지로 30', lat: null }])
     expect(await as(C, `select * from public.events where title = '라세느 예약'`)).toHaveLength(0)
   })
+
+  it('누구 일정(20261113000000_event_scope): 기본은 함께, 남편·아내로 바꿀 수 있고 다른 값은 막는다', async () => {
+    await as(A, `insert into public.events (household_id, date, title) values ($1, '2026-11-20', '회식')`, [hhA])
+    expect(await as(A, `select scope from public.events where title = '회식'`)).toEqual([{ scope: 'shared' }])
+    await as(B, `update public.events set scope = 'husband' where title = '회식'`)
+    expect(await as(A, `select scope from public.events where title = '회식'`)).toEqual([{ scope: 'husband' }])
+    expect(await errorOf(as(A, `update public.events set scope = 'friend' where title = '회식'`))).toContain('check')
+  })
 })
 
 describe('새 가입 막기 (20261015170000_close_signups)', () => {

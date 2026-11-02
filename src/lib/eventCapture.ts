@@ -2,7 +2,7 @@
 // 읽은 일정을 고칠 수 있는 초안으로 만들어 이미 있는 일정과 견준 뒤, 저장하기 전에 표 검사와 같은 기준으로 확인한다.
 import { checkTime, EVENT_ADDRESS_MAX, EVENT_MEMO_MAX, EVENT_PLACE_MAX, EVENT_TITLE_MAX, validDate, type CheckedEvent } from '../../supabase/functions/extract-entries/eventCheck'
 import { invoke, SmartError } from './smart'
-import type { CalEvent, EventInput } from './types'
+import type { CalEvent, EventInput, Scope } from './types'
 
 export type { CheckedEvent }
 
@@ -38,6 +38,8 @@ export interface EventDraft {
   address: string
   lat: number | null
   lng: number | null
+  /** 누구 일정(D-044). 캡처에서는 알 수 없어 함께로 두고 사람이 고른다 */
+  scope: Scope
   warnings: string[]
 }
 
@@ -71,7 +73,7 @@ export function toEventDrafts(events: CheckedEvent[], existing: CalEvent[]): Eve
     // 좌표는 둘 다 있을 때만(이 기능 전 서버의 응답에는 장소 칸이 없다)
     const coords = typeof e.lat === 'number' && typeof e.lng === 'number' ? { lat: e.lat, lng: e.lng } : { lat: null, lng: null }
     out.push({ key: String(i), include: e.notice !== 'cancel' && !dup && !again, title: e.title, date: d.date, time: e.time, memo: e.memo ?? '',
-      place: e.place ?? '', address: e.address ?? '', ...coords, warnings })
+      place: e.place ?? '', address: e.address ?? '', ...coords, scope: 'shared', warnings })
   })
   return out
 }
@@ -98,5 +100,5 @@ export function eventInput(d: EventDraft): EventInput | string {
   if (place.length > EVENT_PLACE_MAX) return `장소는 ${EVENT_PLACE_MAX}자까지예요.`
   if (address.length > EVENT_ADDRESS_MAX) return `주소는 ${EVENT_ADDRESS_MAX}자까지예요.`
   const coords = d.lat !== null && d.lng !== null ? { lat: d.lat, lng: d.lng } : { lat: null, lng: null }
-  return { title, date: d.date, time, memo: memo || null, place: place || null, address: address || null, ...coords }
+  return { title, date: d.date, time, memo: memo || null, place: place || null, address: address || null, ...coords, scope: d.scope }
 }

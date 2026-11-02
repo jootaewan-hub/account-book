@@ -385,12 +385,12 @@ export const EVENT_CAPTURE = {
   ],
 }
 // 그 달에 이미 넣어 둔 일정(가구 칸 없이: 가짜 응답의 같음 조건을 그대로 통과한다)
-export const EVENT_EXISTING = [{ id: 'ev-dentist', date: `${ym}-27`, time: '10:00', title: '연세밝은치과', memo: null, place: null, address: null, lat: null, lng: null }]
+export const EVENT_EXISTING = [{ id: 'ev-dentist', date: `${ym}-27`, time: '10:00', title: '연세밝은치과', memo: null, place: null, address: null, lat: null, lng: null, scope: 'shared' }]
 // 오늘 일정(D-041): 좌표가 있는 장소(길찾기), 주소만 있는 장소(지도 검색), 장소 없는 일정
 const today = kst.toISOString().slice(0, 10)
 export const EVENT_PLACES = [
-  { id: 'ev-dental', date: today, time: '10:00', title: '치과 진료', memo: null, place: null, address: '서울 서초구 강남대로 1', lat: null, lng: null },
+  { id: 'ev-dental', date: today, time: '10:00', title: '치과 진료', memo: null, place: null, address: '서울 서초구 강남대로 1', lat: null, lng: null, scope: 'wife' },
   { id: 'ev-buffet', date: today, time: '18:00', title: '더그랜드롯데 서울 라세느 뷔페 예약', memo: '2명 · 일주년 기념',
-    place: '더그랜드롯데 서울 라세느', address: '서울 중구 을지로 30 본관 1층', lat: 37.5653, lng: 126.981 },
-  { id: 'ev-meet', date: today, time: null, title: '동네 모임', memo: null, place: null, address: null, lat: null, lng: null },
+    place: '더그랜드롯데 서울 라세느', address: '서울 중구 을지로 30 본관 1층', lat: 37.5653, lng: 126.981, scope: 'shared' },
+  { id: 'ev-meet', date: today, time: null, title: '동네 모임', memo: null, place: null, address: null, lat: null, lng: null, scope: 'husband' },
 ]

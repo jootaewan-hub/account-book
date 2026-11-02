@@ -210,6 +210,8 @@ export interface CalEvent {
   /** 장소 좌표(WGS84, 카카오 로컬로 찾은 값). 있으면 네이버 지도 길찾기를 바로 연다 */
   lat: number | null
   lng: number | null
+  /** 누구 일정인지(D-044): 함께·남편·아내. 이 칸 전의 일정은 함께 */
+  scope: Scope
 }
 
-export type EventInput = Pick<CalEvent, 'date' | 'time' | 'title' | 'memo' | 'place' | 'address' | 'lat' | 'lng'>
+export type EventInput = Pick<CalEvent, 'date' | 'time' | 'title' | 'memo' | 'place' | 'address' | 'lat' | 'lng' | 'scope'>

@@ -165,8 +165,12 @@ main.wrap { padding-block: 4px calc(150px + env(safe-area-inset-bottom, 0px)); }
 .route-link svg { width: 16px; height: 16px; flex: none; }
 .route-links .tx-meta { flex-basis: 100%; margin-top: -8px; }
 /* 달력 칸의 기념일·일정 이름: 칸 너비에 맞춰 한 줄로 자르고(…), 기념일은 블러시, 일정은 세이지, 추모는 귀리 */
-.day .cal-lbl { align-self: stretch; margin: 0 2px; padding: 0 2px; border-radius: 3px; font-size: 10.5px; font-weight: 600; line-height: 1.35; text-align: center;
-  overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.day .cal-lbl { align-self: stretch; margin: 0 2px; padding: 0 2px; border-radius: 3px; font-size: 10.5px; font-weight: 600; line-height: 1.3; text-align: center;
+  /* 두 줄까지(칸 너비 약 50px에서 8~10자). 낱말 단위로 줄을 바꾸고, 칸보다 긴 낱말만 글자 단위로 */
+  overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; word-break: keep-all; overflow-wrap: anywhere; }
+/* 누구 일정(D-044): 남편·아내 일정은 왼쪽 띠(내역의 누구 색), 함께는 띠 없음 */
+.day .cal-lbl.ev.s-husband { box-shadow: inset 3px 0 0 var(--who-husband); }
+.day .cal-lbl.ev.s-wife { box-shadow: inset 3px 0 0 var(--who-wife); }
 .day .cal-lbl.an { background: var(--blush-soft); color: var(--rose-ink); }
 .day .cal-lbl.an.k-memorial { background: var(--oat-deep); color: var(--ink-2); }
 .day .cal-lbl.ev { background: var(--sage-soft); color: var(--sage-ink); }
@@ -180,6 +184,9 @@ main.wrap { padding-block: 4px calc(150px + env(safe-area-inset-bottom, 0px)); }
 .anniv-row svg { width: 20px; height: 20px; flex: none; }
 .anniv-row b { font-size: 15px; font-weight: 700; color: var(--ink); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .anniv-row span { margin-left: auto; color: var(--ink-2); flex: none; }
+/* 누구 일정 태그(D-044)는 이름 바로 뒤에, 시간만 오른쪽 끝 */
+.anniv-row span.tag:where(:not(.grocery *)) { margin-left: 0; }
+.anniv-chip .tag:where(:not(.grocery *)) { flex: none; }
 .anniv-row.k-memorial, .anniv-chip.k-memorial { background: var(--oat); color: var(--ink-2); }
 .anniv-soon { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; padding: 2px 0; }
 .anniv-soon::-webkit-scrollbar { display: none; }

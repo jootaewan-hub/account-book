@@ -10,6 +10,7 @@ import type { Anniversary, CalEvent, Transaction } from '../lib/types'
 import { AnnivIcon, CalendarIcon, CameraIcon, MapPinIcon, Plus } from './Icons'
 import { Bar, RowsWait, useAppear } from './Loading'
 import type { PlanTarget } from './PlanSheet'
+import { EventScopeTag, eventScopeLabel } from './EventScope'
 import { Soft, useSlideIn } from './Motion'
 import { TxRow } from './TxRow'
 
@@ -80,9 +81,9 @@ export function CalendarView({ ym, today, sel, cur, prev, loading = false, looku
   const dayEvents = evByDate.get(sel) ?? []
   // 이번 달을 볼 때만, 30일 안에 오는 기념일·일정 네 개까지 (가까운 순서)
   const soon = ym !== thisMonth ? [] : [
-    ...upcomingAnniversaries(annivs, today).map((u) => ({ key: u.a.id, kind: u.a.kind as string, name: u.a.name, date: u.date, days: u.days })),
-    ...events.filter((e) => e.date >= today).map((e) => ({ key: e.id, kind: 'event', name: e.title, date: e.date, days: daysBetween(today, e.date) })),
-  ].filter((x) => x.days <= 30).sort((a, b) => a.days - b.days || a.name.localeCompare(b.name)).slice(0, 4)
+    ...upcomingAnniversaries(annivs, today).map((u) => ({ key: u.a.id, kind: u.a.kind as string, name: u.a.name, date: u.date, days: u.days, scope: 'shared' as const })),
+    ...events.filter((e) => e.date >= today).map((e) => ({ key: e.id, kind: 'event', name: e.title, date: e.date, days: daysBetween(today, e.date), scope: e.scope ?? 'shared' })),
+  ].filter((x) => x.days <= 30).sort((a, b) => a.days - b.days || a.name.localeCompare(b.name))
   const de = sumType(dayTx.filter((t) => !t.planned), 'expense')
   const di = sumType(dayTx, 'income')
   const dp = sumType(dayTx.filter((t) => t.planned), 'expense')
@@ -146,10 +147,10 @@ export function CalendarView({ ym, today, sel, cur, prev, loading = false, looku
               const pl = planByDate.get(date)?.expense
               const labels = [
                 ...(an ?? []).map((a) => ({ key: `a-${a.id}`, name: a.name, cls: `an k-${a.kind}` })),
-                ...(ev ?? []).map((e) => ({ key: `e-${e.id}`, name: e.title, cls: 'ev' })),
+                ...(ev ?? []).map((e) => ({ key: `e-${e.id}`, name: e.title, cls: `ev s-${e.scope ?? 'shared'}` })),
               ]
               const cls = ['day', dw === 0 && 'sun', dw === 6 && 'sat', hol && 'hol', an && 'anniv', date === today && 'today', date === sel && 'sel'].filter(Boolean).join(' ')
-              const label = `${m}월 ${dayOf(date)}일${hol ? ` ${hol}` : ''}${an ? ` ${an.map((a) => a.name).join(', ')}` : ''}${ev ? ` 일정 ${ev.map((e) => e.title).join(', ')}` : ''}${t?.expense ? ` 지출 ${won(t.expense)}원` : ''}${t?.income ? ` 수입 ${won(t.income)}원` : ''}${pl ? ` 고정지출 예정 ${won(pl)}원` : ''}`
+              const label = `${m}월 ${dayOf(date)}일${hol ? ` ${hol}` : ''}${an ? ` ${an.map((a) => a.name).join(', ')}` : ''}${ev ? ` 일정 ${ev.map((e) => (e.scope && e.scope !== 'shared' ? `${e.title}(${eventScopeLabel(e.scope)})` : e.title)).join(', ')}` : ''}${t?.expense ? ` 지출 ${won(t.expense)}원` : ''}${t?.income ? ` 수입 ${won(t.income)}원` : ''}${pl ? ` 고정지출 예정 ${won(pl)}원` : ''}`
               return (
                 <button key={date} className={cls} aria-label={label} aria-pressed={date === sel} onClick={() => onSelect(date)}>
                   <span className="n num">{dayOf(date)}{an && <span className={`anniv-mark k-${an[0].kind}`}><AnnivIcon kind={an[0].kind} /></span>}</span>
@@ -166,9 +167,9 @@ export function CalendarView({ ym, today, sel, cur, prev, loading = false, looku
         </div>
 
         {soon.length > 0 && (
-          <SoonRow label="다가오는 기념일" items={soon.map((u) => (tab: number | undefined) => (
+          <SoonRow label="다가오는 일정·기념일" items={soon.map((u) => (tab: number | undefined) => (
             <button key={u.key} className={`anniv-chip k-${u.kind}`} tabIndex={tab} onClick={() => onJump(u.date)}>
-              {u.kind === 'event' ? <CalendarIcon /> : <AnnivIcon kind={u.kind as Anniversary['kind']} />}<span>{u.name}</span><b className="num">{dLabel(u.days)}</b>
+              {u.kind === 'event' ? <CalendarIcon /> : <AnnivIcon kind={u.kind as Anniversary['kind']} />}<span>{u.name}</span><EventScopeTag scope={u.scope} /><b className="num">{dLabel(u.days)}</b>
             </button>
           ))} />
         )}
@@ -198,7 +199,7 @@ export function CalendarView({ ym, today, sel, cur, prev, loading = false, looku
               {dayEvents.map((e) => {
                 const row = (
                   <button key={e.id} className="anniv-row k-event" onClick={() => onPlan({ kind: 'event', event: e })}>
-                    <CalendarIcon /><b>{e.title}</b><span className="num">{e.time ?? '하루 종일'}</span>
+                    <CalendarIcon /><b>{e.title}</b><EventScopeTag scope={e.scope ?? 'shared'} /><span className="num">{e.time ?? '하루 종일'}</span>
                   </button>
                 )
                 if (!hasPlace(e)) return row
@@ -231,7 +232,7 @@ export function CalendarView({ ym, today, sel, cur, prev, loading = false, looku
 }
 
 /**
- * 다가오는 기념일 줄(D-033). 칩이 줄을 넘치면 마우스로 쓰는 화면(PC)에서는 옆으로 천천히 흘러 다 보이게 한다:
+ * 다가오는 일정·기념일 줄(D-033, D-044: 30일 안의 것은 모두). 칩이 줄을 넘치면 마우스로 쓰는 화면(PC)에서는 옆으로 천천히 흘러 다 보이게 하고, 손가락 화면은 줄을 바꾼다:
  * 같은 칩을 한 번 더 이어 붙여(읽기·탭 이동에서 뺀다) 끊김 없이 돌고, 마우스를 올리거나 포커스가 가면 멈춘다.
  * 움직임 줄이기를 켰으면 흐르지 않고 줄을 바꿔 다 보인다. 손가락으로 쓰는 화면은 지금처럼 밀어서 본다
  */
@@ -250,7 +251,8 @@ function SoonRow({ label, items }: { label: string; items: ((tab: number | undef
       const chips = [...one.children]
       const width = chips.reduce((sum, c) => sum + c.getBoundingClientRect().width, 0) + 6 * Math.max(0, chips.length - 1)
       const over = width > el.clientWidth + 1
-      setMode({ kind: !over || !fine.matches ? 'still' : calm.matches ? 'wrap' : 'flow', width })
+      // 넘치지 않으면 그대로, 손가락 화면·움직임 줄이기는 줄을 바꿔 모두 보이고, 마우스 화면은 흐른다(D-033, D-044)
+      setMode({ kind: !over ? 'still' : !fine.matches || calm.matches ? 'wrap' : 'flow', width })
     }
     check()
     const ro = new ResizeObserver(check)
