@@ -122,13 +122,41 @@ describe('캡처로 일정 넣기 시트', () => {
   })
 })
 
+describe('문자 붙여넣기(D-046)', () => {
+  async function readText(value: string) {
+    const onSaved = vi.fn(async () => {})
+    render(<EventCaptureSheet open today="2026-11-02" householdId="h" onSaved={onSaved} onManual={() => {}} onClose={() => {}} />)
+    fireEvent.click(screen.getByRole('button', { name: '문자 붙여넣기' }))
+    fireEvent.change(screen.getByLabelText('붙여넣을 문자'), { target: { value } })
+    fireEvent.click(screen.getByRole('button', { name: '읽고 일정 넣기' }))
+    return { onSaved }
+  }
+
+  it('확인할 것이 없으면 확인 화면 없이 바로 넣는다', async () => {
+    state.events = [checked({ title: '추계 심포지엄', date: '2026-11-21', time: '09:00', memo: '09:00~17:00 · 사전등록, 평점 6점', place: '코엑스 401호', address: null })]
+    const { onSaved } = await readText('[○○학회] 추계 심포지엄 11/21(토) 09:00 코엑스 401호')
+    await waitFor(() => expect(onSaved).toHaveBeenCalledWith(1, '2026-11-21'))
+    expect(state.inserted[0][0]).toMatchObject({ title: '추계 심포지엄', date: '2026-11-21', time: '09:00', place: '코엑스 401호', scope: 'shared' })
+    expect(screen.queryByRole('button', { name: /일정 \d+건 넣기/ })).toBeNull()
+  })
+
+  it('확인 문장(지난 날짜 등)이나 같은 일정이 있으면 바로 넣지 않고 확인 화면', async () => {
+    state.events = [checked({ title: '호텔 체크인', date: '2026-10-30', warnings: ['지난 날짜예요(2026년 10월 30일). 맞는지 확인해 주세요.'] })]
+    const { onSaved } = await readText('○○호텔 예약 확정 10/30 체크인 15:00')
+    expect(await screen.findByText(/확인할 것이 있어 바로 넣지 않았어요/)).toBeTruthy()
+    expect(screen.getByText('지난 날짜예요(2026년 10월 30일). 맞는지 확인해 주세요.')).toBeTruthy()
+    expect(onSaved).not.toHaveBeenCalled()
+    expect(state.inserted).toEqual([])
+  })
+})
+
 describe('달력의 캡처로 일정 넣기 버튼', () => {
   it('고른 날 아래 일정·기념일 넣기 옆에 있고, 누르면 시트를 연다', () => {
     const onCapture = vi.fn()
     render(<CalendarView ym="2026-11" today="2026-11-02" sel="2026-11-02" cur={[]} prev={[]} lookup={makeLookup('u1', [], [], [])}
       annivs={[]} events={[]} onSelect={() => {}} onPlan={() => {}} onCapture={onCapture} onJump={() => {}} onEdit={() => {}} />)
     expect(screen.getByRole('button', { name: '일정·기념일 넣기' })).toBeTruthy()
-    fireEvent.click(screen.getByRole('button', { name: '캡처로 일정 넣기' }))
+    fireEvent.click(screen.getByRole('button', { name: '캡처·문자로 일정 넣기' }))
     expect(onCapture).toHaveBeenCalledOnce()
   })
 

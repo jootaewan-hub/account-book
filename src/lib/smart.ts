@@ -383,8 +383,9 @@ async function errorPayload(error: unknown): Promise<{ code?: string; message?: 
 export type AnalyzeBody =
   | { kind: 'text'; text: string; today: string }
   | { kind: 'image'; mode: 'receipt' | 'shop' | 'bill'; images: { media_type: 'image/jpeg'; data: string; width: number; height: number }[]; today: string }
-  // 일정·예약 캡처(D-039, eventCapture.ts)
+  // 일정·예약 캡처(D-039)와 붙여넣은 문자(D-046), eventCapture.ts
   | { kind: 'event'; images: { media_type: 'image/jpeg'; data: string; width: number; height: number }[]; today: string }
+  | { kind: 'event'; text: string; today: string }
 
 export function analyze(body: AnalyzeBody): Promise<AnalyzeResult> {
   return invoke<AnalyzeResult>(body)

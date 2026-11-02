@@ -18,7 +18,15 @@ export interface EventCaptureResult {
 }
 
 export async function analyzeEvents(images: Img[], today: string): Promise<EventCaptureResult> {
-  const res = await invoke<Partial<EventCaptureResult>>({ kind: 'event', images, today })
+  return checkResult(await invoke<Partial<EventCaptureResult>>({ kind: 'event', images, today }))
+}
+
+/** 문자로 온 일정 안내(학회·심포지엄·숙박 예약 등)를 붙여넣은 글에서 읽는다(D-046) */
+export async function analyzeEventText(text: string, today: string): Promise<EventCaptureResult> {
+  return checkResult(await invoke<Partial<EventCaptureResult>>({ kind: 'event', text, today }))
+}
+
+function checkResult(res: Partial<EventCaptureResult>): EventCaptureResult {
   // 모양이 다른 응답(영수증 결과 등)을 '일정 없음'으로 보이지 않게 한다
   if (!Array.isArray(res.events)) throw new SmartError('bad_response', '서버가 일정을 돌려주지 않았어요. 잠시 후 다시 해 주세요.')
   return { events: res.events, note: res.note ?? null, model: res.model ?? '' }
@@ -82,6 +90,14 @@ export function toEventDrafts(events: CheckedEvent[], existing: CalEvent[]): Eve
 export function eventDateRange(events: Pick<CheckedEvent, 'date'>[]): { from: string; to: string } | null {
   const dates = events.map((e) => e.date).filter((d): d is string => Boolean(d)).sort()
   return dates.length ? { from: dates[0], to: dates[dates.length - 1] } : null
+}
+
+/**
+ * 붙여넣은 문자를 확인 없이 바로 넣어도 되는지(D-046): 읽은 일정이 모두 넣기로 남아 있고(같은 일정·취소 안내 없음),
+ * 확인 문장이 하나도 없으며(날짜 못 읽음·지난 날짜·요일 안 맞음·변경 안내 없음), 표 검사도 통과할 때만
+ */
+export function canAutoSave(drafts: EventDraft[]): boolean {
+  return drafts.length > 0 && drafts.every((d) => d.include && d.warnings.length === 0 && typeof eventInput(d) !== 'string')
 }
 
 /** 저장할 값. 표 검사(제목 1~40자, 메모 200자, 있는 날짜, HH:MM)에 걸릴 것은 문장으로 돌려준다 */

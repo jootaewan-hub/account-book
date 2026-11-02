@@ -427,7 +427,7 @@ function Ledger({ household, meta, userId, email }: {
       )}
 
       {capture.mounted && (
-        <ErrorBoundary name="캡처로 일정 넣기">
+        <ErrorBoundary name="캡처·문자로 일정 넣기">
           <Suspense fallback={null}>
             <EventCaptureSheet open={capture.open} today={today} householdId={household.id} onClose={closeCapture}
               onManual={() => { closeCapture(); setPlan({ kind: 'new', date: sel.startsWith(ym) ? sel : today }) }}

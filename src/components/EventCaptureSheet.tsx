@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { fetchEvents, friendlyError, insertEvents } from '../lib/api'
 import { formatDateLong } from '../lib/dates'
-import { analyzeEvents, EVENT_PHOTOS_MAX, eventDateRange, eventInput, toEventDrafts, type EventDraft } from '../lib/eventCapture'
+import { analyzeEvents, analyzeEventText, canAutoSave, EVENT_PHOTOS_MAX, eventDateRange, eventInput, toEventDrafts, type EventDraft } from '../lib/eventCapture'
 import { fileToJpeg, type PreparedImage } from '../lib/image'
 import { modelLabel, SmartError } from '../lib/smart'
 import type { EventInput } from '../lib/types'
@@ -21,10 +21,19 @@ interface Props {
 }
 
 type Stage = 'input' | 'loading' | 'review'
+/** 읽을 것: 캡처 사진 또는 붙여넣은 문자(D-046) */
+type Src = 'photo' | 'text'
 
-/** 일정·예약 캡처를 읽어 달력 일정으로 넣는 시트(D-039). 읽은 값은 넣기 전에 모두 고칠 수 있다 */
+const TEXT_SAMPLE = '[○○학회] 2026 추계 심포지엄 안내\n일시: 11월 21일(토) 09:00~17:00\n장소: 코엑스 컨퍼런스룸 401호\n사전등록 필수, 평점 6점'
+
+/**
+ * 일정·예약 캡처나 문자를 읽어 달력 일정으로 넣는 시트(D-039, D-046). 캡처는 넣기 전에 확인하고,
+ * 문자는 확인할 것이 없으면 바로 넣는다(확인 문장·같은 일정이 있으면 확인 화면).
+ */
 export function EventCaptureSheet({ open, today, householdId, onSaved, onManual, onClose }: Props) {
   const [stage, setStage] = useState<Stage>('input')
+  const [src, setSrc] = useState<Src>('photo')
+  const [text, setText] = useState('')
   const [images, setImages] = useState<PreparedImage[]>([])
   const [drafts, setDrafts] = useState<EventDraft[]>([])
   const [note, setNote] = useState<string | null>(null)
@@ -41,7 +50,7 @@ export function EventCaptureSheet({ open, today, householdId, onSaved, onManual,
   useEffect(() => {
     if (!open) return
     reqRef.current++
-    setStage('input'); setDrafts([]); setNote(null); setModel(null); setErr(''); setBusy(false); setPreparing(false)
+    setStage('input'); setDrafts([]); setNote(null); setModel(null); setErr(''); setBusy(false); setPreparing(false); setText('')
     setImages((prev) => { prev.forEach((i) => URL.revokeObjectURL(i.preview)); return [] })
   }, [open])
 
@@ -71,19 +80,41 @@ export function EventCaptureSheet({ open, today, householdId, onSaved, onManual,
     setErr('')
   }
 
+  async function pasteFromClipboard() {
+    try {
+      const t = await navigator.clipboard.readText()
+      if (t.trim()) { setText(t); setErr('') } else setErr('클립보드가 비어 있어요.')
+    } catch {
+      setErr('아래 칸을 길게 눌러 붙여넣어 주세요.')
+    }
+  }
+
   async function read() {
-    if (!images.length) return
+    if (src === 'photo' ? !images.length : !text.trim()) return
     const id = ++reqRef.current
     setStage('loading'); setErr('')
     try {
-      const res = await analyzeEvents(images.map(({ media_type, data, width, height }) => ({ media_type, data, width, height })), today)
+      const res = src === 'text'
+        ? await analyzeEventText(text, today)
+        : await analyzeEvents(images.map(({ media_type, data, width, height }) => ({ media_type, data, width, height })), today)
       if (id !== reqRef.current) return
-      if (!res.events.length) { setErr(res.note || '캡처에서 일정을 찾지 못했어요.'); setStage('input'); return }
+      if (!res.events.length) { setErr(res.note || (src === 'text' ? '문자에서 일정을 찾지 못했어요.' : '캡처에서 일정을 찾지 못했어요.')); setStage('input'); return }
       // 이미 달력에 있는 일정과 견준다. 못 읽어도 넣기는 그대로 된다
       const range = eventDateRange(res.events)
       const existing = range ? await fetchEvents(householdId, range.from, range.to).catch(() => []) : []
       if (id !== reqRef.current) return
-      setDrafts(toEventDrafts(res.events, existing)); setNote(res.note); setModel(modelLabel(res.model)); setRound(id); setStage('review')
+      const ds = toEventDrafts(res.events, existing)
+      // 문자는 확인할 것이 없으면 바로 넣는다(넣은 일정은 달력에서 눌러 고칠 수 있다)
+      if (src === 'text' && canAutoSave(ds)) {
+        const list = ds.map((d) => eventInput(d) as EventInput)
+        await insertEvents(householdId, list)
+        if (id !== reqRef.current) return
+        await onSaved(list.length, list.map((v) => v.date).sort()[0])
+        return
+      }
+      setDrafts(ds)
+      setNote([src === 'text' ? '확인할 것이 있어 바로 넣지 않았어요. 고칠 것을 고친 뒤 넣어 주세요.' : null, res.note].filter(Boolean).join('\n') || null)
+      setModel(modelLabel(res.model)); setRound(id); setStage('review')
     } catch (e) {
       if (id !== reqRef.current) return
       setErr(e instanceof SmartError ? e.message : friendlyError(e)); setStage('input')
@@ -112,8 +143,27 @@ export function EventCaptureSheet({ open, today, householdId, onSaved, onManual,
   }
 
   return (
-    <Sheet open={open} title="캡처로 일정 넣기" onClose={onClose}>
+    <Sheet open={open} title="캡처·문자로 일정 넣기" onClose={onClose}>
       {stage === 'input' && (
+        <div className="seg" role="group" aria-label="읽을 것">
+          <button type="button" aria-pressed={src === 'photo'} onClick={() => { setSrc('photo'); setErr('') }}>캡처 사진</button>
+          <button type="button" aria-pressed={src === 'text'} onClick={() => { setSrc('text'); setErr('') }}>문자 붙여넣기</button>
+        </div>
+      )}
+      {stage === 'input' && src === 'text' && (
+        <>
+          <p className="note">
+            학회·심포지엄 안내, 호텔·식당 예약 문자처럼 일정이 담긴 문자를 복사해서 붙여넣으세요. 날짜·시간·장소를 읽어 일정으로 넣고,
+            날짜를 못 읽었거나 지난 날짜처럼 확인할 것이 있으면 넣기 전에 보여 드려요.
+          </p>
+          <button className="ghost" onClick={() => void pasteFromClipboard()}>클립보드에서 붙여넣기</button>
+          <textarea className="input smart-text" aria-label="붙여넣을 문자" placeholder={TEXT_SAMPLE} value={text} maxLength={6000}
+            onChange={(e) => setText(e.target.value)} />
+          <p className="err" role="alert">{err}</p>
+          <button className="primary" disabled={!text.trim()} onClick={() => void read()}>읽고 일정 넣기</button>
+        </>
+      )}
+      {stage === 'input' && src === 'photo' && (
         <>
           <p className="note">
             식당·병원 예약 확인, 모임 공지, 공연·숙박 예약처럼 날짜가 보이는 화면을 캡처해서 고르세요. 읽은 날짜·시간·장소를 넣기 전에 확인하고 고칠 수 있어요.
@@ -152,8 +202,8 @@ export function EventCaptureSheet({ open, today, householdId, onSaved, onManual,
 
       {stage === 'loading' && (
         <div className="smart-loading" role="status">
-          <div className="smart-previews">{images.map((im) => <img key={im.preview} src={im.preview} alt="고른 캡처" />)}</div>
-          <p className="lead shimmer">캡처 {images.length}장에서 날짜와 시간을 읽는 중이에요</p>
+          {src === 'photo' && <div className="smart-previews">{images.map((im) => <img key={im.preview} src={im.preview} alt="고른 캡처" />)}</div>}
+          <p className="lead shimmer">{src === 'text' ? '문자에서 날짜와 시간을 읽는 중이에요' : `캡처 ${images.length}장에서 날짜와 시간을 읽는 중이에요`}</p>
           <p className="tx-meta" style={{ justifyContent: 'center' }}>보통 5~15초 걸려요.</p>
         </div>
       )}

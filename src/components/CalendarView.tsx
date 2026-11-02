@@ -219,7 +219,7 @@ export function CalendarView({ ym, today, sel, cur, prev, loading = false, looku
           )}
           <div className="day-adds">
             <button className="day-add" onClick={() => onPlan({ kind: 'new', date: sel })}><Plus />일정·기념일 넣기</button>
-            {onCapture && <button className="day-add" onClick={onCapture}><CameraIcon />캡처로 일정 넣기</button>}
+            {onCapture && <button className="day-add" onClick={onCapture}><CameraIcon />캡처·문자로 일정 넣기</button>}
           </div>
           <div className="tx-list">
             {dayTx.map((t) => <TxRow key={t.id} t={t} lookup={lookup} onClick={() => onEdit(t)} />)}

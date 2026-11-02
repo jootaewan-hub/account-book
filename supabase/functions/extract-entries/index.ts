@@ -16,7 +16,7 @@ import {
 } from './extract.ts'
 import { checkEvents } from './eventCheck.ts'
 import { geocodePlace } from './geocode.ts'
-import { buildEventText, EVENT_IMAGES_MAX, EVENT_PROMPT, EventResultSchema } from './events.ts'
+import { buildEventPasteText, buildEventText, EVENT_IMAGES_MAX, EVENT_PROMPT, EventResultSchema } from './events.ts'
 import { WIF } from './wif-config.ts'
 
 // 모델은 코드에서만 정한다 (Secrets로 바뀌지 않게)
@@ -88,8 +88,10 @@ type Img = { media_type: MediaType; data: string; width: number; height: number 
 type Input =
   | { kind: 'text'; text: string; today: string }
   | { kind: 'image'; images: Img[]; mode: 'receipt' | 'shop' | 'bill'; today: string }
-  // 새 kind로 둔다: 이 기능 전의 서버는 모르는 kind를 거절해(400) 영수증으로 잘못 읽지 않는다
-  | { kind: 'event'; images: Img[]; today: string }
+  // 새 kind로 둔다: 이 기능 전의 서버는 모르는 kind를 거절해(400) 영수증으로 잘못 읽지 않는다.
+  // 일정은 캡처(images) 또는 붙여넣은 문자(text, D-046) 하나
+  | { kind: 'event'; images: Img[]; text: null; today: string }
+  | { kind: 'event'; images: []; text: string; today: string }
 
 function parseImage(v: unknown): Img | string {
   const img = v as Record<string, unknown> | undefined
@@ -114,6 +116,13 @@ function parseInput(body: unknown): Input | string {
     if (text.length > MAX_TEXT_CHARS) return `한 번에 ${MAX_TEXT_CHARS.toLocaleString()}자까지 보낼 수 있어요.`
     return { kind: 'text', text, today }
   }
+  // 일정 문자 붙여넣기(D-046): 사진 없이 글만
+  if (b.kind === 'event' && typeof b.text === 'string') {
+    const text = b.text.trim()
+    if (!text) return '붙여넣은 내용이 없어요.'
+    if (text.length > MAX_TEXT_CHARS) return `한 번에 ${MAX_TEXT_CHARS.toLocaleString()}자까지 보낼 수 있어요.`
+    return { kind: 'event', images: [], text, today }
+  }
   if (b.kind === 'image' || b.kind === 'event') {
     const raw = Array.isArray(b.images) ? b.images : b.image ? [b.image] : []
     const max = b.kind === 'event' ? EVENT_IMAGES_MAX : MAX_IMAGES
@@ -126,7 +135,7 @@ function parseInput(body: unknown): Input | string {
       images.push(img)
     }
     if (images.reduce((s, i) => s + i.data.length, 0) > MAX_TOTAL_IMAGE_CHARS) return '사진이 너무 커요. 장수를 줄여 주세요.'
-    if (b.kind === 'event') return { kind: 'event', images, today }
+    if (b.kind === 'event') return { kind: 'event', images, text: null, today }
     return { kind: 'image', images, mode: b.mode === 'shop' || b.mode === 'bill' ? b.mode : 'receipt', today }
   }
   return '요청 형식이 잘못됐어요.'
@@ -166,7 +175,9 @@ async function extractEvents(client: Anthropic, input: Extract<Input, { kind: 'e
     model: EVENT_MODEL,
     max_tokens: 4000,
     system: EVENT_PROMPT,
-    messages: [{ role: 'user', content: [...imageBlocks(input.images), { type: 'text', text: buildEventText(input.images.length) }] }],
+    messages: [{ role: 'user', content: input.text !== null
+      ? [{ type: 'text', text: buildEventPasteText(input.text, input.today) }]
+      : [...imageBlocks(input.images), { type: 'text', text: buildEventText(input.images.length) }] }],
     output_config: { effort: 'low', format: zodOutputFormat(EventResultSchema) },
   }, { signal })
   if (res.stop_reason === 'refusal') return null
@@ -244,7 +255,7 @@ Deno.serve(async (req) => {
   try {
     if (input.kind === 'event') {
       const out = await extractEvents(client, input, signal)
-      if (!out) return fail('refused', '이 사진은 읽을 수 없어요. 직접 넣어 주세요.', 422)
+      if (!out) return fail('refused', input.text !== null ? '이 내용은 읽을 수 없어요. 직접 넣어 주세요.' : '이 사진은 읽을 수 없어요. 직접 넣어 주세요.', 422)
       return json(out)
     }
     if (input.kind === 'image' && input.mode === 'bill') {

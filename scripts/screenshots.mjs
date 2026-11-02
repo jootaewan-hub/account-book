@@ -221,6 +221,8 @@ const shellShots = [
   ...both(390, (w, c) => ({ name: `shell-cal-day-adds-${w}-${c}`, path: '/', w, c, shell: true, tab: '달력', center: '.day-adds' })),
   ...each((w, c) => ({ name: `shell-event-capture-${w}-${c}`, path: '/', w, c, shell: true, tab: '달력', eventCapture: true })),
   // 읽기 전: 고른 캡처 미리 보기와 "캡처 1장 읽기"·"캡처 더 넣기"
+  // 문자 붙여넣기(D-046): 심포지엄 안내 문자를 붙여넣은 모습
+  ...each((w, c) => ({ name: `shell-event-text-${w}-${c}`, path: '/', w, c, shell: true, tab: '달력', eventCapture: 'input', eventText: '[대한○○학회] 2026 추계 심포지엄 안내\n일시: 2026년 11월 21일(토) 09:00~17:00\n장소: 코엑스 컨퍼런스룸(남) 401호\n사전등록: 11/14까지, 평점 6점' })),
   ...both(390, (w, c) => ({ name: `shell-event-capture-input-${w}-${c}`, path: '/', w, c, shell: true, tab: '달력', eventCapture: 'input' })),
   { name: 'shell-event-capture-input-1280-light', path: '/', w: 1280, c: 'light', shell: true, tab: '달력', eventCapture: 'input' },
   ...both(390, (w, c) => ({ name: `shell-event-capture-dup-${w}-${c}`, path: '/', w, c, shell: true, tab: '달력', eventCapture: true, scrollTo: '.ev-draft.off .draft-head' })),
@@ -518,7 +520,12 @@ try {
       await page.locator('#ev-address').scrollIntoViewIfNeeded()
     }
     if (s.eventCapture) {
-      await page.getByRole('button', { name: '캡처로 일정 넣기' }).click()
+      await page.getByRole('button', { name: '캡처·문자로 일정 넣기' }).click()
+      if (s.eventText) {
+        // 문자 붙여넣기(D-046): 붙여넣은 모습(읽기 전)
+        await page.getByRole('button', { name: '문자 붙여넣기' }).click()
+        await page.getByLabel('붙여넣을 문자').fill(s.eventText)
+      } else {
       await page.locator('input[type=file]').setInputFiles({ name: 'cap.jpg', mimeType: 'image/jpeg', buffer: TINY_JPEG })
       if (s.eventCapture === 'input') await page.getByRole('button', { name: '캡처 1장 읽기' }).waitFor()
       else {
@@ -526,6 +533,7 @@ try {
       await page.getByRole('button', { name: /^일정 \d+건 넣기$/ }).waitFor()
       if (s.scrollTo) await page.locator(s.scrollTo).first().evaluate((el) => el.scrollIntoView({ block: 'center' }))
       else await page.locator('.ev-draft').first().evaluate((el) => el.closest('.sheet')?.scrollTo({ top: 0 }))
+      }
       }
     }
     if (s.sheet !== undefined) {
