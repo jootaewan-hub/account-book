@@ -1,5 +1,7 @@
 # 현재 상태
 
+> **2026-11-02**: v2.19.0(D-042) 담기 시트의 지난 기록(영수증·쇼핑 주문·가격 캡처에서 이름이 맞는 상품의 값·용량당 값, 같은 단위에서 가장 싼 줄). DB 변경 없음. 같은 날 가계부 쪽 v2.17.0(D-039 캡처로 일정 넣기)·v2.18.0(D-041 일정 장소 네이버 지도 길찾기)과 Claude Code용 대중교통 길찾기 스킬(D-040)을 넣었다(`docs/HANDOFF.md` 5절 35·36).
+
 > **2026-10-29**: v2.16.0 배포(D-038 함께 기억할 것, `public.notes`)와 그 아래 v2.15.0(D-037 보관함·CSV 전체 조회)을 함께 운영 반영했다. 공유 DB에 `export_stable_order`·`grocery_purchase_wishes`·`household_notes` 적용, `export-csv` v9(8f51217 고정), main 8f51217 Pages 배포(`docs/HANDOFF.md` 5절 33). 남은 확인(사용자): 앱에서 메모 적기·배우자 기기 반영, 보관함 저장.
 
 > **2026-10-28**: v2.14.1 배포(알아보기 함수는 로그인한 사용자만, 날씨 운영 확인, `docs/HANDOFF.md` 5절 32). 그 전 v2.14.0 배포(D-036 보충 오늘의집·번개장터·당근, `grocery_explore_finds` 적용, `explore-price` v3, `docs/HANDOFF.md` 5절 31). 그 전 v2.13.0 배포(D-036 가격 비교에 마켓컬리·다이소, robots 규칙 폐기, `grocery_explore_shop_searches` 적용, `explore-price` v2, `docs/HANDOFF.md` 5절 30). 그 전 v2.12.0 배포(D-035 알아보기 탭: 날씨·미세먼지와 다나와 가격 비교, `grocery.explore_searches` 적용, 함수 `explore-price`·`explore-weather` v1, `docs/HANDOFF.md` 5절 29). 날씨는 공공데이터포털 활용신청 뒤에 보인다(열린 문제).

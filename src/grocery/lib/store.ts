@@ -15,6 +15,7 @@ import {
 } from './products'
 import type { ItemSources, ShopFind, ShopLink, ShopPrice, ShopSource, StoreGood, StoreOption, StorePrice } from './sources'
 import type { OurPurchase } from './ours'
+import type { SeenRecord } from './seen'
 import type { CapturedQuoteInput, ListItem, PhotoImage, PhotoJob, PhotoResult, PriceRead, ProductRead } from './photo'
 import { MATCH_VERSION } from '../../../supabase/functions/_shared/productMatch'
 import type { IngredientRow, IngredientSource, ItemIngredients, ItemNutrition, NutritionRow, ProductAuto } from './foodInfo'
@@ -58,6 +59,8 @@ export interface ListStore {
   setStores(entpIds: string[]): Promise<void>
   /** 우리가 산 값(P2): 연결된 내역·"맞아요"·이름이 비슷한 가계부 기록(grocery.our_purchases) */
   ourPurchases(itemId: string): Promise<OurPurchase[]>
+  /** 담을 때 보는 지난 기록(D-042): 최근 1년 지출 내역의 상품 줄(영수증·쇼핑 주문)과 가격 캡처. 읽기만 한다 */
+  seenRecords(): Promise<SeenRecord[]>
   /** 비슷한 기록이 같은 상품인지 적는다(grocery.decide_purchase) */
   decidePurchase(itemId: string, transactionItemId: string, same: boolean): Promise<void>
   /** 사진·캡처 읽기(grocery-photo, P4). 실패는 던진다. 읽은 값은 화면에서 확인·고친 뒤에만 쓴다 */
@@ -113,6 +116,8 @@ export type DemoPrices = {
   stores?: StoreOption[]
   /** 품목 id → 우리가 산 값·비슷한 기록(P2) */
   ours?: Record<string, OurPurchase[]>
+  /** 담을 때 보는 지난 기록(D-042) */
+  seen?: SeenRecord[]
   /** 사진·캡처 읽기의 가짜 결과(P4·P6) */
   photo?: { product: ProductRead; price: PriceRead & { qty: number }; list?: ListItem[] }
   /** 바코드 → 식약처 기록(P6) */
@@ -311,6 +316,9 @@ export function createMemoryStore(
     },
     async ourPurchases(itemId) {
       return (ours.get(itemId) ?? []).map((r) => ({ ...r }))
+    },
+    async seenRecords() {
+      return (demoPrices.seen ?? []).map((r) => ({ ...r }))
     },
     async readPhoto(job) {
       if (!demoPrices.photo) throw new Error('no_demo')

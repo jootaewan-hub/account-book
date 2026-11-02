@@ -216,7 +216,22 @@
 .grocery .preview-title { margin: 0 0 8px; font-size: 15px; font-weight: 700; }
 .grocery .preview-title .num { color: var(--ink-2); font-weight: 500; }
 .grocery .preview-list { list-style: none; margin: 0; padding: 0 16px; background: var(--oat); border-radius: var(--r-md); }
-.grocery .preview-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 48px; padding: 8px 0; }
+.grocery .preview-row { min-height: 48px; padding: 8px 0; }
+.grocery .preview-line { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 32px; }
+/* 담을 때 보는 지난 기록(D-042): 기록에 적힌 이름·값·날짜·어디서 */
+.grocery .seen-state { margin: -2px 0 8px; font-size: 13px; color: var(--ink-2); }
+.grocery .seen { margin: 6px 0 2px; padding: 8px 12px; background: var(--canvas); border-radius: var(--r-sm); }
+.grocery .seen-title { margin: 0 0 2px; font-size: 13px; font-weight: 700; color: var(--ink-2); }
+.grocery .seen-row { padding: 6px 0; }
+/* 줄 사이 구분선. 버튼에는 긋지 않는다(둥근 모서리에 걸려 호처럼 보인다) */
+.grocery .seen-row + .seen-row, .grocery .seen-row + div .seen-row { border-top: 1px solid var(--oat-deep); }
+.grocery .seen-name { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; margin: 0; font-size: 14px; font-weight: 600; overflow-wrap: anywhere; }
+.grocery .seen-price { display: flex; flex-wrap: wrap; gap: 0 12px; margin: 2px 0 0; font-size: 14px; }
+.grocery .seen-unit { color: var(--ink-2); }
+.grocery .seen-src { display: flex; flex-wrap: wrap; gap: 0 10px; }
+.grocery .seen-row .src-line { margin: 2px 0 0; }
+.grocery .tag-cheap { background: var(--sage-soft); color: var(--sage-ink); }
+.grocery .seen-more { display: block; min-height: 44px; padding: 0; margin: 0 0 -6px; font-size: 14px; text-align: left; text-decoration: underline; text-underline-offset: 3px; }
 .grocery .preview-row + .preview-row { border-top: 1px solid var(--oat-deep); }
 .grocery .preview-name { min-width: 0; font-size: 16px; font-weight: 600; overflow-wrap: anywhere; }
 .grocery .preview-note { display: block; margin-top: 2px; font-size: 13px; font-weight: 500; color: var(--ink-2); }

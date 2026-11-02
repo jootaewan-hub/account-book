@@ -7,6 +7,7 @@ import { keyOf, type MarketBoard, type MarketSeries, type NearbyPrice, type Seri
 import type { Recalls } from './lib/marketStore'
 import type { ShopPrice, StorePrice } from './lib/sources'
 import type { OurPurchase } from './lib/ours'
+import type { SeenRecord } from './lib/seen'
 import type { IngredientRow, ItemIngredients, NutritionRow } from './lib/foodInfo'
 import { recentFridays } from '../../supabase/functions/_shared/tprice'
 
@@ -92,6 +93,8 @@ export function demoSeed(): { me: Membership; items: Item[]; alerts: AlertsResul
     rating: null, reviewCount: null, size: null, priceFrom: null, obsLow: null, obsHigh: null, obsAvg: null, changedOn: null, ...v,
   })
   const ago = (n: number) => new Date(Date.now() + 9 * 3600_000 - n * 86400_000).toISOString().slice(0, 10)
+  const seenRow = (source: SeenRecord['source'], date: string, where: string, name: string, quantity: number, amount: number, unitPrice: number | null,
+    packSize: number | null = null, packUnit: string | null = null): SeenRecord => ({ source, date, where, name, quantity, amount, unitPrice, packSize, packUnit })
   const our = (
     kind: OurPurchase['kind'], id: string, on: string, platform: string | null, place: string, by: string, name: string,
     quantity: number, unitPrice: number, amount: number, pack: [number, string] | null = [1050, 'g'],
@@ -228,6 +231,22 @@ export function demoSeed(): { me: Membership; items: Item[]; alerts: AlertsResul
         our('similar', 'l3', ago(50), null, '이마트 분당점', WIFE, '왕교자 1.05kg*2', 1, 21900, 21900, null),
       ],
     },
+    // 담을 때 보는 지난 기록(D-042)의 가상 기록(실제 기록이 아님). 우유식빵·양파링처럼 이름 앞만 같은 것은 맞지 않아야 한다
+    seen: [
+      seenRow('order', ago(21), '쿠팡', '비비고 왕교자 1.05kg x2', 2, 21960, 10980),
+      seenRow('order', ago(35), '컬리', '[비비고] 왕교자 만두 대용량 1.05kg', 1, 10480, 10480),
+      seenRow('receipt', ago(50), '이마트 분당점', '왕교자 1.05kg*2', 1, 21900, null),
+      { ...seenRow('capture', ago(3), '쿠팡', '비비고 왕교자 1.05kg', 2, 19800, null), delivery: 0 },
+      seenRow('receipt', ago(6), '이마트 분당점', '서울우유 1L', 1, 2980, 2980, 1000, 'ml'),
+      seenRow('order', ago(12), '쿠팡', '매일우유 오리지널 900ml', 2, 5560, 2780),
+      seenRow('receipt', ago(18), '홈플러스 분당점', '남양 맛있는우유GT 2.3L', 1, 6480, 6480),
+      seenRow('receipt', ago(9), '파리바게뜨', '우유식빵', 1, 3800, 3800),
+      seenRow('receipt', ago(6), '이마트 분당점', '대파 1단', 1, 2980, 2980),
+      seenRow('order', ago(25), '컬리', '깐대파 500g', 1, 3490, 3490),
+      seenRow('order', ago(40), '쿠팡', '해찬들 태양초 고추장 500g', 1, 6900, 6900),
+      seenRow('receipt', ago(70), '이마트 분당점', '순창 고추장 1kg', 1, 11800, 11800),
+      seenRow('order', ago(30), '쿠팡', '잘풀리는집 화장지 30롤', 1, 18900, 18900, 30, '롤'),
+    ],
     // 사진·캡처 읽기의 가짜 결과(실제 모델 응답이 아님)
     photo: {
       product: { name: '왕교자 만두 대용량', brand: '예시', size: '1.05kg', note: null },

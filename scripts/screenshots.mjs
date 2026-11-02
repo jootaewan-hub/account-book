@@ -36,6 +36,8 @@ const groceryShots = [
   ...each((w, c) => ({ name: `grocery-list-${w}-${c}`, path: G, w, c, full: true })),
   ...each((w, c) => ({ name: `grocery-add-sheet-${w}-${c}`, path: G, w, c, sheet: SHEET_TEXT })),
   ...both(390, (w, c) => ({ name: `grocery-add-sheet-split-${w}-${c}`, path: G, w, c, sheet: SPLIT_TEXT })),
+  // 담을 때 보는 지난 기록(D-042)을 펼친 모습: 영수증·주문·캡처, 종류만 같은 줄, 같은 단위에서 가장 싼 줄
+  ...each((w, c) => ({ name: `grocery-add-sheet-seen-open-${w}-${c}`, path: G, w, c, sheet: SHEET_TEXT, seenOpen: '비비고 왕교자 지난 기록' })),
   // 연달아 빼기(D-017): 알림이 "2개 뺐어요"로 합쳐진다
   ...both(390, (w, c) => ({ name: `grocery-row-remove-two-${w}-${c}`, path: G, w, c, remove: '삼겹살 600g', removeAlso: '한우 국거리 300g' })),
   { name: 'grocery-add-sheet-long-390-light', path: G, w: 390, c: 'light', sheet: `${LONG_LINE}\n대파` },
@@ -521,6 +523,12 @@ try {
         await page.getByRole('button', { name: '담기', exact: true }).locator('visible=true').first().click()
         await page.getByRole('dialog').waitFor()
         await page.getByLabel('살 것').fill(s.sheet)
+        // 지난 기록(D-042)을 펼친 모습
+        if (s.seenOpen) {
+          const more = page.getByRole('button', { name: new RegExp(`^나머지 \\d+건 보기$`) }).first()
+          await more.click()
+          await page.getByLabel(s.seenOpen).scrollIntoViewIfNeeded()
+        }
       }
       if (s.alert) {
         await page.getByRole('button', { name: s.alert }).first().click()

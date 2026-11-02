@@ -1,10 +1,11 @@
-import { useId, useMemo, useRef, useState } from 'react'
+import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { useClosing, useFocusTrap, useScrollLock } from '../../lib/dialog'
 import type { ListStore } from '../lib/store'
 import { READING_TEXT } from '../lib/photo'
 import { listText } from '../../../supabase/functions/grocery-photo/text'
 import { PhotoPick } from './PhotoCapture'
 import { NAME_MAX, parseLines, type ParsedItem } from '../lib/parse'
+import { seenFor, seenPrice, seenUnit, seenWhen, type SeenMatch, type SeenRecord } from '../lib/seen'
 
 const CLOSE_MS = 250 // 가계부 Motion: 닫기는 여는 것(400ms)보다 빠르게
 
@@ -27,6 +28,18 @@ export default function AddSheet({ onAdd, onClose, initialText = '', store, onBa
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const parsed = useMemo(() => parseLines(text), [text])
+  // 지난 기록(D-042): 시트를 열 때 한 번 읽는다. 못 읽어도 담기는 그대로 된다
+  const [seen, setSeen] = useState<{ state: 'loading' | 'ok' | 'error'; rows: SeenRecord[] }>({ state: store ? 'loading' : 'ok', rows: [] })
+  useEffect(() => {
+    if (!store) return
+    let alive = true
+    store.seenRecords().then(
+      (rows) => { if (alive) setSeen({ state: 'ok', rows }) },
+      () => { if (alive) setSeen({ state: 'error', rows: [] }) },
+    )
+    return () => { alive = false }
+  }, [store])
+  const seenBy = useMemo(() => parsed.map((p) => (seen.rows.length ? seenFor(p.name, seen.rows, 8) : [])), [parsed, seen.rows])
   const area = useRef<HTMLTextAreaElement>(null)
   const sheet = useRef<HTMLDivElement>(null)
   const titleId = useId()
@@ -117,17 +130,22 @@ export default function AddSheet({ onAdd, onClose, initialText = '', store, onBa
               <h3 className="preview-title">
                 담을 것 <span className="num">{parsed.length}개</span>
               </h3>
+              {seen.state === 'loading' && <p className="seen-state" role="status">지난 기록 확인 중</p>}
+              {seen.state === 'error' && <p className="seen-state">지난 기록을 불러오지 못했어요. 담기는 그대로 돼요.</p>}
               <ul className="preview-list">
                 {parsed.map((p, i) => (
                   <li key={i} className="preview-row">
-                    <span className="preview-name">
-                      {p.name}
-                      {p.spec && <span className="row-spec num"> {p.spec}</span>}
-                      {p.specIsDefault && <span className="tag tag-default">기본</span>}
-                      {p.count > 1 && <span className="row-count num"> ×{p.count}</span>}
-                      {p.nameCut && <span className="preview-note">이름이 길어 {NAME_MAX}자까지만 담아요</span>}
-                    </span>
-                    <span className="tag">{p.category}</span>
+                    <div className="preview-line">
+                      <span className="preview-name">
+                        {p.name}
+                        {p.spec && <span className="row-spec num"> {p.spec}</span>}
+                        {p.specIsDefault && <span className="tag tag-default">기본</span>}
+                        {p.count > 1 && <span className="row-count num"> ×{p.count}</span>}
+                        {p.nameCut && <span className="preview-note">이름이 길어 {NAME_MAX}자까지만 담아요</span>}
+                      </span>
+                      <span className="tag">{p.category}</span>
+                    </div>
+                    {seenBy[i].length > 0 && <SeenBlock key={`${p.name}`} name={p.name} matches={seenBy[i]} />}
                   </li>
                 ))}
               </ul>
@@ -141,6 +159,43 @@ export default function AddSheet({ onAdd, onClose, initialText = '', store, onBa
           </button>
         </div>
       </div>
+    </div>
+  )
+}
+
+/**
+ * 품목 하나의 지난 기록(D-042). 맨 위는 같은 단위에서 가장 싼 줄(없으면 가장 맞는 최근 줄), 나머지는 펼쳐서 본다.
+ * 이름·값·날짜·어디서는 기록에 적힌 그대로 보인다(가계부 영수증·주문 줄, 가격 캡처).
+ */
+function SeenBlock({ name, matches }: { name: string; matches: SeenMatch[] }) {
+  const [open, setOpen] = useState(false)
+  const top = matches.find((m) => m.cheapest) ?? matches[0]
+  const rest = matches.filter((m) => m !== top)
+  const listId = useId()
+  return (
+    <div className="seen" aria-label={`${name} 지난 기록`}>
+      <p className="seen-title">지난 기록 <span className="num">{matches.length}건</span></p>
+      <SeenRow m={top} />
+      {open && <div id={listId}>{rest.map((m, i) => <SeenRow key={i} m={m} />)}</div>}
+      {rest.length > 0 && (
+        <button type="button" className="btn-text seen-more" aria-expanded={open} aria-controls={listId} onClick={() => setOpen((v) => !v)}>
+          {open ? '접기' : `나머지 ${rest.length}건 보기`}
+        </button>
+      )}
+    </div>
+  )
+}
+
+function SeenRow({ m }: { m: SeenMatch }) {
+  return (
+    <div className="seen-row">
+      <p className="seen-name">
+        <span>{m.name}</span>
+        {m.cheapest && <span className="tag tag-cheap">{m.unit?.base}당 가장 쌈</span>}
+      </p>
+      {/* 장보기 화면은 가운뎃점 대신 칸을 나눈다(DESIGN.md) */}
+      <p className="seen-price num"><span>{seenPrice(m)}</span><span className="seen-unit">{seenUnit(m)}</span></p>
+      <p className="src-line seen-src"><span>{seenWhen(m)}</span>{m.score === 1 && <span>종류만 같아요</span>}</p>
     </div>
   )
 }
