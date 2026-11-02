@@ -38,6 +38,9 @@ describe('주유 영수증 읽기 (checkFuel)', () => {
   it('프롬프트에 주유·원단위 절사 규칙이 있다', () => {
     expect(SYSTEM_PROMPT).toContain('fuel')
     expect(SYSTEM_PROMPT).toContain('원단위 절사')
+    // 영수증 용량·중량은 품목명 밖(규격 칸·아래 줄·저울 중량)에서도 읽고, 짐작해 넣지 않는다(D-042 보충 2)
+    expect(SYSTEM_PROMPT).toContain('저울에 달아 판 상품')
+    expect(SYSTEM_PROMPT).toContain('짐작해 넣지 않습니다')
   })
 
   it('다시 읽은 결과가 비어 있지 않으면 그것을 쓴다', () => {
