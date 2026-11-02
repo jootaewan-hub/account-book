@@ -204,6 +204,12 @@ export interface CalEvent {
   time: string | null
   title: string
   memo: string | null
+  /** 장소 이름·주소(D-041). 이 칸 전의 일정은 null */
+  place: string | null
+  address: string | null
+  /** 장소 좌표(WGS84, 카카오 로컬로 찾은 값). 있으면 네이버 지도 길찾기를 바로 연다 */
+  lat: number | null
+  lng: number | null
 }
 
-export type EventInput = Pick<CalEvent, 'date' | 'time' | 'title' | 'memo'>
+export type EventInput = Pick<CalEvent, 'date' | 'time' | 'title' | 'memo' | 'place' | 'address' | 'lat' | 'lng'>

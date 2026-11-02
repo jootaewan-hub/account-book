@@ -532,6 +532,19 @@ describe('일정 (20261015150000_events)', () => {
     await as(A, `delete from public.events where title = '친구 결혼식'`)
     expect((await as<{ title: string; time: string | null }>(A, `select title, time from public.events`))).toEqual([{ title: '치과 예약', time: null }])
   })
+
+  it('장소·주소·좌표(20261112000000_event_place): 좌표는 둘 다 없거나 둘 다 한국 안쪽, 구성원이 고칠 수 있다', async () => {
+    await as(A, `insert into public.events (household_id, date, title, place, address, lat, lng)
+      values ($1, '2026-11-11', '라세느 예약', '더그랜드롯데 서울 라세느', '서울 중구 을지로 30 본관 1층', 37.5653, 126.9810)`, [hhA])
+    expect(await as(B, `select place, lat, lng from public.events where title = '라세느 예약'`))
+      .toEqual([{ place: '더그랜드롯데 서울 라세느', lat: 37.5653, lng: 126.981 }])
+    expect(await errorOf(as(A, `insert into public.events (household_id, date, title, lat) values ($1, '2026-11-11', 'x', 37.5)`, [hhA]))).toContain('events_coords_check')
+    expect(await errorOf(as(A, `insert into public.events (household_id, date, title, lat, lng) values ($1, '2026-11-11', 'x', 126.9, 37.5)`, [hhA]))).toContain('events_coords_check')
+    expect(await errorOf(as(A, `insert into public.events (household_id, date, title, place) values ($1, '2026-11-11', 'x', repeat('가', 61))`, [hhA]))).toContain('check')
+    await as(B, `update public.events set address = '서울 중구 을지로 30', lat = null, lng = null where title = '라세느 예약'`)
+    expect(await as(A, `select address, lat from public.events where title = '라세느 예약'`)).toEqual([{ address: '서울 중구 을지로 30', lat: null }])
+    expect(await as(C, `select * from public.events where title = '라세느 예약'`)).toHaveLength(0)
+  })
 })
 
 describe('새 가입 막기 (20261015170000_close_signups)', () => {

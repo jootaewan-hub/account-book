@@ -4,6 +4,7 @@ import { formatDateLong } from '../lib/dates'
 import { annivCategories, annivInput, newAnnivInput } from '../lib/anniversaries'
 import type { Anniversary, CalEvent, EventInput } from '../lib/types'
 import { annivFromDate, AnniversaryForm } from './AnniversaryForm'
+import { PlaceFields } from './PlaceFields'
 import { Sheet } from './Sheet'
 
 /** 무엇을 열지: 고른 날짜에 새로 넣기, 일정 고치기, 기념일 고치기 */
@@ -46,7 +47,7 @@ export function PlanSheet({ target, householdId, today, annivs, onEventsChanged,
       )}
       {target && mode === 'event' && target.kind !== 'anniv' && (
         <EventForm key={target.kind === 'event' ? target.event.id : `new-${target.date}`}
-          initial={target.kind === 'event' ? target.event : { date: target.date, time: null, title: '', memo: null }}
+          initial={target.kind === 'event' ? target.event : { date: target.date, time: null, title: '', memo: null, place: null, address: null, lat: null, lng: null }}
           editing={target.kind === 'event'}
           onCancel={onClose}
           onSave={(v) => run(() => (target.kind === 'event' ? updateEvent(target.event.id, v) : insertEvent(householdId, v)),
@@ -74,14 +75,17 @@ function EventForm({ initial, editing, onSave, onCancel, onDelete }: {
   onCancel: () => void
   onDelete?: () => Promise<void>
 }) {
-  const [v, setV] = useState<EventInput>({ date: initial.date, time: initial.time, title: initial.title, memo: initial.memo })
+  const [v, setV] = useState<EventInput>({ date: initial.date, time: initial.time, title: initial.title, memo: initial.memo,
+    place: initial.place ?? null, address: initial.address ?? null, lat: initial.lat ?? null, lng: initial.lng ?? null })
   const [busy, setBusy] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
 
   async function submit() {
     if (!v.title.trim() || !/^\d{4}-\d{2}-\d{2}$/.test(v.date)) return
     setBusy(true)
-    try { await onSave({ ...v, title: v.title.trim(), memo: v.memo?.trim() || null }) } finally { setBusy(false) }
+    try {
+      await onSave({ ...v, title: v.title.trim(), memo: v.memo?.trim() || null, place: v.place?.trim() || null, address: v.address?.trim() || null })
+    } finally { setBusy(false) }
   }
 
   async function remove() {
@@ -113,6 +117,7 @@ function EventForm({ initial, editing, onSave, onCancel, onDelete }: {
         <input type="checkbox" checked={v.time === null} onChange={(e) => setV({ ...v, time: e.target.checked ? null : '09:00' })} />
         하루 종일 (시간 없이)
       </label>
+      <PlaceFields idPrefix="ev" value={v} onChange={(p) => setV({ ...v, ...p })} />
       <div className="field">
         <label htmlFor="ev-memo">메모 (선택)</label>
         <input id="ev-memo" className="input" maxLength={200} value={v.memo ?? ''} onChange={(e) => setV({ ...v, memo: e.target.value })} />

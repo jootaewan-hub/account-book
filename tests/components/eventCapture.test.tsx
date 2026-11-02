@@ -68,15 +68,16 @@ describe('캡처로 일정 넣기 시트', () => {
     fireEvent.change(screen.getByDisplayValue('치과 진료'), { target: { value: '치과 스케일링' } })
     fireEvent.click(screen.getByRole('button', { name: '일정 2건 넣기' }))
     await waitFor(() => expect(onSaved).toHaveBeenCalledWith(2, '2026-11-03'))
+    const none = { place: null, address: null, lat: null, lng: null }
     expect(state.inserted).toEqual([[
-      { title: '을지로 정육식당 저녁 예약', date: '2026-11-15', time: '18:30', memo: '4명 · 예약번호 A1234' },
-      { title: '치과 스케일링', date: '2026-11-03', time: null, memo: null },
+      { title: '을지로 정육식당 저녁 예약', date: '2026-11-15', time: '18:30', memo: '4명 · 예약번호 A1234', ...none },
+      { title: '치과 스케일링', date: '2026-11-03', time: null, memo: null, ...none },
     ]])
   })
 
   it('이미 달력에 있는 일정은 빼 두고 까닭을 보인다. 체크를 켜면 넣을 수 있다', async () => {
     state.events = [checked({})]
-    state.existing = [{ id: 'e1', household_id: 'h', date: '2026-11-15', time: '18:30', title: '정육식당', memo: null }]
+    state.existing = [{ id: 'e1', household_id: 'h', date: '2026-11-15', time: '18:30', title: '정육식당', memo: null, place: null, address: null, lat: null, lng: null }]
     await readCapture()
     expect(await screen.findByText('같은 날 "정육식당"(18:30) 일정이 이미 있어서 빼 두었어요.')).toBeTruthy()
     expect((screen.getByRole('button', { name: '넣을 일정을 고르세요' }) as HTMLButtonElement).disabled).toBe(true)
@@ -94,6 +95,19 @@ describe('캡처로 일정 넣기 시트', () => {
     fireEvent.change(screen.getByLabelText('날짜'), { target: { value: '2026-11-20' } })
     fireEvent.click(screen.getByRole('button', { name: '일정 1건 넣기' }))
     await waitFor(() => expect(onSaved).toHaveBeenCalledWith(1, '2026-11-20'))
+  })
+
+  it('장소·주소·좌표를 함께 넣고, 주소를 고치면 좌표를 지운다(옛 위치로 길찾기가 열리지 않게)', async () => {
+    state.events = [checked({ place: '더그랜드롯데 서울 라세느', address: '서울 중구 을지로 30 본관 1층', lat: 37.5653, lng: 126.981 })]
+    const { onSaved } = await readCapture()
+    expect(await screen.findByDisplayValue('더그랜드롯데 서울 라세느')).toBeTruthy()
+    expect((screen.getByRole('link', { name: /대중교통 길찾기/ }) as HTMLAnchorElement).href).toContain('/p/directions/-/126.981,37.5653,')
+    fireEvent.change(screen.getByLabelText('주소 (선택)'), { target: { value: '서울 중구 을지로 30' } })
+    expect(screen.queryByRole('link', { name: /길찾기/ })).toBeNull()
+    expect(screen.getByRole('link', { name: /네이버 지도에서 찾기/ })).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: '일정 1건 넣기' }))
+    await waitFor(() => expect(onSaved).toHaveBeenCalled())
+    expect(state.inserted[0][0]).toMatchObject({ place: '더그랜드롯데 서울 라세느', address: '서울 중구 을지로 30', lat: null, lng: null })
   })
 
   it('일정이 없는 캡처면 서버가 준 까닭을 보이고 고르기 화면에 남는다. 오류도 그 자리에서 보인다', async () => {
@@ -116,5 +130,22 @@ describe('달력의 캡처로 일정 넣기 버튼', () => {
     expect(screen.getByRole('button', { name: '일정·기념일 넣기' })).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: '캡처로 일정 넣기' }))
     expect(onCapture).toHaveBeenCalledOnce()
+  })
+
+  it('장소가 있는 일정은 장소 줄을 누르면 네이버 지도(좌표가 있으면 길찾기, 없으면 검색)를 새 탭으로 연다', () => {
+    const ev = (p: Partial<import('../../src/lib/types').CalEvent>) => ({ id: 'e', household_id: 'h', date: '2026-11-11', time: '18:00', title: '라세느 예약', memo: null,
+      place: null, address: null, lat: null, lng: null, ...p })
+    const onPlan = vi.fn()
+    render(<CalendarView ym="2026-11" today="2026-11-02" sel="2026-11-11" cur={[]} prev={[]} lookup={makeLookup('u1', [], [], [])} annivs={[]}
+      events={[ev({ id: 'a', place: '더그랜드롯데 서울 라세느', lat: 37.5653, lng: 126.981 }), ev({ id: 'b', title: '치과', time: '10:00', address: '서울 서초구 강남대로 1' }), ev({ id: 'c', title: '모임' })]}
+      onSelect={() => {}} onPlan={onPlan} onJump={() => {}} onEdit={() => {}} />)
+    const route = screen.getByRole('link', { name: '더그랜드롯데 서울 라세느 길찾기, 네이버 지도' }) as HTMLAnchorElement
+    expect(route.href).toContain('https://map.naver.com/p/directions/-/126.981,37.5653,')
+    expect(route.target).toBe('_blank')
+    expect(route.rel).toContain('noopener')
+    expect((screen.getByRole('link', { name: '서울 서초구 강남대로 1 지도 검색, 네이버 지도' }) as HTMLAnchorElement).href).toContain('/p/search/')
+    expect(screen.getAllByRole('link')).toHaveLength(2) // 장소가 없는 '모임'은 링크가 없다
+    fireEvent.click(screen.getByRole('button', { name: /^라세느 예약\s*18:00$/ }))
+    expect(onPlan).toHaveBeenCalledWith({ kind: 'event', event: expect.objectContaining({ id: 'a' }) })
   })
 })

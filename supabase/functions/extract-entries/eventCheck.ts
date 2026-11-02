@@ -1,9 +1,11 @@
 // 일정·예약 캡처에서 읽은 값을 달력 일정(public.events)에 넣을 수 있게 정리하는 로직(D-039).
 // Edge Function과 앱(저장 전 검사)·vitest가 함께 쓰므로 zod·런타임 전용 API를 쓰지 않는다.
 
-/** public.events 검사와 같은 길이: 제목 1~40자(앞뒤 공백 뺀 길이), 메모 200자 */
+/** public.events 검사와 같은 길이: 제목 1~40자(앞뒤 공백 뺀 길이), 메모 200자, 장소 60자, 주소 120자(D-041) */
 export const EVENT_TITLE_MAX = 40
 export const EVENT_MEMO_MAX = 200
+export const EVENT_PLACE_MAX = 60
+export const EVENT_ADDRESS_MAX = 120
 /** 연도가 안 보이는 날짜: 이만큼 지난 날까지는 올해로 본다(그보다 전이면 내년). 예약 캡처는 대개 다가오는 일이다 */
 export const PAST_GRACE_DAYS = 30
 
@@ -28,12 +30,19 @@ export interface RawEvent {
   images: number[]
 }
 
-/** 앱으로 보내는 정리한 일정. date·time·title·memo는 그대로 public.events에 넣을 수 있다(date가 null이면 사람이 넣어야 한다) */
+/** 앱으로 보내는 정리한 일정. date·time·title·memo·place·address는 그대로 public.events에 넣을 수 있다(date가 null이면 사람이 넣어야 한다) */
 export interface CheckedEvent {
   title: string
   date: string | null
   time: string | null
   memo: string | null
+  /** 가게·장소 이름(D-041). 이 기능 전 서버의 응답에는 없다 */
+  place?: string | null
+  /** 화면에 적힌 장소 주소 */
+  address?: string | null
+  /** 좌표(카카오 로컬로 찾은 값). 키가 없거나 못 찾으면 null */
+  lat?: number | null
+  lng?: number | null
   notice: EventNotice
   /** 확인해 달라는 문장(날짜를 못 읽음, 요일이 안 맞음, 지난 날짜, 취소·변경 안내) */
   warnings: string[]
@@ -124,17 +133,14 @@ export function clip(s: string, max: number): string {
   return s.length > max ? `${s.slice(0, max - 1).trimEnd()}…` : s
 }
 
-/** 메모: 시간 범위, 인원, 장소(제목에 없으면), 주소, 예약번호, 연락처, 그 밖 안내를 ' · '로 잇는다. 200자 안 */
-export function eventMemo(e: RawEvent, title: string, time: string | null): string | null {
+/** 메모: 시간 범위, 인원, 예약번호, 연락처, 그 밖 안내를 ' · '로 잇는다. 200자 안. 장소·주소는 따로 칸에 둔다(D-041) */
+export function eventMemo(e: RawEvent, time: string | null): string | null {
   const end = checkTime(e.end_time)
-  const place = squash(e.place)
   const people = Number.isInteger(e.people) && e.people! > 0 && e.people! < 1000 ? `${e.people}명` : null
   const booking = squash(e.booking_no)
   const parts = [
     time && end ? `${time}~${end}` : null,
     people,
-    place && !title.replace(/\s/g, '').includes(place.replace(/\s/g, '')) ? place : null,
-    squash(e.address) || null,
     booking ? `예약번호 ${booking}` : null,
     squash(e.phone) || null,
     squash(e.detail) || null,
@@ -164,7 +170,11 @@ export function checkEvents(raw: RawEvent[], today: string, imageCount: number):
       title: title || '일정',
       date,
       time,
-      memo: eventMemo(e, title, time),
+      memo: eventMemo(e, time),
+      place: clip(squash(e.place), EVENT_PLACE_MAX) || null,
+      address: clip(squash(e.address), EVENT_ADDRESS_MAX) || null,
+      lat: null,
+      lng: null,
       notice,
       warnings: noticeWarning ? [noticeWarning, ...warnings] : warnings,
       images,

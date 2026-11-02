@@ -15,6 +15,7 @@ import {
   type ImageSize,
 } from './extract.ts'
 import { checkEvents } from './eventCheck.ts'
+import { geocodePlace } from './geocode.ts'
 import { buildEventText, EVENT_IMAGES_MAX, EVENT_PROMPT, EventResultSchema } from './events.ts'
 import { WIF } from './wif-config.ts'
 
@@ -171,7 +172,16 @@ async function extractEvents(client: Anthropic, input: Extract<Input, { kind: 'e
   if (res.stop_reason === 'refusal') return null
   if (!res.parsed_output) throw new Error(`no_parsed_output (stop_reason=${res.stop_reason})`)
   console.log('event_ok', EVENT_MODEL, '->', res.model, res.usage.input_tokens, res.usage.output_tokens)
-  return { events: checkEvents(res.parsed_output.events, input.today, input.images.length), note: res.parsed_output.note, model: res.model }
+  const events = checkEvents(res.parsed_output.events, input.today, input.images.length)
+  // 장소 좌표(D-041): 키가 있을 때만 카카오 로컬로 찾는다. 못 찾으면 좌표 없이(앱은 네이버 지도 검색을 연다)
+  const kakaoKey = Deno.env.get('KAKAO_REST_API_KEY')
+  if (kakaoKey) {
+    await Promise.all(events.map(async (e) => {
+      const c = await geocodePlace(e.place ?? null, e.address ?? null, kakaoKey, fetch)
+      if (c) { e.lat = c.lat; e.lng = c.lng }
+    }))
+  }
+  return { events, note: res.parsed_output.note, model: res.model }
 }
 
 async function extractBill(client: Anthropic, input: Extract<Input, { kind: 'image' }>, signal: AbortSignal) {

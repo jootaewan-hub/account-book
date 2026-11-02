@@ -376,10 +376,21 @@ export const EVENT_CAPTURE = {
   note: null,
   events: [
     { title: '을지로 정육식당 저녁 예약', date: `${ym}-24`, time: '18:30', notice: 'booking', warnings: [], images: [1],
-      memo: '18:30~20:30 · 4명 · 서울 중구 을지로 123 · 예약번호 A1234 · 02-123-4567 · 창가 자리, 예약금 1만 원' },
-    { title: '연세밝은치과 정기 검진', date: `${ym}-27`, time: '10:00', notice: 'booking', warnings: [], images: [1], memo: '스케일링 · 02-555-0101' },
-    { title: '지수 결혼식', date: `${ym}-28`, time: '12:30', notice: 'booking', warnings: [], images: [1], memo: '더채플앳청담 3층 · 서울 강남구 선릉로 757' },
+      memo: '18:30~20:30 · 4명 · 예약번호 A1234 · 02-123-4567 · 창가 자리, 예약금 1만 원',
+      place: '을지로 정육식당', address: '서울 중구 을지로 123', lat: 37.5664, lng: 126.9910 },
+    { title: '연세밝은치과 정기 검진', date: `${ym}-27`, time: '10:00', notice: 'booking', warnings: [], images: [1], memo: '스케일링 · 02-555-0101',
+      place: '연세밝은치과', address: null, lat: null, lng: null },
+    { title: '지수 결혼식', date: `${ym}-28`, time: '12:30', notice: 'booking', warnings: [], images: [1], memo: '3층 그랜드홀',
+      place: '더채플앳청담', address: '서울 강남구 선릉로 757', lat: 37.5243, lng: 127.0466 },
   ],
 }
 // 그 달에 이미 넣어 둔 일정(가구 칸 없이: 가짜 응답의 같음 조건을 그대로 통과한다)
-export const EVENT_EXISTING = [{ id: 'ev-dentist', date: `${ym}-27`, time: '10:00', title: '연세밝은치과', memo: null }]
+export const EVENT_EXISTING = [{ id: 'ev-dentist', date: `${ym}-27`, time: '10:00', title: '연세밝은치과', memo: null, place: null, address: null, lat: null, lng: null }]
+// 오늘 일정(D-041): 좌표가 있는 장소(길찾기), 주소만 있는 장소(지도 검색), 장소 없는 일정
+const today = kst.toISOString().slice(0, 10)
+export const EVENT_PLACES = [
+  { id: 'ev-dental', date: today, time: '10:00', title: '치과 진료', memo: null, place: null, address: '서울 서초구 강남대로 1', lat: null, lng: null },
+  { id: 'ev-buffet', date: today, time: '18:00', title: '더그랜드롯데 서울 라세느 뷔페 예약', memo: '2명 · 일주년 기념',
+    place: '더그랜드롯데 서울 라세느', address: '서울 중구 을지로 30 본관 1층', lat: 37.5653, lng: 126.981 },
+  { id: 'ev-meet', date: today, time: null, title: '동네 모임', memo: null, place: null, address: null, lat: null, lng: null },
+]

@@ -1,6 +1,6 @@
 // 캡처로 일정 넣기(D-039): 일정·예약 캡처를 서버(extract-entries, kind 'event')에서 읽고,
 // 읽은 일정을 고칠 수 있는 초안으로 만들어 이미 있는 일정과 견준 뒤, 저장하기 전에 표 검사와 같은 기준으로 확인한다.
-import { checkTime, EVENT_MEMO_MAX, EVENT_TITLE_MAX, validDate, type CheckedEvent } from '../../supabase/functions/extract-entries/eventCheck'
+import { checkTime, EVENT_ADDRESS_MAX, EVENT_MEMO_MAX, EVENT_PLACE_MAX, EVENT_TITLE_MAX, validDate, type CheckedEvent } from '../../supabase/functions/extract-entries/eventCheck'
 import { invoke, SmartError } from './smart'
 import type { CalEvent, EventInput } from './types'
 
@@ -33,6 +33,11 @@ export interface EventDraft {
   /** HH:MM, 하루 종일이면 null */
   time: string | null
   memo: string
+  /** 장소 이름·주소(D-041). 칸을 고치면 좌표를 지운다(엉뚱한 곳으로 길찾기가 열리지 않게) */
+  place: string
+  address: string
+  lat: number | null
+  lng: number | null
   warnings: string[]
 }
 
@@ -63,7 +68,10 @@ export function toEventDrafts(events: CheckedEvent[], existing: CalEvent[]): Eve
     const again = out.find((x) => sameEvent(d, x))
     if (dup) warnings.push(`같은 날 "${dup.title}"${dup.time ? `(${dup.time})` : ''} 일정이 이미 있어서 빼 두었어요.`)
     else if (again) warnings.push('위 일정과 같아 보여서 빼 두었어요.')
-    out.push({ key: String(i), include: e.notice !== 'cancel' && !dup && !again, title: e.title, date: d.date, time: e.time, memo: e.memo ?? '', warnings })
+    // 좌표는 둘 다 있을 때만(이 기능 전 서버의 응답에는 장소 칸이 없다)
+    const coords = typeof e.lat === 'number' && typeof e.lng === 'number' ? { lat: e.lat, lng: e.lng } : { lat: null, lng: null }
+    out.push({ key: String(i), include: e.notice !== 'cancel' && !dup && !again, title: e.title, date: d.date, time: e.time, memo: e.memo ?? '',
+      place: e.place ?? '', address: e.address ?? '', ...coords, warnings })
   })
   return out
 }
@@ -85,5 +93,10 @@ export function eventInput(d: EventDraft): EventInput | string {
   if (d.time !== null && time === null) return `"${title}"의 시간을 확인해 주세요.`
   const memo = d.memo.trim()
   if (memo.length > EVENT_MEMO_MAX) return `메모는 ${EVENT_MEMO_MAX}자까지예요.`
-  return { title, date: d.date, time, memo: memo || null }
+  const place = d.place.replace(/\s+/g, ' ').trim()
+  const address = d.address.replace(/\s+/g, ' ').trim()
+  if (place.length > EVENT_PLACE_MAX) return `장소는 ${EVENT_PLACE_MAX}자까지예요.`
+  if (address.length > EVENT_ADDRESS_MAX) return `주소는 ${EVENT_ADDRESS_MAX}자까지예요.`
+  const coords = d.lat !== null && d.lng !== null ? { lat: d.lat, lng: d.lng } : { lat: null, lng: null }
+  return { title, date: d.date, time, memo: memo || null, place: place || null, address: address || null, ...coords }
 }

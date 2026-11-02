@@ -153,6 +153,17 @@ main.wrap { padding-block: 4px calc(150px + env(safe-area-inset-bottom, 0px)); }
 .anniv-list { display: flex; flex-direction: column; gap: 6px; margin: 6px 0 8px; }
 .anniv-row { display: flex; align-items: center; gap: 10px; width: 100%; border: 0; text-align: left; background: var(--blush-soft); color: var(--rose-ink); border-radius: var(--r-sm); padding: 10px 12px; font-size: 13px; }
 .anniv-row.k-event, .anniv-chip.k-event { background: var(--sage-soft); color: var(--sage-ink); }
+/* 장소가 있는 일정(D-041): 일정 줄과 장소 줄을 한 묶음으로, 장소 줄을 누르면 네이버 지도 */
+.ev-card { background: var(--sage-soft); border-radius: var(--r-sm); }
+.ev-card .anniv-row { background: none; padding-bottom: 4px; }
+.ev-route { display: flex; align-items: center; gap: 6px; min-height: 44px; padding: 0 12px 6px 42px; color: var(--sage-ink); font-size: 14px; font-weight: 600; text-decoration: none; }
+.ev-route svg { width: 16px; height: 16px; flex: none; }
+.ev-route span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ev-route em { margin-left: auto; flex: none; font-style: normal; font-size: 13px; text-decoration: underline; text-underline-offset: 3px; }
+.route-links { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; margin-top: -2px; }
+.route-link { display: inline-flex; align-items: center; gap: 4px; min-height: 44px; color: var(--sage-ink); font-size: 14px; font-weight: 700; text-decoration: underline; text-underline-offset: 3px; }
+.route-link svg { width: 16px; height: 16px; flex: none; }
+.route-links .tx-meta { flex-basis: 100%; margin-top: -8px; }
 .ev-dot { position: absolute; top: -1px; left: -5px; width: 6px; height: 6px; border-radius: 50%; background: var(--sage); pointer-events: none; }
 .day-add { align-self: flex-start; border: 0; background: none; display: inline-flex; align-items: center; gap: 4px; padding: 8px 4px; margin-bottom: 2px; font-size: 14px; font-weight: 700; color: var(--sage-ink); }
 .day-add svg { width: 16px; height: 16px; }

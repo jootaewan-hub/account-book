@@ -84,7 +84,7 @@ export async function deleteAnniversary(id: string): Promise<void> {
 
 /** from~to(포함) 사이의 일정. 시간은 HH:MM으로 줄인다 */
 export async function fetchEvents(householdId: string, from: string, to: string): Promise<CalEvent[]> {
-  const rows = check(await sb().from('events').select('id, household_id, date, time, title, memo')
+  const rows = check(await sb().from('events').select('id, household_id, date, time, title, memo, place, address, lat, lng')
     .eq('household_id', householdId).gte('date', from).lte('date', to).order('date').order('time', { nullsFirst: true })) as CalEvent[]
   return rows.map((e) => ({ ...e, time: e.time ? e.time.slice(0, 5) : null }))
 }

@@ -3,10 +3,11 @@ import { anniversariesInMonth, daysBetween, dLabel, repeatLabel, upcomingAnniver
 import { DOW, dayOf, formatDateLong, monthGrid, parseYM } from '../lib/dates'
 import { compact, won } from '../lib/format'
 import { HOLIDAYS } from '../lib/holidays'
+import { hasPlace, naverMapUrl, placeLabel } from '../lib/naverMap'
 import { dailyTotals, samePeriodDiff, sumType } from '../lib/ledger'
 import type { Lookup } from '../lib/lookup'
 import type { Anniversary, CalEvent, Transaction } from '../lib/types'
-import { AnnivIcon, CalendarIcon, CameraIcon, Plus } from './Icons'
+import { AnnivIcon, CalendarIcon, CameraIcon, MapPinIcon, Plus } from './Icons'
 import { Bar, RowsWait, useAppear } from './Loading'
 import type { PlanTarget } from './PlanSheet'
 import { Soft, useSlideIn } from './Motion'
@@ -184,11 +185,25 @@ export function CalendarView({ ym, today, sel, cur, prev, loading = false, looku
                   <span>{[a.category, a.repeat_unit === 'month' || a.repeat_every > 1 ? repeatLabel(a) : null, a.lunar ? `음력 ${a.month}월 ${a.day}일` : null].filter(Boolean).join(' · ')}</span>
                 </button>
               ))}
-              {dayEvents.map((e) => (
-                <button key={e.id} className="anniv-row k-event" onClick={() => onPlan({ kind: 'event', event: e })}>
-                  <CalendarIcon /><b>{e.title}</b><span className="num">{e.time ?? '하루 종일'}</span>
-                </button>
-              ))}
+              {dayEvents.map((e) => {
+                const row = (
+                  <button key={e.id} className="anniv-row k-event" onClick={() => onPlan({ kind: 'event', event: e })}>
+                    <CalendarIcon /><b>{e.title}</b><span className="num">{e.time ?? '하루 종일'}</span>
+                  </button>
+                )
+                if (!hasPlace(e)) return row
+                // 장소를 누르면 네이버 지도(좌표가 있으면 대중교통 길찾기, 없으면 검색)를 연다(D-041). 일정 줄 버튼 안에 넣지 않고 나란히 둔다
+                const routed = e.lat !== null && e.lng !== null
+                return (
+                  <div key={e.id} className="ev-card">
+                    {row}
+                    <a className="ev-route" href={naverMapUrl(e, 'transit') ?? undefined} target="_blank" rel="noopener noreferrer"
+                      aria-label={`${placeLabel(e)} ${routed ? '길찾기' : '지도 검색'}, 네이버 지도`}>
+                      <MapPinIcon /><span>{placeLabel(e)}</span><em>{routed ? '길찾기' : '지도'}</em>
+                    </a>
+                  </div>
+                )
+              })}
             </div>
           )}
           <div className="day-adds">

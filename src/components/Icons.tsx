@@ -31,6 +31,9 @@ export const CartIcon = () => (
 export const SearchIcon = () => (
   <svg {...base} strokeWidth={1.8}><circle cx="10.5" cy="10.5" r="6.5" /><path d="M15.5 15.5L21 21" /></svg>
 )
+export const MapPinIcon = () => (
+  <svg {...base} strokeWidth={1.8}><path d="M12 21s-6.5-5.6-6.5-11a6.5 6.5 0 0 1 13 0c0 5.4-6.5 11-6.5 11z" /><circle cx="12" cy="10" r="2.4" /></svg>
+)
 export const CameraIcon = () => (
   <svg {...base} strokeWidth={1.75}><path d="M4 8h3l2-3h6l2 3h3v11H4z" /><circle cx="12" cy="13" r="3.5" /></svg>
 )

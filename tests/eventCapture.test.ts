@@ -79,9 +79,10 @@ describe('일정 정리 (checkEvents)', () => {
     const e = raw({ title: '저녁 예약', start_time: '18:30', end_time: '20:30', people: 4, place: '을지로 정육식당', address: '서울 중구 을지로 123',
       booking_no: 'A1234', phone: '02-123-4567', detail: '창가 자리, 예약금 1만 원' })
     const [c] = checkEvents([e], TODAY, 1)
-    expect(c.memo).toBe('18:30~20:30 · 4명 · 을지로 정육식당 · 서울 중구 을지로 123 · 예약번호 A1234 · 02-123-4567 · 창가 자리, 예약금 1만 원')
-    // 장소가 제목에 이미 있으면 메모에 다시 쓰지 않는다
-    expect(eventMemo({ ...e, end_time: null }, '을지로 정육식당 저녁 예약', '18:30')).toBe('4명 · 서울 중구 을지로 123 · 예약번호 A1234 · 02-123-4567 · 창가 자리, 예약금 1만 원')
+    // 장소·주소는 메모가 아니라 따로 칸에 둔다(D-041). 좌표는 서버가 지도 서비스로 찾은 뒤 채운다
+    expect(c.memo).toBe('18:30~20:30 · 4명 · 예약번호 A1234 · 02-123-4567 · 창가 자리, 예약금 1만 원')
+    expect(c).toMatchObject({ place: '을지로 정육식당', address: '서울 중구 을지로 123', lat: null, lng: null })
+    expect(eventMemo({ ...e, end_time: null }, '18:30')).toBe('4명 · 예약번호 A1234 · 02-123-4567 · 창가 자리, 예약금 1만 원')
   })
 
   it('제목 40자·메모 200자를 넘지 않는다(표 검사에 걸려 전체 넣기가 실패하지 않게)', () => {
@@ -89,6 +90,8 @@ describe('일정 정리 (checkEvents)', () => {
     expect(c.title).toHaveLength(40)
     expect(c.title.endsWith('…')).toBe(true)
     expect(c.memo).toHaveLength(200)
+    const [p] = checkEvents([raw({ place: '장'.repeat(80), address: '주'.repeat(150) })], TODAY, 1)
+    expect([p.place?.length, p.address?.length]).toEqual([60, 120])
   })
 
   it('제목이 비면 장소 이름, 그것도 없으면 "일정". 제목도 날짜도 없으면 버린다', () => {
@@ -114,7 +117,8 @@ describe('일정 정리 (checkEvents)', () => {
   })
 })
 
-const ev = (p: Partial<CalEvent>): CalEvent => ({ id: 'e1', household_id: 'h', date: '2026-11-15', time: '18:30', title: '을지로 정육식당 예약', memo: null, ...p })
+const ev = (p: Partial<CalEvent>): CalEvent => ({ id: 'e1', household_id: 'h', date: '2026-11-15', time: '18:30', title: '을지로 정육식당 예약', memo: null,
+  place: null, address: null, lat: null, lng: null, ...p })
 
 describe('초안과 중복 (toEventDrafts)', () => {
   it('같은 날 비슷한 제목이면 같은 일정으로 본다', () => {
@@ -147,11 +151,17 @@ describe('초안과 중복 (toEventDrafts)', () => {
 })
 
 describe('저장 전 검사 (eventInput)', () => {
-  const d = (p: Partial<EventDraft>): EventDraft => ({ key: '0', include: true, title: '치과 진료', date: '2026-11-20', time: '10:00', memo: '', warnings: [], ...p })
+  const d = (p: Partial<EventDraft>): EventDraft => ({ key: '0', include: true, title: '치과 진료', date: '2026-11-20', time: '10:00', memo: '',
+    place: '', address: '', lat: null, lng: null, warnings: [], ...p })
+  const none = { place: null, address: null, lat: null, lng: null }
 
-  it('표에 넣을 값으로 바꾼다: 제목 공백 정리, 빈 메모는 null', () => {
-    expect(eventInput(d({ title: '  치과   진료 ', memo: '  ' }))).toEqual({ title: '치과 진료', date: '2026-11-20', time: '10:00', memo: null })
-    expect(eventInput(d({ time: null, memo: '스케일링' }))).toEqual({ title: '치과 진료', date: '2026-11-20', time: null, memo: '스케일링' })
+  it('표에 넣을 값으로 바꾼다: 제목 공백 정리, 빈 메모·장소는 null', () => {
+    expect(eventInput(d({ title: '  치과   진료 ', memo: '  ' }))).toEqual({ title: '치과 진료', date: '2026-11-20', time: '10:00', memo: null, ...none })
+    expect(eventInput(d({ time: null, memo: '스케일링' }))).toEqual({ title: '치과 진료', date: '2026-11-20', time: null, memo: '스케일링', ...none })
+    expect(eventInput(d({ place: ' 연세밝은치과 ', address: '서울  서초구 강남대로 1', lat: 37.5, lng: 127.02 })))
+      .toMatchObject({ place: '연세밝은치과', address: '서울 서초구 강남대로 1', lat: 37.5, lng: 127.02 })
+    // 좌표는 둘 다 있을 때만(표 검사와 같다)
+    expect(eventInput(d({ lat: 37.5, lng: null }))).toMatchObject({ lat: null, lng: null })
   })
 
   it('표 검사에 걸릴 값은 문장으로 알린다', () => {
@@ -161,5 +171,7 @@ describe('저장 전 검사 (eventInput)', () => {
     expect(eventInput(d({ time: '25:00' }))).toBe('"치과 진료"의 시간을 확인해 주세요.')
     expect(eventInput(d({ title: '가'.repeat(41) }))).toBe('무엇을 칸은 40자까지예요.')
     expect(eventInput(d({ memo: '가'.repeat(201) }))).toBe('메모는 200자까지예요.')
+    expect(eventInput(d({ place: '가'.repeat(61) }))).toBe('장소는 60자까지예요.')
+    expect(eventInput(d({ address: '가'.repeat(121) }))).toBe('주소는 120자까지예요.')
   })
 })

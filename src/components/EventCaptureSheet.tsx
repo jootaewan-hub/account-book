@@ -5,6 +5,7 @@ import { analyzeEvents, EVENT_PHOTOS_MAX, eventDateRange, eventInput, toEventDra
 import { fileToJpeg, type PreparedImage } from '../lib/image'
 import { modelLabel, SmartError } from '../lib/smart'
 import type { EventInput } from '../lib/types'
+import { PlaceFields } from './PlaceFields'
 import { Sheet } from './Sheet'
 
 interface Props {
@@ -203,6 +204,11 @@ function EventDraftCard({ d, onChange }: { d: EventDraft; onChange: (p: Partial<
         <input type="checkbox" checked={d.time === null} onChange={(e) => onChange({ time: e.target.checked ? null : '09:00' })} />
         하루 종일 (시간 없이)
       </label>
+      <PlaceFields idPrefix={`ec-${d.key}`} value={d} onChange={(p) => onChange({
+        ...(p.place !== undefined ? { place: p.place ?? '' } : {}),
+        ...(p.address !== undefined ? { address: p.address ?? '' } : {}),
+        ...(p.lat !== undefined ? { lat: p.lat, lng: p.lng ?? null } : {}),
+      })} />
       <div className="field">
         <label htmlFor={id('memo')}>메모</label>
         <textarea id={id('memo')} className="input ev-memo" maxLength={200} rows={3} value={d.memo} onChange={(e) => onChange({ memo: e.target.value })} />

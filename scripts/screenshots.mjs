@@ -8,7 +8,7 @@
 import { existsSync, mkdirSync, readFileSync } from 'node:fs'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { chromium } from 'playwright'
-import { BILL, EVENT_CAPTURE, EVENT_EXISTING, EXPLORE_BUNJANG, EXPLORE_DAANGN, EXPLORE_DAISO, EXPLORE_KURLY, EXPLORE_OHOU, EXPLORE_PRODUCT, EXPLORE_SEARCH, EXPLORE_WEATHER, EXPLORE_WEATHER_NOT_REGISTERED, fakeSession, FUEL_RECEIPT, LONG_RECEIPT, RECEIPT, TABLES, USER } from './shell-fixtures.mjs'
+import { BILL, EVENT_CAPTURE, EVENT_EXISTING, EVENT_PLACES, EXPLORE_BUNJANG, EXPLORE_DAANGN, EXPLORE_DAISO, EXPLORE_KURLY, EXPLORE_OHOU, EXPLORE_PRODUCT, EXPLORE_SEARCH, EXPLORE_WEATHER, EXPLORE_WEATHER_NOT_REGISTERED, fakeSession, FUEL_RECEIPT, LONG_RECEIPT, RECEIPT, TABLES, USER } from './shell-fixtures.mjs'
 
 const BASE = process.env.BASE_URL ?? 'http://localhost:5188' // vite.config.ts server.port와 같다
 const OUT = process.env.OUT_DIR ? pathToFileURL(`${process.env.OUT_DIR.replace(/\/$/, '')}/`) : new URL('../screenshots/', import.meta.url)
@@ -220,6 +220,9 @@ const shellShots = [
   ...both(390, (w, c) => ({ name: `shell-event-capture-input-${w}-${c}`, path: '/', w, c, shell: true, tab: '달력', eventCapture: 'input' })),
   { name: 'shell-event-capture-input-1280-light', path: '/', w: 1280, c: 'light', shell: true, tab: '달력', eventCapture: 'input' },
   ...both(390, (w, c) => ({ name: `shell-event-capture-dup-${w}-${c}`, path: '/', w, c, shell: true, tab: '달력', eventCapture: true, scrollTo: '.ev-draft.off .draft-head' })),
+  // 일정 장소(D-041): 고른 날 일정 줄 아래 장소 줄(좌표 있음 → 길찾기, 주소만 → 지도), 일정 고치기 시트의 장소·주소 칸과 길찾기 링크
+  ...each((w, c) => ({ name: `shell-cal-event-place-${w}-${c}`, path: '/', w, c, shell: true, tab: '달력', eventPlaces: true, center: '.anniv-list' })),
+  ...each((w, c) => ({ name: `shell-plan-event-place-${w}-${c}`, path: '/', w, c, shell: true, tab: '달력', eventPlaces: true, openEvent: '더그랜드롯데 서울 라세느 뷔페 예약' })),
   ...both(390, (w, c) => ({ name: `shell-event-capture-foot-${w}-${c}`, path: '/', w, c, shell: true, tab: '달력', eventCapture: true, scrollTo: '.sheet .link-btn' })),
 ]
 
@@ -272,6 +275,7 @@ async function fakeSupabase(context, s = {}) {
     if (s.noUtility && key === 'public.recurring') rows = rows.filter((r) => r.kind !== 'utility')
     if (s.noNotes && key === 'public.notes') rows = []
     if (s.eventCapture && key === 'public.events') rows = EVENT_EXISTING
+    if (s.eventPlaces && key === 'public.events') rows = EVENT_PLACES
     // 같음 조건(id=eq.g5 등)은 적용한다: 한 건 조회(maybeSingle)는 행이 하나여야 하고, 상세는 그 품목·상품의 행만 봐야 한다
     if (Array.isArray(rows)) {
       for (const [k, v] of url.searchParams) {
@@ -497,6 +501,10 @@ try {
       await page.locator('#bill-date').waitFor()
       // 날짜 아래의 안내 문구(항목을 만든다/연결한다)까지 보이게 저장 버튼을 화면에 넣는다
       await page.getByRole('button', { name: '저장', exact: true }).scrollIntoViewIfNeeded()
+    }
+    if (s.openEvent) {
+      await page.locator('.anniv-list').getByRole('button', { name: new RegExp(`^${s.openEvent}`) }).click()
+      await page.locator('#ev-address').scrollIntoViewIfNeeded()
     }
     if (s.eventCapture) {
       await page.getByRole('button', { name: '캡처로 일정 넣기' }).click()
