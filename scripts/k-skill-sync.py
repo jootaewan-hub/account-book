@@ -182,6 +182,11 @@ REWRITTEN = {
         '읽기 전용이다. 로그인·찜·채팅·구매를 하지 않는다. 브라우저 도구로 `m.bunjang.co.kr`의 검색·상품 화면만 연다.']),
     'consumer-price-safety-search': ('464f7a282374fc53d8bb5231319df58fbd303057eb663e357c2c80b5625c6cfd', [], [
         '리콜 기록을 찾지 못하면 "안전함"이 아니라 확인한 분류·검색어·시각을 적어 "찾은 기록 없음"으로 쓴다.']),
+    # D-040(2026-11-02 사용자: "k스킬중에 대중교통 경로찾기 있지 않나? 지금 추가해봐"). 원본은 비밀 파일을 셸로 실행하고 키를 curl 명령줄에 넣어 도움 스크립트로 바꿨다
+    'korean-transit-route': ('ecfddd8d7d37e6c852ccf50261492cb12383e31ccb2326d2b9ffd2eaa14f2542', ['references'], [
+        '주소·장소명의 좌표 찾기는 제3자 중계 서버 `k-skill-proxy.nomadamas.org`(카카오 로컬)를 거치고, 경로는 ODsay(`api.odsay.com`)가 계산한다. 둘 다 출발지·도착지를 본다. 답변의 출처 줄에 이 경로를 숨기지 않는다.',
+        'ODsay 키(`ODSAY_API_KEY`)는 저장소 밖 `~/.config/k-skill/secrets.env`나 환경변수에만 둔다. 대화·명령줄·출력에 내지 않는다.',
+        '위 "앱 화면·DB에 넣지 않는다"의 예외: 사용자가 일정 메모에 적어 달라고 할 때만 출처(ODsay)·조회 시각과 함께 적는다.']),
 }
 
 # 원본 패키지에서 그대로 옮기는 파일(이 사본 경로: (원본 경로, 검토한 sha256)). 루트 package.json이 ESM이라 .cjs로 둔다
@@ -208,6 +213,7 @@ DESCRIPTIONS = {
     'daiso-product-search': 'Look up Daiso products and stores on Daiso Mall public search, and check which stores offer pickup for a product. 매장 재고 수량은 다이소몰이 막아 확인하지 않는다.',
     'olive-young-search': '제3자 공개 서버(mcp.aka.page)로 올리브영 매장 검색, 상품 검색, 매장 재고 표시를 조회한다.',
     'bunjang-search': '번개장터 모바일 웹 화면을 브라우저 도구로 열어 매물을 검색하고 상세를 읽는다. 읽기 전용(로그인·찜·채팅·구매를 하지 않는다).',
+    'korean-transit-route': '두 곳 사이 대중교통(지하철·버스·도보) 도어투도어 경로·소요시간·요금·환승을 ODsay로 찾는다. 주소는 카카오 로컬(제3자 프록시)로 좌표를 찾는다. ODsay 키가 있어야 한다.',
     'consumer-price-safety-search': '소비자24 리콜정보 공개 화면에서 상품·사업자·모델명으로 리콜을 찾고 상세(위해 원인·행동요령)를 읽는다. 참가격 판매점 가격은 브라우저 도구로 공개 화면을 연다.',
 }
 
@@ -269,7 +275,7 @@ def sha256(path: Path) -> str:
 def main() -> None:
     src = Path(sys.argv[1]).resolve()
     out = Path(__file__).resolve().parent.parent / '.claude' / 'skills'
-    commit = subprocess.run(['git', '-C', str(src), 'rev-parse', '--short', 'HEAD'], capture_output=True, text=True, check=True).stdout.strip()
+    commit = subprocess.run(['git', '-C', str(src), 'rev-parse', '--short=7', 'HEAD'], capture_output=True, text=True, check=True).stdout.strip()
     jobs = []
     for name, (edit, dirs, proxy, rules) in SKILLS.items():
         jobs.append((name, edit((src / name / 'instruction.md').read_text()), dirs, proxy, rules, True))

@@ -1,6 +1,6 @@
 # k-skill 사본: 출처와 바꾼 점
 
-이 폴더의 스킬 20개는 [NomaDamas/k-skill](https://github.com/NomaDamas/k-skill) 커밋 `02081f8`(2026-10-26)에서 옮겼다. 라이선스는 MIT이고 원문은 `K-SKILL-LICENSE`다. 2026-10-28 사용자 요청("날씨·생활 기타·먹거리 주류·쇼핑·검색 파트에서 가계부에 적절한 것")으로 14개를 넣었고, 같은 날 "쇼핑에 있는 것은 다 넣어야지"로 쇼핑 묶음 6개를 더했다. 결정 기록은 `docs/grocery/tracking/decisions/index.md` D-034와 D-034 보충이다.
+이 폴더의 스킬 21개는 [NomaDamas/k-skill](https://github.com/NomaDamas/k-skill) 커밋 `02081f8`(2026-10-26)에서 옮겼다. 라이선스는 MIT이고 원문은 `K-SKILL-LICENSE`다. 2026-10-28 사용자 요청("날씨·생활 기타·먹거리 주류·쇼핑·검색 파트에서 가계부에 적절한 것")으로 14개를 넣었고, 같은 날 "쇼핑에 있는 것은 다 넣어야지"로 쇼핑 묶음 6개를 더했다. 2026-11-02 "k스킬중에 대중교통 경로찾기 있지 않나? 지금 추가해봐"로 `korean-transit-route`를 더했다(같은 커밋, 원본 main `c91382e`와 안내문이 같음). 결정 기록은 `docs/grocery/tracking/decisions/index.md` D-034, D-034 보충, D-040이다.
 
 ## 왜 공식 설치를 쓰지 않았나
 
@@ -45,6 +45,14 @@ robots가 막은 경로·접근 통제를 넘는 부분을 빼면 원본 안내�
 | consumer-price-safety-search | www.consumer.go.kr 리콜정보 화면 (검색어·분류·리콜 번호), www.price.go.kr 화면(브라우저 도구로, 품목·업태·지역) | 소비자24 recallInfo 경로 허용(`/ftc/`·goodsinfo 목록·상세 금지), price.go.kr은 robots.txt 없음 | 원본은 초안이라 실행할 것이 없었다. 리콜 조회 스크립트를 새로 썼다(표준 라이브러리). 참가격 API는 공공데이터포털 키가 필요해 부르지 않고, 참가격 공개 화면을 브라우저 도구로 연다 |
 
 브라우저 화면을 쓰는 곳(번개장터, 컬리 검색, 참가격)에 대해: 그 화면 주소는 robots가 허용하고, 화면이 그리면서 부르는 앱 API는 사이트 자신의 코드가 사람이 보는 것과 같이 부른다. 이 사본의 스크립트는 robots가 막은 호스트를 직접 부르지 않는다. 사람이 보듯 한 번씩 여는 것이고 대량 수집은 하지 않는다.
+
+### 대중교통 길찾기 (D-040): 도움 스크립트를 새로 썼다
+
+| 스킬 | 가는 곳 (보내는 것) | 키 | 원본에서 뺀 것 / 이 사본의 방법 |
+|---|---|---|---|
+| korean-transit-route | 프록시 → 카카오 로컬 (주소·장소명, `경도,위도`로 주면 안 감), api.odsay.com (출발·도착 좌표, 키) | ODsay Server 키(사용자가 lab.odsay.com에서 받고 IP 등록), 저장소 밖 `~/.config/k-skill/secrets.env` 또는 환경변수 `ODSAY_API_KEY` | 원본은 `set -a; . secrets.env`로 비밀 파일을 셸로 실행하고 키를 curl 명령줄 주소에 넣는다. 이 사본은 `scripts/transit_route.py`(표준 라이브러리, 맥 기본 python3 3.9)가 파일을 글로만 읽고, 키를 출력에서 가리고, 좌표가 한국 범위 밖이거나 위도·경도가 뒤바뀌면 부르지 않고 멈춘다. 본문은 `scripts/k-skill-extra/korean-transit-route/BODY.md` |
+
+확인(2026-11-02): 키가 없을 때 안내 문장, `경도,위도` 입력이 프록시를 거치지 않음, 뒤바뀐 좌표 멈춤, ODsay 문서 모양의 가짜 응답 정리, 프록시 좌표 찾기(공개 지명 "정자역" → 127.1081, 37.3662). ODsay 실제 경로 호출은 키가 없어 확인 필요. 프록시 `server.js`는 요청 기록을 끄고(`disableRequestLogging`), 좌표 찾기 결과를 메모리에 잠시 캐시한다.
 
 ### 도움 스크립트에서 고친 곳 (자동 보안 검토 반영, `scripts/k-skill-sync.py`의 PATCHES와 `scripts/k-skill-extra/`)
 
