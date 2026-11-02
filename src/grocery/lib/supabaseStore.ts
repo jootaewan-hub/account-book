@@ -6,7 +6,7 @@ import { kstDay } from './products'
 import { SEONGNAM_AREAS } from '../../../supabase/functions/_shared/tprice'
 import type { ItemSources, ShopFind, ShopPrice, StoreGood, StoreOption, StorePrice } from './sources'
 import type { OurPurchase } from './ours'
-import type { SeenRecord } from './seen'
+import { ledgerSeen, type LedgerTx, type SeenRecord } from './seen'
 import { invokePhoto } from './photo'
 import type { IngredientRow, IngredientSource, ItemIngredients, ItemNutrition, Nutrition, NutritionRow, ProductAuto } from './foodInfo'
 import type { ListStore, BarcodeRecord, CandidateAlert } from './store'
@@ -341,28 +341,19 @@ export function createSupabaseStore(client: SupabaseClient, me: Membership): Lis
     async seenRecords() {
       // 담기 시트를 열 때마다 다시 읽지 않게 잠깐(2분) 기억한다
       if (seenCache && Date.now() - seenCache.at < 120_000) return seenCache.rows.map((r) => ({ ...r }))
-      // 최근 1년. 가계부 public 표는 읽기만 한다(D-003). 배송비·봉투 줄과 금액 없는 줄은 뺀다
+      // 최근 1년. 가계부 public 표는 읽기만 한다(D-003). 가격 캡처를 못 읽어도 가계부 기록은 보인다(실패는 가계부 쪽만 던진다)
       const from = kstDay(new Date(Date.now() - 365 * 86_400_000).toISOString())
       const [txs, caps] = await Promise.all([
-        client.from('transactions').select('occurred_on, platform, title, transaction_items!inner(name, quantity, unit_price, amount, pack_size, pack_unit)')
+        client.from('transactions').select('occurred_on, platform, title, merchant, source, transaction_items!inner(name, quantity, unit_price, amount, pack_size, pack_unit)')
           .eq('household_id', me.householdId).eq('type', 'expense').gte('occurred_on', from).order('occurred_on', { ascending: false }).limit(1000),
         g().from('captured_quotes').select('seller, price, qty, delivery, captured_on, products(name)')
           .eq('household_id', me.householdId).gte('captured_on', from).order('captured_at', { ascending: false }).limit(500),
       ])
       if (txs.error) throw txs.error
-      if (caps.error) throw caps.error
-      type TxRow = { occurred_on: string; platform: string | null; title: string
-        transaction_items: { name: string; quantity: number; unit_price: number | null; amount: number; pack_size: number | null; pack_unit: string | null }[] }
+      if (caps.error) console.warn('seen_captures_failed', caps.error.message)
       type CapRow = { seller: string; price: number; qty: number; delivery: number | null; captured_on: string; products: { name: string } | null }
-      const out: SeenRecord[] = []
-      for (const t of (txs.data ?? []) as unknown as TxRow[]) {
-        for (const it of t.transaction_items) {
-          if (!(it.amount > 0) || /^(배송비|봉투|종량제|쇼핑백|비닐)/.test(it.name.trim())) continue
-          out.push({ source: t.platform ? 'order' : 'receipt', date: t.occurred_on, where: t.platform || t.title, name: it.name, quantity: Number(it.quantity) || 1,
-            amount: it.amount, unitPrice: it.unit_price, packSize: it.pack_size === null ? null : Number(it.pack_size), packUnit: it.pack_unit })
-        }
-      }
-      for (const c of (caps.data ?? []) as unknown as CapRow[]) {
+      const out: SeenRecord[] = ledgerSeen((txs.data ?? []) as unknown as LedgerTx[])
+      for (const c of (caps.error ? [] : (caps.data ?? [])) as unknown as CapRow[]) {
         if (!c.products?.name) continue
         out.push({ source: 'capture', date: c.captured_on, where: c.seller, name: c.products.name, quantity: c.qty, amount: c.price, unitPrice: null,
           packSize: null, packUnit: null, delivery: c.delivery })

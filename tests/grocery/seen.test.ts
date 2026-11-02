@@ -1,6 +1,6 @@
 // 담을 때 보는 지난 기록(D-042): 이름 맞추기(짧은 이름의 잘못 맞음 막기), 용량, 단위값 견주기, 보이는 글자
 import { describe, expect, it } from 'vitest'
-import { nameScore, packOf, seenFor, seenPrice, seenUnit, seenWhen, unitOfSeen, type SeenRecord } from '../../src/grocery/lib/seen'
+import { ledgerSeen, nameScore, packOf, seenFor, seenPrice, seenUnit, seenWhen, unitOfSeen, type SeenRecord } from '../../src/grocery/lib/seen'
 
 const rec = (p: Partial<SeenRecord> & Pick<SeenRecord, 'name'>): SeenRecord => ({
   source: 'receipt', date: '2026-10-14', where: '이마트 분당점', quantity: 1, amount: 3000, unitPrice: null, packSize: null, packUnit: null, ...p,
@@ -75,8 +75,14 @@ describe('품목 하나의 지난 기록 (seenFor)', () => {
     ])
     expect(m.map((x) => [x.name, x.score])).toEqual([['비비고 왕교자 1.05kg x2', 2], ['비비고 왕교자', 2], ['왕교자 1.05kg*2', 1]])
     expect(m[1].unit).toBeNull()
-    // 2점 줄 중 용량 아는 줄이 하나라 '가장 쌈'은 1점 줄과 견준 결과다
-    expect(m.filter((x) => x.cheapest).map((x) => x.name)).toEqual(['왕교자 1.05kg*2'])
+    // '가장 쌈'은 맨 위 맞음 단계(2점)에서 용량 아는 줄끼리만: 한 줄뿐이라 붙지 않고, 1점 줄은 더 싸도 붙지 않는다
+    expect(m.filter((x) => x.cheapest)).toEqual([])
+    const two = seenFor('비비고 왕교자', [
+      rec({ name: '왕교자 1.05kg*2', amount: 15000 }),
+      rec({ source: 'order', where: '쿠팡', name: '비비고 왕교자 1.05kg', amount: 10980 }),
+      rec({ source: 'order', where: '컬리', name: '비비고 왕교자 1.05kg', amount: 10480 }),
+    ])
+    expect(two.filter((x) => x.cheapest).map((x) => x.where)).toEqual(['컬리'])
   })
 
   it('맞는 기록이 없으면 빈 목록', () => {
@@ -96,5 +102,26 @@ describe('보이는 글자', () => {
     expect(seenUnit(m)).toBe('100ml당 298원')
     const [d] = seenFor('대파', [rec({ name: '대파 1단' })])
     expect(seenUnit(d)).toBe('용량 모름')
+  })
+})
+
+describe('가계부 내역 → 지난 기록 (ledgerSeen)', () => {
+  const item = (name: string, amount = 3000) => ({ name, quantity: 1, unit_price: amount, amount, pack_size: null, pack_unit: null })
+
+  it('사진으로 넣은 것만 영수증·주문, 그 밖은 가계부 기록. 어디서는 플랫폼 → 가게 칸 → 내역 이름(상품명과 같으면 비움)', () => {
+    const rows = ledgerSeen([
+      { occurred_on: '2026-10-14', platform: null, title: '이마트 분당점', source: 'photo', transaction_items: [item('서울우유 1L'), item('배송비'), item('봉투', 100), item('할인', 0)] },
+      { occurred_on: '2026-10-20', platform: '쿠팡', title: '비비고 왕교자', source: 'photo', transaction_items: [item('비비고 왕교자 1.05kg')] },
+      { occurred_on: '2026-10-21', platform: null, title: '깐대파 500g', merchant: '이마트 분당점', source: 'photo', transaction_items: [item('깐대파 500g')] },
+      { occurred_on: '2026-10-22', platform: null, title: '비비고 왕교자 1.05kg', source: 'manual', transaction_items: [item('비비고 왕교자 1.05kg')] },
+      { occurred_on: '2026-10-23', platform: null, title: '이마트24', source: 'text', transaction_items: null },
+    ])
+    expect(rows.map((r) => [r.source, r.where, r.name])).toEqual([
+      ['receipt', '이마트 분당점', '서울우유 1L'],
+      ['order', '쿠팡', '비비고 왕교자 1.05kg'],
+      ['receipt', '이마트 분당점', '깐대파 500g'],
+      ['ledger', '', '비비고 왕교자 1.05kg'],
+    ])
+    expect(seenWhen(rows[3])).toBe('10월 22일 가계부 기록')
   })
 })

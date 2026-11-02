@@ -4,7 +4,8 @@
 import { parsePack } from './purchase'
 import { formatUnitPrice, perUnit } from '../../lib/units'
 
-export type SeenSource = 'receipt' | 'order' | 'capture'
+/** receipt: 사진으로 넣은 매장 영수증, order: 사진으로 넣은 쇼핑 주문, capture: 가격 캡처, ledger: 그 밖의 가계부 기록(직접·문자·장보기 기록) */
+export type SeenSource = 'receipt' | 'order' | 'capture' | 'ledger'
 
 /** 지난 기록 한 줄. 숫자는 기록에 적힌 값만 */
 export type SeenRecord = {
@@ -111,8 +112,10 @@ export function seenFor(itemName: string, records: SeenRecord[], limit = 20): Se
     for (let i = 0; i < x.length; i++) if (x[i] !== y[i]) return x[i] < y[i] ? -1 : 1
     return 0
   })
+  // '가장 쌈'은 용량을 아는 줄이 있는 가장 높은 맞음 단계 안에서만 붙인다(종류만 같은 줄이 같은 상품 줄 위에 오지 않게)
+  const top = Math.max(0, ...matched.filter((m) => m.unit).map((m) => m.score))
   const bases = new Map<string, SeenMatch[]>()
-  for (const m of matched) if (m.unit) bases.set(m.unit.base, [...(bases.get(m.unit.base) ?? []), m])
+  for (const m of matched) if (m.unit && m.score === top) bases.set(m.unit.base, [...(bases.get(m.unit.base) ?? []), m])
   for (const group of bases.values()) {
     if (group.length < 2) continue
     const min = Math.min(...group.map((m) => m.unit!.price))
@@ -121,7 +124,7 @@ export function seenFor(itemName: string, records: SeenRecord[], limit = 20): Se
   return matched.slice(0, limit)
 }
 
-const SOURCE_LABEL: Record<SeenSource, string> = { receipt: '영수증', order: '주문', capture: '캡처' }
+const SOURCE_LABEL: Record<SeenSource, string> = { receipt: '영수증', order: '주문', capture: '캡처', ledger: '가계부 기록' }
 
 /** '10월 14일 이마트 영수증' */
 export function seenWhen(r: Pick<SeenRecord, 'date' | 'where' | 'source'>): string {
@@ -139,4 +142,32 @@ export function seenPrice(r: SeenRecord): string {
 /** '100g당 614원', 용량을 모르면 '용량 모름' */
 export function seenUnit(m: SeenMatch): string {
   return m.unit ? `${m.unit.base}당 ${formatUnitPrice(m.unit.price)}원` : '용량 모름'
+}
+
+/** 가계부 지출 내역 한 건(지난 기록용으로 읽는 칸) */
+export type LedgerTx = {
+  occurred_on: string
+  platform: string | null
+  title: string
+  merchant?: string | null
+  source?: string | null
+  transaction_items?: { name: string; quantity: number; unit_price: number | null; amount: number; pack_size: number | null; pack_unit: string | null }[] | null
+}
+
+/**
+ * 가계부 내역 → 지난 기록. 사진으로 넣은 것만 영수증(플랫폼 없음)·주문(플랫폼 있음)으로 부르고, 그 밖(직접·문자·장보기 기록)은 '가계부 기록'.
+ * 어디서: 플랫폼 → 가게 이름 칸 → 내역 이름(상품명과 같으면 비움). 배송비·봉투 줄과 금액 없는 줄은 뺀다
+ */
+export function ledgerSeen(txs: LedgerTx[]): SeenRecord[] {
+  const out: SeenRecord[] = []
+  for (const t of txs) {
+    for (const it of t.transaction_items ?? []) {
+      if (!(it.amount > 0) || /^(배송비|봉투|종량제|쇼핑백|비닐)/.test(it.name.trim())) continue
+      const source: SeenSource = t.source === 'photo' ? (t.platform ? 'order' : 'receipt') : 'ledger'
+      const where = t.platform || t.merchant?.trim() || (t.title.trim() !== it.name.trim() ? t.title.trim() : '')
+      out.push({ source, date: t.occurred_on, where, name: it.name, quantity: Number(it.quantity) || 1, amount: it.amount, unitPrice: it.unit_price,
+        packSize: it.pack_size === null ? null : Number(it.pack_size), packUnit: it.pack_unit })
+    }
+  }
+  return out
 }
