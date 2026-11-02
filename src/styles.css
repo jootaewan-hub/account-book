@@ -396,6 +396,7 @@ select.input { padding: 9px 10px; }
 .ev-done-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
 .ev-done-list li { display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; border-radius: var(--r-sm); background: var(--sage-soft); color: var(--sage-ink); font-size: 14px; }
 .ev-done-list b { font-size: 15px; color: var(--ink); }
+.ev-done-list .ev-done-memo { font-size: 13px; color: var(--ink-2); white-space: pre-line; }
 .ev-draft:not(.off) .draft-head b { color: var(--ink); }
 .smart-preview { display: block; max-width: 100%; max-height: 220px; margin: 0 auto; border-radius: var(--r-sm); object-fit: contain; }
 .smart-loading { display: flex; flex-direction: column; gap: 10px; align-items: center; padding: 20px 0 28px; text-align: center; }

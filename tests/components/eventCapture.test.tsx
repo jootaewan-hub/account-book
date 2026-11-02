@@ -13,6 +13,9 @@ const state = vi.hoisted(() => ({
   deleted: [] as string[][],
   fail: null as Error | null,
   fetchRange: null as [string, string] | null,
+  // 읽기·넣기를 붙잡아 두는 문(시트를 그 사이에 닫는 시험)
+  readGate: null as Promise<void> | null,
+  insertGate: null as Promise<void> | null,
 }))
 
 vi.mock('../../src/lib/image', () => ({
@@ -23,13 +26,18 @@ vi.mock('../../src/lib/smart', () => ({
   modelLabel: (id: string) => (id ? 'Claude Haiku 5.5' : null),
   invoke: async () => {
     if (state.fail) throw state.fail
+    if (state.readGate) await state.readGate
     return { events: state.events, note: state.note, model: 'claude-haiku-5-5' }
   },
 }))
 vi.mock('../../src/lib/api', () => ({
   friendlyError: (e: unknown) => (e instanceof Error ? e.message : String(e)),
   fetchEvents: async (_h: string, from: string, to: string) => { state.fetchRange = [from, to]; return state.existing },
-  insertEvents: async (_h: string, list: EventInput[]) => { state.inserted.push(list); return list.map((_, i) => `new-${i}`) },
+  insertEvents: async (_h: string, list: EventInput[]) => {
+    state.inserted.push(list)
+    if (state.insertGate) await state.insertGate
+    return list.map((_, i) => `new-${i}`)
+  },
   deleteEvents: async (ids: string[]) => { state.deleted.push(ids) },
 }))
 
@@ -38,7 +46,7 @@ const { CalendarView } = await import('../../src/components/CalendarView')
 const { makeLookup } = await import('../../src/lib/lookup')
 
 beforeEach(() => {
-  Object.assign(state, { events: [], note: null, existing: [], inserted: [], deleted: [], fail: null, fetchRange: null })
+  Object.assign(state, { events: [], note: null, existing: [], inserted: [], deleted: [], fail: null, fetchRange: null, readGate: null, insertGate: null })
   URL.revokeObjectURL = () => {}
 })
 afterEach(cleanup)
@@ -127,12 +135,14 @@ describe('캡처로 일정 넣기 시트', () => {
 describe('문자 붙여넣기(D-046)', () => {
   async function readText(value: string) {
     const onSaved = vi.fn(async () => {})
-    render(<EventCaptureSheet open today="2026-11-02" householdId="h" onSaved={onSaved} onManual={() => {}} onClose={() => {}} />)
+    const sheet = (open: boolean) => <EventCaptureSheet open={open} today="2026-11-02" householdId="h" onSaved={onSaved} onManual={() => {}} onClose={() => {}} />
+    const { rerender } = render(sheet(true))
     fireEvent.click(screen.getByRole('button', { name: '문자 붙여넣기' }))
     fireEvent.change(screen.getByLabelText('붙여넣을 문자'), { target: { value } })
     fireEvent.click(screen.getByRole('button', { name: '읽고 일정 넣기' }))
-    return { onSaved }
+    return { onSaved, close: () => rerender(sheet(false)) }
   }
+  const gate = () => { let open = () => {}; const p = new Promise<void>((r) => { open = r }); return { p, open } }
 
   const symposium = () => checked({ title: '추계 심포지엄', date: '2026-11-21', time: '09:00', memo: '09:00~17:00 · 사전등록, 평점 6점', place: '코엑스 401호', address: null })
 
@@ -142,6 +152,7 @@ describe('문자 붙여넣기(D-046)', () => {
     expect(await screen.findByText('일정 1건을 넣었어요')).toBeTruthy()
     expect(state.inserted[0][0]).toMatchObject({ title: '추계 심포지엄', date: '2026-11-21', time: '09:00', place: '코엑스 401호', scope: 'shared' })
     expect(screen.getByText('11월 21일 토요일 09:00')).toBeTruthy()
+    expect(screen.getByText('09:00~17:00 · 사전등록, 평점 6점')).toBeTruthy() // 메모도 보인다
     expect(screen.queryByRole('button', { name: /일정 \d+건 넣기/ })).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: '확인' }))
     await waitFor(() => expect(onSaved).toHaveBeenCalledWith(1, '2026-11-21'))
@@ -155,6 +166,25 @@ describe('문자 붙여넣기(D-046)', () => {
     expect(state.deleted).toEqual([['new-0']])
     expect(screen.getByRole('button', { name: '일정 1건 넣기' })).toBeTruthy()
     expect(onSaved).not.toHaveBeenCalled()
+  })
+
+  it('읽는 동안 시트를 닫으면 바로 넣지 않는다', async () => {
+    state.events = [symposium()]
+    const g = gate(); state.readGate = g.p
+    const { onSaved, close } = await readText('추계 심포지엄 11/21(토) 09:00')
+    close(); g.open()
+    await new Promise((r) => setTimeout(r, 20))
+    expect(state.inserted).toEqual([])
+    expect(onSaved).not.toHaveBeenCalled()
+  })
+
+  it('넣는 동안 시트를 닫으면 넣은 것을 알린다', async () => {
+    state.events = [symposium()]
+    const g = gate(); state.insertGate = g.p
+    const { onSaved, close } = await readText('추계 심포지엄 11/21(토) 09:00')
+    await waitFor(() => expect(state.inserted).toHaveLength(1))
+    close(); g.open()
+    await waitFor(() => expect(onSaved).toHaveBeenCalledWith(1, '2026-11-21'))
   })
 
   it('읽은 날짜가 원문에 없거나(상대 날짜 등) 인터넷 주소가 있으면 바로 넣지 않는다', async () => {

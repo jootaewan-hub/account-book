@@ -47,12 +47,12 @@ export function EventCaptureSheet({ open, today, householdId, onSaved, onManual,
   // 다시 읽으면 카드를 새로 만든다(초안 key '0'이 같아도 앞 결과의 칸 상태가 남지 않게)
   const [round, setRound] = useState(0)
   const fileRef = useRef<HTMLInputElement>(null)
-  // 읽기 요청 번호. 시트를 닫았다 다시 열면 바뀌어, 늦게 끝난 이전 결과는 버린다
+  // 읽기 요청 번호. 시트를 닫거나 다시 열면 바뀌어, 늦게 끝난 이전 결과는 버린다(닫은 뒤에는 바로 넣기도 하지 않는다)
   const reqRef = useRef(0)
 
   useEffect(() => {
-    if (!open) return
     reqRef.current++
+    if (!open) return
     setStage('input'); setDrafts([]); setNote(null); setModel(null); setErr(''); setBusy(false); setPreparing(false); setText(''); setSaved(null)
     setImages((prev) => { prev.forEach((i) => URL.revokeObjectURL(i.preview)); return [] })
   }, [open])
@@ -112,7 +112,8 @@ export function EventCaptureSheet({ open, today, householdId, onSaved, onManual,
       if (src === 'text' && canAutoSave(ds, res.note, text)) {
         const list = ds.map((d) => eventInput(d) as EventInput)
         const ids = await insertEvents(householdId, list)
-        if (id !== reqRef.current) return
+        // 넣는 동안 시트를 닫았으면 넣은 것을 알린다(알림과 달력 이동)
+        if (id !== reqRef.current) return void onSaved(list.length, list.map((v) => v.date).sort()[0])
         setSaved({ ids, list }); setNote(null); setStage('done')
         return
       }
@@ -176,6 +177,7 @@ export function EventCaptureSheet({ open, today, householdId, onSaved, onManual,
                 <b>{v.title}</b>
                 <span className="num">{formatDateLong(v.date)}{v.time ? ` ${v.time}` : ' 하루 종일'}</span>
                 {(v.place || v.address) && <span>{v.place || v.address}</span>}
+                {v.memo && <span className="ev-done-memo">{v.memo}</span>}
               </li>
             ))}
           </ul>

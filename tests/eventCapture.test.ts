@@ -188,6 +188,14 @@ describe('문자 붙여넣기(D-046)', () => {
     expect(canAutoSave([d({}), d({ key: '1', date: '2026-11-22' })], null, TEXT)).toBe(true)
     expect(canAutoSave([d({})], null, '다음 주 토요일 심포지엄')).toBe(false) // 날짜가 원문에 없음
     expect(canAutoSave([d({})], null, '11/21 등록 www.example.com')).toBe(false) // 인터넷 주소
+    // 끝 이름을 가리지 않고, 숨은 글자·전각 마침표·IP로도 빠져나가지 못한다
+    for (const t of ['11/21 등록 bit.do/abc', '11/21 등록 evil.xyz에서', '11/21 등록 evil\u200B.top', '11/21 등록 evil。top', '11/21 등록 evil．top', '11/21 http://1.2.3.4', '11/21 1.2.3.4/x'])
+      expect(canAutoSave([d({})], null, t), t).toBe(false)
+    // 원문에 없어도 읽은 칸(제목·메모·장소·주소)에 주소가 있으면 바로 넣지 않는다
+    expect(canAutoSave([d({ memo: '등록 evil.top' })], null, TEXT)).toBe(false)
+    expect(canAutoSave([d({ place: 'evil.top' })], null, TEXT)).toBe(false)
+    // 3.5km·9:00·11.21 같은 숫자는 주소가 아니다
+    expect(canAutoSave([d({ memo: '역에서 3.5km, 9:00 등록' })], null, '심포지엄 11.21 09:00')).toBe(true)
     expect(canAutoSave([])).toBe(false)
     expect(canAutoSave([d({ include: false })])).toBe(false) // 같은 일정·취소 안내
     expect(canAutoSave([d({ warnings: ['날짜를 읽지 못했어요. 날짜를 넣어 주세요.'], date: '' })])).toBe(false)

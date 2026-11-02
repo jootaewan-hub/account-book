@@ -103,18 +103,23 @@ export function dateInText(date: string, text: string): boolean {
   return new RegExp(`(?<!\\d)0?${m}\\s*(?:월|[./-])\\s*0?${d}(?!\\d)`).test(t)
 }
 
-/** 인터넷 주소가 든 문자는 바로 넣지 않는다(낚시 문자 가능성) */
-const URL_LIKE = /(https?:\/\/|www\.|[a-z0-9-]+\.(?:com|net|kr|co|io|me|ly|site|link)\b)/i
+/**
+ * 인터넷 주소가 든 문자는 바로 넣지 않는다(낚시 문자 가능성). 끝 이름(.com 등)을 고르지 않고 "글자.영문 두 자 이상"이면 모두 주소로 본다.
+ * "Dr.Kim"처럼 주소가 아닌 것도 걸리지만 그때는 확인 화면으로 갈 뿐이다. 숨은 글자를 빼고 전각·반각 마침표를 '.'로 맞춘 뒤 본다
+ */
+const URL_LIKE = /https?:|www\.|[\p{L}\p{N}-]+\.(?:[a-z]{2,}|한국)|\d{1,3}(?:\.\d{1,3}){3}/iu
+const hasUrl = (s: string) => URL_LIKE.test(s.normalize('NFKC').replace(/[\u00AD\u200B-\u200D\u2060\uFEFF]/g, '').replace(/[。｡]/g, '.'))
 
 /**
  * 붙여넣은 문자를 확인 없이 바로 넣어도 되는지(D-046). 모델이 읽은 결과만 믿지 않고 원문과 견준다:
  * 일정이 1~3개, 모두 넣기로 남아 있음(같은 일정·취소 안내 없음), 확인 문장 없음(날짜 못 읽음·지난 날짜·요일·변경 안내),
- * 서버가 알린 말(note) 없음, 표 검사 통과, 그리고 원문에 각 일정의 날짜(월·일)가 글자로 있고 인터넷 주소가 없을 때만.
+ * 서버가 알린 말(note) 없음, 표 검사 통과, 그리고 원문에 각 일정의 날짜(월·일)가 글자로 있고 원문·읽은 칸 어디에도 인터넷 주소가 없을 때만.
  * 바로 넣은 뒤에는 시트에 넣은 것을 보이고 되돌리기를 둔다
  */
 export function canAutoSave(drafts: EventDraft[], note: string | null = null, text = ''): boolean {
-  return drafts.length > 0 && drafts.length <= AUTO_SAVE_MAX && !note?.trim() && !URL_LIKE.test(text.normalize('NFKC'))
-    && drafts.every((d) => d.include && d.warnings.length === 0 && typeof eventInput(d) !== 'string' && dateInText(d.date, text))
+  return drafts.length > 0 && drafts.length <= AUTO_SAVE_MAX && !note?.trim() && !hasUrl(text)
+    && drafts.every((d) => d.include && d.warnings.length === 0 && typeof eventInput(d) !== 'string' && dateInText(d.date, text)
+      && !hasUrl([d.title, d.memo, d.place, d.address].join('\n')))
 }
 
 /** 저장할 값. 표 검사(제목 1~40자, 메모 200자, 있는 날짜, HH:MM)에 걸릴 것은 문장으로 돌려준다 */
