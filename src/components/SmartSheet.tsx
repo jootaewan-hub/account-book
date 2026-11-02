@@ -19,6 +19,7 @@ import { defaultScope } from '../lib/localPrefs'
 import { GroceryMatchCard } from './GroceryMatchCard'
 import { InstallmentPicker } from './InstallmentPicker'
 import { ItemInfo } from './ItemInfo'
+import { PackInput } from './PackInput'
 import { PlatformInput } from './PlatformInput'
 import { Sheet } from './Sheet'
 
@@ -512,7 +513,14 @@ function DraftCard({ d, categories, fills, onChange }: {
                       <img className="item-thumb" src={it.photo.url} alt="" /><span className="thumb-x">×</span>
                     </button>
                   : <span className="item-thumb empty" aria-hidden="true" />}
-                <ItemInfo it={it} />
+                <span className="item-main">
+                  <ItemInfo it={it} />
+                  {/* 상품 줄은 용량을 적거나 고칠 수 있다(D-045). 영수증에 용량이 안 찍힌 줄을 채우면 장보기 지난 기록에서 용량당 값으로 견준다 */}
+                  {isProductLine(it) && (
+                    <PackInput name={it.name} size={it.pack_size} unit={it.pack_unit}
+                      onChange={(p) => onChange({ items: d.items.map((x, j) => (j === i ? { ...x, ...p } : x)) })} />
+                  )}
+                </span>
                 <span className="num">{won(it.amount)}</span>
               </li>
             ))}

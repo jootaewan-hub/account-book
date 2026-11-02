@@ -22,6 +22,13 @@ export const KIND_LABEL: Record<ReleaseKind, string> = { major: '큰 업데이�
 /** 최신이 맨 앞 */
 export const RELEASES: Release[] = [
   {
+    version: '2.22.0', date: '2026-11-02', kind: 'minor', title: '영수증 용량 칸, 달력 글씨',
+    items: [
+      '영수증·쇼핑 주문 확인 화면의 상품마다 용량 칸이 있어요. 영수증에 안 찍힌 용량을 "900ml", "1.5kg", "30롤"처럼 적으면 장보기 지난 기록에서 용량당 값으로 견줘요.',
+      '달력 칸의 일정·기념일 글씨를 작게 해서 이름이 더 많이 보여요.',
+    ],
+  },
+  {
     version: '2.21.0', date: '2026-11-02', kind: 'minor', title: '누구 일정, 달력 이름 두 줄',
     items: [
       '일정을 넣거나 고칠 때 "함께·남편·아내" 중 누구 일정인지 고를 수 있어요. 남편·아내 일정은 달력 칸에 색 띠, 목록에 태그로 보여요.',

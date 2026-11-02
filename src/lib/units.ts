@@ -34,3 +34,25 @@ export function qtyPriceLabel(it: { quantity: number; unit_price: number | null 
   if (it.unit_price !== null && it.unit_price !== undefined) return `${qty} × ${it.unit_price.toLocaleString('ko-KR')}원`
   return q !== 1 ? qty : null
 }
+
+// 영수증 확인 화면의 용량 칸(D-045): '900ml', '1.5kg', '2L', '30롤', '10개입', '1.05kg x2'를 읽는다. kg·L는 g·ml로.
+const PACK_TEXT = /^(\d+(?:\.\d+)?)\s*(kg|g|ml|l|리터|개입|개|구|롤|매|입|팩|봉|병|캔|장|단|포|정|알)(?:\s*[x×*]\s*(\d+))?$/i
+
+/** 용량 글자 → 1개(수량 1)에 든 총량과 단위. 못 읽으면 null */
+export function parsePackText(text: string): { pack_size: number; pack_unit: string } | null {
+  const m = PACK_TEXT.exec(text.replace(/\s+/g, ' ').trim())
+  if (!m) return null
+  const n = Number(m[1])
+  const times = m[3] ? Number(m[3]) : 1
+  if (!(n > 0) || !(times >= 1 && times < 1000)) return null
+  const u = m[2].toLowerCase()
+  const [size, unit] = u === 'kg' ? [n * 1000, 'g'] : u === 'l' || u === '리터' ? [n * 1000, 'ml'] : u === '개입' ? [n, '입'] : [n, m[2]]
+  const total = Math.round(size * times * 1000) / 1000
+  return total > 0 && total < 1e7 ? { pack_size: total, pack_unit: unit } : null
+}
+
+/** 총량·단위 → 칸에 보일 글자('900ml', '1050g', '30롤'). 없으면 '' */
+export function packText(size: number | null, unit: string | null): string {
+  if (!size || !unit) return ''
+  return `${Number.isInteger(size) ? size : Math.round(size * 1000) / 1000}${unit}`
+}
