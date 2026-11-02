@@ -254,6 +254,11 @@ npm run screens
     - 됨: Pages 배포 성공, 운영 `version.json` `1a9c16c · 10-29 15:54`, 운영 index.html에 정적 첫 화면(`boot-mark`), CSS에 `wait-bar`, 앱 묶음에 2.16.1. DB·서버 함수 변경 없음.
     - 사용자 확인(2026-10-29 16:17 KST): 앱에서 "잘보여". 캡처는 Chromium으로 봤고, 아이폰 사파리에서 빛이 한 줄기(`background-attachment: fixed`)로 지나가는지까지 따로 묻지는 않았다(지원하지 않으면 자리마다 따로 지나가며 쓰는 데 문제없다).
     - 되돌리기: main을 8c9b7e1(배포 기록 33)로.
+35. 캡처로 일정 넣기(D-039, v2.17.0) 운영 반영(2026-11-02 09:08~ KST, 사용자 "진행해"): 브랜치 `claude/event-capture` → `ci.yml` 통과(8627339).
+    - 됨(함수): 커밋 고정 stub `86273396513904f7dce91013b4f6252b20d549ca`로 `extract-entries` v17(verify_jwt true, `deno.json` import map 함께, 배포 전 같은 stub `deno check` 통과). OPTIONS 200 `ok`, 인증 머리 없는 POST 401, 공개 키만 넣은 POST는 함수 코드가 401 "로그인이 필요해요"(새 파일 `eventCheck.ts`·`events.ts`를 불러 기동함). DB 변경 없음.
+    - 남음: main fast-forward·푸시(자동 모드 안전장치가 막아 사용자가 직접 푸시). 함수가 앞섰어도 옛 화면은 `kind: 'event'`를 보내지 않아 영향이 없다.
+    - 확인 필요(사용자): 실제 예약 캡처(네이버 예약·캐치테이블·카톡 알림톡 등) 두세 장으로 날짜·시간·장소가 맞게 읽히는지, 연도 없는 캡처가 다가오는 날짜로 잡히는지.
+    - 되돌리기: 함수는 stub 해시를 `be012859ab52e34c13fe26dbfa487db52589c60e`(v16)로 바꿔 다시 올린다(영수증·문자·관리비 동작은 같다). 화면은 main을 3105cd8로.
 
 ### 사용자 할 일
 
