@@ -390,6 +390,12 @@ select.input { padding: 9px 10px; }
 /* 문자·사진 입력 */
 .smart-text { min-height: 150px; resize: vertical; line-height: 1.5; font-size: 16px; }
 .ev-memo { min-height: 76px; resize: vertical; line-height: 1.5; }
+/* 문자로 바로 넣은 뒤(D-046): 넣은 일정 목록과 확인·되돌리기 */
+.ev-done { display: flex; flex-direction: column; gap: 10px; }
+.ev-done .lead { font-size: 17px; font-weight: 700; color: var(--ink); margin: 0; }
+.ev-done-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.ev-done-list li { display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; border-radius: var(--r-sm); background: var(--sage-soft); color: var(--sage-ink); font-size: 14px; }
+.ev-done-list b { font-size: 15px; color: var(--ink); }
 .ev-draft:not(.off) .draft-head b { color: var(--ink); }
 .smart-preview { display: block; max-width: 100%; max-height: 220px; margin: 0 auto; border-radius: var(--r-sm); object-fit: contain; }
 .smart-loading { display: flex; flex-direction: column; gap: 10px; align-items: center; padding: 20px 0 28px; text-align: center; }

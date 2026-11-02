@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { fetchEvents, friendlyError, insertEvents } from '../lib/api'
+import { deleteEvents, fetchEvents, friendlyError, insertEvents } from '../lib/api'
 import { formatDateLong } from '../lib/dates'
 import { analyzeEvents, analyzeEventText, canAutoSave, EVENT_PHOTOS_MAX, eventDateRange, eventInput, toEventDrafts, type EventDraft } from '../lib/eventCapture'
 import { fileToJpeg, type PreparedImage } from '../lib/image'
@@ -20,7 +20,8 @@ interface Props {
   onClose: () => void
 }
 
-type Stage = 'input' | 'loading' | 'review'
+/** done: 문자로 바로 넣은 뒤(넣은 것과 되돌리기, D-046) */
+type Stage = 'input' | 'loading' | 'review' | 'done'
 /** 읽을 것: 캡처 사진 또는 붙여넣은 문자(D-046) */
 type Src = 'photo' | 'text'
 
@@ -34,6 +35,8 @@ export function EventCaptureSheet({ open, today, householdId, onSaved, onManual,
   const [stage, setStage] = useState<Stage>('input')
   const [src, setSrc] = useState<Src>('photo')
   const [text, setText] = useState('')
+  // 문자로 바로 넣은 일정(되돌리기용 id와 넣은 값)
+  const [saved, setSaved] = useState<{ ids: string[]; list: EventInput[] } | null>(null)
   const [images, setImages] = useState<PreparedImage[]>([])
   const [drafts, setDrafts] = useState<EventDraft[]>([])
   const [note, setNote] = useState<string | null>(null)
@@ -50,7 +53,7 @@ export function EventCaptureSheet({ open, today, householdId, onSaved, onManual,
   useEffect(() => {
     if (!open) return
     reqRef.current++
-    setStage('input'); setDrafts([]); setNote(null); setModel(null); setErr(''); setBusy(false); setPreparing(false); setText('')
+    setStage('input'); setDrafts([]); setNote(null); setModel(null); setErr(''); setBusy(false); setPreparing(false); setText(''); setSaved(null)
     setImages((prev) => { prev.forEach((i) => URL.revokeObjectURL(i.preview)); return [] })
   }, [open])
 
@@ -104,20 +107,40 @@ export function EventCaptureSheet({ open, today, householdId, onSaved, onManual,
       const existing = range ? await fetchEvents(householdId, range.from, range.to).catch(() => []) : []
       if (id !== reqRef.current) return
       const ds = toEventDrafts(res.events, existing)
-      // 문자는 확인할 것이 없으면 바로 넣는다(넣은 일정은 달력에서 눌러 고칠 수 있다)
-      if (src === 'text' && canAutoSave(ds, res.note)) {
+      setDrafts(ds); setRound(id); setModel(modelLabel(res.model))
+      // 문자는 확인할 것이 없고 원문과 맞으면(날짜가 원문에 있음, 인터넷 주소 없음) 바로 넣고, 넣은 것을 보이며 되돌리기를 둔다
+      if (src === 'text' && canAutoSave(ds, res.note, text)) {
         const list = ds.map((d) => eventInput(d) as EventInput)
-        await insertEvents(householdId, list)
+        const ids = await insertEvents(householdId, list)
         if (id !== reqRef.current) return
-        await onSaved(list.length, list.map((v) => v.date).sort()[0])
+        setSaved({ ids, list }); setNote(null); setStage('done')
         return
       }
-      setDrafts(ds)
       setNote([src === 'text' ? '확인할 것이 있어 바로 넣지 않았어요. 고칠 것을 고친 뒤 넣어 주세요.' : null, res.note].filter(Boolean).join('\n') || null)
-      setModel(modelLabel(res.model)); setRound(id); setStage('review')
+      setStage('review')
     } catch (e) {
       if (id !== reqRef.current) return
       setErr(e instanceof SmartError ? e.message : friendlyError(e)); setStage('input')
+    }
+  }
+
+  // 바로 넣은 뒤 '확인'·닫기: 달력을 그 날로 옮기고 알림
+  async function finish() {
+    if (!saved) return onClose()
+    await onSaved(saved.list.length, saved.list.map((v) => v.date).sort()[0])
+  }
+
+  // 되돌리기: 방금 넣은 일정을 지우고 확인 화면으로(고쳐서 넣거나 닫는다)
+  async function undo() {
+    if (!saved) return
+    setBusy(true); setErr('')
+    try {
+      await deleteEvents(saved.ids)
+      setSaved(null); setNote('넣은 일정을 지웠어요. 고친 뒤 넣거나 닫아 주세요.'); setStage('review')
+    } catch (e) {
+      setErr(friendlyError(e))
+    } finally {
+      setBusy(false)
     }
   }
 
@@ -143,7 +166,25 @@ export function EventCaptureSheet({ open, today, householdId, onSaved, onManual,
   }
 
   return (
-    <Sheet open={open} title="캡처·문자로 일정 넣기" onClose={onClose}>
+    <Sheet open={open} title="캡처·문자로 일정 넣기" onClose={stage === 'done' ? () => void finish() : onClose}>
+      {stage === 'done' && saved && (
+        <div className="ev-done">
+          <p className="lead" role="status">일정 {saved.list.length}건을 넣었어요</p>
+          <ul className="ev-done-list">
+            {saved.list.map((v, i) => (
+              <li key={i}>
+                <b>{v.title}</b>
+                <span className="num">{formatDateLong(v.date)}{v.time ? ` ${v.time}` : ' 하루 종일'}</span>
+                {(v.place || v.address) && <span>{v.place || v.address}</span>}
+              </li>
+            ))}
+          </ul>
+          <p className="err" role="alert">{err}</p>
+          <button className="primary" disabled={busy} onClick={() => void finish()}>확인</button>
+          <button className="ghost" disabled={busy} onClick={() => void undo()}>{busy ? '지우는 중…' : '되돌리기'}</button>
+          {model && <p className="tx-meta">{model}로 읽었어요</p>}
+        </div>
+      )}
       {stage === 'input' && (
         <div className="seg" role="group" aria-label="읽을 것">
           <button type="button" aria-pressed={src === 'photo'} onClick={() => { setSrc('photo'); setErr('') }}>캡처 사진</button>
@@ -221,7 +262,7 @@ export function EventCaptureSheet({ open, today, householdId, onSaved, onManual,
         </>
       )}
 
-      {stage !== 'loading' && <button className="link-btn" onClick={onManual}>직접 넣기로 바꾸기</button>}
+      {stage !== 'loading' && stage !== 'done' && <button className="link-btn" onClick={onManual}>직접 넣기로 바꾸기</button>}
     </Sheet>
   )
 }

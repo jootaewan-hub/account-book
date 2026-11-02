@@ -95,13 +95,26 @@ export function eventDateRange(events: Pick<CheckedEvent, 'date'>[]): { from: st
 /** 확인 없이 바로 넣는 일정 수 상한(D-046). 붙여넣은 글은 믿을 수 없는 입력이라 많이 나오면 사람이 본다 */
 export const AUTO_SAVE_MAX = 3
 
+/** 원문에 그 날짜(월·일)가 글자로 있는지: 11월 21일, 11/21, 11.21, 2026-11-21, 11-21 (앞에 0이 있어도) */
+export function dateInText(date: string, text: string): boolean {
+  const [, m, d] = date.split('-').map(Number)
+  if (!m || !d) return false
+  const t = text.normalize('NFKC')
+  return new RegExp(`(?<!\\d)0?${m}\\s*(?:월|[./-])\\s*0?${d}(?!\\d)`).test(t)
+}
+
+/** 인터넷 주소가 든 문자는 바로 넣지 않는다(낚시 문자 가능성) */
+const URL_LIKE = /(https?:\/\/|www\.|[a-z0-9-]+\.(?:com|net|kr|co|io|me|ly|site|link)\b)/i
+
 /**
- * 붙여넣은 문자를 확인 없이 바로 넣어도 되는지(D-046): 일정이 1~3개이고, 모두 넣기로 남아 있고(같은 일정·취소 안내 없음),
- * 확인 문장이 하나도 없으며(날짜 못 읽음·지난 날짜·요일 안 맞음·변경 안내 없음), 서버가 알린 말(note)이 없고, 표 검사도 통과할 때만
+ * 붙여넣은 문자를 확인 없이 바로 넣어도 되는지(D-046). 모델이 읽은 결과만 믿지 않고 원문과 견준다:
+ * 일정이 1~3개, 모두 넣기로 남아 있음(같은 일정·취소 안내 없음), 확인 문장 없음(날짜 못 읽음·지난 날짜·요일·변경 안내),
+ * 서버가 알린 말(note) 없음, 표 검사 통과, 그리고 원문에 각 일정의 날짜(월·일)가 글자로 있고 인터넷 주소가 없을 때만.
+ * 바로 넣은 뒤에는 시트에 넣은 것을 보이고 되돌리기를 둔다
  */
-export function canAutoSave(drafts: EventDraft[], note: string | null = null): boolean {
-  return drafts.length > 0 && drafts.length <= AUTO_SAVE_MAX && !note?.trim()
-    && drafts.every((d) => d.include && d.warnings.length === 0 && typeof eventInput(d) !== 'string')
+export function canAutoSave(drafts: EventDraft[], note: string | null = null, text = ''): boolean {
+  return drafts.length > 0 && drafts.length <= AUTO_SAVE_MAX && !note?.trim() && !URL_LIKE.test(text.normalize('NFKC'))
+    && drafts.every((d) => d.include && d.warnings.length === 0 && typeof eventInput(d) !== 'string' && dateInText(d.date, text))
 }
 
 /** 저장할 값. 표 검사(제목 1~40자, 메모 200자, 있는 날짜, HH:MM)에 걸릴 것은 문장으로 돌려준다 */

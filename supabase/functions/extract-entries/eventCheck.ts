@@ -19,7 +19,8 @@ export const EVENT_MAX = 20
  * 글 안의 '</pasted>'가 경계를 닫고 그 뒤를 지시처럼 보이게 하는 것을 막는다(문자 내용에 꺾쇠는 거의 없다)
  */
 export function fencePasted(text: string): string {
-  return text.replace(/</g, '‹').replace(/>/g, '›')
+  // 전각 꺾쇠(＜＞) 같은 비슷한 글자도 먼저 보통 글자로 맞춘 뒤 바꾼다
+  return text.normalize('NFKC').replace(/</g, '‹').replace(/>/g, '›')
 }
 
 /** 모델이 캡처에서 읽은 일정 하나(events.ts의 EventSchema와 같은 모양) */

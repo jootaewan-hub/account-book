@@ -394,3 +394,13 @@ export const EVENT_PLACES = [
     place: '더그랜드롯데 서울 라세느', address: '서울 중구 을지로 30 본관 1층', lat: 37.5653, lng: 126.981, scope: 'shared' },
   { id: 'ev-meet', date: today, time: null, title: '동네 모임', memo: null, place: null, address: null, lat: null, lng: null, scope: 'husband' },
 ]
+
+// 문자 붙여넣기 응답(가짜, D-046): 열흘 뒤 심포지엄 하나. 붙여넣은 글(EVENT_TEXT_PASTE)에 같은 날짜가 있어 바로 넣는다
+const tenDays = new Date(kst.getTime() + 10 * 86_400_000).toISOString().slice(0, 10)
+export const EVENT_TEXT_PASTE = `[대한○○학회] 2026 추계 심포지엄 안내\n일시: ${Number(tenDays.slice(5, 7))}월 ${Number(tenDays.slice(8, 10))}일 09:00~17:00\n장소: 코엑스 컨퍼런스룸(남) 401호\n사전등록 필수, 평점 6점`
+export const EVENT_TEXT = {
+  model: 'claude-haiku-5-5',
+  note: null,
+  events: [{ title: '대한○○학회 추계 심포지엄', date: tenDays, time: '09:00', notice: 'booking', warnings: [], images: [],
+    memo: '09:00~17:00 · 사전등록 필수, 평점 6점', place: '코엑스 컨퍼런스룸(남) 401호', address: null, lat: null, lng: null }],
+}

@@ -94,9 +94,16 @@ export async function insertEvent(householdId: string, e: EventInput): Promise<v
 }
 
 /** 일정 여러 건을 한 문장으로 넣는다(캡처로 넣기, D-039). 한 건이라도 검사에 걸리면 아무것도 들어가지 않는다 */
-export async function insertEvents(householdId: string, list: EventInput[]): Promise<void> {
-  if (!list.length) return
-  check(await sb().from('events').insert(list.map((e) => ({ ...e, household_id: householdId }))))
+export async function insertEvents(householdId: string, list: EventInput[]): Promise<string[]> {
+  if (!list.length) return []
+  const rows = check(await sb().from('events').insert(list.map((e) => ({ ...e, household_id: householdId }))).select('id')) as { id: string }[] | null
+  return (rows ?? []).map((r) => r.id)
+}
+
+/** 방금 넣은 일정 되돌리기(문자로 바로 넣은 뒤, D-046) */
+export async function deleteEvents(ids: string[]): Promise<void> {
+  if (!ids.length) return
+  check(await sb().from('events').delete().in('id', ids))
 }
 
 export async function updateEvent(id: string, e: EventInput): Promise<void> {

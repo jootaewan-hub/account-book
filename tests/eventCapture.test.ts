@@ -6,7 +6,7 @@ import {
 } from '../supabase/functions/extract-entries/eventCheck'
 import { buildUserText } from '../supabase/functions/extract-entries/extract'
 import { EventResultSchema, EventSchema } from '../supabase/functions/extract-entries/events'
-import { canAutoSave, eventDateRange, eventInput, sameEvent, toEventDrafts, type EventDraft } from '../src/lib/eventCapture'
+import { canAutoSave, dateInText, eventDateRange, eventInput, sameEvent, toEventDrafts, type EventDraft } from '../src/lib/eventCapture'
 import { buildEventPasteText, EVENT_PROMPT } from '../supabase/functions/extract-entries/events'
 import type { CalEvent } from '../src/lib/types'
 
@@ -182,8 +182,12 @@ describe('문자 붙여넣기(D-046)', () => {
   const d = (p: Partial<EventDraft>): EventDraft => ({ key: '0', include: true, title: '심포지엄', date: '2026-11-21', time: '09:00', memo: '',
     place: '', address: '', lat: null, lng: null, scope: 'shared', warnings: [], ...p })
 
-  it('모두 넣기로 남아 있고 확인 문장이 없을 때만 바로 넣는다', () => {
-    expect(canAutoSave([d({}), d({ key: '1', date: '2026-11-22' })])).toBe(true)
+  const TEXT = '심포지엄 11월 21일(토), 11/22(일) 이틀'
+
+  it('모두 넣기로 남아 있고 확인 문장이 없고 원문에 날짜가 있을 때만 바로 넣는다', () => {
+    expect(canAutoSave([d({}), d({ key: '1', date: '2026-11-22' })], null, TEXT)).toBe(true)
+    expect(canAutoSave([d({})], null, '다음 주 토요일 심포지엄')).toBe(false) // 날짜가 원문에 없음
+    expect(canAutoSave([d({})], null, '11/21 등록 www.example.com')).toBe(false) // 인터넷 주소
     expect(canAutoSave([])).toBe(false)
     expect(canAutoSave([d({ include: false })])).toBe(false) // 같은 일정·취소 안내
     expect(canAutoSave([d({ warnings: ['날짜를 읽지 못했어요. 날짜를 넣어 주세요.'], date: '' })])).toBe(false)
@@ -191,9 +195,15 @@ describe('문자 붙여넣기(D-046)', () => {
   })
 
   it('일정이 3개를 넘거나 서버가 알린 말이 있으면 바로 넣지 않는다', () => {
-    expect(canAutoSave([d({}), d({ key: '1' }), d({ key: '2' })])).toBe(true)
-    expect(canAutoSave([d({}), d({ key: '1' }), d({ key: '2' }), d({ key: '3' })])).toBe(false)
-    expect(canAutoSave([d({})], '두 번째 날짜는 흐려서 읽지 못했어요')).toBe(false)
+    expect(canAutoSave([d({}), d({ key: '1' }), d({ key: '2' })], null, TEXT)).toBe(true)
+    expect(canAutoSave([d({}), d({ key: '1' }), d({ key: '2' }), d({ key: '3' })], null, TEXT)).toBe(false)
+    expect(canAutoSave([d({})], '두 번째 날짜는 흐려서 읽지 못했어요', TEXT)).toBe(false)
+  })
+
+  it('원문 날짜 찾기: 11월 21일, 11/21, 11.21, 2026-11-21, 앞 0, 전각 숫자. 다른 날·더 긴 숫자는 아님', () => {
+    for (const t of ['11월 21일', '11/21(토)', '11.21', '2026-11-21', '2026.11.21', '일시 11 월 21 일', '１１월 ２１일']) expect(dateInText('2026-11-21', t)).toBe(true)
+    for (const t of ['11/2', '11/210', '111/21', '1월 21일', '다음 주 토요일']) expect(dateInText('2026-11-21', t)).toBe(false)
+    expect(dateInText('2026-03-05', '03/05 진료')).toBe(true)
   })
 
   it('붙여넣은 글의 </pasted>는 경계를 닫지 못한다(꺾쇠를 바꾼다)', () => {

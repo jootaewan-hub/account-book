@@ -8,7 +8,7 @@
 import { existsSync, mkdirSync, readFileSync } from 'node:fs'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { chromium } from 'playwright'
-import { BILL, EVENT_CAPTURE, EVENT_EXISTING, EVENT_PLACES, EXPLORE_BUNJANG, EXPLORE_DAANGN, EXPLORE_DAISO, EXPLORE_KURLY, EXPLORE_OHOU, EXPLORE_PRODUCT, EXPLORE_SEARCH, EXPLORE_WEATHER, EXPLORE_WEATHER_NOT_REGISTERED, fakeSession, FUEL_RECEIPT, LONG_RECEIPT, RECEIPT, TABLES, USER } from './shell-fixtures.mjs'
+import { BILL, EVENT_CAPTURE, EVENT_EXISTING, EVENT_PLACES, EVENT_TEXT, EVENT_TEXT_PASTE, EXPLORE_BUNJANG, EXPLORE_DAANGN, EXPLORE_DAISO, EXPLORE_KURLY, EXPLORE_OHOU, EXPLORE_PRODUCT, EXPLORE_SEARCH, EXPLORE_WEATHER, EXPLORE_WEATHER_NOT_REGISTERED, fakeSession, FUEL_RECEIPT, LONG_RECEIPT, RECEIPT, TABLES, USER } from './shell-fixtures.mjs'
 
 const BASE = process.env.BASE_URL ?? 'http://localhost:5188' // vite.config.ts server.port와 같다
 const OUT = process.env.OUT_DIR ? pathToFileURL(`${process.env.OUT_DIR.replace(/\/$/, '')}/`) : new URL('../screenshots/', import.meta.url)
@@ -223,6 +223,8 @@ const shellShots = [
   // 읽기 전: 고른 캡처 미리 보기와 "캡처 1장 읽기"·"캡처 더 넣기"
   // 문자 붙여넣기(D-046): 심포지엄 안내 문자를 붙여넣은 모습
   ...each((w, c) => ({ name: `shell-event-text-${w}-${c}`, path: '/', w, c, shell: true, tab: '달력', eventCapture: 'input', eventText: '[대한○○학회] 2026 추계 심포지엄 안내\n일시: 2026년 11월 21일(토) 09:00~17:00\n장소: 코엑스 컨퍼런스룸(남) 401호\n사전등록: 11/14까지, 평점 6점' })),
+  // 확인할 것이 없어 바로 넣은 뒤: 넣은 일정과 확인·되돌리기
+  ...each((w, c) => ({ name: `shell-event-text-done-${w}-${c}`, path: '/', w, c, shell: true, tab: '달력', eventCapture: 'input', eventText: 'paste', eventTextRead: true })),
   ...both(390, (w, c) => ({ name: `shell-event-capture-input-${w}-${c}`, path: '/', w, c, shell: true, tab: '달력', eventCapture: 'input' })),
   { name: 'shell-event-capture-input-1280-light', path: '/', w: 1280, c: 'light', shell: true, tab: '달력', eventCapture: 'input' },
   ...both(390, (w, c) => ({ name: `shell-event-capture-dup-${w}-${c}`, path: '/', w, c, shell: true, tab: '달력', eventCapture: true, scrollTo: '.ev-draft.off .draft-head' })),
@@ -255,7 +257,7 @@ async function fakeSupabase(context, s = {}) {
     if (url.pathname === '/functions/v1/extract-entries') {
       let body = null
       try { body = req.postDataJSON() } catch { /* JSON이 아니면 영수증 응답 */ }
-      if (body?.kind === 'event') return json(EVENT_CAPTURE)
+      if (body?.kind === 'event') return json(body.text ? EVENT_TEXT : EVENT_CAPTURE)
       return json(body?.mode === 'bill' ? BILL : s.fuel ? FUEL_RECEIPT : s.longReceipt ? LONG_RECEIPT : RECEIPT)
     }
     if (url.pathname === '/functions/v1/explore-weather') return json(s.weatherNotRegistered ? EXPLORE_WEATHER_NOT_REGISTERED : EXPLORE_WEATHER)
@@ -524,7 +526,11 @@ try {
       if (s.eventText) {
         // 문자 붙여넣기(D-046): 붙여넣은 모습(읽기 전)
         await page.getByRole('button', { name: '문자 붙여넣기' }).click()
-        await page.getByLabel('붙여넣을 문자').fill(s.eventText)
+        await page.getByLabel('붙여넣을 문자').fill(s.eventText === 'paste' ? EVENT_TEXT_PASTE : s.eventText)
+        if (s.eventTextRead) {
+          await page.getByRole('button', { name: '읽고 일정 넣기' }).click()
+          await page.getByText(/^일정 \d+건을 넣었어요$/).waitFor()
+        }
       } else {
       await page.locator('input[type=file]').setInputFiles({ name: 'cap.jpg', mimeType: 'image/jpeg', buffer: TINY_JPEG })
       if (s.eventCapture === 'input') await page.getByRole('button', { name: '캡처 1장 읽기' }).waitFor()

@@ -10,6 +10,7 @@ const state = vi.hoisted(() => ({
   note: null as string | null,
   existing: [] as CalEvent[],
   inserted: [] as EventInput[][],
+  deleted: [] as string[][],
   fail: null as Error | null,
   fetchRange: null as [string, string] | null,
 }))
@@ -28,7 +29,8 @@ vi.mock('../../src/lib/smart', () => ({
 vi.mock('../../src/lib/api', () => ({
   friendlyError: (e: unknown) => (e instanceof Error ? e.message : String(e)),
   fetchEvents: async (_h: string, from: string, to: string) => { state.fetchRange = [from, to]; return state.existing },
-  insertEvents: async (_h: string, list: EventInput[]) => { state.inserted.push(list) },
+  insertEvents: async (_h: string, list: EventInput[]) => { state.inserted.push(list); return list.map((_, i) => `new-${i}`) },
+  deleteEvents: async (ids: string[]) => { state.deleted.push(ids) },
 }))
 
 const { EventCaptureSheet } = await import('../../src/components/EventCaptureSheet')
@@ -36,7 +38,7 @@ const { CalendarView } = await import('../../src/components/CalendarView')
 const { makeLookup } = await import('../../src/lib/lookup')
 
 beforeEach(() => {
-  Object.assign(state, { events: [], note: null, existing: [], inserted: [], fail: null, fetchRange: null })
+  Object.assign(state, { events: [], note: null, existing: [], inserted: [], deleted: [], fail: null, fetchRange: null })
   URL.revokeObjectURL = () => {}
 })
 afterEach(cleanup)
@@ -132,12 +134,37 @@ describe('문자 붙여넣기(D-046)', () => {
     return { onSaved }
   }
 
-  it('확인할 것이 없으면 확인 화면 없이 바로 넣는다', async () => {
-    state.events = [checked({ title: '추계 심포지엄', date: '2026-11-21', time: '09:00', memo: '09:00~17:00 · 사전등록, 평점 6점', place: '코엑스 401호', address: null })]
+  const symposium = () => checked({ title: '추계 심포지엄', date: '2026-11-21', time: '09:00', memo: '09:00~17:00 · 사전등록, 평점 6점', place: '코엑스 401호', address: null })
+
+  it('확인할 것이 없고 원문에 날짜가 있으면 바로 넣고, 넣은 것을 보이며 확인을 누르면 달력으로', async () => {
+    state.events = [symposium()]
     const { onSaved } = await readText('[○○학회] 추계 심포지엄 11/21(토) 09:00 코엑스 401호')
-    await waitFor(() => expect(onSaved).toHaveBeenCalledWith(1, '2026-11-21'))
+    expect(await screen.findByText('일정 1건을 넣었어요')).toBeTruthy()
     expect(state.inserted[0][0]).toMatchObject({ title: '추계 심포지엄', date: '2026-11-21', time: '09:00', place: '코엑스 401호', scope: 'shared' })
+    expect(screen.getByText('11월 21일 토요일 09:00')).toBeTruthy()
     expect(screen.queryByRole('button', { name: /일정 \d+건 넣기/ })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: '확인' }))
+    await waitFor(() => expect(onSaved).toHaveBeenCalledWith(1, '2026-11-21'))
+  })
+
+  it('되돌리기를 누르면 방금 넣은 일정을 지우고 확인 화면으로', async () => {
+    state.events = [symposium()]
+    const { onSaved } = await readText('추계 심포지엄 2026년 11월 21일 09:00')
+    fireEvent.click(await screen.findByRole('button', { name: '되돌리기' }))
+    expect(await screen.findByText('넣은 일정을 지웠어요. 고친 뒤 넣거나 닫아 주세요.')).toBeTruthy()
+    expect(state.deleted).toEqual([['new-0']])
+    expect(screen.getByRole('button', { name: '일정 1건 넣기' })).toBeTruthy()
+    expect(onSaved).not.toHaveBeenCalled()
+  })
+
+  it('읽은 날짜가 원문에 없거나(상대 날짜 등) 인터넷 주소가 있으면 바로 넣지 않는다', async () => {
+    state.events = [symposium()]
+    await readText('추계 심포지엄 다음 주 토요일 09:00')
+    expect(await screen.findByText(/확인할 것이 있어 바로 넣지 않았어요/)).toBeTruthy()
+    cleanup()
+    await readText('11/21 심포지엄 등록은 http://bit.ly/abc')
+    expect(await screen.findByText(/확인할 것이 있어 바로 넣지 않았어요/)).toBeTruthy()
+    expect(state.inserted).toEqual([])
   })
 
   it('확인 문장(지난 날짜 등)이나 같은 일정이 있으면 바로 넣지 않고 확인 화면', async () => {
