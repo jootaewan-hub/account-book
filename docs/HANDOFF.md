@@ -259,6 +259,14 @@ npm run screens
     - 됨: main fast-forward(f6d966b)·푸시(첫 시도는 자동 모드 안전장치가 막았고, 사용자 "푸시 너가 진행해 배포도 하고" 뒤 진행), Pages 배포 성공. 운영 `version.json` `f6d966b · 11-02 09:16`, 첫 화면 묶음에 2.17.0·"캡처로 일정 넣기"·`EventCaptureSheet-*.js`.
     - 확인 필요(사용자): 실제 예약 캡처(네이버 예약·캐치테이블·카톡 알림톡 등) 두세 장으로 날짜·시간·장소가 맞게 읽히는지, 연도 없는 캡처가 다가오는 날짜로 잡히는지.
     - 되돌리기: 함수는 stub 해시를 `be012859ab52e34c13fe26dbfa487db52589c60e`(v16)로 바꿔 다시 올린다(영수증·문자·관리비 동작은 같다). 화면은 main을 3105cd8로.
+36. 일정 장소에서 네이버 지도 길찾기(D-041, v2.18.0) 운영 반영(2026-11-02 10:50~10:58 KST, 사용자 "너가 브라우저 열어서 알아서 진행해", "main 푸시 진행해"): 브랜치 `claude/event-capture` → `ci.yml` 통과(34d8992). 순서는 마이그레이션 → main → 함수(새 함수는 장소를 메모에 넣지 않아, 옛 화면이 도는 동안 캡처하면 장소가 빠지므로).
+    - 됨(공유 DB, MCP `apply_migration` 한 번에 통과): `event_place`(파일 `20261112000000_event_place.sql`). DB로 확인: `place`(text)·`address`(text)·`lat`·`lng`(double precision), 검사 `events_place_check`·`events_address_check`·`events_coords_check`, authenticated의 place 수정 권한 있음(표 단위), anon 읽기 권한 없음.
+    - 됨(데이터): 11/7 양인환대 극진(`bdbe90e4…`)·11/11 라세느(`686c1371…`)에 장소·주소·좌표를 `place is null and address is null` 조건으로 채움. 좌표는 같은 날 경로 조사 때 k-skill 프록시를 거친 카카오 로컬 응답 값이다(앱 서버 함수는 프록시를 쓰지 않는다, D-041). 메모는 그대로.
+    - 됨: main fast-forward(34d8992)·푸시(첫 시도는 자동 모드 안전장치가 막았고 사용자 "main 푸시 진행해" 뒤 진행), Pages 배포 성공, 운영 `version.json` `34d8992 · 11-02 10:55`, 첫 화면 묶음에 2.18.0·`ev-route`·`place, address, lat, lng`.
+    - 됨(함수): 커밋 고정 stub `34d8992f35089b68954770750c8d6a656f17fe28`로 `extract-entries` v18(verify_jwt true, `deno.json` 함께, 배포 전 같은 stub `deno check` 통과). OPTIONS 200 `ok`, 인증 머리 없는 POST 401, 공개 키만 넣은 POST는 함수 코드가 401(새 파일 `geocode.ts`를 불러 기동함).
+    - 남음(사용자): 카카오 REST API 키를 Supabase Secrets `KAKAO_REST_API_KEY`에 넣기(없으면 새 캡처 일정은 좌표 없이 검색 링크로 열림). 넣은 뒤 캡처 한 번으로 좌표가 들어오는지 확인(카카오 앱에서 카카오맵 사용 설정이 필요할 수 있음, 확인 필요).
+    - 확인 필요(사용자): 아이폰 홈 화면 앱에서 장소 줄을 누르면 네이버 '빠른길찾기'(도착지 채워짐)가 열리는지, 네이버 지도 앱으로 넘어가는지(아이폰 흉내 Chromium에서는 m.search.naver.com 빠른길찾기로 열리고 출발지는 한 번 눌러야 함).
+    - 되돌리기: 함수는 stub 해시를 `86273396513904f7dce91013b4f6252b20d549ca`(v17)로, 화면은 main을 8213f91로. 새 칸은 남겨 둬도 옛 화면·함수에 영향이 없다.
 
 ### 사용자 할 일
 
