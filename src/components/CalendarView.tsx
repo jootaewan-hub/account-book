@@ -38,6 +38,9 @@ interface Props {
   onEdit: (t: Transaction) => void
 }
 
+/** 달력 칸 하나에 보일 기념일·일정 이름 수(넘치면 +N) */
+const MAX_LABELS = 2
+
 export function CalendarView({ ym, today, sel, cur, prev, loading = false, lookup, annivs, events, onSelect, onPlan, onCapture, onJump, onEdit, notes }: Props) {
   // 고정지출 예정분(D-030)은 쓴 돈·남은 돈에 넣되(이미 정해진 지출), 칸에서는 점선 금액으로 따로 보인다
   const totals = useMemo(() => dailyTotals(cur.filter((t) => !t.planned)), [cur])
@@ -141,11 +144,18 @@ export function CalendarView({ ym, today, sel, cur, prev, loading = false, looku
               const an = annivByDate.get(date)
               const ev = evByDate.get(date)
               const pl = planByDate.get(date)?.expense
+              const labels = [
+                ...(an ?? []).map((a) => ({ key: `a-${a.id}`, name: a.name, cls: `an k-${a.kind}` })),
+                ...(ev ?? []).map((e) => ({ key: `e-${e.id}`, name: e.title, cls: 'ev' })),
+              ]
               const cls = ['day', dw === 0 && 'sun', dw === 6 && 'sat', hol && 'hol', an && 'anniv', date === today && 'today', date === sel && 'sel'].filter(Boolean).join(' ')
               const label = `${m}월 ${dayOf(date)}일${hol ? ` ${hol}` : ''}${an ? ` ${an.map((a) => a.name).join(', ')}` : ''}${ev ? ` 일정 ${ev.map((e) => e.title).join(', ')}` : ''}${t?.expense ? ` 지출 ${won(t.expense)}원` : ''}${t?.income ? ` 수입 ${won(t.income)}원` : ''}${pl ? ` 고정지출 예정 ${won(pl)}원` : ''}`
               return (
                 <button key={date} className={cls} aria-label={label} aria-pressed={date === sel} onClick={() => onSelect(date)}>
-                  <span className="n num">{dayOf(date)}{an && <span className={`anniv-mark k-${an[0].kind}`}><AnnivIcon kind={an[0].kind} /></span>}{ev && <span className="ev-dot" />}</span>
+                  <span className="n num">{dayOf(date)}{an && <span className={`anniv-mark k-${an[0].kind}`}><AnnivIcon kind={an[0].kind} /></span>}</span>
+                  {/* 기념일·일정 이름(달력에서 바로 보이게). 두 개까지, 넘치면 +N. 읽기는 칸의 aria-label이 맡는다 */}
+                  {labels.slice(0, MAX_LABELS).map((l) => <span key={l.key} className={`cal-lbl ${l.cls}`} aria-hidden="true">{l.name}</span>)}
+                  {labels.length > MAX_LABELS && <span className="cal-lbl more num" aria-hidden="true">+{labels.length - MAX_LABELS}</span>}
                   {t?.income ? <span className="amt inc num">+{compact(t.income)}</span> : null}
                   {t?.expense ? <span className="amt exp num">{compact(t.expense)}</span> : null}
                   {pl ? <span className="amt plan num">{compact(pl)}</span> : null}

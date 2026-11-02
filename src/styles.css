@@ -164,7 +164,13 @@ main.wrap { padding-block: 4px calc(150px + env(safe-area-inset-bottom, 0px)); }
 .route-link { display: inline-flex; align-items: center; gap: 4px; min-height: 44px; color: var(--sage-ink); font-size: 14px; font-weight: 700; text-decoration: underline; text-underline-offset: 3px; }
 .route-link svg { width: 16px; height: 16px; flex: none; }
 .route-links .tx-meta { flex-basis: 100%; margin-top: -8px; }
-.ev-dot { position: absolute; top: -1px; left: -5px; width: 6px; height: 6px; border-radius: 50%; background: var(--sage); pointer-events: none; }
+/* 달력 칸의 기념일·일정 이름: 칸 너비에 맞춰 한 줄로 자르고(…), 기념일은 블러시, 일정은 세이지, 추모는 귀리 */
+.day .cal-lbl { align-self: stretch; margin: 0 2px; padding: 0 2px; border-radius: 3px; font-size: 10.5px; font-weight: 600; line-height: 1.35; text-align: center;
+  overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.day .cal-lbl.an { background: var(--blush-soft); color: var(--rose-ink); }
+.day .cal-lbl.an.k-memorial { background: var(--oat-deep); color: var(--ink-2); }
+.day .cal-lbl.ev { background: var(--sage-soft); color: var(--sage-ink); }
+.day .cal-lbl.more { background: none; color: var(--ink-2); line-height: 1.2; }
 .day-add { align-self: flex-start; border: 0; background: none; display: inline-flex; align-items: center; gap: 4px; padding: 8px 4px; margin-bottom: 2px; font-size: 14px; font-weight: 700; color: var(--sage-ink); }
 .day-add svg { width: 16px; height: 16px; }
 /* 고른 날의 넣기 버튼 줄: 일정·기념일 넣기, 캡처로 일정 넣기(D-039). 좁으면 두 줄로 */
