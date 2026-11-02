@@ -121,7 +121,8 @@ export function buildUserText(opts: {
     `분류 목록: ${opts.categories.join(', ') || '(없음)'}`,
   ]
   if (opts.kind === 'text') {
-    lines.push('', '아래는 사용자가 붙여넣은 내용입니다.', '<pasted>', opts.text ?? '', '</pasted>')
+    // 붙여넣은 글의 꺾쇠를 바꿔 </pasted>로 경계를 깨지 못하게 한다(eventCheck.ts fencePasted와 같은 규칙)
+    lines.push('', '아래는 사용자가 붙여넣은 내용입니다.', '<pasted>', (opts.text ?? '').replace(/</g, '‹').replace(/>/g, '›'), '</pasted>')
   } else {
     const imgs = opts.images ?? []
     lines.push('', opts.shop

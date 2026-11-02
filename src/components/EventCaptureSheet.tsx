@@ -105,7 +105,7 @@ export function EventCaptureSheet({ open, today, householdId, onSaved, onManual,
       if (id !== reqRef.current) return
       const ds = toEventDrafts(res.events, existing)
       // 문자는 확인할 것이 없으면 바로 넣는다(넣은 일정은 달력에서 눌러 고칠 수 있다)
-      if (src === 'text' && canAutoSave(ds)) {
+      if (src === 'text' && canAutoSave(ds, res.note)) {
         const list = ds.map((d) => eventInput(d) as EventInput)
         await insertEvents(householdId, list)
         if (id !== reqRef.current) return

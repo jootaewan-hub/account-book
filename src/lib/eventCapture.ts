@@ -92,12 +92,16 @@ export function eventDateRange(events: Pick<CheckedEvent, 'date'>[]): { from: st
   return dates.length ? { from: dates[0], to: dates[dates.length - 1] } : null
 }
 
+/** 확인 없이 바로 넣는 일정 수 상한(D-046). 붙여넣은 글은 믿을 수 없는 입력이라 많이 나오면 사람이 본다 */
+export const AUTO_SAVE_MAX = 3
+
 /**
- * 붙여넣은 문자를 확인 없이 바로 넣어도 되는지(D-046): 읽은 일정이 모두 넣기로 남아 있고(같은 일정·취소 안내 없음),
- * 확인 문장이 하나도 없으며(날짜 못 읽음·지난 날짜·요일 안 맞음·변경 안내 없음), 표 검사도 통과할 때만
+ * 붙여넣은 문자를 확인 없이 바로 넣어도 되는지(D-046): 일정이 1~3개이고, 모두 넣기로 남아 있고(같은 일정·취소 안내 없음),
+ * 확인 문장이 하나도 없으며(날짜 못 읽음·지난 날짜·요일 안 맞음·변경 안내 없음), 서버가 알린 말(note)이 없고, 표 검사도 통과할 때만
  */
-export function canAutoSave(drafts: EventDraft[]): boolean {
-  return drafts.length > 0 && drafts.every((d) => d.include && d.warnings.length === 0 && typeof eventInput(d) !== 'string')
+export function canAutoSave(drafts: EventDraft[], note: string | null = null): boolean {
+  return drafts.length > 0 && drafts.length <= AUTO_SAVE_MAX && !note?.trim()
+    && drafts.every((d) => d.include && d.warnings.length === 0 && typeof eventInput(d) !== 'string')
 }
 
 /** 저장할 값. 표 검사(제목 1~40자, 메모 200자, 있는 날짜, HH:MM)에 걸릴 것은 문장으로 돌려준다 */

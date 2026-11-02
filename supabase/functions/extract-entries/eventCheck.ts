@@ -11,6 +11,17 @@ export const PAST_GRACE_DAYS = 30
 
 export type EventNotice = 'booking' | 'change' | 'cancel'
 
+/** 한 번에 돌려줄 일정 수 상한(붙여넣은 글이 일정을 잔뜩 만들지 못하게) */
+export const EVENT_MAX = 20
+
+/**
+ * 붙여넣은 글을 모델에 <pasted> 안 데이터로 보낼 때 꺾쇠를 비슷한 글자로 바꾼다.
+ * 글 안의 '</pasted>'가 경계를 닫고 그 뒤를 지시처럼 보이게 하는 것을 막는다(문자 내용에 꺾쇠는 거의 없다)
+ */
+export function fencePasted(text: string): string {
+  return text.replace(/</g, '‹').replace(/>/g, '›')
+}
+
 /** 모델이 캡처에서 읽은 일정 하나(events.ts의 EventSchema와 같은 모양) */
 export interface RawEvent {
   title: string
@@ -156,7 +167,7 @@ const NOTICE_WARNING: Record<EventNotice, string | null> = {
 
 /** 모델 출력 → 저장할 수 있는 일정. 제목도 날짜도 없는 것은 버린다 */
 export function checkEvents(raw: RawEvent[], today: string, imageCount: number): CheckedEvent[] {
-  return raw.flatMap((e) => {
+  return raw.slice(0, EVENT_MAX).flatMap((e) => {
     const title = clip(squash(e.title) || squash(e.place) || '', EVENT_TITLE_MAX)
     const { date, warnings } = resolveEventDate(e, today)
     if (!title && !date) return []

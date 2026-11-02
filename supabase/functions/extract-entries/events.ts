@@ -1,6 +1,7 @@
 // 일정·예약 캡처(식당·병원 예약 확인, 모임 공지 등)에서 달력 일정을 뽑는 모델 지시와 출력 형식(D-039).
 // 날짜의 연도·요일 확인과 길이 맞추기는 eventCheck.ts(zod 없음, 앱과 함께 씀)에서 한다.
 import { z } from 'zod'
+import { fencePasted } from './eventCheck.ts'
 
 export const EVENT_IMAGES_MAX = 5
 
@@ -54,7 +55,7 @@ export function buildEventPasteText(text: string, today: string): string {
     '',
     '아래는 사용자가 붙여넣은 문자입니다.',
     '<pasted>',
-    text,
+    fencePasted(text),
     '</pasted>',
   ].join('\n')
 }
