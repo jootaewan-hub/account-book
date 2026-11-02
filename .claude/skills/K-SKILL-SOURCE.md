@@ -52,7 +52,7 @@ robots가 막은 경로·접근 통제를 넘는 부분을 빼면 원본 안내�
 |---|---|---|---|
 | korean-transit-route | 프록시 → 카카오 로컬 (주소·장소명, `경도,위도`로 주면 안 감), api.odsay.com (출발·도착 좌표, 키) | ODsay Server 키(사용자가 lab.odsay.com에서 받고 IP 등록), 저장소 밖 `~/.config/k-skill/secrets.env` 또는 환경변수 `ODSAY_API_KEY` | 원본은 `set -a; . secrets.env`로 비밀 파일을 셸로 실행하고 키를 curl 명령줄 주소에 넣는다. 이 사본은 `scripts/transit_route.py`(표준 라이브러리, 맥 기본 python3 3.9)가 파일을 글로만 읽고, 키를 출력에서 가리고, 좌표가 한국 범위 밖이거나 위도·경도가 뒤바뀌면 부르지 않고 멈춘다. 본문은 `scripts/k-skill-extra/korean-transit-route/BODY.md` |
 
-확인(2026-11-02): 키가 없을 때 안내 문장, `경도,위도` 입력이 프록시를 거치지 않음, 뒤바뀐 좌표 멈춤, ODsay 문서 모양의 가짜 응답 정리, 프록시 좌표 찾기(공개 지명 "정자역" → 127.1081, 37.3662). ODsay 실제 경로 호출은 키가 없어 확인 필요. 프록시 `server.js`는 요청 기록을 끄고(`disableRequestLogging`), 좌표 찾기 결과를 메모리에 잠시 캐시한다.
+확인(2026-11-02): 키가 없을 때 안내 문장, `경도,위도` 입력이 프록시를 거치지 않음, 뒤바뀐 좌표 멈춤, ODsay 문서 모양의 가짜 응답 정리, 프록시 좌표 찾기(공개 지명 "정자역" → 127.1081, 37.3662). ODsay 실제 경로 호출도 사용자가 받은 키(Basic, 하루 30건, 서비스 플랫폼 URI만 등록·Server IP 없음)로 이 맥에서 통과했다(정자역→신용산역 좌표, 52분 신분당선→9호선 급행→4호선). 키는 화면에서 클립보드로 옮겨 `~/.config/k-skill/secrets.env`(600)에 넣고 클립보드를 비웠다. 프록시 `server.js`는 요청 기록을 끄고(`disableRequestLogging`), 좌표 찾기 결과를 메모리에 잠시 캐시한다.
 
 ### 도움 스크립트에서 고친 곳 (자동 보안 검토 반영, `scripts/k-skill-sync.py`의 PATCHES와 `scripts/k-skill-extra/`)
 
