@@ -106,10 +106,11 @@ export function dateInText(date: string, text: string): boolean {
 /**
  * 인터넷 주소가 든 문자는 바로 넣지 않는다(낚시 문자 가능성). 끝 이름(.com 등)을 고르지 않고 "글자.영문 두 자 이상"(점 앞뒤 빈칸 하나까지),
  * "글자.글자 두 자 이상"(한글 끝 이름 등), IP를 모두 주소로 본다. "Dr.Kim"처럼 주소가 아닌 것도 걸리지만 그때는 확인 화면으로 갈 뿐이다.
- * 보이지 않는 글자(서식 문자·이체 선택자 등)를 빼고 전각·반각 마침표를 '.'로 맞춘 뒤 본다
+ * 보이지 않는 글자(서식 문자·이체 선택자 등)와 결합 기호(밑줄·인도 문자 모음 기호 등, 한글 음절은 해당 없음)를 빼고 전각·반각 마침표를 '.'로 맞춘 뒤 본다
  */
-const URL_LIKE = /https?:|www\.|[\p{L}\p{N}\p{M}-]+(?:[ \t]?\.[ \t]?[a-z]{2,}|\.\p{L}{2,})|\d{1,3}(?:\.\d{1,3}){3}/iu
-const hasUrl = (s: string) => URL_LIKE.test(s.normalize('NFKC').replace(/[\p{Cf}\p{Default_Ignorable_Code_Point}]/gu, '').replace(/[。｡]/g, '.'))
+const URL_LIKE = /https?:|www\.|[\p{L}\p{N}-]+(?:[ \t]?\.[ \t]?[a-z]{2,}|\.\p{L}{2,})|\d{1,3}(?:\.\d{1,3}){3}/iu
+const hasUrl = (s: string) =>
+  URL_LIKE.test(s.normalize('NFKC').replace(/[\p{Cf}\p{Default_Ignorable_Code_Point}\p{M}]/gu, '').replace(/[。｡]/g, '.'))
 
 /**
  * 붙여넣은 문자를 확인 없이 바로 넣어도 되는지(D-046). 모델이 읽은 결과만 믿지 않고 원문과 견준다:
