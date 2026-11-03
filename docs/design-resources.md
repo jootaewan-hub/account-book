@@ -33,6 +33,7 @@
 - 저장·삭제 알림의 체크(Phosphor `check-bold`, 왼쪽부터 드러남).
 - 알아보기 검색 결과 도착: Magic UI `BlurFade`를 옮긴 `useArrival`.
 - 보조 정보를 잇던 ` · `를 쉼표로.
+- 디자인 스킬(design-critique, interaction-design)로 비평한 뒤: 장보기 나눔 단추 미끄러지는 표시, 메모 고정 단추(핀)와 순서 바뀜 움직임(`useFlip`), 장보기 체크 피드백, '+' 글자를 아이콘으로(D-048 보충 2).
 
 ## 4. 하지 않기로 한 것과 까닭
 

@@ -72,6 +72,38 @@ export function useSlideIn<T extends HTMLElement>(key: string) {
 }
 
 /**
+ * 순서 바꾸기를 눈으로 따라가게 한다(FLIP): key가 바뀐 그 그림에서만, data-flip을 단 자식이 옛 자리에서 새 자리로 300ms에 옮겨 간다.
+ * 사람이 한 일(메모 고정·풀기)에 답하는 움직임이라 찾기·거르기로 줄이 바뀔 때는 key를 바꾸지 않아 움직이지 않는다.
+ * 자리는 목록 안 offset으로 재서 스크롤과 상관없다. 동작 줄이기면 움직이지 않고 바로 놓는다.
+ */
+export function useFlip<T extends HTMLElement>(key: string) {
+  const ref = useRef<T>(null)
+  const spots = useRef(new Map<string, { x: number; y: number }>())
+  const prevKey = useRef(key)
+  useLayoutEffect(() => {
+    const el = ref.current
+    if (!el) return
+    const moved = prevKey.current !== key
+    prevKey.current = key
+    const next = new Map<string, { x: number; y: number }>()
+    for (const child of Array.from(el.children) as HTMLElement[]) {
+      const id = child.dataset.flip
+      if (!id) continue
+      const at = { x: child.offsetLeft, y: child.offsetTop }
+      next.set(id, at)
+      const was = spots.current.get(id)
+      if (!moved || !was || reduceMotion()) continue
+      const dx = was.x - at.x
+      const dy = was.y - at.y
+      if (Math.abs(dx) < 1 && Math.abs(dy) < 1) continue
+      child.animate?.([{ transform: `translate(${dx}px, ${dy}px)` }, { transform: 'none' }], { duration: 300, easing: 'cubic-bezier(0.22, 1, 0.36, 1)' })
+    }
+    spots.current = next
+  })
+  return ref
+}
+
+/**
  * 기다리던 결과가 도착한 그때 한 번, 줄마다 40ms씩 늦게 흐림 4px→0과 투명도로 들어온다(400ms, 앞 8줄까지).
  * Magic UI BlurFade(MIT, CREDITS.md)를 옮겼다: 위로 떠오르지 않고(DESIGN.md Motion "하지 않는 것"),
  * 처음부터 준비돼 있던 내용(탭 전환·같은 날 캐시)과 "더 보기"로 늘어난 줄은 움직이지 않는다. 동작 줄이기면 투명도만.

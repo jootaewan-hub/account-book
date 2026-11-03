@@ -6,6 +6,7 @@ import { SCOPE_LABEL, type Lookup } from '../lib/lookup'
 import { historyRange, KIND_LABEL, monthItem, pastAmounts, pendingInputs, phaseAt, subscriptionCandidates, termAt, type MonthItem, type TermPhase } from '../lib/recurring'
 import type { Category, Recurring, RecurringKind, Transaction } from '../lib/types'
 import { draftFrom, RecurringSheet, type RecurringDraft } from './RecurringSheet'
+import { Plus } from './Icons'
 import { CardWait, RowsWait, useAppear, Waiting } from './Loading'
 import { RecurringIcon } from './RecurringIcon'
 import { ServiceLogo } from './ServiceLogo'
@@ -158,7 +159,7 @@ export function RecurringView({ householdId, ym, today, monthTxs, monthLoading, 
             })}
             {k === 'installment'
               ? <p className="tx-meta">할부는 문자·사진으로 넣을 때 결제를 할부로 고르면 생겨요. 취득세·가전 할부처럼 직접 넣는 것은 고정지출에 기간을 정해 추가하세요.</p>
-              : <button className="ghost full-btn" onClick={() => setSheet({ kind: k })}>+ {KIND_LABEL[k]} 추가</button>}
+              : <button className="ghost full-btn" onClick={() => setSheet({ kind: k })}><Plus />{KIND_LABEL[k]} 추가</button>}
           </div>
         )
       })}

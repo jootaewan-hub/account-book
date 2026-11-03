@@ -96,8 +96,19 @@
   min-height: 44px; border: 0; border-radius: 8px; background: transparent; color: var(--ink-2);
   font-size: 15px; font-weight: 600; cursor: pointer;
 }
-/* 고른 칸은 먹색으로 칠하지 않고 한 단계 밝은 면(D-048) */
-.grocery .seg button[aria-pressed="true"], .grocery .seg button[aria-selected="true"] { background: var(--seg-on); color: var(--ink); font-weight: 700; }
+/* 고른 칸(D-048): 먹색으로 칠하지 않고 한 단계 밝은 면이, 가계부 나눔 단추처럼 고른 칸으로 미끄러져 옮겨 간다(250ms).
+   칸 수는 seg-3·4·5 클래스(없으면 2), 고른 칸 번호는 :has로 읽는다. 단추 자체는 칠하지 않는다 */
+.grocery .seg { position: relative; isolation: isolate; --n: 2; --i: 0; }
+.grocery .seg.seg-3 { --n: 3; } .grocery .seg.seg-4 { --n: 4; } .grocery .seg.seg-5 { --n: 5; }
+.grocery .seg::before { content: ""; position: absolute; z-index: -1; top: 4px; bottom: 4px; left: 4px; border-radius: 8px; background: var(--seg-on);
+  width: calc((100% - 8px - (var(--n) - 1) * 4px) / var(--n)); transform: translateX(calc(var(--i) * (100% + 4px)));
+  transition: transform var(--dur-quick) var(--ease-smooth); opacity: 0; }
+.grocery .seg:has(> button[aria-pressed="true"])::before, .grocery .seg:has(> button[aria-selected="true"])::before { opacity: 1; }
+.grocery .seg:has(> :nth-child(2)[aria-pressed="true"]), .grocery .seg:has(> :nth-child(2)[aria-selected="true"]) { --i: 1; }
+.grocery .seg:has(> :nth-child(3)[aria-pressed="true"]), .grocery .seg:has(> :nth-child(3)[aria-selected="true"]) { --i: 2; }
+.grocery .seg:has(> :nth-child(4)[aria-pressed="true"]), .grocery .seg:has(> :nth-child(4)[aria-selected="true"]) { --i: 3; }
+.grocery .seg:has(> :nth-child(5)[aria-pressed="true"]), .grocery .seg:has(> :nth-child(5)[aria-selected="true"]) { --i: 4; }
+.grocery .seg button[aria-pressed="true"], .grocery .seg button[aria-selected="true"] { color: var(--ink); font-weight: 700; }
 .grocery .group { margin-top: 24px; }
 .grocery .group-title { display: flex; align-items: baseline; gap: 8px; margin: 0 0 8px; font-size: 17px; font-weight: 700; }
 .grocery .group-count { font-size: 13px; font-weight: 500; color: var(--ink-2); }
@@ -115,11 +126,16 @@
   flex: none; width: 44px; height: 44px; display: grid; place-items: center;
   background: transparent; border: 0; border-radius: 999px; padding: 0; cursor: pointer; color: var(--on-primary);
 }
+/* 산 것 체크(D-048): 동그라미가 먹색으로 차고(160ms) 체크가 작게 시작해 제자리로 커진다(200ms, 끝에서 조금 넘쳤다 돌아옴 없음).
+   체크는 늘 그려 두고 상태만 바꿔서, 목록을 처음 그릴 때는 움직이지 않고 누른 그때만 움직인다 */
 .grocery .check-mark {
   width: 24px; height: 24px; border-radius: 999px; border: 2px solid var(--ink-3); background: var(--canvas);
   display: grid; place-items: center;
+  transition: background-color var(--dur-press) var(--ease-out), border-color var(--dur-press) var(--ease-out);
 }
+.grocery .check-mark svg { opacity: 0; transform: scale(.4); transition: opacity 120ms var(--ease-out), transform 200ms var(--ease-out); }
 .grocery .check[aria-pressed="true"] .check-mark { background: var(--ink); border-color: var(--ink); }
+.grocery .check[aria-pressed="true"] .check-mark svg { opacity: 1; transform: none; }
 .grocery .row-main { flex: 1; min-width: 0; padding: 4px 0; }
 .grocery .row-name { font-size: 16px; font-weight: 600; line-height: 1.4; }
 /* 이름은 버튼이라 키보드(Tab → Enter)로도 상세를 열 수 있다. 모양은 글줄 그대로 */
@@ -254,7 +270,8 @@
 }
 /* 움직임 줄이기: 이동·크기 변화를 빼고 투명도 교차만 남긴다 */
 @media (prefers-reduced-motion: reduce) {
-  .grocery .btn-primary, .grocery .btn-quiet, .grocery .btn-secondary, .grocery .btn-text, .grocery .seg button, .grocery .row-remove, .grocery .notice-action, .grocery .row-body { transition: none; }
+  .grocery .btn-primary, .grocery .btn-quiet, .grocery .btn-secondary, .grocery .btn-text, .grocery .seg button, .grocery .row-remove, .grocery .notice-action, .grocery .row-body, .grocery .seg::before { transition: none; }
+  .grocery .check-mark, .grocery .check-mark svg { transition: none; }
   .grocery .btn-primary:active:not(:disabled), .grocery .btn-quiet:active, .grocery .btn-secondary:active, .grocery .seg button:active, .grocery .notice-action:active { transform: none; }
   .grocery .sheet { animation: fade-in var(--dur-quick) linear; }
   .grocery .is-closing .sheet { animation: fade-out var(--dur-quick) linear forwards; }

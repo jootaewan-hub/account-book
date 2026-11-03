@@ -53,7 +53,7 @@
 | `CoinsIcon` | Phosphor `coins` | Phosphor Icons | MIT, `public/licenses/ph-LICENSE.txt` | https://github.com/phosphor-icons/core | 2026-11-03 |
 | `CarIcon` | Phosphor `car` | Phosphor Icons | MIT, `public/licenses/ph-LICENSE.txt` | https://github.com/phosphor-icons/core | 2026-11-03 |
 | `HeartbeatIcon` | Phosphor `heartbeat` | Phosphor Icons | MIT, `public/licenses/ph-LICENSE.txt` | https://github.com/phosphor-icons/core | 2026-11-03 |
-| `PushPinIcon` | Phosphor `push-pin` | Phosphor Icons | MIT, `public/licenses/ph-LICENSE.txt` | https://github.com/phosphor-icons/core | 2026-11-03 |
+| `PushPinIcon` | Phosphor `push-pin, push-pin-fill` | Phosphor Icons | MIT, `public/licenses/ph-LICENSE.txt` | https://github.com/phosphor-icons/core | 2026-11-03 |
 
 ## 컴포넌트·모션 코드
 

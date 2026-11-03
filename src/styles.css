@@ -460,7 +460,8 @@ select.input { padding: 9px 10px; }
 .muted { color: var(--ink-3); }
 /* 귀리 면 위에서 ink-3는 대비 4.2:1로 기준(4.5)에 못 미친다. 면 위에서는 ink-2 */
 .card .muted, .dow { color: var(--ink-2); }
-.full-btn { width: 100%; margin-top: 10px; }
+.full-btn { width: 100%; margin-top: 10px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
+.full-btn svg { width: 16px; height: 16px; flex: none; }
 
 /* 고정지출·구독·관리비 */
 .rc-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; width: 100%; padding: 12px 0; border: 0; border-top: 1px solid var(--oat-deep); background: none; text-align: left; transition: background-color var(--dur-press) ease; }
@@ -824,7 +825,7 @@ input[type="search"].input { -webkit-appearance: none; appearance: none; }
 .remember-intro .lead { font-size: 14px; line-height: 1.5; }
 .remember-new { display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
 .remember-new svg { width: 20px; height: 20px; }
-.remember-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.remember-list { position: relative; list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
 .remember-item { display: flex; flex-direction: column; gap: 8px; padding: 14px 16px 12px; }
 .remember-open { border: 0; background: none; padding: 0; margin: 0; text-align: left; color: var(--ink); display: flex; flex-direction: column; gap: 6px; width: 100%; }
 .remember-title { font-size: 16px; font-weight: 700; line-height: 1.4; display: flex; align-items: baseline; gap: 6px; word-break: keep-all; overflow-wrap: anywhere; }
@@ -833,8 +834,14 @@ input[type="search"].input { -webkit-appearance: none; appearance: none; }
   display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 5; line-clamp: 5; overflow: hidden; }
 .remember-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .remember-by { font-size: 13px; color: var(--ink-2); }
-.remember-pin-btn { flex: none; min-height: 36px; padding: 6px 12px; background: var(--canvas); }
-.remember-pin-btn[aria-pressed="true"] { background: var(--primary); color: var(--on-primary); }
+/* 고정 단추(D-048): 카드마다 먹색 단추가 내용과 다투지 않게 조용한 글자 단추 + 핀. 고정되면 핀이 채워지고 먹 글자 */
+.remember-pin-btn { flex: none; display: inline-flex; align-items: center; gap: 4px; min-height: 44px; margin: -4px -8px -4px 0; padding: 0 8px; border: 0; background: none; border-radius: var(--r-btn);
+  font-size: 13px; font-weight: 600; color: var(--ink-2); transition: transform var(--dur-press) var(--ease-out); }
+.remember-pin-btn svg { width: 18px; height: 18px; }
+.remember-pin-btn[aria-pressed="true"] { color: var(--ink); }
+.remember-pin-btn:active:not(:disabled) { transform: scale(0.97); }
+.remember-pin-btn:disabled { opacity: .5; }
+@media (prefers-reduced-motion: reduce) { .remember-pin-btn { transition: none; } .remember-pin-btn:active:not(:disabled) { transform: none; } }
 .remember-editor { display: flex; flex-direction: column; gap: 16px; }
 .remember-editor textarea { resize: vertical; min-height: 140px; line-height: 1.55; }
 .remember-note { margin: 0; color: var(--ink-2); font-size: 13px; line-height: 1.5; }

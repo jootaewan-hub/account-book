@@ -184,11 +184,10 @@ export default function ListRow({
           }}
         >
           <span className="check-mark" aria-hidden="true">
-            {bought && (
-              <svg viewBox="0 0 24 24" width="16" height="16">
-                <path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-            )}
+            {/* 늘 그려 두고 aria-pressed로 보이기만 바꾼다(누른 그때만 커지며 나타나게) */}
+            <svg viewBox="0 0 24 24" width="16" height="16">
+              <path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
           </span>
         </button>
         <div className="row-main">

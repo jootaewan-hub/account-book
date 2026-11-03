@@ -1,8 +1,9 @@
 import { useMemo, useState } from 'react'
 import type { Lookup } from '../lib/lookup'
 import { matchNotes, noteByline, type Note } from '../lib/notes'
-import { Plus } from './Icons'
+import { Plus, PushPinIcon } from './Icons'
 import { Bar, useAppear, Waiting } from './Loading'
+import { useFlip } from './Motion'
 
 /** 함께 기억할 것 화면(D-038). 아래 탭이 아니라 달력 화면 묶음·넓은 화면 왼쪽 메뉴에서 연다 */
 export function NotesView({ rows, error, lookup, onRetry, onNew, onOpen, onTogglePin }: {
@@ -13,6 +14,9 @@ export function NotesView({ rows, error, lookup, onRetry, onNew, onOpen, onToggl
   const [busy, setBusy] = useState<string | null>(null)
   const shown = useMemo(() => (rows ? matchNotes(rows, q) : []), [rows, q])
   const appear = useAppear(rows === null && !error)
+  // 고정·풀기로 순서가 바뀐 그때만 카드가 새 자리로 옮겨 간다(찾기로 줄이 줄 때는 움직이지 않는다)
+  const pinnedKey = rows?.filter((n) => n.pinned).map((n) => n.id).join(',') ?? ''
+  const listRef = useFlip<HTMLUListElement>(pinnedKey)
 
   async function pin(n: Note) {
     if (busy) return
@@ -51,17 +55,17 @@ export function NotesView({ rows, error, lookup, onRetry, onNew, onOpen, onToggl
       )}
       {rows !== null && rows.length > 0 && shown.length === 0 && <p className="empty">‘{q.trim()}’ 들어간 메모가 없어요.</p>}
       {shown.length > 0 && (
-        <ul className={`remember-list${appear ? ` ${appear}` : ''}`}>
+        <ul ref={listRef} className={`remember-list${appear ? ` ${appear}` : ''}`}>
           {shown.map((n) => (
-            <li key={n.id} className="card remember-item">
+            <li key={n.id} data-flip={n.id} className="card remember-item">
               <button className="remember-open" onClick={() => onOpen(n)}>
                 <span className="remember-title">{n.pinned && <span className="tag">고정</span>}{n.title}</span>
                 {n.body && <span className="remember-body">{n.body}</span>}
               </button>
               <div className="remember-foot">
                 <span className="remember-by">{noteByline(n, (id) => lookup.personLabel(id))}</span>
-                <button className="ghost remember-pin-btn" aria-pressed={n.pinned} disabled={busy !== null} onClick={() => void pin(n)}>
-                  {busy === n.id ? '저장 중' : n.pinned ? '고정 풀기' : '고정'}
+                <button className="remember-pin-btn" aria-pressed={n.pinned} disabled={busy !== null} onClick={() => void pin(n)}>
+                  <PushPinIcon on={n.pinned} />{busy === n.id ? '저장 중' : n.pinned ? '고정 풀기' : '고정'}
                 </button>
               </div>
             </li>
