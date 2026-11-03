@@ -363,10 +363,11 @@ select.input { padding: 9px 10px; }
 /* width: max-content가 없으면 left: 50%인 고정 상자는 화면 너비의 절반에서 줄을 바꾼다 */
 .toast { white-space: normal; text-overflow: clip; text-align: center; width: max-content; max-width: min(calc(100vw - 32px), 420px); }
 .toast:not(.on) { pointer-events: none; }
-/* 저장·삭제를 마친 알림: 토스트가 올라온 뒤 체크를 150ms 늦게 300ms 동안 그린다(체크 선 길이 약 18.4 < 20) */
+/* 저장·삭제를 마친 알림: 토스트가 올라온 뒤 체크를 150ms 늦게 300ms 동안 그린다(체크 선 길이 약 22.6 < 24).
+   닫힐 때는 토스트가 다 사라진 뒤(--dur-quick) 지운다. 크기가 작아(18px) 선을 굵게 둔다 */
 .toast-check { display: inline-block; vertical-align: -3px; margin-right: 6px; }
 .toast-check svg { width: 18px; height: 18px; display: block; stroke-width: 2.4; }
-.toast-check path { stroke-dasharray: 20; stroke-dashoffset: 20; }
+.toast-check path { stroke-dasharray: 24; stroke-dashoffset: 24; transition: stroke-dashoffset 0s linear var(--dur-quick); }
 .toast.on .toast-check path { stroke-dashoffset: 0; transition: stroke-dashoffset 300ms var(--ease-out) 150ms; }
 
 /* iOS Safari의 날짜 입력은 고유 최소 너비가 있어 옆 칸을 침범한다. 너비를 칸에 맞춘다. */
