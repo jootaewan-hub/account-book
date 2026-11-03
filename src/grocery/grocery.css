@@ -2,11 +2,11 @@
    모든 규칙은 장보기 탭의 바깥 상자 .grocery 안에서만 먹는다. 가계부 styles.css의 겹치는 클래스 10개(.seg .sheet .sheet-head
    .summary .tag .check .empty .who .who-husband .who-wife)는 그쪽 선택자에 :where(:not(.grocery *))를 붙여 이 상자 안으로 들어오지 않게 했다.
    색·글꼴·반경·움직임 토큰은 가계부 styles.css의 것을 쓰고(이름: --ink-2 --ink-3 --on-primary --r-sm --r-md --r-lg),
-   여기에는 장보기에만 있는 값과 다른 값(--ink-3 라이트 #656C76: 회색 바탕 위 4.78:1, D-048)만 둔다. 다크는 시스템 설정만 따른다. */
+   여기에는 장보기에만 있는 값과 다른 값(--ink-3 라이트 #726D65: 귀리 면 위 4.5:1)만 둔다. 다크는 시스템 설정만 따른다. */
 .grocery { font-size: 16px; line-height: 1.5; }
-.grocery { --ink-3: #656C76; --clay-soft: #FBF0EB; --gutter: 20px; }
+.grocery { --ink-3: #726D65; --clay-soft: #FBF0EB; --gutter: 20px; }
 @media (prefers-color-scheme: dark) {
-  .grocery { --ink-3: #9AA1AB; --clay-soft: #3A2620; }
+  .grocery { --ink-3: #A09A90; --clay-soft: #3A2620; }
 }
 .grocery *, .grocery *::before, .grocery *::after { box-sizing: border-box; }
 .grocery h1 { font-size: 22px; font-weight: 700; margin: 0; }
@@ -18,7 +18,7 @@
 .grocery .btn-quiet { background: transparent; color: var(--ink); border: 1px solid var(--field-border); }
 .grocery .btn-primary:focus-visible, .grocery .btn-quiet:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
 /* ---------- 공통: 움직임(가계부 Motion 토큰), 숫자, 접근성 ---------- */
-.grocery { --backdrop: rgba(35, 39, 46, 0.42); --field-border: var(--line); --bottom-bar-h: 72px; }
+.grocery { --backdrop: rgba(51, 49, 45, 0.42); --field-border: var(--line); --bottom-bar-h: 72px; }
 /* 다크: 뒤 막은 더 어둡게(밝아 보이지 않게), 입력칸·조용한 버튼 테두리는 바탕과 3:1 이상(#6E6960, canvas 위 약 3.1:1) */
 @media (prefers-color-scheme: dark) {
   .grocery { --backdrop: rgba(0, 0, 0, 0.56); --field-border: #6E6960; }
