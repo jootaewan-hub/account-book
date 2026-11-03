@@ -21,7 +21,8 @@ export const ItemSchema = z.object({
   is_product: z.boolean().describe('상품이면 true, 배송비·할인·쿠폰·적립금 사용 줄이면 false'),
   quantity: z.number().describe('주문 수량'),
   unit_price: z.number().nullable().describe('상품 1개(수량 1) 가격. 화면에 1개 가격이 따로 없으면 amount ÷ quantity'),
-  amount: z.number().describe('이 줄의 금액 (수량을 모두 합친 금액)'),
+  amount: z.number().describe('이 줄의 금액 (수량을 모두 합친 금액). 영수증에 인쇄된 할인 전 값'),
+  discount: z.number().describe('이 상품 줄에 딸린 할인 금액의 합(0 또는 음수). 상품 줄 바로 아래나 옆에 붙은 행사할인·쿠폰할인·카드할인·에누리·N개 구매 할인. amount·unit_price는 할인 전 값 그대로 두고 할인만 여기에. 할인이 없으면 0'),
   pack_size: z.number().nullable().describe('상품 1개(수량 1)에 든 총량(품목명이나 그 품목 줄의 규격·중량에 적힌 값). 예: 100매×10팩 → 1000, 저울 중량 0.352kg → 352(g). 안 보이면 null'),
   pack_unit: z.string().nullable().describe('pack_size의 단위: g, ml, 또는 개·매·구·롤·입·병·캔·봉·장·정·포 같은 셈 단위. 모르면 null'),
   category: z.string().nullable().describe('이 상품의 분류 (주어진 분류 목록 중 하나). 배송비·할인이거나 애매하면 null'),
@@ -61,8 +62,14 @@ export const ResultSchema = z.object({
 
 /** 나눠 찍은 사진을 잇는 칸(2026-10-26 D-029). 모델에게는 꼭 받지만, 그 전 서버의 응답과 시험 자료에는 없을 수 있다 */
 type StitchKeys = 'images' | 'continues_from_previous' | 'continues_to_next'
-export type Entry = Omit<z.infer<typeof EntrySchema>, StitchKeys> & Partial<Pick<z.infer<typeof EntrySchema>, StitchKeys>>
+/** 상품별 할인 칸(2026-11-03 D-051)도 모델에게는 꼭 받지만 옛 서버의 응답과 시험 자료에는 없을 수 있다 */
+type RawItem = z.infer<typeof ItemSchema>
+export type Item = Omit<RawItem, 'discount'> & { discount?: number }
+type RawEntry = z.infer<typeof EntrySchema>
+export type Entry = Omit<RawEntry, StitchKeys | 'items'> & Partial<Pick<RawEntry, StitchKeys>> & { items: Item[] }
 export type ExtractResult = { entries: Entry[]; note: string | null }
+/** 정리한 상품 줄: amount·unit_price는 할인을 뺀 실제 낸 값, discount는 접은 할인(0 또는 음수) */
+export type CheckedItem = Omit<Item, 'discount'> & { discount: number }
 
 export const SYSTEM_PROMPT = `당신은 한국 가정의 가계부 입력을 돕습니다. 사용자가 붙여넣은 카드 승인 문자·카카오톡 알림톡·은행 알림, 또는 종이 영수증 사진·쇼핑/배달 주문내역 캡처·카드앱 결제 화면 캡처에서 거래 내역을 뽑아 주어진 JSON 형식으로만 답합니다.
 
@@ -76,7 +83,11 @@ export const SYSTEM_PROMPT = `당신은 한국 가정의 가계부 입력을 돕
 - payment_hint에는 문자·화면에 보이는 카드사·은행·간편결제 이름과 체크/신용 구분을 그대로 적습니다(예: "신한체크", "KB국민카드", "카카오페이").
 - installment_months는 카드 결제가 할부일 때 할부 개월 수입니다("할부 3개월", "(03개월)", "3개월 무이자" → 3). "일시불"이거나 할부 표시가 없으면 null입니다. 할부여도 amount는 한 달 치가 아니라 결제(승인)된 총액입니다.
 - category는 사용자가 준 분류 목록에 있는 이름만 씁니다. 애매하면 null입니다.
-- items는 품목이 적힌 영수증·주문내역일 때만 채웁니다. 각 품목의 amount는 그 줄의 금액(수량을 모두 합친 금액)이고, unit_price는 1개 가격입니다. 할인 줄은 음수 amount 품목으로 넣습니다.
+- items는 품목이 적힌 영수증·주문내역일 때만 채웁니다. 각 품목의 amount는 그 줄의 금액(수량을 모두 합친 금액, 인쇄된 할인 전 값)이고, unit_price는 1개 가격입니다.
+  한 상품에 딸린 할인(그 상품 줄 바로 아래나 옆의 행사할인·쿠폰할인·카드할인·에누리·"2개 구매 시 할인" 등)은 그 상품의 discount에 음수로 넣고, 따로 줄을 만들지 않습니다. 할인이 없는 상품은 discount 0입니다.
+  어느 상품의 것인지 알 수 없는 할인(포인트·적립금 사용, 결제수단 청구할인, 주문 전체 쿠폰)만 음수 amount 품목(is_product false)으로 넣습니다.
+  영수증 아래쪽의 "할인 합계", "총 할인 금액", "행사할인 합계" 같은 요약 줄은 이미 상품마다 넣은 할인의 합이므로 넣지 않습니다.
+- 상품명은 영수증·화면에 인쇄된 글자를 그대로 옮깁니다. 비슷한 다른 낱말로 바꾸거나 품목을 짐작해 쓰지 않습니다(예: "추황배"를 "주꾸미"로 쓰지 않음). 읽기 어려운 글자가 있으면 보이는 대로 적고 note에 그 줄을 적습니다.
 - 보이지 않거나 확실하지 않은 값은 지어내지 말고 null(문자열은 빈 문자열)로 둡니다.
 - platform은 주문·결제한 온라인 플랫폼입니다. 화면의 로고·앱 이름·메뉴 문구·주문번호 형식·배송 표시(로켓배송, 샛별배송, 오늘출발 등)로 판단합니다.
   이름은 다음 중 하나로 씁니다: 쿠팡, 쿠팡이츠, 네이버(네이버페이·스마트스토어·네이버쇼핑), 오늘의집, 컬리(마켓컬리), 11번가, G마켓, 옥션, SSG닷컴, 무신사, 29CM, 에이블리, 지그재그, 알리익스프레스, 테무, 배달의민족, 요기요, 카카오 선물하기, 당근.
@@ -86,9 +97,9 @@ export const SYSTEM_PROMPT = `당신은 한국 가정의 가계부 입력을 돕
   · 주문(결제) 한 건이 entries 하나입니다. 주문일·주문번호가 다르면 따로 만듭니다. 여러 이미지가 같은 주문을 이어서 찍은 것이면 하나로 합치고 같은 상품을 두 번 넣지 않습니다.
   · 한 상품은 entries 전체에서 한 번만 나옵니다. 주문 목록 화면과 주문 상세 화면을 함께 찍었더라도 같은 상품을 다른 entries에 또 넣지 않습니다.
   · merchant는 판매자·가게 이름이고, 보이지 않으면 플랫폼 이름입니다. date는 주문일 또는 결제일입니다.
-  · items에는 상품마다 화면에 적힌 상품명(옵션은 짧게 덧붙임), 수량, 단가(1개 가격), 금액, 분류(category, 상품마다 따로)를 넣고 is_product를 true로 합니다. 배송비는 "배송비" 품목, 쿠폰·할인·적립금 사용은 음수 금액 품목으로 넣고 is_product를 false로 합니다.
+  · items에는 상품마다 화면에 적힌 상품명(옵션은 짧게 덧붙임), 수량, 단가(1개 가격), 금액, 분류(category, 상품마다 따로)를 넣고 is_product를 true로 합니다. 배송비는 "배송비" 품목으로 넣고 is_product를 false로 합니다. 상품 옆에 적힌 즉시할인·상품 쿠폰은 그 상품의 discount, 주문 전체 쿠폰·적립금·포인트 사용은 음수 금액 품목(is_product false)입니다.
   · 주문내역에서 수량 옆에 적힌 상품 가격은 그 수량을 모두 합친 금액입니다(예: "2개 71,800원" → amount 71,800, unit_price 35,900). 이 가격에 수량을 다시 곱하지 않습니다. "개당", "1개당", "단가"라고 적힌 가격만 1개 가격으로 봅니다.
-  · 상품 금액, 배송비, 할인을 모두 더하면 최종 결제 금액과 같아야 합니다. 다르면 수량 옆 가격을 합계로 읽었는지 다시 확인합니다.
+  · 상품마다 (amount + discount), 배송비, 전체 할인 줄을 모두 더하면 최종 결제 금액과 같아야 합니다. 다르면 수량 옆 가격을 합계로 읽었는지, 할인을 두 번 넣지 않았는지 다시 확인합니다.
   · pack_size와 pack_unit은 상품명·옵션에 적힌 용량·개수로 상품 1개(수량 1)에 든 총량을 계산해 넣습니다. 여러 개 묶음이면 곱합니다(예: "100매 x 10팩" → 1000, 매 / "2L x 6병" → 12000, ml / "500g x 2개" → 1000, g / "30구" → 30, 구). kg은 g으로, L는 ml로 바꿉니다. 셈 단위는 가장 작은 소비 단위를 씁니다(팩·박스보다 매·개·구). 용량이 적혀 있지 않으면 null입니다.
   · 최종 결제 금액이 보이면 amount는 그 값이고, 안 보이면 품목 금액의 합입니다. 취소·반품된 상품은 넣지 않습니다.
 - 영수증 품목도 is_product를 같은 기준으로 넣습니다. 용량·중량은 품목명뿐 아니라 그 품목에 딸린 칸이나 줄(규격·용량 칸, 품목명 바로 아래 줄의 "0.352kg"·"400g"·"1.8L", 저울에 달아 판 상품의 중량)에 적혀 있어도 pack_size·pack_unit으로 넣습니다.
@@ -98,7 +109,8 @@ export const SYSTEM_PROMPT = `당신은 한국 가정의 가계부 입력을 돕
 - 긴 영수증·주문내역을 여러 이미지로 나눠 찍은 경우: 앞 이미지에 합계·결제 줄이 없고 바로 다음 이미지에 가게 이름·날짜 같은 머리가 없이 품목부터 이어지면, 두 이미지는 한 영수증입니다. entries 하나로 합치고 날짜·가게 이름은 보이는 이미지의 것을 씁니다. 겹쳐 찍혀 두 이미지에 똑같이 보이는 줄은 한 번만 넣습니다.
   각자 가게 이름·날짜 또는 합계·결제 줄이 있는 영수증은 서로 다른 영수증입니다. 날짜·가게가 같아도 절대 합치지 않습니다.
 - 받은 이미지 안에서 영수증이 끝나지 않으면(첫 이미지 위가 잘림, 마지막 이미지 아래가 잘림) continues_from_previous·continues_to_next를 true로 합니다. 합계가 보이지 않는 부분의 amount는 그 부분 품목 금액의 합입니다.
-- 영수증의 원단위 절사(끝전 버림)·끝전 할인·봉투값도 줄로 넣습니다. 절사·할인은 음수 금액이고 is_product는 false, 봉투는 상품(true)입니다. 상품 줄과 이 줄들을 모두 더하면 결제 금액과 같아야 합니다.
+- 마트 영수증은 상품 줄 아래에 그 상품의 할인 줄(행사할인, 쿠폰할인, 카드할인, 에누리 등 음수)이 붙어 있을 때가 많습니다. 그 금액은 바로 위 상품의 discount입니다. 같은 상품을 두 줄로 찍고 둘째 줄을 전액 할인한 1+1은 둘째 줄의 discount가 그 줄 amount와 같습니다.
+- 영수증의 원단위 절사(끝전 버림)·끝전 할인·봉투값도 줄로 넣습니다. 절사·할인은 음수 금액이고 is_product는 false, 봉투는 상품(true)입니다. 상품마다 (amount + discount)와 이 줄들을 모두 더하면 결제 금액과 같아야 합니다.
 - 주유소(주유) 영수증이면 fuel에 유종(휘발유·경유·고급휘발유·LPG 등 영수증 표기 그대로), 주유량(리터, 소수 셋째 자리까지), 리터당 단가(원)를 적습니다. 단가 × 주유량이 결제 금액과 거의 같아야 합니다. 보이지 않는 값은 null이고, 주유 영수증의 items는 빈 배열입니다. 분류 목록에 '차량·주유'가 있으면 category는 그것입니다. 주유가 아니면 fuel은 null입니다.
 - image_box는 그 상품의 사진(썸네일)이 있는 이미지 번호와 영역을 픽셀 좌표(왼쪽, 위, 오른쪽, 아래)로 넣습니다. 좌표는 각 이미지의 왼쪽 위가 (0,0)이고 크기는 사용자가 알려 준 값입니다. 상품 사진이 없거나 영수증이면 null입니다.
 - 거래 내역이 없으면 entries를 빈 배열로 하고 note에 이유를 적습니다.`
@@ -204,6 +216,7 @@ export function checkFuel(fuel: Fuel | null | undefined, amount: number): { fuel
 
 export interface CheckedEntry extends Entry {
   type: 'expense' | 'income'
+  items: CheckedItem[]
   /** 품목이 있을 때 품목 합계가 결제 금액과 같은지 (품목이 없으면 null) */
   items_match: boolean | null
   /** 결제 금액에 맞춰 상품 줄 금액을 고친 경우 사용자에게 보일 안내 */
@@ -221,8 +234,6 @@ export function preferRetry(first: CheckedEntry[], second: CheckedEntry[]): Chec
   return second.length ? second : first
 }
 
-type Item = Entry['items'][number]
-
 const MAX_FIX_LINES = 8 // 고쳐 볼 줄 수 상한 (경우의 수 3^8)
 const won = (n: number) => String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ',') // 런타임 로캘과 상관없이 1,234
 
@@ -231,7 +242,7 @@ const won = (n: number) => String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ',') // �
  * 모델이 "2개 71,800원"의 합계를 1개 가격으로 보고 수량을 곱했거나(÷수량), 1개 가격을 합계로 넣은(×수량) 경우다.
  * 결제 금액과 정확히 맞는 조합 중 고치는 줄이 가장 적은 것이 하나뿐일 때만 고치고, 아니면 그대로 둔다.
  */
-export function fixLineTotals(items: Item[], total: number): { items: Item[]; fixes: string[] } {
+export function fixLineTotals<T extends Item>(items: T[], total: number): { items: T[]; fixes: string[] } {
   const sum = items.reduce((s, it) => s + it.amount, 0)
   const none = { items, fixes: [] }
   if (!items.length || sum === total) return none
@@ -278,7 +289,7 @@ export function fixLineTotals(items: Item[], total: number): { items: Item[]; fi
 }
 
 /** 품목 합계가 결제 금액과 맞으면 줄 금액을 믿고, 1개 가격이 줄 금액과 같게 적힌 상품은 1개 가격을 다시 계산한다 */
-function fixUnitPrices(items: Item[]): Item[] {
+function fixUnitPrices<T extends Item>(items: T[]): T[] {
   return items.map((it) => it.is_product && it.quantity > 1 && it.amount > 0 && it.unit_price === it.amount
     ? { ...it, unit_price: Math.round(it.amount / it.quantity) }
     : it)
@@ -298,18 +309,27 @@ export function checkEntries(result: ExtractResult, images: ImageSize[] = [], wi
   return result.entries
     .map((e) => {
       const amount = Math.round(Math.abs(e.amount))
-      const items = e.items
+      const items: CheckedItem[] = e.items
         .filter((it) => it.name.trim() && Number.isFinite(it.amount))
-        .map((it) => ({
-          name: it.name.trim().slice(0, 60),
-          is_product: it.is_product,
-          quantity: it.quantity > 0 ? it.quantity : 1,
-          unit_price: it.unit_price === null ? null : Math.round(it.unit_price),
-          amount: Math.round(it.amount),
-          ...checkPack(it.pack_size, it.pack_unit),
-          category: it.category?.trim() || null,
-          image_box: checkBox(it.image_box ?? null, images),
-        }))
+        .map((it) => {
+          const printed = Math.round(it.amount)
+          const quantity = it.quantity > 0 ? it.quantity : 1
+          // 상품 줄에 딸린 할인(D-051)은 그 줄에 접는다: 음수이고 인쇄 금액을 넘지 않을 때만(1+1은 0원 줄). 양수·과한 값·상품 아닌 줄은 무시
+          const raw = it.discount ?? 0
+          const discount = it.is_product && printed > 0 && Number.isFinite(raw) && raw < 0 && -raw <= printed ? Math.round(raw) : 0
+          const amount = printed + discount
+          return {
+            name: it.name.trim().slice(0, 60),
+            is_product: it.is_product,
+            quantity,
+            unit_price: discount ? Math.round(amount / quantity) : it.unit_price === null ? null : Math.round(it.unit_price),
+            amount,
+            discount,
+            ...checkPack(it.pack_size, it.pack_unit),
+            category: it.category?.trim() || null,
+            image_box: checkBox(it.image_box ?? null, images),
+          }
+        })
       const cut = Boolean(e.continues_from_previous || e.continues_to_next)
       // 잘린 조각은 품목이 덜 보여 합계에 맞춰 줄 금액을 고치면 우연히 틀리게 맞을 수 있다
       const fixed = cut ? { items, fixes: [] } : fixLineTotals(items, amount)

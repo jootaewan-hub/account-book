@@ -40,6 +40,8 @@ export interface DraftItem {
   amount: number
   pack_size: number | null
   pack_unit: string | null
+  /** 서버가 이 상품 줄에 접은 할인(D-051, 0 또는 음수). amount는 이미 뺀 값. 확인 화면 표시용이고 저장하지 않는다 */
+  discount?: number
   /** 모델이 고른 이 상품의 분류 이름 */
   category?: string | null
   /** 분석 결과에서의 위치 '내역번호:품목번호' (잘라 둔 상품 사진을 찾을 때) */

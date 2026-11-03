@@ -4,7 +4,7 @@ import { checkEntries, hasItemMismatch, type CheckedEntry, type Entry } from '..
 import { entryDrafts, mergeBatches, stitchEntries } from '../src/lib/smart'
 
 const item = (name: string, amount: number, quantity = 1) => ({
-  name, is_product: true, quantity, unit_price: Math.round(amount / quantity), amount, pack_size: null, pack_unit: null, category: null, image_box: null,
+  name, is_product: true, quantity, unit_price: Math.round(amount / quantity), amount, pack_size: null, pack_unit: null, category: null, discount: 0, image_box: null,
 })
 const part = (p: Partial<CheckedEntry>): CheckedEntry => ({
   date: '2026-10-25', time: null, merchant: '이마트 분당점', platform: null, amount: 0, is_income: false, is_cancellation: false,

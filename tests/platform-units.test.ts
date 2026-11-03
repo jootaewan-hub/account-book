@@ -6,8 +6,8 @@ import { allocateDiscount, canSplit, draftTitle, markRepeats, productTitle, save
 import { perUnitLabel, qtyPriceLabel } from '../src/lib/units'
 import { EXPORT_ITEMS } from './fixtures'
 
-const item = (name: string, amount: number, p: Partial<Entry['items'][number]> = {}): Entry['items'][number] => ({
-  name, is_product: true, quantity: 1, unit_price: amount, amount, pack_size: null, pack_unit: null, category: null, image_box: null, ...p,
+const item = (name: string, amount: number, p: Partial<Entry['items'][number]> = {}): Entry['items'][number] & { discount: number } => ({
+  name, is_product: true, quantity: 1, unit_price: amount, amount, pack_size: null, pack_unit: null, category: null, discount: 0, image_box: null, ...p,
 })
 
 describe('용량 정리 (checkPack)', () => {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildUserText, checkBox, checkEntries, hasItemMismatch, ResultSchema, type Entry } from '../supabase/functions/extract-entries/extract'
+import { buildUserText, checkBox, checkEntries, hasItemMismatch, ResultSchema, SYSTEM_PROMPT, type Entry } from '../supabase/functions/extract-entries/extract'
 import { fitImage, imageTokens, MAX_IMAGE_TOKENS, squareBox } from '../src/lib/image'
 import { issuerOf, last4Matches, matchMethod, matchMethodDetailed, modelLabel, toDrafts } from '../src/lib/smart'
 import type { Category, PaymentMethod, Transaction } from '../src/lib/types'
@@ -254,5 +254,75 @@ describe('가게 이름 남기기 (D-032)', () => {
     expect(one.merchant).toBe('이마트 분당점')
     const [none] = toDrafts(checkEntries({ note: null, entries: [entry({ merchant: '' })] }), ctx)
     expect(none.merchant).toBeNull()
+  })
+})
+
+describe('영수증 상품별 할인 (D-051)', () => {
+  // 모델이 준 상품 줄: 인쇄된 금액·1개 가격과 그 줄에 딸린 할인(discount, 0 또는 음수)
+  const row = (name: string, quantity: number, unit_price: number | null, amount: number, discount: number, is_product = true) =>
+    ({ name, is_product, pack_size: null, pack_unit: null, category: null, quantity, unit_price, amount, discount, image_box: null })
+  const ctx = { today: '2026-11-03', methods: [], categories: [], existing: [], fallbackMethodId: null, fallbackScope: 'shared' as const }
+
+  it('상품 줄에 딸린 할인을 그 상품 금액에 접고 1개 가격을 다시 계산한다', () => {
+    const [e] = checkEntries({ note: null, entries: [entry({ merchant: '이마트', amount: 19980, items: [
+      row('파스퇴르 후레쉬우유', 2, 4180, 8360, -1360),
+      row('계란 30구', 1, 12980, 12980, 0),
+    ] })] })
+    expect(e.items[0]).toMatchObject({ amount: 7000, unit_price: 3500, discount: -1360 })
+    expect(e.items[1]).toMatchObject({ amount: 12980, unit_price: 12980, discount: 0 })
+    expect(e.items_match).toBe(true)
+    expect(e.price_fixes).toBeUndefined()
+  })
+
+  it('양수이거나 인쇄 금액보다 큰 할인은 0으로 두고, 상품이 아닌 줄의 할인도 무시한다', () => {
+    const [e] = checkEntries({ note: null, entries: [entry({ amount: 10000, items: [
+      row('가', 1, 6000, 6000, 500), // 양수
+      row('나', 1, 3000, 3000, -3500), // 인쇄 금액보다 큼
+      row('배송비', 1, null, 1000, -200, false), // 상품 아님
+    ] })] })
+    expect(e.items.map((it) => [it.amount, it.discount])).toEqual([[6000, 0], [3000, 0], [1000, 0]])
+    expect(e.items_match).toBe(true)
+  })
+
+  it('1+1처럼 할인이 인쇄 금액과 같으면 0원 상품 줄로 남긴다', () => {
+    const [e] = checkEntries({ note: null, entries: [entry({ amount: 3300, items: [
+      row('스텔라 500ml 캔', 1, 3300, 3300, 0),
+      row('스텔라 500ml 캔', 1, 3300, 3300, -3300),
+    ] })] })
+    expect(e.items.map((it) => it.amount)).toEqual([3300, 0])
+    expect(e.items[1]).toMatchObject({ unit_price: 0, discount: -3300 })
+    expect(e.items_match).toBe(true)
+  })
+
+  it('이마트 모양: 상품 줄 + 상품별 할인 + 영수증 전체 할인(포인트) 줄 = 결제 금액', () => {
+    const [e] = checkEntries({ note: null, entries: [entry({ merchant: '이마트 죽전점', amount: 29460, items: [
+      row('파스퇴르 후레쉬우유', 2, 4180, 8360, -1360),
+      row('홍시 4-6입/팩', 2, 6780, 13560, -2000),
+      row('애호박(개)', 1, 1350, 1350, 0),
+      row('추황배 3~4입/봉', 1, 15980, 15980, -5980),
+      row('S-Point 사용', 1, null, -450, 0, false),
+    ] })] })
+    expect(e.items.map((it) => it.amount)).toEqual([7000, 11560, 1350, 10000, -450])
+    expect(e.items_match).toBe(true)
+    // 상품별로 나눠도 할인은 그 상품에만 남고, 전체 할인(포인트)만 비율로 나뉜다
+    const ds = toDrafts([e], ctx, () => true)
+    expect(ds.map((d) => d.title)).toEqual(['파스퇴르 후레쉬우유', '홍시 4-6입/팩', '애호박(개)', '추황배 3~4입/봉'])
+    expect(ds.reduce((s, d) => s + d.amount, 0)).toBe(29460)
+    expect(ds[0].items[0]).toMatchObject({ amount: 7000, discount: -1360 })
+    expect(ds[2].amount).toBeLessThan(1350) // 포인트 450원의 몫
+  })
+
+  it('옛 서버 응답(discount 칸 없음)도 그대로 받고 할인은 0이다', () => {
+    const [e] = checkEntries({ note: null, entries: [entry({ amount: 5000, items: [
+      { name: '대파', is_product: true, pack_size: null, pack_unit: null, category: null, quantity: 1, unit_price: 5000, amount: 5000, image_box: null },
+    ] })] })
+    expect(e.items[0]).toMatchObject({ amount: 5000, discount: 0 })
+    expect(ResultSchema.safeParse({ note: null, entries: [{ ...entry({}), items: [row('대파', 1, 5000, 5000, -500)], images: [1], continues_from_previous: false, continues_to_next: false }] }).success).toBe(true)
+  })
+
+  it('지시문이 상품별 할인·요약 줄 금지·이름 그대로 옮기기를 말한다', () => {
+    expect(SYSTEM_PROMPT).toContain('discount')
+    expect(SYSTEM_PROMPT).toMatch(/할인 합계|총 ?할인/)
+    expect(SYSTEM_PROMPT).toContain('인쇄된 글자')
   })
 })

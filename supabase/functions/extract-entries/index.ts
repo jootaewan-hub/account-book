@@ -20,9 +20,11 @@ import { buildEventPasteText, buildEventText, EVENT_IMAGES_MAX, EVENT_PROMPT, Ev
 import { WIF } from './wif-config.ts'
 
 // 모델은 코드에서만 정한다 (Secrets로 바뀌지 않게)
-// 문자·영수증: Haiku 5.5, 품목 합계가 안 맞을 때 다시 읽기: Sonnet 5.5
+// 문자(붙여넣은 글): Haiku 5.5, 품목 합계가 안 맞을 때 다시 읽기: Sonnet 5.5
 const PRIMARY_MODEL = 'claude-haiku-5-5'
 const RETRY_MODEL = 'claude-sonnet-5-5'
+// 영수증 사진: Sonnet 5.5(D-051). Haiku는 긴 영수증의 상품명을 자주 틀리고(추황배→주꾸미), 상품별 할인을 한 줄로 뭉쳐도 합계 검사를 통과해 다시 읽기가 돌지 않았다
+const RECEIPT_MODEL = 'claude-sonnet-5-5'
 // 쇼핑 주문 캡처: 상품 사진 위치(픽셀 좌표)가 필요해 고해상도 이미지를 지원하는 Sonnet 5.5를 쓴다
 const SHOP_MODEL = 'claude-sonnet-5-5'
 // 관리비 고지서: 작은 글씨의 표를 정확히 읽어야 해서 Sonnet 5.5
@@ -157,7 +159,8 @@ async function extract(client: Anthropic, model: string, input: Exclude<Input, {
     max_tokens: 12000,
     system: SYSTEM_PROMPT,
     messages: [{ role: 'user', content }],
-    output_config: { effort: shop ? 'medium' : 'low', format: zodOutputFormat(ResultSchema) },
+    // 사진(영수증·쇼핑 캡처)은 medium: 상품 줄과 그 아래 할인 줄을 짝지어 읽어야 한다. 붙여넣은 글은 low
+    output_config: { effort: input.kind === 'image' ? 'medium' : 'low', format: zodOutputFormat(ResultSchema) },
   }, { signal })
   if (res.stop_reason === 'refusal') return { refused: true as const, usage: res.usage }
   if (!res.parsed_output) throw new Error(`no_parsed_output (stop_reason=${res.stop_reason})`)
@@ -266,10 +269,10 @@ Deno.serve(async (req) => {
     // 분류 목록은 내역을 뽑을 때만 쓴다
     const { data: cats } = await supabase.from('categories').select('name, type').eq('archived', false).order('sort')
     const categories = [...new Set((cats ?? []).map((c) => c.name as string))]
-    const first = input.kind === 'image' && input.mode === 'shop' ? SHOP_MODEL : PRIMARY_MODEL
+    const first = input.kind === 'image' ? (input.mode === 'shop' ? SHOP_MODEL : RECEIPT_MODEL) : PRIMARY_MODEL
     let out = await extract(client, first, input, categories, signal)
-    // 품목 합계가 결제 금액과 안 맞으면 더 큰 모델로 한 번 더 읽는다. 둘 다 안 맞아도(원단위 절사 등) 큰 모델 결과를 쓴다.
-    // 남은 시간이 짧으면 다시 읽지 않고 첫 결과를 보낸다(합계가 안 맞는다는 확인 문장은 그대로 붙는다)
+    // 붙여넣은 글의 품목 합계가 결제 금액과 안 맞으면 더 큰 모델로 한 번 더 읽는다. 둘 다 안 맞아도(원단위 절사 등) 큰 모델 결과를 쓴다.
+    // 사진은 첫 모델이 이미 Sonnet이라 다시 읽지 않는다. 남은 시간이 짧으면 다시 읽지 않고 첫 결과를 보낸다(합계가 안 맞는다는 확인 문장은 그대로 붙는다)
     if (!out.refused && hasItemMismatch(out.entries) && RETRY_MODEL !== first) {
       if (left() >= RETRY_MIN_LEFT_MS) {
         const second = await extract(client, RETRY_MODEL, input, categories, signal)

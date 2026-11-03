@@ -27,6 +27,13 @@ export function perUnitLabel(it: PackInfo): string | null {
   return u ? `${u.base}당 ${formatUnitPrice(u.price)}원` : null
 }
 
+/** '할인 1,360원 뺌(원래 8,360원)'. 서버가 상품 줄에 접은 할인(D-051, 0 또는 음수)이 없으면 null */
+export function discountLabel(it: { amount: number; discount?: number | null }): string | null {
+  const d = it.discount ?? 0
+  if (!(d < 0) || it.amount < 0) return null
+  return `할인 ${(-d).toLocaleString('ko-KR')}원 뺌(원래 ${(it.amount - d).toLocaleString('ko-KR')}원)`
+}
+
 /** '2개 × 4,900원' (수량이 1이고 개당 가격이 없으면 null) */
 export function qtyPriceLabel(it: { quantity: number; unit_price: number | null }): string | null {
   const q = Number(it.quantity)

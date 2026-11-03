@@ -210,14 +210,15 @@ export const TABLES = {
 
 /** 영수증 사진 분석(extract-entries) 가짜 응답: 장보기 목록과 이름이 맞는 상품이 섞인 마트 영수증 */
 export const RECEIPT = {
-  model: 'claude-haiku-5-5',
+  model: 'claude-sonnet-5-5',
   note: null,
   entries: [{
-    date: daysAgo(0), time: '18:20', merchant: '이마트 분당점', platform: null, amount: 17390, is_income: false, is_cancellation: false,
+    date: daysAgo(0), time: '18:20', merchant: '이마트 분당점', platform: null, amount: 16390, is_income: false, is_cancellation: false,
     card_last4: null, payment_hint: null, installment_months: null, category: '장보기', type: 'expense', items_match: true, fuel: null,
     items: [
       { name: '국산 대파 1단', is_product: true, quantity: 1, unit_price: 3000, amount: 3000, pack_size: null, pack_unit: null, category: '장보기', image_box: null },
-      { name: '서울우유 900ml', is_product: true, quantity: 2, unit_price: 2500, amount: 5000, pack_size: 900, pack_unit: 'ml', category: '장보기', image_box: null },
+      // 상품 줄에 딸린 행사할인은 서버가 접어 보낸다(D-051): 인쇄 5,000원 − 1,000원 → 4,000원, 1개 2,000원
+      { name: '서울우유 900ml', is_product: true, quantity: 2, unit_price: 2000, amount: 4000, discount: -1000, pack_size: 900, pack_unit: 'ml', category: '장보기', image_box: null },
       { name: '농심 신라면 5입', is_product: true, quantity: 1, unit_price: 5000, amount: 5000, pack_size: 5, pack_unit: '입', category: '장보기', image_box: null },
       { name: '부침두부 300g', is_product: true, quantity: 1, unit_price: 2800, amount: 2800, pack_size: 300, pack_unit: 'g', category: '장보기', image_box: null },
       { name: '포카칩 오리지널 66g', is_product: true, quantity: 1, unit_price: 1590, amount: 1590, pack_size: 66, pack_unit: 'g', category: '장보기', image_box: null },
@@ -229,7 +230,7 @@ export const RECEIPT = {
  *  앱이 한 내역으로 잇고 '사진 1~2번을 긴 영수증 한 장으로' 안내를 붙이는지 본다. 숫자는 캡처 확인용 예시 */
 const line = (name, amount, quantity = 1) => ({ name, is_product: true, quantity, unit_price: amount / quantity, amount, pack_size: null, pack_unit: null, category: '장보기', image_box: null })
 export const LONG_RECEIPT = {
-  model: 'claude-haiku-5-5',
+  model: 'claude-sonnet-5-5',
   note: null,
   entries: [
     { date: daysAgo(1), time: '19:05', merchant: '이마트 분당점', platform: null, amount: 15380, is_income: false, is_cancellation: false,
@@ -245,7 +246,7 @@ export const LONG_RECEIPT = {
 
 /** 주유소 영수증 가짜 응답(영수증 확인 화면의 주유 칸). 리터·단가는 캡처 확인용 예시 */
 export const FUEL_RECEIPT = {
-  model: 'claude-haiku-5-5',
+  model: 'claude-sonnet-5-5',
   note: null,
   entries: [{
     date: daysAgo(0), time: '08:12', merchant: 'GS칼텍스 분당주유소', platform: null, amount: 59990, is_income: false, is_cancellation: false,
