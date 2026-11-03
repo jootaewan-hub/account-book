@@ -42,7 +42,7 @@
   min-height: 44px; min-width: 44px; padding: 0 8px; font-size: 15px; font-weight: 600; color: var(--ink-2);
   background: transparent; border: 0; border-radius: var(--r-btn); cursor: pointer;
 }
-.grocery .btn-big { min-height: 48px; width: 100%; font-size: 17px; font-weight: 700; border-radius: 16px; }
+.grocery .btn-big { min-height: 48px; width: 100%; font-size: 17px; font-weight: 700; border-radius: var(--r-md); }
 .grocery .btn-secondary:focus-visible, .grocery .btn-text:focus-visible, .grocery .seg button:focus-visible, .grocery .check:focus-visible, .grocery .notice-action:focus-visible, .grocery .add-text:focus-visible {
   outline: 2px solid var(--ink); outline-offset: 2px;
 }
@@ -91,16 +91,16 @@
 .grocery .summary-cell { background: var(--oat); border-radius: var(--r-btn); padding: 12px; min-height: 76px; }
 .grocery .summary-k { font-size: 13px; font-weight: 500; color: var(--ink-2); line-height: 1.35; }
 .grocery .summary-v { margin-top: 4px; font-size: 17px; font-weight: 700; line-height: 1.3; }
-.grocery .seg { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; margin-top: 16px; padding: 4px; background: var(--oat-deep); border-radius: var(--r-btn); }
+.grocery .seg { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; margin-top: 16px; padding: 4px; background: var(--oat-deep); border-radius: var(--r-sm); }
 .grocery .seg button {
-  min-height: 44px; border: 0; border-radius: 8px; background: transparent; color: var(--ink-2);
+  min-height: 44px; border: 0; border-radius: 4px; background: transparent; color: var(--ink-2);
   font-size: 15px; font-weight: 600; cursor: pointer;
 }
 /* 고른 칸(D-048): 먹색으로 칠하지 않고 한 단계 밝은 면이, 가계부 나눔 단추처럼 고른 칸으로 미끄러져 옮겨 간다(250ms).
    칸 수는 seg-3·4·5 클래스(없으면 2), 고른 칸 번호는 :has로 읽는다. 단추 자체는 칠하지 않는다 */
 .grocery .seg { position: relative; isolation: isolate; --n: 2; --i: 0; }
 .grocery .seg.seg-3 { --n: 3; } .grocery .seg.seg-4 { --n: 4; } .grocery .seg.seg-5 { --n: 5; }
-.grocery .seg::before { content: ""; position: absolute; z-index: -1; top: 4px; bottom: 4px; left: 4px; border-radius: 8px; background: var(--seg-on);
+.grocery .seg::before { content: ""; position: absolute; z-index: -1; top: 4px; bottom: 4px; left: 4px; border-radius: 4px; background: var(--seg-on);
   width: calc((100% - 8px - (var(--n) - 1) * 4px) / var(--n)); transform: translateX(calc(var(--i) * (100% + 4px)));
   transition: transform var(--dur-quick) var(--ease-smooth); opacity: 0; }
 .grocery .seg:has(> button[aria-pressed="true"])::before, .grocery .seg:has(> button[aria-selected="true"])::before { opacity: 1; }
@@ -114,7 +114,7 @@
 .grocery .group-count { font-size: 13px; font-weight: 500; color: var(--ink-2); }
 .grocery .group-rows { list-style: none; margin: 0 -8px; padding: 0; background: var(--oat); border-radius: var(--r-md); overflow: hidden; }
 .grocery .row { position: relative; overflow: hidden; }
-.grocery .row + .row .row-body { border-top: 1px solid var(--oat-deep); }
+.grocery .row + .row .row-body { border-top: 1px solid var(--line); }
 .grocery .row-body {
   position: relative; z-index: 1; display: flex; align-items: center; gap: 4px; min-height: 64px;
   padding: 8px 16px 8px 4px; background: var(--oat); touch-action: pan-y;
@@ -197,7 +197,7 @@
   animation: notice-in 350ms var(--ease-smooth);
 }
 .grocery .notice-action {
-  flex: none; min-height: 44px; padding: 0 12px; border: 0; border-radius: 10px; background: transparent; color: var(--on-primary);
+  flex: none; min-height: 44px; padding: 0 12px; border: 0; border-radius: var(--r-btn); background: transparent; color: var(--on-primary);
   font-size: 15px; font-weight: 700; text-decoration: underline; text-underline-offset: 3px; cursor: pointer;
 }
 .grocery .notice-action:focus-visible { outline-color: var(--on-primary); outline-offset: -2px; }
@@ -237,11 +237,11 @@
 .grocery .preview-line { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 32px; }
 /* 담을 때 보는 지난 기록(D-042): 기록에 적힌 이름·값·날짜·어디서 */
 .grocery .seen-state { margin: -2px 0 8px; font-size: 13px; color: var(--ink-2); }
-.grocery .seen { margin: 6px 0 2px; padding: 8px 12px; background: var(--canvas); border-radius: var(--r-sm); }
+.grocery .seen { margin: 6px 0 2px; padding: 8px 12px; background: var(--canvas); border: 1px solid var(--line); border-radius: var(--r-sm); }
 .grocery .seen-title { margin: 0 0 2px; font-size: 13px; font-weight: 700; color: var(--ink-2); }
 .grocery .seen-row { padding: 6px 0; }
 /* 줄 사이 구분선. 버튼에는 긋지 않는다(둥근 모서리에 걸려 호처럼 보인다) */
-.grocery .seen-row + .seen-row, .grocery .seen-row + div .seen-row { border-top: 1px solid var(--oat-deep); }
+.grocery .seen-row + .seen-row, .grocery .seen-row + div .seen-row { border-top: 1px solid var(--line); }
 .grocery .seen-name { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; margin: 0; font-size: 14px; font-weight: 600; overflow-wrap: anywhere; }
 .grocery .seen-price { display: flex; flex-wrap: wrap; gap: 0 12px; margin: 2px 0 0; font-size: 14px; }
 .grocery .seen-unit { color: var(--ink-2); }
@@ -249,7 +249,7 @@
 .grocery .seen-row .src-line { margin: 2px 0 0; }
 .grocery .tag-cheap { background: var(--sage-soft); color: var(--sage-ink); }
 .grocery .seen-more { display: block; min-height: 44px; padding: 0; margin: 0 0 -6px; font-size: 14px; text-align: left; text-decoration: underline; text-underline-offset: 3px; }
-.grocery .preview-row + .preview-row { border-top: 1px solid var(--oat-deep); }
+.grocery .preview-row + .preview-row { border-top: 1px solid var(--line); }
 .grocery .preview-name { min-width: 0; font-size: 16px; font-weight: 600; overflow-wrap: anywhere; }
 .grocery .preview-note { display: block; margin-top: 2px; font-size: 13px; font-weight: 500; color: var(--ink-2); }
 .grocery .form-error { margin-top: 12px; color: var(--clay); font-size: 14px; }
@@ -292,7 +292,7 @@
 /* 상품 고르기 시트 */
 .grocery .cand-search { display: flex; gap: 8px; margin: 4px 0 8px; }
 .grocery .cand-input {
-  flex: 1; min-width: 0; min-height: 44px; padding: 0 12px; border: 1px solid var(--oat-deep); border-radius: var(--r-btn);
+  flex: 1; min-width: 0; min-height: 44px; padding: 0 12px; border: 1px solid var(--line); border-radius: var(--r-btn);
   background: var(--canvas); color: var(--ink); font: inherit; font-size: 16px;
 }
 .grocery .cand-input:focus-visible { outline: 2px solid var(--ink); outline-offset: 1px; }
@@ -302,14 +302,14 @@
 .grocery .cand-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 12px; }
 .grocery .cand-card { padding: 12px; background: var(--oat); border-radius: var(--r-md); }
 .grocery .cand-head { display: flex; gap: 12px; align-items: center; }
-.grocery .cand-img { flex: none; width: 56px; height: 56px; border-radius: 10px; background: var(--canvas); object-fit: contain; }
+.grocery .cand-img { flex: none; width: 56px; height: 56px; border-radius: var(--r-sm); background: var(--canvas); object-fit: contain; }
 .grocery .cand-title { min-width: 0; }
 .grocery .cand-name { font-size: 15px; font-weight: 600; line-height: 1.4; }
 .grocery .cand-rating { margin-top: 2px; font-size: 13px; color: var(--ink-2); }
 .grocery .cand-variants { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
 .grocery .cand-variant {
   display: grid; grid-template-columns: 56px auto 1fr; align-items: baseline; gap: 10px; min-height: 48px; padding: 8px 12px;
-  border: 0; border-radius: var(--r-btn); background: var(--canvas); color: var(--ink); font: inherit; text-align: left; cursor: pointer;
+  border: 1px solid var(--line); border-radius: var(--r-btn); background: var(--canvas); color: var(--ink); font: inherit; text-align: left; cursor: pointer;
 }
 .grocery .cand-variant:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
 .grocery .cand-qty { font-size: 17px; font-weight: 700; }
@@ -331,7 +331,7 @@
 .grocery .detail-none { font-size: 14px; color: var(--ink-2); }
 .grocery .price-list { list-style: none; margin: 0; padding: 0 12px; background: var(--oat); border-radius: var(--r-md); }
 .grocery .price-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 56px; padding: 8px 0; }
-.grocery .price-row + .price-row { border-top: 1px solid var(--oat-deep); }
+.grocery .price-row + .price-row { border-top: 1px solid var(--line); }
 .grocery .price-where { font-size: 15px; font-weight: 600; }
 .grocery .price-src { margin-top: 2px; font-size: 13px; color: var(--ink-2); }
 .grocery .price-v { flex: none; font-size: 14px; font-weight: 700; text-align: right; }
@@ -350,7 +350,7 @@
 .grocery .record-lead { margin-bottom: 16px; font-size: 14px; color: var(--ink-2); }
 .grocery .record-items { list-style: none; margin: 0 0 16px; padding: 0 16px; background: var(--oat); border-radius: var(--r-md); }
 .grocery .record-item { padding: 8px 0; }
-.grocery .record-item + .record-item { border-top: 1px solid var(--oat-deep); }
+.grocery .record-item + .record-item { border-top: 1px solid var(--line); }
 .grocery .record-check { display: flex; align-items: center; gap: 12px; min-height: 44px; cursor: pointer; }
 .grocery .record-check input { width: 22px; height: 22px; accent-color: var(--ink); flex: none; }
 .grocery .record-name { font-size: 16px; font-weight: 600; overflow-wrap: anywhere; }
@@ -494,7 +494,7 @@
 .grocery .tag-auto { background: var(--sage-soft); color: var(--sage-ink); }
 .grocery .detail-block .find-sub { margin-top: 16px; }
 .grocery .find-row .shop-actions { margin-top: 4px; }
-.grocery .find-row .shop-actions .btn-secondary { min-height: 44px; background: var(--canvas); } /* 귀리색 카드 위에서 버튼이 보이게 */
+.grocery .find-row .shop-actions .btn-secondary { min-height: 44px; background: var(--canvas); border: 1px solid var(--line); } /* 귀리색 카드 위에서 버튼이 보이게 */
 .grocery .shop-actions .btn-text { display: inline-flex; align-items: center; min-height: 44px; padding: 0; margin: 0; font-size: 14px; text-decoration: none; }
 .grocery .shop-note { margin: 8px 0 0; font-size: 13px; color: var(--ink-2); }
 .grocery .store-good { margin: 0 0 8px; font-size: 15px; font-weight: 600; }
@@ -502,13 +502,13 @@
 .grocery .pick-list { list-style: none; margin: 8px 0 0; padding: 0; }
 .grocery .pick-row {
   display: flex; flex-direction: column; align-items: flex-start; gap: 2px; width: 100%; min-height: 48px; padding: 10px 0;
-  border: 0; border-top: 1px solid var(--oat-deep); background: none; color: inherit; font: inherit; text-align: left; cursor: pointer;
+  border: 0; border-top: 1px solid var(--line); background: none; color: inherit; font: inherit; text-align: left; cursor: pointer;
 }
 .grocery .pick-row:focus-visible { outline: 2px solid var(--ink); outline-offset: -2px; }
 .grocery .pick-row[aria-pressed="true"] .pick-name::after { content: ' · 지금 고른 상품'; font-weight: 400; color: var(--ink-2); }
 .grocery .pick-name { font-size: 15px; font-weight: 600; }
 .grocery .pick-meta { font-size: 13px; color: var(--ink-2); }
-.grocery .pick-check { display: flex; align-items: center; gap: 12px; min-height: 48px; padding: 4px 0; border-top: 1px solid var(--oat-deep); cursor: pointer; }
+.grocery .pick-check { display: flex; align-items: center; gap: 12px; min-height: 48px; padding: 4px 0; border-top: 1px solid var(--line); cursor: pointer; }
 .grocery .pick-check input { width: 22px; height: 22px; margin: 0; accent-color: var(--ink); }
 
 /* P2 우리가 산 값 */
@@ -543,7 +543,7 @@
 .grocery .seg-5 button { padding-left: 0; padding-right: 0; }
 .grocery .ingredients-text { margin: 0 0 4px; font-size: 15px; line-height: 1.55; }
 .grocery .nutri-table { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 4px 12px; margin: 0 0 6px; }
-.grocery .nutri-row { display: flex; justify-content: space-between; gap: 8px; min-height: 32px; padding: 4px 0; border-bottom: 1px solid var(--oat-deep); }
+.grocery .nutri-row { display: flex; justify-content: space-between; gap: 8px; min-height: 32px; padding: 4px 0; border-bottom: 1px solid var(--line); }
 .grocery .nutri-row dt { font-size: 14px; color: var(--ink-2); }
 .grocery .nutri-row dd { margin: 0; font-size: 14px; font-weight: 600; }
 .grocery .alt-reasons { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 2px; }

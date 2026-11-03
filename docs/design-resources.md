@@ -8,7 +8,7 @@
 
 | 공정 | 쓰는 것 | 어떻게 | 막는 규칙 |
 |---|---|---|---|
-| 1. 레퍼런스 | Design Spells | 동작 사례를 볼 때만. 코드는 가져오지 않는다 | `DESIGN.md` Motion "어디를 움직이나"의 빈도 기준 |
+| 1. 레퍼런스 | Design Spells, awesome-design-md(VoltAgent, MIT: 실제 사이트에서 뽑은 DESIGN.md 58개) | 동작 사례를 볼 때만. 코드는 가져오지 않는다. DESIGN.md에서는 값(색·둥글기·선·굵기 단계)과 "하지 않는 것"만 가져오고 브랜드 글꼴·로고·그림은 쓰지 않는다(D-050, 노션 기준) | `DESIGN.md` Motion "어디를 움직이나"의 빈도 기준 |
 | 2. 컬러 | `DESIGN.md` 토큰 그대로(흰 바탕·귀리 면. 회색 바탕 시안은 사용자가 되돌림, D-048 보충) | Realtime Colors·Coolors는 다른 조합을 미리 볼 때만. 토큰을 바꾸려면 대비(흰 바탕·귀리 면 위 4.5:1)와 `who-*` 색 순서 검증을 다시 한다 | `DESIGN.md` Colors |
 | 3. 폰트 | SUIT 2.0.5 하나 | 바꾸지 않는다. Fontshare 등 목록의 글꼴은 한글 지원을 확인하지 못했다 | `DESIGN.md` Typography |
 | 4. UI 컴포넌트 | Magic UI(MIT) 코드를 옮겨 쓴다 | 소스를 읽고 Web Animations API·일반 CSS로 다시 쓴다(motion·Tailwind를 들이지 않음). 옮긴 것은 `CREDITS.md` "컴포넌트·모션 코드"에 적는다. 21st.dev는 shadcn·Tailwind 설치와 하루 2회 제한이 있어 쓰지 않는다 | "AI처럼 보이지 않게"(CLAUDE.md): 반짝이·테두리 빛(Shimmer Button, Border Beam, Sparkles, Aurora Text, Meteors)·타자 치듯 나오는 글자는 쓰지 않는다 |
@@ -24,15 +24,17 @@
 - 화면에 출처를 보여야 하는 자료(Storyset, Lordicon·Icons8 무료판)는 쓰지 않는다.
 - MIT·ISC·OFL은 저작권 표시와 원문을 함께 배포해야 한다. 원문은 `public/`(글꼴은 `public/fonts/`, 그 밖은 `public/licenses/`)에 두고, 무엇을 어디서 가져왔는지는 `CREDITS.md`에 적는다.
 - React Bits는 "MIT + Commons Clause"다(2026-11-03 저장소 LICENSE.md 확인). 앱·웹사이트 안에 넣어 쓰는 것은 허용, 컴포넌트를 따로 팔거나 묶어 재배포하는 것은 금지. 옮겨 쓰면 원문을 `public/licenses/`에 둔다.
+- awesome-design-md(github.com/VoltAgent/awesome-design-md)는 MIT이고 "공개 CSS 값을 뽑은 것, 사이트의 시각 정체성은 소유하지 않음"이라고 밝힌다. 값과 규칙만 참고하고 글꼴(NotionInter 등)·로고·일러스트는 쓰지 않는다. 로컬 사본 `~/awesome-design-md`(개별 사이트 파일은 커밋 ef729b2까지 있고 그 뒤 getdesign.md로 옮겨졌다).
 - 유료 플랜은 쓰지 않는다. 쓰게 되면 가격·라이선스 페이지를 그날 다시 확인한다.
 
-## 3. 지금 들어간 것 (v2.24.0)
+## 3. 지금 들어간 것 (v2.26.0)
 
 - 모양: 층마다 다른 둥글기(태그 4·칩 8·버튼 10·기록하기 14·묶음 16·시트 20), 알약 버튼·칩 없음, 장보기 나눔 단추의 고른 칸은 먹색 칠 대신 밝은 면(D-048). 색은 그대로(흰 바탕·귀리 면).
 - 아이콘: 손으로 그린 아이콘과 Lucide를 모두 Phosphor로 바꿨다(아래 탭·위쪽 줄·달력·기념일·날씨·고정 탭 분류 타일). 켜진 탭은 채운 모양.
 - 저장·삭제 알림의 체크(Phosphor `check-bold`, 왼쪽부터 드러남).
 - 알아보기 검색 결과 도착: Magic UI `BlurFade`를 옮긴 `useArrival`.
 - 보조 정보를 잇던 ` · `를 쉼표로.
+- 노션 DESIGN.md를 기준으로(D-050, v2.26.0): 경계선을 먹 10% 한 값(`--line`)으로 통일하고 귀리 면 위 흰 요소(보조 버튼·안내 줄·나눔 단추 틀·입력칸·날씨 칸·메모 핀 줄·장보기 지난 기록·후보 줄)에 가는 선, 둥글기 한 단계 각지게(태그 4·칩·버튼 6·안쪽 8·묶음 12·시트 16), 글자 굵기 상한 700, 보조 글자 #615D59, 태그 자간 +0.01em.
 - 디자인 스킬(design-critique, interaction-design)로 비평한 뒤: 장보기 나눔 단추 미끄러지는 표시, 메모 고정 단추(핀)와 순서 바뀜 움직임(`useFlip`), 장보기 체크 피드백, '+' 글자를 아이콘으로(D-048 보충 2).
 
 ## 4. 하지 않기로 한 것과 까닭
@@ -46,6 +48,8 @@
 | Lucide·Feather 꼴 선 아이콘 | AI 생성 앱(shadcn 등)의 기본 아이콘이라 D-048에서 Phosphor로 바꿨다 |
 | unDraw·Storyset 일러스트 | 빈 상태 그림 없음 규칙 |
 | 21st.dev 블록 | shadcn·Tailwind 설치가 필요하고 무료는 하루 2회 |
+| 노션 DESIGN.md의 파랑 CTA, 알약 배지, 4~5겹 그림자, 자리 글 #A39E98 | 행동은 먹색 하나, 알약 없음(D-048), 그림자 없음, 자리 글도 4.5:1(#A39E98은 흰 바탕 2.66:1) |
+| awesome-design-md의 다른 DESIGN.md(Wise·Apple·Claude·Intercom·Cal.com·Airbnb, 다크 우선 사이트들) | D-050 이유 칸: 라임 CTA·알약·굵기 900, 회색 바탕(되돌린 것), 크림 바탕·세리프, 주황 강조·4px, 겹그림자, 빨강 강조, 다크 우선 |
 
 이 표의 항목을 쓰려면 먼저 `DESIGN.md`·`CLAUDE.md`의 해당 규칙을 사용자가 바꿔야 한다.
 

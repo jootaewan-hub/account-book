@@ -463,7 +463,7 @@ try {
         await page.getByRole('dialog').first().waitFor()
       }
       if (s.rcAdd) {
-        await page.getByRole('button', { name: `+ ${s.rcAdd} 추가` }).click()
+        await page.getByRole('button', { name: new RegExp(`${s.rcAdd} 추가$`) }).click() // D-048 보충 2부터 '+'는 아이콘(읽기에서 뺌)
         await page.getByRole('dialog').first().waitFor()
       }
       if (s.receipt) {
