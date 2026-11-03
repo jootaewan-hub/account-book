@@ -178,12 +178,16 @@ const shellShots = [
   // 저장하지 않기로 한 초안(체크 해제)이 저장할 초안과 구별되는지
   // 영수증 상품 줄의 용량 칸(D-045)
   ...each((w, c) => ({ name: `shell-smart-items-${w}-${c}`, path: '/', w, c, shell: true, tab: '내역', receipt: true, itemsView: true })),
+  // 품목 줄 고치기(D-052): 첫 줄의 고치기를 눌러 이름·수량·금액 칸이 열린 상태
+  ...both(390, (w, c) => ({ name: `shell-smart-item-edit-${w}-${c}`, path: '/', w, c, shell: true, tab: '내역', receipt: true, itemsView: true, itemEdit: true })),
   ...both(390, (w, c) => ({ name: `shell-smart-draft-off-${w}-${c}`, path: '/', w, c, shell: true, tab: '내역', receipt: true, draftOff: true })),
   // 내역 고르기(D-027): 날짜 하나 전부 + 다른 날 한 건을 고른 상태, 아래에 고른 내역 줄. 휴대폰은 한 번 누른 확인 상태도
   ...each((w, c) => ({ name: `shell-list-pick-${w}-${c}`, path: '/', w, c, shell: true, tab: '내역', listPick: { day: 1, row: '스타벅스' } })),
   ...both(390, (w, c) => ({ name: `shell-list-pick-confirm-${w}-${c}`, path: '/', w, c, shell: true, tab: '내역', listPick: { day: 1, row: '스타벅스', confirm: true } })),
   // 나눠 저장한 내역의 수정 시트: 같은 영수증 내역 목록과 '4건 모두 삭제'
   ...each((w, c) => ({ name: `shell-entry-batch-${w}-${c}`, path: '/', w, c, shell: true, tab: '내역', batch: '샘표 진간장' })),
+  // 저장된 내역의 품목 줄 고치기(D-052): 수정 시트에서 첫 줄의 고치기를 누른 상태
+  ...both(390, (w, c) => ({ name: `shell-entry-items-${w}-${c}`, path: '/', w, c, shell: true, tab: '내역', batch: '샘표 진간장', itemEdit: true })),
   // 꺼 둔 구독 줄(고정 탭), 숨긴 분류 칩(설정)이 켜진 것과 구별되는지
   // (휴대폰 고정 탭의 꺼 둔 줄은 shell-fixed-390-*의 전체 화면에서 본다. 설정의 분류 칩은 휴대폰에서 아래 탭에 가려 넓은 화면만)
   ...both(1280, (w, c) => ({ name: `shell-settings-cats-${w}-${c}`, path: '/', w, c, shell: true, tab: '설정' })),
@@ -466,7 +470,10 @@ try {
         await page.locator('.tx', { hasText: s.batch }).first().click()
         await page.getByRole('dialog').first().waitFor()
         await page.locator('.batch-del').waitFor()
-        await page.locator('.batch-del').evaluate((el) => el.scrollIntoView({ block: 'end' }))
+        if (s.itemEdit) {
+          await page.getByRole('button', { name: '고치기' }).first().click()
+          await page.locator('.item-editor').evaluate((el) => el.scrollIntoView({ block: 'center' }))
+        } else await page.locator('.batch-del').evaluate((el) => el.scrollIntoView({ block: 'end' }))
       }
       if (s.rcOpen) {
         await page.locator('.rc-row', { hasText: s.rcOpen }).click()
@@ -500,6 +507,7 @@ try {
       } else if (s.itemsView) {
         // 상품 줄의 용량 칸(D-045): 영수증에서 못 읽은 줄은 빈 칸, 읽은 줄은 채워진 칸
         await page.locator('.item-list').first().waitFor()
+        if (s.itemEdit) await page.getByRole('button', { name: '고치기' }).first().click()
         await page.locator('.item-list').first().evaluate((el) => el.scrollIntoView({ block: 'center' }))
       } else if (s.draftOff) {
         await page.locator('.draft-head input').first().waitFor()

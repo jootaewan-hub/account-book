@@ -1,4 +1,5 @@
 import { addMonths, monthRange } from './dates'
+import { diffItems, type ItemsChange } from './itemEdit'
 import { removeItemImages } from './itemImages'
 import { utilityItemForBill } from './bills'
 import { installmentPlan } from './recurring'
@@ -183,6 +184,21 @@ export async function insertInstallmentPurchase(householdId: string, input: TxIn
 
 export async function updateTransaction(id: string, input: TxInput): Promise<void> {
   check(await sb().from('transactions').update(input).eq('id', id))
+}
+
+/**
+ * 저장된 내역의 품목 줄을 고친다(D-052): 뺀 줄은 지우고(사진도), 바뀐 칸만 고치고, 새 줄은 넣는다. sort는 화면 순서.
+ * 표 권한은 가구 RLS(transaction_items_all)와 select·insert·update·delete grant로 이미 열려 있어 함수(RPC)가 필요 없다
+ */
+export async function saveTransactionItems(txId: string, householdId: string, change: ItemsChange): Promise<void> {
+  const d = diffItems(change.before, change.after)
+  if (d.remove.length) check(await sb().from('transaction_items').delete().in('id', d.remove.map((r) => r.id)))
+  for (const u of d.update) check(await sb().from('transaction_items').update(u.patch).eq('id', u.id))
+  if (d.insert.length) {
+    check(await sb().from('transaction_items').insert(d.insert.map((r) => ({ ...r, transaction_id: txId, household_id: householdId }))))
+  }
+  const paths = d.remove.map((r) => r.image_path).filter((p): p is string => Boolean(p))
+  if (paths.length) await removeItemImages(paths).catch(() => undefined)
 }
 
 export async function deleteTransaction(id: string): Promise<void> {

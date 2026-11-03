@@ -3,13 +3,16 @@ import { fetchSaveBatch, friendlyError, type BatchMate } from '../lib/api'
 import { suggestCategory } from '../lib/categorize'
 import { won } from '../lib/format'
 import { fuelText } from '../lib/fuel'
+import { blankItem, cleanItems, type EditableItem, type ItemsChange } from '../lib/itemEdit'
+import { useItemImages } from '../hooks/useItemImages'
 import { isSaveShortcut, isTextField, keypadKey, pressKey, saveKeyLabel } from '../lib/keypad'
 import { SCOPE_LABEL, SCOPES, type Lookup } from '../lib/lookup'
 import { normalizePlatform } from '../lib/platform'
 import type { Category, Scope, Transaction, TxInput, TxType } from '../lib/types'
 import { CameraIcon } from './Icons'
 import { InstallmentPicker } from './InstallmentPicker'
-import { ItemList } from './ItemList'
+import { ItemEditor } from './ItemEditor'
+import { PackInput } from './PackInput'
 import { PlatformInput } from './PlatformInput'
 import { Sheet } from './Sheet'
 import { defaultScope, lsSet } from '../lib/localPrefs'
@@ -21,8 +24,8 @@ interface Props {
   lookup: Lookup
   categories: Category[]
   usage: Map<string, number>
-  /** installment: 새 지출을 할부로 넣을 때 개월 수와 달마다 나눠 넣을지 */
-  onSave: (input: TxInput, id?: string, installment?: { months: number; split: boolean } | null) => Promise<void>
+  /** installment: 새 지출을 할부로 넣을 때 개월 수와 달마다 나눠 넣을지. items: 수정 시트에서 고친 품목 줄(D-052, 고친 것이 있을 때만) */
+  onSave: (input: TxInput, id?: string, installment?: { months: number; split: boolean } | null, items?: ItemsChange | null) => Promise<void>
   onDelete: (id: string) => Promise<void>
   /** 같은 영수증에서 나눠 저장한 내역을 한꺼번에 지운다(D-027) */
   onDeleteMany?: (ids: string[]) => Promise<void>
@@ -30,6 +33,11 @@ interface Props {
   /** 문자 붙여넣기·사진·쇼핑 캡처 입력으로 전환 */
   onSmart?: (mode: 'text' | 'photo' | 'shop' | 'bill') => void
 }
+
+/** 수정 시트의 품목 줄: 저장된 줄(id 있음)과 새로 더한 줄 */
+type EditItem = EditableItem & { id?: string; image_path?: string | null }
+/** 용량 칸을 둘 상품 줄(할인·배송비 줄은 아님). SmartSheet의 isProductLine과 같은 기준 */
+const isProduct = (it: EditItem) => it.amount > 0 && !/^배송비/.test(it.name.trim())
 
 const KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '00', '0', '⌫']
 
@@ -52,6 +60,9 @@ export function EntrySheet({ open, editing, defaultDate, lookup, categories, usa
   // 같은 영수증에서 나눠 저장한 내역(이 내역 포함). 사진으로 넣은 내역만 찾고, 못 찾으면 칸을 숨긴다
   const [batch, setBatch] = useState<BatchMate[]>([])
   const [confirmBatch, setConfirmBatch] = useState(false)
+  // 품목 줄(D-052): 열 때 저장된 품목으로 채우고, 저장할 때 전·후를 넘긴다
+  const [items, setItems] = useState<EditItem[]>([])
+  const urls = useItemImages(items.map((i) => i.image_path))
   const canBatch = Boolean(onDeleteMany)
   // 앱이 다시 그려질 때(실시간 갱신 등) 다시 읽지 않게 내역 id로만 다시 읽는다. 다시 읽으면 두 번 누르기 확인이 풀린다
   // eslint-disable-next-line react/exhaustive-effect-dependencies -- editing은 id·source·household_id만 쓴다
@@ -76,6 +87,7 @@ export function EntrySheet({ open, editing, defaultDate, lookup, categories, usa
       setTitle(editing.title)
       setPlatform(editing.platform ?? '')
       setMemo(editing.memo ?? '')
+      setItems(editing.items ?? [])
       return
     }
     setType('expense')
@@ -86,6 +98,7 @@ export function EntrySheet({ open, editing, defaultDate, lookup, categories, usa
     setTitle('')
     setPlatform('')
     setMemo('')
+    setItems([])
     // 시트가 열릴 때만 초기화한다
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, editing])
@@ -122,6 +135,13 @@ export function EntrySheet({ open, editing, defaultDate, lookup, categories, usa
     if (!n) return setErr('금액을 입력하세요.')
     if (!categoryId) return setErr('분류를 고르세요.')
     if (!date) return setErr('날짜를 고르세요.')
+    // 품목 줄: 이름 없이 금액만 적은 줄은 막고, 빈 줄은 뺀다. 고친 것이 없어도 전·후를 넘기면 차이가 없어 아무것도 안 바꾼다
+    let itemChange: ItemsChange | null = null
+    if (editing?.items) {
+      const c = cleanItems(items)
+      if (c.missingName) return setErr(`품목 번째 줄의 이름을 적어 주세요.`)
+      itemChange = { before: editing.items, after: c.items }
+    }
     setBusy(true); setErr('')
     const input: TxInput = {
       type, occurred_on: date, amount: n, title: title.trim(),
@@ -131,7 +151,7 @@ export function EntrySheet({ open, editing, defaultDate, lookup, categories, usa
     }
     try {
       const installment = !editing && type === 'expense' && months ? { months, split } : null
-      await onSave(input, editing?.id, installment)
+      await onSave(input, editing?.id, installment, itemChange)
       if (!editing) lsSet(`ab:lastScope:${lookup.me}`, scope)
     } catch (e) {
       setErr(friendlyError(e)); setBusy(false)
@@ -245,10 +265,18 @@ export function EntrySheet({ open, editing, defaultDate, lookup, categories, usa
             <input id="entry-memo" className="input" value={memo} maxLength={200} placeholder="예: 쿠폰 2,000원 적용, 회사 회식"
               onChange={(e) => setMemo(e.target.value)} />
           </div>
-          {editing?.items && editing.items.length > 0 && (
+          {/* 품목 줄(D-052): 영수증·문자로 넣은 내역은 줄이 없어도 더할 수 있고, 손으로 넣은 내역은 줄이 있을 때만 보인다 */}
+          {editing?.items && (items.length > 0 || editing.source !== 'manual') && (
             <div className="field">
-              <span className="lbl">품목 {editing.items.length}개</span>
-              <ItemList items={editing.items} />
+              <span className="lbl">품목 {items.length}개</span>
+              <ItemEditor<EditItem> items={items} total={n} onChange={setItems} make={blankItem}
+                renderThumb={(it) => it.image_path && urls.get(it.image_path)
+                  ? <img className="item-thumb" src={urls.get(it.image_path)} alt="" loading="lazy" />
+                  : <span className="item-thumb empty" aria-hidden="true" />}
+                renderExtra={(it, i) => isProduct(it) && (
+                  <PackInput name={it.name} size={it.pack_size} unit={it.pack_unit}
+                    onChange={(p) => setItems((xs) => xs.map((x, j) => (j === i ? { ...x, ...p } : x)))} />
+                )} />
             </div>
           )}
           {editing?.fuel && (

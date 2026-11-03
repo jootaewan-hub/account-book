@@ -6,9 +6,10 @@ import { won } from '../lib/format'
 import { fuelDelta, fuelKind } from '../lib/fuel'
 import { compareTrip, GROCERY_CATEGORY_NAMES, isGroceryEntry, type CompareLine, type CompareResult } from '../lib/shopCompare'
 import { cropImage, fileToJpeg, type PreparedImage } from '../lib/image'
+import { blankItem } from '../lib/itemEdit'
 import { SCOPE_LABEL, SCOPES, type Lookup } from '../lib/lookup'
 import {
-  analyze, analyzeBill, analyzeImages, BATCH_SIZE, canSplit, entryDrafts, fuelComplete, isProductLine, itemsSum, markRepeats, modelLabel, parseLiters, parsePricePerLiter, saveBatches, saveDraft, SmartError,
+  analyze, analyzeBill, analyzeImages, BATCH_SIZE, canSplit, entryDrafts, fuelComplete, isProductLine, markRepeats, modelLabel, parseLiters, parsePricePerLiter, saveBatches, saveDraft, SmartError,
   type AnalyzeResult, type CheckedBill, type CheckedEntry, type Draft, type DraftContext, type DraftFuel,
 } from '../lib/smart'
 import { BillReview } from './BillReview'
@@ -19,7 +20,7 @@ import { defaultScope } from '../lib/localPrefs'
 import { GroceryMatchCard } from './GroceryMatchCard'
 import { CloseBold } from './Icons'
 import { InstallmentPicker } from './InstallmentPicker'
-import { ItemInfo } from './ItemInfo'
+import { ItemEditor } from './ItemEditor'
 import { PackInput } from './PackInput'
 import { PlatformInput } from './PlatformInput'
 import { Sheet } from './Sheet'
@@ -442,7 +443,6 @@ function DraftCard({ d, categories, fills, onChange }: {
   fills: FuelFill[]
   onChange: (p: Partial<Draft>) => void
 }) {
-  const sum = itemsSum(d.items)
   const cats = categories.filter((c) => c.type === d.type)
   const removePhoto = (i: number) =>
     onChange({ items: d.items.map((it, j) => (j === i ? { ...it, photo: null } : it)) })
@@ -505,27 +505,19 @@ function DraftCard({ d, categories, fills, onChange }: {
       </div>
       {d.items.length > 0 && (
         <div className="field">
-          <span className="lbl">품목 {d.items.length}개, 합계 <span className="num">{won(sum)}</span>원</span>
-          <ul className="item-list">
-            {d.items.map((it, i) => (
-              <li key={i}>
-                {it.photo
-                  ? <button className="thumb-btn" onClick={() => removePhoto(i)} aria-label={`${it.name} 사진 빼기`}>
-                      <img className="item-thumb" src={it.photo.url} alt="" /><span className="thumb-x" aria-hidden="true"><CloseBold /></span>
-                    </button>
-                  : <span className="item-thumb empty" aria-hidden="true" />}
-                <span className="item-main">
-                  <ItemInfo it={it} />
-                  {/* 상품 줄은 용량을 적거나 고칠 수 있다(D-045). 영수증에 용량이 안 찍힌 줄을 채우면 장보기 지난 기록에서 용량당 값으로 견준다 */}
-                  {isProductLine(it) && (
-                    <PackInput name={it.name} size={it.pack_size} unit={it.pack_unit}
-                      onChange={(p) => onChange({ items: d.items.map((x, j) => (j === i ? { ...x, ...p } : x)) })} />
-                  )}
-                </span>
-                <span className="num">{won(it.amount)}</span>
-              </li>
-            ))}
-          </ul>
+          <span className="lbl">품목 {d.items.length}개</span>
+          {/* 줄마다 고치기(이름·수량·금액)·빼기·더하기(D-052). 상품 줄은 용량도 적거나 고칠 수 있다(D-045): 영수증에 용량이 안 찍힌 줄을 채우면 장보기 지난 기록에서 용량당 값으로 견준다 */}
+          <ItemEditor items={d.items} total={d.amount} onChange={(items) => onChange({ items })}
+            make={() => ({ ...blankItem(), is_product: true })}
+            renderThumb={(it, i) => it.photo
+              ? <button className="thumb-btn" onClick={() => removePhoto(i)} aria-label={` 사진 빼기`}>
+                  <img className="item-thumb" src={it.photo.url} alt="" /><span className="thumb-x" aria-hidden="true"><CloseBold /></span>
+                </button>
+              : <span className="item-thumb empty" aria-hidden="true" />}
+            renderExtra={(it, i) => isProductLine(it) && (
+              <PackInput name={it.name} size={it.pack_size} unit={it.pack_unit}
+                onChange={(p) => onChange({ items: d.items.map((x, j) => (j === i ? { ...x, ...p } : x)) })} />
+            )} />
           {d.items.some((it) => it.photo) && <span className="tx-meta">사진이 잘못 잘렸으면 사진을 눌러 빼세요.</span>}
         </div>
       )}

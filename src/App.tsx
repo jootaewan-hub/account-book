@@ -15,7 +15,8 @@ import { Onboarding } from './components/Onboarding'
 import type { SmartMode } from './components/SmartSheet'
 import { useLedgerMeta, useLiveUpdates, useMonthEvents, useMonthTransactions, useRecurringList } from './hooks/useLedger'
 import { useNotes } from './hooks/useNotes'
-import { deleteTransaction, deleteTransactions, friendlyError, generateRecurring, insertInstallmentPurchase, insertTransaction, updateSpouseRole, updateTransaction } from './lib/api'
+import { deleteTransaction, deleteTransactions, friendlyError, generateRecurring, insertInstallmentPurchase, insertTransaction, saveTransactionItems, updateSpouseRole, updateTransaction } from './lib/api'
+import type { ItemsChange } from './lib/itemEdit'
 import { wasRefreshed } from './lib/appUpdate'
 import { takeNewRelease } from './lib/changelog'
 import { addMonths, parseYM, todayLocal } from './lib/dates'
@@ -228,10 +229,13 @@ function Ledger({ household, meta, userId, email }: {
     setSel(next === today.slice(0, 7) ? today : `${next}-01`)
   }
 
-  async function save(input: TxInput, id?: string, installment?: { months: number; split: boolean } | null) {
+  async function save(input: TxInput, id?: string, installment?: { months: number; split: boolean } | null, items?: ItemsChange | null) {
     let split = false
-    if (id) await updateTransaction(id, input)
-    else if (installment) split = await insertInstallmentPurchase(household.id, input, installment.months, installment.split)
+    if (id) {
+      await updateTransaction(id, input)
+      // 수정 시트에서 고친 품목 줄(D-052). 내역을 먼저 고치고 품목을 맞춘다
+      if (items) await saveTransactionItems(id, household.id, items)
+    } else if (installment) split = await insertInstallmentPurchase(household.id, input, installment.months, installment.split)
     else await insertTransaction(household.id, input)
     // 지난 날짜에 산 할부면 이미 지난 회차를 바로 넣는다
     if (split) await generateRecurring(household.id, today).catch(() => 0)

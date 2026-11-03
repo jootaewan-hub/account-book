@@ -563,6 +563,21 @@ input[type="search"].input { -webkit-appearance: none; appearance: none; }
 .pack-input { display: flex; flex-direction: column; gap: 2px; }
 .pack-input .input { width: 150px; max-width: 100%; min-height: 36px; padding: 5px 10px; font-size: 16px; }
 .pack-input .input.bad { border-color: var(--clay); }
+/* 고칠 수 있는 품목 목록(D-052): 고치기 칸, 줄 빼기·더하기, 결제 금액과 차이 */
+.item-editor { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
+.item-editor .item-list { align-self: stretch; }
+.item-list li.editing { align-items: start; }
+.item-fields { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.item-fields .input { min-height: 36px; padding: 5px 10px; font-size: 16px; }
+.item-fields .row { display: flex; align-items: center; gap: 8px; }
+.item-fields .input.qty { width: 84px; flex: 0 0 auto; }
+.item-fields .input.amt { width: 128px; flex: 0 0 auto; }
+.item-fields .input.bad { border-color: var(--clay); }
+.item-fields .unit { font-size: 14px; color: var(--ink-2); }
+.item-actions { display: flex; gap: 18px; }
+.item-actions .link-btn { margin: -10px 0 -6px; padding: 10px 0; font-size: 13px; }
+.item-actions .link-btn.remove { color: var(--danger); }
+.item-add { margin-top: 2px; }
 .pack-hint { font-size: 12px; color: var(--clay); }
 .item-thumb { width: 44px; height: 44px; border-radius: var(--r-sm); object-fit: cover; background: var(--oat); display: block; }
 .item-thumb.empty:where(:not(.grocery *)) { border: 1px dashed var(--oat-deep); }
