@@ -20,8 +20,9 @@ import { buildEventPasteText, buildEventText, EVENT_IMAGES_MAX, EVENT_PROMPT, Ev
 import { WIF } from './wif-config.ts'
 
 // 모델은 코드에서만 정한다 (Secrets로 바뀌지 않게)
-// 문자(붙여넣은 글): Haiku 5.5, 품목 합계가 안 맞을 때 다시 읽기: Sonnet 5.5
-const PRIMARY_MODEL = 'claude-haiku-5-5'
+// 문자(카드 승인 문자·알림톡·입금 알림 붙여넣기): Sonnet 5.5(사용자 지시 2026-11-03, D-051 보충. 그 전에는 Haiku 5.5)
+const PRIMARY_MODEL = 'claude-sonnet-5-5'
+// 품목 합계가 안 맞을 때 다시 읽기. 첫 모델과 다를 때만 돈다(지금은 모든 경로가 Sonnet이라 돌지 않고, 모델을 나누면 다시 살아난다)
 const RETRY_MODEL = 'claude-sonnet-5-5'
 // 영수증 사진: Sonnet 5.5(D-051). Haiku는 긴 영수증의 상품명을 자주 틀리고(추황배→주꾸미), 상품별 할인을 한 줄로 뭉쳐도 합계 검사를 통과해 다시 읽기가 돌지 않았다
 const RECEIPT_MODEL = 'claude-sonnet-5-5'
@@ -271,8 +272,8 @@ Deno.serve(async (req) => {
     const categories = [...new Set((cats ?? []).map((c) => c.name as string))]
     const first = input.kind === 'image' ? (input.mode === 'shop' ? SHOP_MODEL : RECEIPT_MODEL) : PRIMARY_MODEL
     let out = await extract(client, first, input, categories, signal)
-    // 붙여넣은 글의 품목 합계가 결제 금액과 안 맞으면 더 큰 모델로 한 번 더 읽는다. 둘 다 안 맞아도(원단위 절사 등) 큰 모델 결과를 쓴다.
-    // 사진은 첫 모델이 이미 Sonnet이라 다시 읽지 않는다. 남은 시간이 짧으면 다시 읽지 않고 첫 결과를 보낸다(합계가 안 맞는다는 확인 문장은 그대로 붙는다)
+    // 첫 모델이 RETRY_MODEL과 다를 때만: 품목 합계가 결제 금액과 안 맞으면 더 큰 모델로 한 번 더 읽는다. 둘 다 안 맞아도(원단위 절사 등) 큰 모델 결과를 쓴다.
+    // 지금은 문자·사진 모두 첫 모델이 Sonnet이라 다시 읽지 않는다(D-051 보충). 남은 시간이 짧으면 다시 읽지 않고 첫 결과를 보낸다(합계가 안 맞는다는 확인 문장은 그대로 붙는다)
     if (!out.refused && hasItemMismatch(out.entries) && RETRY_MODEL !== first) {
       if (left() >= RETRY_MIN_LEFT_MS) {
         const second = await extract(client, RETRY_MODEL, input, categories, signal)
