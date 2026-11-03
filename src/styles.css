@@ -8,24 +8,27 @@
 }
 
 :root {
-  --canvas: #ffffff; --oat: #f4f1ec; --oat-deep: #eae5dd; --line: #ece8e1;
-  --ink: #33312d; --ink-2: #6b665e; --ink-3: #77726a;
+  /* 바탕과 면(D-048): 옅은 회색 바탕 위에 흰 면. 이름은 v2 때 것(canvas=바탕, oat=면)을 그대로 쓴다.
+     크림 면·흙빛(AI 생성 디자인에 몰리는 색)을 빼고 은행 앱처럼 차가운 회색으로 바꿨다 */
+  --canvas: #f2f3f5; --oat: #ffffff; --oat-deep: #e6e8eb; --line: #e9ebee;
+  --ink: #23272e; --ink-2: #5b636e; --ink-3: #656c76;
   --sage: #56694e; --sage-soft: #e7ece3; --sage-ink: #3f4f39;
   --blush: #e8c4b8; --blush-soft: #f6e4dd; --rose-ink: #7a3f2e;
   --slate-soft: #e3eaf2; --slate-ink: #1f3f5e; --ochre-soft: #f5ebd6; --ochre-ink: #5c4a1e;
   --clay: #a8543e; --indigo: #3d5a78; --danger: #a8432f;
-  --primary: #33312d; --on-primary: #ffffff;
+  --primary: #23272e; --on-primary: #ffffff;
   --warn-bg: #fbf0d9; --warn-ink: #5c4a1e;
   /* 누구 표시. 검증 순서(공동→자녀→남편→아내)로만 이웃하게 놓는다 */
   --who-shared: #36733a; --who-child: #ca9d42; --who-husband: #1c588e; --who-wife: #c67261;
   --chart-exp: var(--sage); --chart-inc: var(--who-husband);
-  --scrim: rgba(51, 49, 45, .42);
+  --scrim: rgba(35, 39, 46, .42);
   --wait-glow: rgba(255, 255, 255, .55); /* 불러오는 중 자리 표시 위를 지나가는 빛 */
   /* 휴대폰 아래 탭 높이: .tab 최소 60px + 윗선 1px (safe-area 제외). 장보기의 담기 바·알림이 이 위에 놓인다 */
   --tabbar-h: 61px;
   --font-ui: 'SUIT', 'Apple SD Gothic Neo', 'Malgun Gothic', 'Noto Sans KR', system-ui, sans-serif;
   --font-mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
-  --r-tag: 6px; --r-sm: 12px; --r-btn: 14px; --r-md: 20px; --r-lg: 24px; --col: 440px;
+  /* 둥글기는 층마다 다르게(D-048): 태그 4, 안쪽 칸·버튼 10, 칩 8, 묶음 16, 시트 20. 알약 모양은 쓰지 않는다 */
+  --r-tag: 4px; --r-chip: 8px; --r-sm: 10px; --r-btn: 10px; --r-md: 16px; --r-lg: 20px; --col: 440px;
   /* 움직임 (DESIGN.md Motion) */
   --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
   --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
@@ -35,13 +38,13 @@
 }
 @media (prefers-color-scheme: dark) {
   :root {
-    --canvas: #1c1b19; --oat: #262421; --oat-deep: #34312c; --line: #2f2d29;
-    --ink: #edeae4; --ink-2: #aba59b; --ink-3: #a09a90;
+    --canvas: #17191c; --oat: #212428; --oat-deep: #2d3136; --line: #2a2d32;
+    --ink: #eceef1; --ink-2: #a7aeb8; --ink-3: #9aa1ab;
     --sage: #a3b897; --sage-soft: #2b3327; --sage-ink: #c2d3b6;
     --blush: #7a5146; --blush-soft: #3b2a25; --rose-ink: #f0b8a8;
     --slate-soft: #22303f; --slate-ink: #b5cce6; --ochre-soft: #3a3220; --ochre-ink: #e2c77f;
     --clay: #e09479; --indigo: #9db6d6; --danger: #f0937e;
-    --primary: #edeae4; --on-primary: #1c1b19;
+    --primary: #eceef1; --on-primary: #17191c;
     --warn-bg: #3a3220; --warn-ink: #f3d58a;
     --who-shared: #357a3a; --who-child: #ab9017; --who-husband: #4284c5; --who-wife: #ca6e5d;
     --scrim: rgba(0, 0, 0, .55);
@@ -89,7 +92,7 @@ button { cursor: pointer; touch-action: manipulation; user-select: none; -webkit
 .icon-btn { width: 44px; height: 44px; border-radius: 50%; border: 0; background: none; display: grid; place-items: center; color: var(--ink-2); }
 .icon-btn:disabled { opacity: .3; cursor: default; }
 .icon-btn svg { width: 20px; height: 20px; }
-.today-btn { border: 0; background: var(--oat); border-radius: 999px; height: 32px; padding: 0 12px; font-size: 13px; font-weight: 600; color: var(--ink); }
+.today-btn { border: 0; background: var(--oat); border-radius: var(--r-chip); height: 32px; padding: 0 12px; font-size: 13px; font-weight: 600; color: var(--ink); }
 .sync { font-size: 12px; color: var(--ink-3); }
 
 main.wrap { padding-block: 4px calc(150px + env(safe-area-inset-bottom, 0px)); }
@@ -198,7 +201,7 @@ main.wrap { padding-block: 4px calc(150px + env(safe-area-inset-bottom, 0px)); }
 @keyframes soon-flow { to { transform: translateX(calc(-50% - 3px)); } }
 .anniv-soon.wrap { overflow: visible; }
 .anniv-soon.wrap .soon-track, .anniv-soon.wrap .soon-set { flex: 1 1 auto; flex-wrap: wrap; }
-.anniv-chip { flex: none; border: 0; display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 0 12px; border-radius: 999px; background: var(--blush-soft); color: var(--rose-ink); font-size: 14px; font-weight: 600; }
+.anniv-chip { flex: none; border: 0; display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 0 12px; border-radius: var(--r-chip); background: var(--blush-soft); color: var(--rose-ink); font-size: 14px; font-weight: 600; }
 .anniv-chip svg { width: 16px; height: 16px; flex: none; }
 .anniv-chip span { color: var(--ink); }
 .anniv-chip b { font-weight: 800; }
@@ -262,7 +265,7 @@ main.wrap { padding-block: 4px calc(150px + env(safe-area-inset-bottom, 0px)); }
 
 /* 칩과 구분 버튼 */
 .chips { display: flex; flex-wrap: wrap; gap: 6px; }
-.chip { border: 0; background: var(--oat); border-radius: 999px; min-height: 34px; padding: 0 14px; font-size: 14px; font-weight: 500; color: var(--ink); display: inline-flex; align-items: center; gap: 6px; }
+.chip { border: 0; background: var(--oat); border-radius: var(--r-chip); min-height: 34px; padding: 0 14px; font-size: 14px; font-weight: 500; color: var(--ink); display: inline-flex; align-items: center; gap: 6px; }
 .card .chip { background: var(--canvas); }
 .chip[aria-pressed="true"] { background: var(--primary); color: var(--on-primary); font-weight: 700; }
 .chip .dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
@@ -288,7 +291,7 @@ main.wrap { padding-block: 4px calc(150px + env(safe-area-inset-bottom, 0px)); }
 .fab { position: fixed; z-index: 25; height: 52px; padding: 0 20px 0 16px; border-radius: 26px; border: 0; background: var(--primary); color: var(--on-primary); display: flex; align-items: center; gap: 6px; font-size: 16px; font-weight: 700;
   bottom: calc(92px + env(safe-area-inset-bottom, 0px)); right: calc(max(16px, (100vw - var(--col)) / 2 + 16px) + env(safe-area-inset-right, 0px)); }
 .fab svg { width: 20px; height: 20px; }
-.tabbar { position: fixed; z-index: 24; bottom: 0; left: 50%; transform: translateX(-50%); width: 100%; max-width: var(--col); background: var(--canvas); border-top: 1px solid var(--line); padding-bottom: env(safe-area-inset-bottom, 0px); }
+.tabbar { position: fixed; z-index: 24; bottom: 0; left: 50%; transform: translateX(-50%); width: 100%; max-width: var(--col); background: var(--oat); border-top: 1px solid var(--line); padding-bottom: env(safe-area-inset-bottom, 0px); }
 /* 아래 탭 여섯(D-035 알아보기): 칸이 좁아지지 않게 양옆 여백을 줄인다 */
 .tabbar .wrap { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); padding-left: max(6px, env(safe-area-inset-left, 0px)); padding-right: max(6px, env(safe-area-inset-right, 0px)); }
 .tab { border: 0; background: none; min-height: 60px; padding: 8px 0 6px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; font-size: 12px; font-weight: 500; color: var(--ink-3); }
@@ -321,8 +324,8 @@ main.wrap { padding-block: 4px calc(150px + env(safe-area-inset-bottom, 0px)); }
 .kbd-hint { display: none; }
 .field { display: flex; flex-direction: column; gap: 6px; }
 .field > label, .field > .lbl { font-size: 14px; color: var(--ink-2); font-weight: 600; }
-.input { border: 1px solid var(--line); background: var(--canvas); border-radius: var(--r-sm); padding: 11px 12px; width: 100%; font-size: 16px; min-height: 46px; }
-.card .input { border-color: var(--oat-deep); }
+.input { border: 1px solid var(--line); background: var(--oat); border-radius: var(--r-sm); padding: 11px 12px; width: 100%; font-size: 16px; min-height: 46px; }
+.card .input { border-color: var(--oat-deep); background: var(--canvas); }
 .input::placeholder { color: var(--ink-3); }
 .row2 { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px; }
 .primary { border: 0; background: var(--primary); color: var(--on-primary); border-radius: var(--r-btn); min-height: 52px; padding: 12px 16px; font-size: 16px; font-weight: 700; width: 100%; }

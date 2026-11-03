@@ -35,11 +35,12 @@ describe('장보기 토큰', () => {
   })
   it('라이트는 가계부 값, --ink-3만 장보기 값', () => {
     const t = tokens('light')
-    expect(t['--canvas']).toBe('#FFFFFF'); expect(t['--oat']).toBe('#F4F1EC'); expect(t['--ink']).toBe('#33312D')
+    // D-048: 회색 바탕(canvas) 위 흰 면(oat), 차가운 먹색
+    expect(t['--canvas']).toBe('#F2F3F5'); expect(t['--oat']).toBe('#FFFFFF'); expect(t['--ink']).toBe('#23272E')
     expect(t['--clay']).toBe('#A8543E'); expect(t['--indigo']).toBe('#3D5A78')
-    // 가계부 #77726A는 귀리 면 위 4.24:1이라 장보기 화면 안에서는 일부러 어둡게 둔다
-    expect(readBlock(ledger, ':root {')['--ink-3']).toBe('#77726A')
-    expect(t['--ink-3']).toBe('#726D65')
+    // D-048부터 가계부 --ink-3(#656C76)이 회색 바탕 위에서도 4.5:1을 넘어 장보기 값과 같다
+    expect(readBlock(ledger, ':root {')['--ink-3']).toBe('#656C76')
+    expect(t['--ink-3']).toBe('#656C76')
   })
   it('다크의 --ink-3은 가계부 다크 값과 같다(라이트 덮어쓰기가 다크에 남지 않는다)', () => {
     expect(tokens('dark')['--ink-3']).toBe(readBlock(ledger.slice(ledger.indexOf(DARK)), ':root {')['--ink-3'])
