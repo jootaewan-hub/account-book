@@ -399,15 +399,15 @@ function Ledger({ household, meta, userId, email }: {
         <div className="wrap">
           {/* 넓은 화면에서만 보인다. 휴대폰은 오른쪽 아래 기록하기 버튼을 쓴다 */}
           <button className="primary side-record" onClick={() => setSheet({ open: true, editing: null })}><Plus />기록하기</button>
-          <button className="tab" aria-current={tab === 'cal' ? 'page' : undefined} onClick={() => setTab('cal')}><CalendarIcon />달력</button>
-          <button className="tab" aria-current={tab === 'list' ? 'page' : undefined} onClick={() => { setListFocus(null); setTab('list') }}><ListIcon />내역</button>
-          <button className="tab" aria-current={tab === 'grocery' ? 'page' : undefined} onClick={() => setTab('grocery')}><CartIcon />장보기</button>
-          <button className="tab" aria-current={tab === 'stats' ? 'page' : undefined} onClick={() => setTab('stats')}><ChartIcon />통계</button>
-          <button className="tab" aria-current={tab === 'fixed' ? 'page' : undefined} onClick={() => setTab('fixed')}><RepeatIcon />고정</button>
-          <button className="tab" aria-current={tab === 'explore' ? 'page' : undefined} onClick={() => setTab('explore')}><SearchIcon />알아보기</button>
+          <button className="tab" aria-current={tab === 'cal' ? 'page' : undefined} onClick={() => setTab('cal')}><CalendarIcon on={tab === 'cal'} />달력</button>
+          <button className="tab" aria-current={tab === 'list' ? 'page' : undefined} onClick={() => { setListFocus(null); setTab('list') }}><ListIcon on={tab === 'list'} />내역</button>
+          <button className="tab" aria-current={tab === 'grocery' ? 'page' : undefined} onClick={() => setTab('grocery')}><CartIcon on={tab === 'grocery'} />장보기</button>
+          <button className="tab" aria-current={tab === 'stats' ? 'page' : undefined} onClick={() => setTab('stats')}><ChartIcon on={tab === 'stats'} />통계</button>
+          <button className="tab" aria-current={tab === 'fixed' ? 'page' : undefined} onClick={() => setTab('fixed')}><RepeatIcon on={tab === 'fixed'} />고정</button>
+          <button className="tab" aria-current={tab === 'explore' ? 'page' : undefined} onClick={() => setTab('explore')}><SearchIcon on={tab === 'explore'} />알아보기</button>
           {/* 넓은 화면에서만 보인다. 휴대폰은 달력 화면의 함께 기억할 것 묶음과 위쪽 톱니 버튼을 쓴다 */}
-          <button className="tab side-notes" aria-current={tab === 'notes' ? 'page' : undefined} onClick={() => openAside('notes')}><NoteIcon />기억할 것</button>
-          <button className="tab side-settings" aria-current={tab === 'settings' ? 'page' : undefined} onClick={openSettings}><GearIcon />설정</button>
+          <button className="tab side-notes" aria-current={tab === 'notes' ? 'page' : undefined} onClick={() => openAside('notes')}><NoteIcon on={tab === 'notes'} />기억할 것</button>
+          <button className="tab side-settings" aria-current={tab === 'settings' ? 'page' : undefined} onClick={openSettings}><GearIcon on={tab === 'settings'} />설정</button>
         </div>
       </nav>
 

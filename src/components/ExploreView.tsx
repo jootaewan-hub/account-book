@@ -7,7 +7,7 @@ import {
 } from '../lib/explore'
 import { sb } from '../lib/supabase'
 import { Sheet } from './Sheet'
-import { CloudDrizzleIcon, CloudIcon, CloudRainIcon, CloudSnowIcon, CloudSunIcon, SunIcon } from './Icons'
+import { CloudIcon, CloudRainIcon, CloudSnowIcon, CloudSunIcon, SunIcon } from './Icons'
 import { useArrival } from './Motion'
 import { seedFromSearch, type WishSeed } from '../lib/wishes'
 
@@ -18,8 +18,7 @@ const WEATHER_TTL = 10 * 60_000
 export function weatherIcon(sky: string | null, precip: string | null) {
   if (precip && precip !== '없음') {
     if (precip.includes('눈')) return 'snow'
-    if (precip === '빗방울') return 'drizzle'
-    return 'rain'
+    return 'rain' // 비·소나기·빗방울
   }
   if (sky === '맑음') return 'sun'
   if (sky === '구름많음') return 'cloud-sun'
@@ -28,7 +27,7 @@ export function weatherIcon(sky: string | null, precip: string | null) {
 }
 
 const WX_ICONS = {
-  snow: <CloudSnowIcon />, drizzle: <CloudDrizzleIcon />, rain: <CloudRainIcon />, sun: <SunIcon />, 'cloud-sun': <CloudSunIcon />, cloud: <CloudIcon />,
+  snow: <CloudSnowIcon />, rain: <CloudRainIcon />, sun: <SunIcon />, 'cloud-sun': <CloudSunIcon />, cloud: <CloudIcon />,
 }
 
 function WeatherGlyph({ sky, precip }: { sky: string | null; precip: string | null }) {

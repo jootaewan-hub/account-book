@@ -17,7 +17,7 @@ import { ShopCompareCard } from './ShopCompareCard'
 import type { Category, FuelFill, Transaction, TxType } from '../lib/types'
 import { defaultScope } from '../lib/localPrefs'
 import { GroceryMatchCard } from './GroceryMatchCard'
-import { Close } from './Icons'
+import { CloseBold } from './Icons'
 import { InstallmentPicker } from './InstallmentPicker'
 import { ItemInfo } from './ItemInfo'
 import { PackInput } from './PackInput'
@@ -345,7 +345,7 @@ export function SmartSheet({ open, mode, today, householdId, lookup, categories,
               {images.map((im, i) => (
                 <div key={im.preview} className="pv">
                   <img src={im.preview} alt={`고른 사진 ${i + 1}`} />
-                  <button className="pv-x" onClick={() => removeImage(i)} aria-label={`사진 ${i + 1} 빼기`}><Close /></button>
+                  <button className="pv-x" onClick={() => removeImage(i)} aria-label={`사진 ${i + 1} 빼기`}><CloseBold /></button>
                 </div>
               ))}
             </div>
@@ -511,7 +511,7 @@ function DraftCard({ d, categories, fills, onChange }: {
               <li key={i}>
                 {it.photo
                   ? <button className="thumb-btn" onClick={() => removePhoto(i)} aria-label={`${it.name} 사진 빼기`}>
-                      <img className="item-thumb" src={it.photo.url} alt="" /><span className="thumb-x" aria-hidden="true"><Close /></span>
+                      <img className="item-thumb" src={it.photo.url} alt="" /><span className="thumb-x" aria-hidden="true"><CloseBold /></span>
                     </button>
                   : <span className="item-thumb empty" aria-hidden="true" />}
                 <span className="item-main">

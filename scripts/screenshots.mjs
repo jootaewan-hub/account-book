@@ -505,8 +505,8 @@ try {
         const t = document.querySelector('.toast')
         if (!t) throw new Error('알림 칸이 없다')
         t.textContent = text
-        // 저장·삭제를 마친 알림(D-047): Motion.tsx Toast가 그리는 체크와 같은 모양(Lucide check)
-        if (done) t.insertAdjacentHTML('afterbegin', '<span class="toast-check" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75"><path d="M20 6L9 17l-5-5"/></svg></span>')
+        // 저장·삭제를 마친 알림(D-047·D-048): Motion.tsx Toast가 그리는 체크와 같은 모양(Phosphor check-bold)
+        if (done) t.insertAdjacentHTML('afterbegin', '<span class="toast-check" aria-hidden="true"><svg viewBox="0 0 256 256" fill="currentColor"><path d="m232.49 80.49l-128 128a12 12 0 0 1-17 0l-56-56a12 12 0 1 1 17-17L96 183L215.51 63.51a12 12 0 0 1 17 17Z"/></svg></span>')
         t.classList.add('on')
       }, [s.toast, s.toastDone ?? false])
     }

@@ -6,12 +6,13 @@ export interface AllowedSet {
   holder: string
   home: string
   licenseRaw: string
+  /** 아이콘 격자(viewBox 한 변) */
+  grid: number
 }
 
-export const ALLOWED_SETS: Record<'lucide' | 'tabler', AllowedSet>
-export const APP_STROKE: number
+export const ALLOWED_SETS: Record<'ph', AllowedSet>
 
-export function parseIconId(id: string | undefined): { prefix: 'lucide' | 'tabler'; name: string }
+export function parseIconId(id: string | undefined): { prefix: 'ph'; name: string }
 export function componentName(name: string): string
 export function checkCollection(prefix: string, collections: unknown): unknown
 export function resolveIcon(json: unknown, name: string): string

@@ -110,7 +110,7 @@ describe('알아보기 탭', () => {
     expect(weatherIcon('흐림', '없음')).toBe('cloud')
     expect(weatherIcon('흐림', '비')).toBe('rain')
     expect(weatherIcon('맑음', '소나기')).toBe('rain')
-    expect(weatherIcon('흐림', '빗방울')).toBe('drizzle')
+    expect(weatherIcon('흐림', '빗방울')).toBe('rain')
     expect(weatherIcon('흐림', '비/눈')).toBe('snow')
     expect(weatherIcon(null, '빗방울눈날림')).toBe('snow')
     expect(weatherIcon(null, null)).toBeNull()
