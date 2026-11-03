@@ -59,7 +59,7 @@ async function main() {
 
   checkCollection(prefix, await getJson(`https://api.iconify.design/collections?prefixes=${prefix}`))
   const body = resolveIcon(await getJson(`https://api.iconify.design/${prefix}.json?icons=${name}`), name)
-  const code = renderComponent({ component, prefix, name, jsx: toJsxChildren(body) })
+  const code = renderComponent({ component, prefix, name, jsx: toJsxChildren(body, ALLOWED_SETS[prefix].mode) })
 
   if (!write) {
     process.stdout.write(code)

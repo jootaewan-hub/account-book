@@ -150,7 +150,8 @@ main.wrap { padding-block: 4px calc(150px + env(safe-area-inset-bottom, 0px)); }
 
 /* 기념일: 달력 숫자 옆 작은 표시, 고른 날의 기념일 줄, 다가오는 기념일 칩, 설정 목록 */
 .day .n { position: relative; }
-.anniv-mark { position: absolute; top: -5px; right: -8px; width: 14px; height: 14px; color: var(--clay); pointer-events: none; }
+/* 기념일 그림(D-049)은 색 있는 그림이라 글자색을 받지 않는다. 달력 칸에서는 숫자 오른쪽 위 15px */
+.anniv-mark { position: absolute; top: -6px; right: -9px; width: 15px; height: 15px; color: var(--clay); pointer-events: none; }
 .anniv-mark svg { width: 100%; height: 100%; display: block; }
 .anniv-mark.k-memorial { color: var(--ink-3); }
 .anniv-list { display: flex; flex-direction: column; gap: 6px; margin: 6px 0 8px; }
@@ -202,12 +203,11 @@ main.wrap { padding-block: 4px calc(150px + env(safe-area-inset-bottom, 0px)); }
 .anniv-soon.wrap { overflow: visible; }
 .anniv-soon.wrap .soon-track, .anniv-soon.wrap .soon-set { flex: 1 1 auto; flex-wrap: wrap; }
 .anniv-chip { flex: none; border: 0; display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 0 12px; border-radius: var(--r-chip); background: var(--blush-soft); color: var(--rose-ink); font-size: 14px; font-weight: 600; }
-.anniv-chip svg { width: 16px; height: 16px; flex: none; }
+.anniv-chip svg { width: 18px; height: 18px; flex: none; }
 .anniv-chip span { color: var(--ink); }
 .anniv-chip b { font-weight: 800; }
-.anniv-ic { width: 36px; height: 36px; flex: none; border-radius: 50%; background: var(--blush-soft); color: var(--rose-ink); display: grid; place-items: center; }
-.anniv-ic svg { width: 20px; height: 20px; }
-.anniv-ic.k-memorial { background: var(--canvas); color: var(--ink-3); }
+.anniv-ic { width: 36px; height: 36px; flex: none; border-radius: 50%; background: var(--canvas); display: grid; place-items: center; }
+.anniv-ic svg { width: 22px; height: 22px; }
 .anniv-item .rc-main { flex: 1; }
 .anniv-form { display: flex; flex-direction: column; gap: 8px; padding: 12px 0; border-top: 1px solid var(--oat-deep); }
 /* 기념일 카테고리 고르기(D-033): 직접 적는 칸 아래 쓴 것·기본 말 칩 */

@@ -7,7 +7,8 @@ import { hasPlace, naverMapUrl, placeLabel } from '../lib/naverMap'
 import { dailyTotals, samePeriodDiff, sumType } from '../lib/ledger'
 import type { Lookup } from '../lib/lookup'
 import type { Anniversary, CalEvent, Transaction } from '../lib/types'
-import { AnnivIcon, CalendarIcon, CameraIcon, MapPinIcon, Plus } from './Icons'
+import { AnnivIcon } from './AnnivIcon'
+import { CalendarIcon, CameraIcon, MapPinIcon, Plus } from './Icons'
 import { Bar, RowsWait, useAppear } from './Loading'
 import type { PlanTarget } from './PlanSheet'
 import { EventScopeTag, eventScopeLabel } from './EventScope'
@@ -81,8 +82,8 @@ export function CalendarView({ ym, today, sel, cur, prev, loading = false, looku
   const dayEvents = evByDate.get(sel) ?? []
   // 이번 달을 볼 때만, 30일 안에 오는 기념일·일정 네 개까지 (가까운 순서)
   const soon = ym !== thisMonth ? [] : [
-    ...upcomingAnniversaries(annivs, today).map((u) => ({ key: u.a.id, kind: u.a.kind as string, name: u.a.name, date: u.date, days: u.days, scope: 'shared' as const })),
-    ...events.filter((e) => e.date >= today).map((e) => ({ key: e.id, kind: 'event', name: e.title, date: e.date, days: daysBetween(today, e.date), scope: e.scope ?? 'shared' })),
+    ...upcomingAnniversaries(annivs, today).map((u) => ({ key: u.a.id, kind: u.a.kind as string, name: u.a.name, category: u.a.category, date: u.date, days: u.days, scope: 'shared' as const })),
+    ...events.filter((e) => e.date >= today).map((e) => ({ key: e.id, kind: 'event', name: e.title, category: null, date: e.date, days: daysBetween(today, e.date), scope: e.scope ?? 'shared' })),
   ].filter((x) => x.days <= 30).sort((a, b) => a.days - b.days || a.name.localeCompare(b.name))
   const de = sumType(dayTx.filter((t) => !t.planned), 'expense')
   const di = sumType(dayTx, 'income')
@@ -153,7 +154,7 @@ export function CalendarView({ ym, today, sel, cur, prev, loading = false, looku
               const label = `${m}월 ${dayOf(date)}일${hol ? ` ${hol}` : ''}${an ? ` ${an.map((a) => a.name).join(', ')}` : ''}${ev ? ` 일정 ${ev.map((e) => (e.scope && e.scope !== 'shared' ? `${e.title}(${eventScopeLabel(e.scope)})` : e.title)).join(', ')}` : ''}${t?.expense ? ` 지출 ${won(t.expense)}원` : ''}${t?.income ? ` 수입 ${won(t.income)}원` : ''}${pl ? ` 고정지출 예정 ${won(pl)}원` : ''}`
               return (
                 <button key={date} className={cls} aria-label={label} aria-pressed={date === sel} onClick={() => onSelect(date)}>
-                  <span className="n num">{dayOf(date)}{an && <span className={`anniv-mark k-${an[0].kind}`}><AnnivIcon kind={an[0].kind} /></span>}</span>
+                  <span className="n num">{dayOf(date)}{an && <span className={`anniv-mark k-${an[0].kind}`}><AnnivIcon a={an[0]} /></span>}</span>
                   {/* 기념일·일정 이름(달력에서 바로 보이게). 두 개까지, 넘치면 +N. 읽기는 칸의 aria-label이 맡는다 */}
                   {labels.slice(0, MAX_LABELS).map((l) => <span key={l.key} className={`cal-lbl ${l.cls}`} aria-hidden="true">{l.name}</span>)}
                   {labels.length > MAX_LABELS && <span className="cal-lbl more num" aria-hidden="true">+{labels.length - MAX_LABELS}</span>}
@@ -169,7 +170,7 @@ export function CalendarView({ ym, today, sel, cur, prev, loading = false, looku
         {soon.length > 0 && (
           <SoonRow label="다가오는 일정·기념일" items={soon.map((u) => (tab: number | undefined) => (
             <button key={u.key} className={`anniv-chip k-${u.kind}`} tabIndex={tab} onClick={() => onJump(u.date)}>
-              {u.kind === 'event' ? <CalendarIcon /> : <AnnivIcon kind={u.kind as Anniversary['kind']} />}<span>{u.name}</span><EventScopeTag scope={u.scope} /><b className="num">{dLabel(u.days)}</b>
+              {u.kind === 'event' ? <CalendarIcon /> : <AnnivIcon a={{ name: u.name, category: u.category, kind: u.kind as Anniversary['kind'] }} />}<span>{u.name}</span><EventScopeTag scope={u.scope} /><b className="num">{dLabel(u.days)}</b>
             </button>
           ))} />
         )}
@@ -192,7 +193,7 @@ export function CalendarView({ ym, today, sel, cur, prev, loading = false, looku
             <div className="anniv-list">
               {dayAnniv.map((a) => (
                 <button key={a.id} className={`anniv-row k-${a.kind}`} onClick={() => onPlan({ kind: 'anniv', anniv: a })}>
-                  <AnnivIcon kind={a.kind} /><b>{a.name}</b>
+                  <AnnivIcon a={a} /><b>{a.name}</b>
                   <span>{[a.category, a.repeat_unit === 'month' || a.repeat_every > 1 ? repeatLabel(a) : null, a.lunar ? `음력 ${a.month}월 ${a.day}일` : null].filter(Boolean).join(', ')}</span>
                 </button>
               ))}

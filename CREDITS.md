@@ -36,7 +36,6 @@
 | `MapPinIcon` | Phosphor `map-pin` | Phosphor Icons | MIT, `public/licenses/ph-LICENSE.txt` | https://github.com/phosphor-icons/core | 2026-11-03 |
 | `CameraIcon` | Phosphor `camera` | Phosphor Icons | MIT, `public/licenses/ph-LICENSE.txt` | https://github.com/phosphor-icons/core | 2026-11-03 |
 | `CheckIcon` | Phosphor `check-bold` | Phosphor Icons | MIT, `public/licenses/ph-LICENSE.txt` | https://github.com/phosphor-icons/core | 2026-11-03 |
-| `AnnivIcon` | Phosphor `cake-fill, heart-fill, flower-lotus-fill, star-fill` | Phosphor Icons | MIT, `public/licenses/ph-LICENSE.txt` | https://github.com/phosphor-icons/core | 2026-11-03 |
 | `SunIcon` | Phosphor `sun` | Phosphor Icons | MIT, `public/licenses/ph-LICENSE.txt` | https://github.com/phosphor-icons/core | 2026-11-03 |
 | `CloudSunIcon` | Phosphor `cloud-sun` | Phosphor Icons | MIT, `public/licenses/ph-LICENSE.txt` | https://github.com/phosphor-icons/core | 2026-11-03 |
 | `CloudIcon` | Phosphor `cloud` | Phosphor Icons | MIT, `public/licenses/ph-LICENSE.txt` | https://github.com/phosphor-icons/core | 2026-11-03 |
@@ -54,6 +53,37 @@
 | `CarIcon` | Phosphor `car` | Phosphor Icons | MIT, `public/licenses/ph-LICENSE.txt` | https://github.com/phosphor-icons/core | 2026-11-03 |
 | `HeartbeatIcon` | Phosphor `heartbeat` | Phosphor Icons | MIT, `public/licenses/ph-LICENSE.txt` | https://github.com/phosphor-icons/core | 2026-11-03 |
 | `PushPinIcon` | Phosphor `push-pin, push-pin-fill` | Phosphor Icons | MIT, `public/licenses/ph-LICENSE.txt` | https://github.com/phosphor-icons/core | 2026-11-03 |
+
+## 기념일 그림 (Iconify)
+
+기념일만 색 있는 그림(D-049)을 쓴다. 시스템 이모지 글자가 아니라 SVG로 `src/components/AnnivIcon.tsx`에 넣었고, 어느 그림을 쓸지는 `annivIconOf`(`src/lib/anniversaries.ts`)가 이름·카테고리로 정한다.
+
+| 그림 이름 | 원본 | 저작권자 | 라이선스 | 주소 | 가져온 날 |
+|---|---|---|---|---|---|
+| `cake` | Fluent Emoji Flat `birthday-cake` | Microsoft Corporation | MIT, `public/licenses/fluent-emoji-flat-LICENSE.txt` | https://github.com/microsoft/fluentui-emoji | 2026-11-03 |
+| `party` | Fluent Emoji Flat `partying-face` | Microsoft Corporation | MIT, `public/licenses/fluent-emoji-flat-LICENSE.txt` | https://github.com/microsoft/fluentui-emoji | 2026-11-03 |
+| `father` | Fluent Emoji Flat `old-man` | Microsoft Corporation | MIT, `public/licenses/fluent-emoji-flat-LICENSE.txt` | https://github.com/microsoft/fluentui-emoji | 2026-11-03 |
+| `mother` | Fluent Emoji Flat `old-woman` | Microsoft Corporation | MIT, `public/licenses/fluent-emoji-flat-LICENSE.txt` | https://github.com/microsoft/fluentui-emoji | 2026-11-03 |
+| `father-in-law` | Fluent Emoji Flat `man-white-hair` | Microsoft Corporation | MIT, `public/licenses/fluent-emoji-flat-LICENSE.txt` | https://github.com/microsoft/fluentui-emoji | 2026-11-03 |
+| `mother-in-law` | Fluent Emoji Flat `woman-white-hair` | Microsoft Corporation | MIT, `public/licenses/fluent-emoji-flat-LICENSE.txt` | https://github.com/microsoft/fluentui-emoji | 2026-11-03 |
+| `elder` | Fluent Emoji Flat `older-person` | Microsoft Corporation | MIT, `public/licenses/fluent-emoji-flat-LICENSE.txt` | https://github.com/microsoft/fluentui-emoji | 2026-11-03 |
+| `baby` | Fluent Emoji Flat `baby` | Microsoft Corporation | MIT, `public/licenses/fluent-emoji-flat-LICENSE.txt` | https://github.com/microsoft/fluentui-emoji | 2026-11-03 |
+| `balloon` | Fluent Emoji Flat `balloon` | Microsoft Corporation | MIT, `public/licenses/fluent-emoji-flat-LICENSE.txt` | https://github.com/microsoft/fluentui-emoji | 2026-11-03 |
+| `ring` | Fluent Emoji Flat `ring` | Microsoft Corporation | MIT, `public/licenses/fluent-emoji-flat-LICENSE.txt` | https://github.com/microsoft/fluentui-emoji | 2026-11-03 |
+| `bouquet` | Fluent Emoji Flat `bouquet` | Microsoft Corporation | MIT, `public/licenses/fluent-emoji-flat-LICENSE.txt` | https://github.com/microsoft/fluentui-emoji | 2026-11-03 |
+| `tulip` | Fluent Emoji Flat `tulip` | Microsoft Corporation | MIT, `public/licenses/fluent-emoji-flat-LICENSE.txt` | https://github.com/microsoft/fluentui-emoji | 2026-11-03 |
+| `two-hearts` | Fluent Emoji Flat `two-hearts` | Microsoft Corporation | MIT, `public/licenses/fluent-emoji-flat-LICENSE.txt` | https://github.com/microsoft/fluentui-emoji | 2026-11-03 |
+| `love-letter` | Fluent Emoji Flat `love-letter` | Microsoft Corporation | MIT, `public/licenses/fluent-emoji-flat-LICENSE.txt` | https://github.com/microsoft/fluentui-emoji | 2026-11-03 |
+| `heart-ribbon` | Fluent Emoji Flat `heart-with-ribbon` | Microsoft Corporation | MIT, `public/licenses/fluent-emoji-flat-LICENSE.txt` | https://github.com/microsoft/fluentui-emoji | 2026-11-03 |
+| `candle` | Fluent Emoji Flat `candle` | Microsoft Corporation | MIT, `public/licenses/fluent-emoji-flat-LICENSE.txt` | https://github.com/microsoft/fluentui-emoji | 2026-11-03 |
+| `dove` | Fluent Emoji Flat `dove` | Microsoft Corporation | MIT, `public/licenses/fluent-emoji-flat-LICENSE.txt` | https://github.com/microsoft/fluentui-emoji | 2026-11-03 |
+| `church` | Fluent Emoji Flat `church` | Microsoft Corporation | MIT, `public/licenses/fluent-emoji-flat-LICENSE.txt` | https://github.com/microsoft/fluentui-emoji | 2026-11-03 |
+| `medal` | Fluent Emoji Flat `military-medal` | Microsoft Corporation | MIT, `public/licenses/fluent-emoji-flat-LICENSE.txt` | https://github.com/microsoft/fluentui-emoji | 2026-11-03 |
+| `hospital` | Fluent Emoji Flat `hospital` | Microsoft Corporation | MIT, `public/licenses/fluent-emoji-flat-LICENSE.txt` | https://github.com/microsoft/fluentui-emoji | 2026-11-03 |
+| `money` | Fluent Emoji Flat `money-bag` | Microsoft Corporation | MIT, `public/licenses/fluent-emoji-flat-LICENSE.txt` | https://github.com/microsoft/fluentui-emoji | 2026-11-03 |
+| `moon` | Fluent Emoji Flat `full-moon` | Microsoft Corporation | MIT, `public/licenses/fluent-emoji-flat-LICENSE.txt` | https://github.com/microsoft/fluentui-emoji | 2026-11-03 |
+| `document` | Fluent Emoji Flat `page-facing-up` | Microsoft Corporation | MIT, `public/licenses/fluent-emoji-flat-LICENSE.txt` | https://github.com/microsoft/fluentui-emoji | 2026-11-03 |
+| `star` | Fluent Emoji Flat `star` | Microsoft Corporation | MIT, `public/licenses/fluent-emoji-flat-LICENSE.txt` | https://github.com/microsoft/fluentui-emoji | 2026-11-03 |
 
 ## 컴포넌트·모션 코드
 

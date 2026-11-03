@@ -3,7 +3,7 @@ import { annivCategories, annivDateLabel, annivInput, dLabel, newAnnivInput, upc
 import { deleteAnniversary, friendlyError, insertAnniversary, updateAnniversary } from '../lib/api'
 import type { Anniversary } from '../lib/types'
 import { AnniversaryForm } from './AnniversaryForm'
-import { AnnivIcon } from './Icons'
+import { AnnivIcon } from './AnnivIcon'
 
 interface Props {
   householdId: string
@@ -37,7 +37,7 @@ export function AnniversaryCard({ householdId, annivs, today, onChanged, toast }
 
   const row = (a: Anniversary, date: string | null, days: number | null) => edit === a.id ? <div key={a.id}>{form(a)}</div> : (
     <button key={a.id} className="rc-row anniv-item" onClick={() => setEdit(a.id)}>
-      <span className={`anniv-ic k-${a.kind}`}><AnnivIcon kind={a.kind} /></span>
+      <span className={`anniv-ic k-${a.kind}`}><AnnivIcon a={a} /></span>
       <span className="rc-main"><b>{a.name}</b><span>{a.category ? `${a.category}, ` : ''}{annivDateLabel(a)}{a.lunar && date ? `, 양력 ${solarLabel(date)}` : ''}</span></span>
       <span className="rc-side num">{days === null ? '' : dLabel(days)}</span>
     </button>

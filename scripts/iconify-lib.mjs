@@ -10,6 +10,19 @@ export const ALLOWED_SETS = {
     home: 'https://github.com/phosphor-icons/core',
     licenseRaw: 'https://raw.githubusercontent.com/phosphor-icons/core/main/LICENSE',
     grid: 256,
+    mode: 'mono',
+    base: 'ph',
+  },
+  // 기념일 그림만(D-049): 색이 있는 그림이라 앱 아이콘(ph)과 섞지 않는다. 시스템 이모지 글자가 아니라 SVG로 넣는다
+  'fluent-emoji-flat': {
+    title: 'Fluent Emoji Flat',
+    spdx: 'MIT',
+    holder: 'Microsoft Corporation',
+    home: 'https://github.com/microsoft/fluentui-emoji',
+    licenseRaw: 'https://raw.githubusercontent.com/microsoft/fluentui-emoji/main/LICENSE',
+    grid: 32,
+    mode: 'color',
+    base: 'emoji',
   },
 }
 
@@ -26,7 +39,7 @@ export function parseIconId(id) {
   if (!m) fail(`아이콘 이름은 '세트:이름' 꼴로 적는다(예: ph:wallet). 받은 값: ${id}`)
   const [, prefix, name] = m
   if (!ALLOWED_SETS[prefix]) fail(`${prefix} 세트는 쓰지 않는다. 쓸 수 있는 세트: ${Object.keys(ALLOWED_SETS).join(', ')}`)
-  if (OTHER_WEIGHTS.test(name)) fail(`${name}은 다른 굵기다. 보통·채움(-fill)·작은 표시용 굵게(-bold)만 쓴다.`)
+  if (ALLOWED_SETS[prefix].mode === 'mono' && OTHER_WEIGHTS.test(name)) fail(`${name}은 다른 굵기다. 보통·채움(-fill)·작은 표시용 굵게(-bold)만 쓴다.`)
   return { prefix, name }
 }
 
@@ -67,8 +80,14 @@ export function resolveIcon(json, name) {
 
 const camel = (attr) => attr.replace(/-([a-z])/g, (_, c) => c.toUpperCase())
 
-/** Iconify body(SVG 안쪽) → JSX 자식 문자열. 채움(fill="currentColor")은 앱의 base가 맡으므로 빼고, 속성 없는 <g>는 벗긴다. */
-export function toJsxChildren(body) {
+const HEX = /^#[0-9a-fA-F]{3}([0-9a-fA-F]{3})?$/
+const COLOR_EXTRA = new Set(['fill-rule', 'clip-rule'])
+
+/**
+ * Iconify body(SVG 안쪽) → JSX 자식 문자열. 속성 없는 <g>는 벗긴다.
+ * mono: 채움(fill="currentColor")은 앱의 base가 맡으므로 뺀다. color(기념일 그림): 칸마다 정한 색(#hex)과 fill-rule·clip-rule을 그대로 둔다.
+ */
+export function toJsxChildren(body, mode = 'mono') {
   const tagRe = /<(\/?)([a-zA-Z]+)((?:\s+[a-zA-Z-]+="[^"]*")*)\s*(\/?)>/g
   const out = []
   const stack = [] // 여는 <g>마다 출력에 남겼는지
@@ -88,8 +107,19 @@ export function toJsxChildren(body) {
     const kept = []
     for (const [, attr, value] of rawAttrs.matchAll(/([a-zA-Z-]+)="([^"]*)"/g)) {
       if (attr === 'fill') {
+        if (mode === 'color') {
+          if (!HEX.test(value) && value !== 'none') fail(`${tag}의 fill="${value}"는 받지 않는다(색 그림은 #hex 채움만).`)
+          filled = true
+          kept.push(`fill="${value}"`)
+          continue
+        }
         if (value !== 'currentColor') fail(`${tag}의 fill="${value}"는 앱 아이콘 모양이 아니다(한 색 채움만).`)
         filled = true
+        continue
+      }
+      if (mode === 'color' && COLOR_EXTRA.has(attr)) {
+        if (value !== 'evenodd' && value !== 'nonzero') fail(`${tag}의 ${attr}="${value}"는 받지 않는다.`)
+        kept.push(`${camel(attr)}="${value}"`)
         continue
       }
       if (!GEOMETRY.has(attr)) fail(`${tag}의 ${attr} 속성은 받지 않는다.`)
@@ -107,17 +137,17 @@ export function toJsxChildren(body) {
   }
   if (body.slice(pos).trim()) fail(`태그 밖에 글자가 있다: ${body.slice(pos).trim().slice(0, 40)}`)
   if (stack.length) fail('닫히지 않은 <g>가 있다.')
-  if (!filled) fail('한 색 채움(fill="currentColor") 아이콘이 아니다.')
+  if (!filled) fail(mode === 'color' ? '채움 색이 없는 그림이다.' : '한 색 채움(fill="currentColor") 아이콘이 아니다.')
   if (!out.length) fail('그릴 도형이 없다.')
   return out.join('')
 }
 
-/** Icons.tsx 끝에 붙일 컴포넌트 한 개. ph는 Icons.tsx의 Phosphor 공통 속성(256 격자, 한 색 채움) */
+/** Icons.tsx 끝에 붙일 컴포넌트 한 개. base는 Icons.tsx의 공통 속성(ph: 256 격자 한 색 채움, emoji: 32 격자 색 그림) */
 export function renderComponent({ component, prefix, name, jsx }) {
   const set = ALLOWED_SETS[prefix]
   return [
     `/** ${set.title} ${name} (${set.spdx}, Iconify에서 가져옴, 출처는 CREDITS.md) */`,
-    `export const ${component} = () => <svg {...ph}>${jsx}</svg>`,
+    `export const ${component} = () => <svg {...${set.base}}>${jsx}</svg>`,
     '',
   ].join('\n')
 }

@@ -25,11 +25,21 @@ describe('Iconify 아이콘을 앱 아이콘으로 바꾸기(Phosphor 한 가족
     expect(() => toJsxChildren('<path d="M1 1h2"/>')).toThrow(/채움/)
   })
 
-  it('세트는 ph만, 굵기는 보통·채움·작은 표시용 굵게만', () => {
+  it('기념일 그림(fluent-emoji-flat)은 색 모드: #hex 채움과 fill-rule·clip-rule을 그대로 두고, 그 밖의 채움은 받지 않는다(D-049)', () => {
+    expect(toJsxChildren('<g fill="none"><path fill="#fcd53f" d="M1 1h2"/><path fill="#ff6723" fill-rule="evenodd" d="M2 2" clip-rule="evenodd"/></g>', 'color'))
+      .toBe('<g fill="none"><path fill="#fcd53f" d="M1 1h2" /><path fill="#ff6723" fillRule="evenodd" d="M2 2" clipRule="evenodd" /></g>')
+    expect(() => toJsxChildren('<path fill="url(#a)" d="M1 1"/>', 'color')).toThrow(/#hex/)
+    expect(() => toJsxChildren('<path fill="#fff" opacity=".5" d="M1 1"/>', 'color')).toThrow(/opacity/)
+    expect(parseIconId('fluent-emoji-flat:birthday-cake')).toEqual({ prefix: 'fluent-emoji-flat', name: 'birthday-cake' })
+    expect(renderComponent({ component: 'CakeArt', prefix: 'fluent-emoji-flat', name: 'birthday-cake', jsx: '<path d="M1 1" />' })).toContain('<svg {...emoji}>')
+  })
+
+  it('세트는 ph(앱 아이콘)와 fluent-emoji-flat(기념일 그림)만, ph 굵기는 보통·채움·작은 표시용 굵게만', () => {
     expect(parseIconId('ph:piggy-bank')).toEqual({ prefix: 'ph', name: 'piggy-bank' })
     expect(parseIconId('ph:heart-fill')).toEqual({ prefix: 'ph', name: 'heart-fill' })
     expect(parseIconId('ph:x-bold')).toEqual({ prefix: 'ph', name: 'x-bold' })
     expect(() => parseIconId('lucide:wallet')).toThrow(/쓰지 않는다/)
+    expect(parseIconId('fluent-emoji-flat:heart-with-ribbon').name).toBe('heart-with-ribbon')
     expect(() => parseIconId('ph:heart-duotone')).toThrow(/굵기/)
     expect(() => parseIconId('ph:heart-thin')).toThrow(/굵기/)
     expect(() => parseIconId('wallet')).toThrow(/세트:이름/)

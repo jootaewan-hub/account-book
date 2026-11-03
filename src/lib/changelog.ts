@@ -22,6 +22,13 @@ export const KIND_LABEL: Record<ReleaseKind, string> = { major: '큰 업데이�
 /** 최신이 맨 앞 */
 export const RELEASES: Release[] = [
   {
+    version: '2.25.0', date: '2026-11-03', kind: 'minor', title: '기념일 그림',
+    items: [
+      '기념일마다 색 있는 그림이 붙어요. 아버지·어머니·장인어른·장모님 생신, 우리·부모님·장인장모님 결혼기념일이 서로 다른 그림이라 달력에서 바로 구분돼요.',
+      '처음 만난 날, 사귄 날, 기일, 축일, 전역, 병원, 용돈, 명절, 갱신도 각각 그림이 있어요. 그림은 기념일 이름과 카테고리로 앱이 골라요.',
+    ],
+  },
+  {
     version: '2.24.0', date: '2026-11-03', kind: 'minor', title: '아이콘과 버튼 모양 바꾸기',
     items: [
       '아이콘을 한 가족(Phosphor)으로 모두 바꿨어요. 아래 탭은 지금 보는 칸의 아이콘이 채워져요.',

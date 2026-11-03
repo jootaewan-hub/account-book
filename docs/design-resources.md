@@ -12,7 +12,7 @@
 | 2. 컬러 | `DESIGN.md` 토큰 그대로(흰 바탕·귀리 면. 회색 바탕 시안은 사용자가 되돌림, D-048 보충) | Realtime Colors·Coolors는 다른 조합을 미리 볼 때만. 토큰을 바꾸려면 대비(흰 바탕·귀리 면 위 4.5:1)와 `who-*` 색 순서 검증을 다시 한다 | `DESIGN.md` Colors |
 | 3. 폰트 | SUIT 2.0.5 하나 | 바꾸지 않는다. Fontshare 등 목록의 글꼴은 한글 지원을 확인하지 못했다 | `DESIGN.md` Typography |
 | 4. UI 컴포넌트 | Magic UI(MIT) 코드를 옮겨 쓴다 | 소스를 읽고 Web Animations API·일반 CSS로 다시 쓴다(motion·Tailwind를 들이지 않음). 옮긴 것은 `CREDITS.md` "컴포넌트·모션 코드"에 적는다. 21st.dev는 shadcn·Tailwind 설치와 하루 2회 제한이 있어 쓰지 않는다 | "AI처럼 보이지 않게"(CLAUDE.md): 반짝이·테두리 빛(Shimmer Button, Border Beam, Sparkles, Aurora Text, Meteors)·타자 치듯 나오는 글자는 쓰지 않는다 |
-| 5. 아이콘 | Iconify의 Phosphor(MIT) 한 가족 | `node scripts/iconify-icon.mjs ph:이름 --write` (아래 5절) | `DESIGN.md` 아이콘 절: 보통 굵기, 켜진 탭은 -fill, 18px 이하 표시는 -fill·-bold. 이모지 금지 |
+| 5. 아이콘 | Iconify의 Phosphor(MIT) 한 가족. 기념일 그림만 Fluent Emoji Flat(MIT, 색 있는 SVG, D-049) | `node scripts/iconify-icon.mjs ph:이름 --write` (아래 5절) | `DESIGN.md` 아이콘 절: 보통 굵기, 켜진 탭은 -fill, 18px 이하 표시는 -fill·-bold. 이모지 금지 |
 | 6. 일러스트 | 쓰지 않는다 | 빈 상태는 한 문장과 버튼 | `docs/grocery/DESIGN.md` "빈 상태: 그림 없음" |
 | 7. 사진 | 쓰지 않는다 | 상품 사진은 출처 응답의 이미지만 | 화면의 숫자·사진은 출처가 있는 것만 |
 | 8. 3D | 쓰지 않는다 | | |
@@ -56,7 +56,7 @@ node scripts/iconify-icon.mjs ph:piggy-bank                 # 컴포넌트를 �
 node scripts/iconify-icon.mjs ph:receipt --name BillIcon --write
 ```
 
-- 세트는 `ph`(Phosphor)만(`scripts/iconify-lib.mjs`의 `ALLOWED_SETS`). 한 가족으로 모양을 맞추려고 라이선스만 보지 않고 세트를 고정했다.
+- 세트는 `ph`(Phosphor, 앱 아이콘)와 `fluent-emoji-flat`(기념일 그림, 색 모드: #hex 채움과 fill-rule·clip-rule을 그대로 둠)만(`scripts/iconify-lib.mjs`의 `ALLOWED_SETS`). 한 가족으로 모양을 맞추려고 라이선스만 보지 않고 세트를 고정했다.
 - 굵기는 보통(이름 그대로), 채움(`-fill`), 18px 이하 작은 표시용 굵게(`-bold`)만. 가는(`-thin`·`-light`)·두 톤(`-duotone`)은 거절한다.
 - 스크립트는 Iconify 세트 정보의 라이선스가 MIT인지, 256×256 격자인지, 한 색 채움(`fill="currentColor"`)인지 본다. 반투명 층·움직임 요소·모르는 속성이 있으면 거절하고, 채움 속성을 빼서 `Icons.tsx`의 공통 속성 `ph`(viewBox 256, fill currentColor)로 그린다.
 - 아래 탭처럼 켜짐·꺼짐이 있는 아이콘은 보통·채움 두 본문을 받아 `({ on }) => on ? 채움 : 보통` 컴포넌트로 묶는다(`Icons.tsx`의 `CalendarIcon` 등).
