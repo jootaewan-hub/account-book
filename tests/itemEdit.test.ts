@@ -1,6 +1,6 @@
-// 품목 줄 고치기(D-052)의 순수 함수: 개당 가격 다시 세기, 글자 읽기, 저장 전 정리, 전·후 차이
+// 품목 줄 고치기(D-052)의 순수 함수: 개당 가격 다시 세기, 글자 읽기, 저장 전 정리, 전·후 차이, 영수증 다시 읽기 맞추기(D-053)
 import { describe, expect, it } from 'vitest'
-import { blankItem, cleanItems, diffItems, parseAmount, parseQuantity, withUnitPrice } from '../src/lib/itemEdit'
+import { blankItem, cleanItems, diffItems, mergeReread, parseAmount, parseQuantity, pickRereadEntry, withUnitPrice } from '../src/lib/itemEdit'
 import type { TxItem } from '../src/lib/types'
 
 const row = (id: string, name: string, quantity: number, amount: number, sort: number, extra: Partial<TxItem> = {}): TxItem => ({
@@ -85,5 +85,37 @@ describe('diffItems', () => {
   it('용량만 적어도 update에 들어간다', () => {
     const d = diffItems(before, before.map((b, i) => (i === 0 ? { ...b, pack_size: 1000, pack_unit: 'ml' } : b)))
     expect(d.update).toEqual([{ id: 'a', patch: { pack_size: 1000, pack_unit: 'ml' } }])
+  })
+})
+
+describe('mergeReread (영수증 다시 읽기, D-053)', () => {
+  const before = [row('a', '서울우유 900ml', 2, 5000, 0), row('b', '쭈꾸미', 1, 1590, 1, { image_path: 'h/x.jpg' }), row('c', '대파', 1, 3000, 2), row('d', '대파', 1, 3000, 3)]
+  const fresh = (name: string, amount: number, quantity = 1) => ({ name, quantity, unit_price: Math.round(amount / quantity), amount, pack_size: null, pack_unit: null })
+
+  it('이름이 같은 저장된 줄의 id·사진을 이어받고(띄어쓰기·대소문자 무시, 앞에서부터 한 번씩), 나머지는 새 줄', () => {
+    const out = mergeReread(before, [fresh('대파', 3200), fresh('서울 우유 900ML', 4000, 2), fresh('포카칩 오리지널 66g', 1590), fresh('대파', 3000)])
+    expect(out.map((o) => [o.name, o.id ?? null, o.amount])).toEqual([
+      ['대파', 'c', 3200], ['서울 우유 900ML', 'a', 4000], ['포카칩 오리지널 66g', null, 1590], ['대파', 'd', 3000],
+    ])
+    // 저장할 때: 쭈꾸미(b)는 뺀 줄이 되어 사진도 지워지고, 포카칩은 새 줄, 나머지는 바뀐 칸만
+    const d = diffItems(before, out)
+    expect(d.remove.map((r) => r.id)).toEqual(['b'])
+    expect(d.insert.map((r) => r.name)).toEqual(['포카칩 오리지널 66g'])
+    expect(d.update).toEqual([
+      { id: 'c', patch: { unit_price: 3200, amount: 3200, sort: 0 } },
+      { id: 'a', patch: { name: '서울 우유 900ML', unit_price: 2000, amount: 4000, sort: 1 } },
+    ])
+  })
+
+  it('저장된 줄이 없으면 모두 새 줄이고, 다시 읽은 줄이 없으면 빈 목록(저장하면 모두 뺀다)', () => {
+    expect(mergeReread([], [fresh('대파', 3000)]).map((o) => o.id)).toEqual([undefined])
+    expect(mergeReread(before, [])).toEqual([])
+  })
+
+  it('pickRereadEntry: 결제 금액이 같은 내역, 없으면 품목이 있는 첫 내역, 품목이 하나도 없으면 null', () => {
+    const e = (amount: number, n: number) => ({ amount, items: Array.from({ length: n }, (_, i) => i) })
+    expect(pickRereadEntry([e(100, 0), e(200, 2), e(300, 1)], 300)).toEqual(e(300, 1))
+    expect(pickRereadEntry([e(100, 0), e(200, 2), e(300, 1)], 999)).toEqual(e(200, 2))
+    expect(pickRereadEntry([e(100, 0)], 100)).toBeNull()
   })
 })

@@ -624,6 +624,20 @@ input[type="search"].input { -webkit-appearance: none; appearance: none; }
 .release-older[open] { display: flex; flex-direction: column; gap: 12px; }
 .release-older .release { padding-top: 12px; border-top: 1px solid var(--line); }
 .thumb-btn { position: relative; border: 0; padding: 0; background: none; width: 44px; height: 44px; }
+/* 영수증 사진(D-053, 수정 시트): 72px 썸네일 줄, 다시 읽기·지우기 버튼 줄, 크게 보기 */
+.receipt-photos { display: flex; flex-wrap: wrap; gap: 8px; }
+.receipt-thumb { width: 72px; height: 72px; padding: 0; border: 1px solid var(--line); border-radius: var(--r-sm); background: var(--oat); overflow: hidden; display: block; }
+.receipt-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.receipt-thumb.empty:where(:not(.grocery *)) { border-style: dashed; }
+.receipt-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 18px; }
+.receipt-actions .ghost { margin: 0; }
+.receipt-actions .link-btn.remove { color: var(--danger); }
+.receipt-note { margin: 0; }
+.photo-view-scrim { position: fixed; inset: 0; z-index: 62; background: rgba(0, 0, 0, .92); cursor: zoom-out; }
+.photo-view { position: fixed; inset: 0; z-index: 63; display: grid; place-items: center; padding: 12px; pointer-events: none; }
+.photo-view img { max-width: 100%; max-height: 100%; object-fit: contain; border-radius: var(--r-sm); pointer-events: auto; }
+.photo-view-close { pointer-events: auto; }
+.photo-view-close { position: absolute; top: calc(8px + env(safe-area-inset-top, 0px)); right: 8px; color: #fff; background: rgba(0, 0, 0, .4); }
 .thumb-x { position: absolute; top: -4px; right: -4px; width: 18px; height: 18px; border-radius: 50%; background: var(--primary); color: var(--on-primary); display: grid; place-items: center; }
 .thumb-x svg { width: 10px; height: 10px; }
 

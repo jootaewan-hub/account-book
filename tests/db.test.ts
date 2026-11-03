@@ -757,3 +757,35 @@ describe('기념일 반복·카테고리 (20261105010000_anniv_repeat_category)'
     ])
   })
 })
+
+describe('영수증 사진 (20261114000000_receipt_images)', () => {
+  it('저장소: 비공개 JPEG 버킷이 있고, 자기 가구 폴더에만 올리고 보고 지운다', async () => {
+    // 버킷 표는 앱이 읽지 않는다(서버 설정). 관리자 권한으로 확인한다
+    const { rows: [bucket] } = await db.query<{ public: boolean; allowed_mime_types: string[] }>(`select public, allowed_mime_types from storage.buckets where id = 'receipt-images'`)
+    expect(bucket).toEqual({ public: false, allowed_mime_types: ['image/jpeg'] })
+    const mine = `${hhA}/11111111-1111-4111-8111-111111111111`
+    await as(A, `insert into storage.objects (bucket_id, name) values ('receipt-images', $1), ('receipt-images', $2)`, [`${mine}/1.jpg`, `${mine}/2.jpg`])
+    expect(await as(B, `select name from storage.objects where bucket_id = 'receipt-images' order by name`)).toEqual([{ name: `${mine}/1.jpg` }, { name: `${mine}/2.jpg` }])
+    expect(await as(C, `select name from storage.objects where bucket_id = 'receipt-images'`)).toHaveLength(0)
+    expect(await errorOf(as(C, `insert into storage.objects (bucket_id, name) values ('receipt-images', $1)`, [`${mine}/3.jpg`]))).toContain('row-level security')
+    expect(await errorOf(as(A, `insert into storage.objects (bucket_id, name) values ('receipt-images', $1)`, [`${hhC}/x/1.jpg`]))).toContain('row-level security')
+    await as(C, `delete from storage.objects where bucket_id = 'receipt-images'`)
+    expect(await as(A, `select name from storage.objects where bucket_id = 'receipt-images'`)).toHaveLength(2)
+    await as(B, `delete from storage.objects where bucket_id = 'receipt-images' and name like $1`, [`${mine}/%`])
+    expect(await as(A, `select name from storage.objects where bucket_id = 'receipt-images'`)).toHaveLength(0)
+  })
+
+  it('구성원은 내역의 receipt_path를 적고 비울 수 있고, 다른 가구는 못 바꾸며, 긴 경로는 막힌다', async () => {
+    const [{ id }] = await as<{ id: string }>(A, `select id from public.transactions where household_id = $1 order by created_at, id limit 1`, [hhA])
+    const folder = `${hhA}/${id}`
+    await as(B, `update public.transactions set receipt_path = $2 where id = $1`, [id, folder])
+    expect(await as(A, `select receipt_path from public.transactions where id = $1`, [id])).toEqual([{ receipt_path: folder }])
+    // C는 RLS에 걸러져 아무 줄도 바꾸지 못한다(오류 없이 0건)
+    await as(C, `update public.transactions set receipt_path = null where id = $1`, [id])
+    expect(await as(A, `select receipt_path from public.transactions where id = $1`, [id])).toEqual([{ receipt_path: folder }])
+    expect(await errorOf(as(A, `update public.transactions set receipt_path = $2 where id = $1`, [id, 'x'.repeat(201)]))).toContain('transactions_receipt_path_check')
+    // 같은 폴더를 가리키는 내역을 한 문장으로 비운다(나눠 저장한 내역이 함께 쓰는 사진을 지울 때)
+    await as(A, `update public.transactions set receipt_path = null where receipt_path = $1`, [folder])
+    expect(await as(B, `select receipt_path from public.transactions where id = $1`, [id])).toEqual([{ receipt_path: null }])
+  })
+})

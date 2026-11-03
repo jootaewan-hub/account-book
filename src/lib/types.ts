@@ -62,6 +62,8 @@ export interface Transaction {
   platform: string | null
   /** 영수증·카드 문자에서 읽은 가게(가맹점) 이름(D-032). 상품별로 나눠 저장해도 남는다. 칸이 생기기 전 내역과 직접 입력은 없음 */
   merchant?: string | null
+  /** 영수증 사진 폴더 `<가구 id>/<내역 id>`(D-053, Storage receipt-images). 영수증으로 넣은 내역만, 사진을 지웠거나 그 전 내역은 null */
+  receipt_path?: string | null
   /** 품목 (영수증·쇼핑 주문). 목록 화면에서 불러온 경우에만 있음 */
   items?: TxItem[]
   /** 주유 기록(주유소 영수증). 목록 화면에서 불러온 경우에만 있고, 주유 내역이 아니면 null */

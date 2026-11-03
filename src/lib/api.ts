@@ -1,6 +1,7 @@
 import { addMonths, monthRange } from './dates'
 import { diffItems, type ItemsChange } from './itemEdit'
 import { removeItemImages } from './itemImages'
+import { removeUnusedReceiptImages } from './receiptImages'
 import { utilityItemForBill } from './bills'
 import { installmentPlan } from './recurring'
 import { sb } from './supabase'
@@ -11,7 +12,7 @@ import type {
 } from './types'
 
 const TX_COLUMNS =
-  'id, household_id, type, occurred_on, amount, title, memo, category_id, payment_method_id, scope, source, created_by, created_at, recurring_id, recurring_month, platform, merchant'
+  'id, household_id, type, occurred_on, amount, title, memo, category_id, payment_method_id, scope, source, created_by, created_at, recurring_id, recurring_month, platform, merchant, receipt_path'
 const ITEM_COLUMNS = 'id, name, quantity, unit_price, amount, pack_size, pack_unit, image_path, sort'
 // 주유 기록(fuel_fills)은 내역 하나에 하나라 함께 읽는다
 const TX_WITH_ITEMS = `${TX_COLUMNS}, transaction_items(${ITEM_COLUMNS}), fuel_fills(liters, price_per_liter, fuel_type)`
@@ -202,11 +203,13 @@ export async function saveTransactionItems(txId: string, householdId: string, ch
 }
 
 export async function deleteTransaction(id: string): Promise<void> {
-  // 품목 사진도 함께 지운다 (사진 삭제가 실패해도 내역은 지운다)
+  // 품목 사진·영수증 사진(D-053)도 함께 지운다 (사진 삭제가 실패해도 내역은 지운다). 영수증 사진은 같은 사진을 쓰는 내역이 남아 있지 않을 때만
   const items = check(await sb().from('transaction_items').select('image_path').eq('transaction_id', id))
+  const own = check(await sb().from('transactions').select('receipt_path').eq('id', id).maybeSingle()) as { receipt_path: string | null } | null
   check(await sb().from('transactions').delete().eq('id', id))
   const paths = items.map((i) => i.image_path).filter((p): p is string => Boolean(p))
   await removeItemImages(paths).catch(() => undefined)
+  await removeUnusedReceiptImages([own?.receipt_path])
 }
 
 const DELETE_CHUNK = 100
@@ -223,10 +226,13 @@ export async function deleteTransactions(ids: string[]): Promise<number> {
       const chunk = ids.slice(i, i + DELETE_CHUNK)
       const items = check(await sb().from('transaction_items').select('transaction_id, image_path').in('transaction_id', chunk)) as
         { transaction_id: string; image_path: string | null }[]
+      const receipts = check(await sb().from('transactions').select('id, receipt_path').in('id', chunk)) as { id: string; receipt_path: string | null }[]
       const gone = new Set((check(await sb().from('transactions').delete().in('id', chunk).select('id')) as { id: string }[]).map((r) => r.id))
       deleted += gone.size
       const paths = items.filter((x) => gone.has(x.transaction_id)).map((x) => x.image_path).filter((p): p is string => Boolean(p))
       await removeItemImages(paths).catch(() => undefined)
+      // 영수증 사진(D-053): 지운 내역의 폴더 가운데 아직 가리키는 내역이 없는 것만
+      await removeUnusedReceiptImages(receipts.filter((r) => gone.has(r.id)).map((r) => r.receipt_path))
     }
   } catch (e) {
     throw new Error(deleted ? `${deleted}건 지운 뒤 멈췄어요. ${friendlyError(e)}` : friendlyError(e), { cause: e })

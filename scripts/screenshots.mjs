@@ -8,7 +8,7 @@
 import { existsSync, mkdirSync, readFileSync } from 'node:fs'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { chromium } from 'playwright'
-import { BILL, EVENT_CAPTURE, EVENT_EXISTING, EVENT_PLACES, EVENT_TEXT, EVENT_TEXT_PASTE, EXPLORE_BUNJANG, EXPLORE_DAANGN, EXPLORE_DAISO, EXPLORE_KURLY, EXPLORE_OHOU, EXPLORE_PRODUCT, EXPLORE_SEARCH, EXPLORE_WEATHER, EXPLORE_WEATHER_NOT_REGISTERED, fakeSession, FUEL_RECEIPT, LONG_RECEIPT, RECEIPT, TABLES, USER } from './shell-fixtures.mjs'
+import { BILL, EVENT_CAPTURE, EVENT_EXISTING, EVENT_PLACES, EVENT_TEXT, EVENT_TEXT_PASTE, EXPLORE_BUNJANG, EXPLORE_DAANGN, EXPLORE_DAISO, EXPLORE_KURLY, EXPLORE_OHOU, EXPLORE_PRODUCT, EXPLORE_SEARCH, EXPLORE_WEATHER, EXPLORE_WEATHER_NOT_REGISTERED, fakeSession, FUEL_RECEIPT, LONG_RECEIPT, RECEIPT, RECEIPT_IMAGE, TABLES, USER } from './shell-fixtures.mjs'
 
 const BASE = process.env.BASE_URL ?? 'http://localhost:5188' // vite.config.ts server.port와 같다
 const OUT = process.env.OUT_DIR ? pathToFileURL(`${process.env.OUT_DIR.replace(/\/$/, '')}/`) : new URL('../screenshots/', import.meta.url)
@@ -188,6 +188,11 @@ const shellShots = [
   ...each((w, c) => ({ name: `shell-entry-batch-${w}-${c}`, path: '/', w, c, shell: true, tab: '내역', batch: '샘표 진간장' })),
   // 저장된 내역의 품목 줄 고치기(D-052): 수정 시트에서 첫 줄의 고치기를 누른 상태
   ...both(390, (w, c) => ({ name: `shell-entry-items-${w}-${c}`, path: '/', w, c, shell: true, tab: '내역', batch: '샘표 진간장', itemEdit: true })),
+  // 영수증 사진(D-053): 사진으로 넣은 내역의 수정 시트에 '영수증 사진' 칸(썸네일·다시 읽기·사진 지우기), 썸네일을 눌러 크게 보기,
+  // 다시 읽기 뒤 품목이 채워지고 "저장된 금액은 바꾸지 않았어요"(가짜 응답 16,390원 ≠ 저장 16,000원)
+  ...each((w, c) => ({ name: `shell-entry-receipt-${w}-${c}`, path: '/', w, c, shell: true, tab: '내역', openTx: '이마트 수내점' })),
+  ...both(390, (w, c) => ({ name: `shell-entry-receipt-view-${w}-${c}`, path: '/', w, c, shell: true, tab: '내역', openTx: '이마트 수내점', receiptView: true })),
+  ...each((w, c) => ({ name: `shell-entry-reread-${w}-${c}`, path: '/', w, c, shell: true, tab: '내역', openTx: '이마트 수내점', reread: true })),
   // 꺼 둔 구독 줄(고정 탭), 숨긴 분류 칩(설정)이 켜진 것과 구별되는지
   // (휴대폰 고정 탭의 꺼 둔 줄은 shell-fixed-390-*의 전체 화면에서 본다. 설정의 분류 칩은 휴대폰에서 아래 탭에 가려 넓은 화면만)
   ...both(1280, (w, c) => ({ name: `shell-settings-cats-${w}-${c}`, path: '/', w, c, shell: true, tab: '설정' })),
@@ -272,7 +277,19 @@ async function fakeSupabase(context, s = {}) {
       return json(body?.pcode ? EXPLORE_PRODUCT : bySource[body?.source] ?? EXPLORE_SEARCH)
     }
     if (url.pathname.startsWith('/functions/v1/')) return json({ status: 'skipped' })
-    if (url.pathname.startsWith('/storage/v1/')) return json([])
+    if (url.pathname.startsWith('/storage/v1/')) {
+      // 영수증 사진(D-053): 폴더 목록·서명 주소·내려받기를 가짜 영수증 그림(SVG)으로 답한다. 상품 사진(item-images)은 빈 목록
+      if (url.pathname === '/storage/v1/object/list/receipt-images') return json([{ name: '1.jpg', id: 'r1', updated_at: null, created_at: null, last_accessed_at: null, metadata: {} }])
+      if (url.pathname === '/storage/v1/object/sign/receipt-images') {
+        let paths = []
+        try { paths = req.postDataJSON()?.paths ?? [] } catch { /* 빈 목록 */ }
+        return json(paths.map((p) => ({ path: p, signedURL: `/object/sign/receipt-images/${p}?token=demo`, error: null })))
+      }
+      if (url.pathname.startsWith('/storage/v1/object/sign/receipt-images/') || url.pathname.startsWith('/storage/v1/object/receipt-images/')) {
+        return route.fulfill({ status: 200, contentType: 'image/svg+xml', body: RECEIPT_IMAGE })
+      }
+      return json([])
+    }
     const m = url.pathname.match(/^\/rest\/v1\/(.+)$/)
     if (!m) {
       if (process.env.DEBUG_SHOTS) console.log('[not mocked]', url.pathname)
@@ -474,6 +491,21 @@ try {
           await page.getByRole('button', { name: '고치기' }).first().click()
           await page.locator('.item-editor').evaluate((el) => el.scrollIntoView({ block: 'center' }))
         } else await page.locator('.batch-del').evaluate((el) => el.scrollIntoView({ block: 'end' }))
+      }
+      if (s.openTx) {
+        await page.locator('.tx', { hasText: s.openTx }).first().click()
+        await page.getByRole('dialog').first().waitFor()
+        await page.locator('.receipt-thumb img').first().waitFor()
+        await page.waitForFunction(() => [...document.querySelectorAll('.receipt-thumb img')].every((im) => im.complete && im.naturalWidth > 0))
+        if (s.receiptView) {
+          await page.locator('.receipt-thumb').first().click()
+          await page.locator('.photo-view img').waitFor()
+          await page.waitForFunction(() => { const im = document.querySelector('.photo-view img'); return im && im.complete && im.naturalWidth > 0 })
+        } else if (s.reread) {
+          await page.getByRole('button', { name: '영수증 다시 읽기' }).click()
+          await page.getByText(/다시 읽은 품목 \d+개를 아래에 채웠어요/).waitFor()
+          await page.locator('.receipt-field').evaluate((el) => el.scrollIntoView({ block: 'start' }))
+        } else await page.locator('.receipt-field').evaluate((el) => el.scrollIntoView({ block: 'center' }))
       }
       if (s.rcOpen) {
         await page.locator('.rc-row', { hasText: s.rcOpen }).click()

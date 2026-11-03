@@ -57,6 +57,30 @@ export function cleanItems<T extends EditableItem>(items: T[]): { items: T[]; mi
 
 const FIELDS: (keyof EditableItem)[] = ['name', 'quantity', 'unit_price', 'amount', 'pack_size', 'pack_unit']
 
+const nameKey = (s: string) => s.replace(/\s+/g, '').toLowerCase()
+
+/**
+ * 영수증을 다시 읽은 품목(D-053)을 저장된 줄에 맞춘다: 이름이 같은 저장된 줄(앞에서부터 한 번씩)의 id·사진을 이어받아
+ * 저장할 때 그 줄은 바뀐 칸만 고치고(장보기 연결도 남는다), 나머지는 새 줄·뺀 줄이 된다. 순서는 다시 읽은 순서
+ */
+export function mergeReread<T extends EditableItem>(before: TxItem[], fresh: T[]): (T & { id?: string; image_path?: string | null })[] {
+  const pool = new Map<string, TxItem[]>()
+  for (const b of before) {
+    const k = nameKey(b.name)
+    pool.set(k, [...(pool.get(k) ?? []), b])
+  }
+  return fresh.map((it) => {
+    const old = pool.get(nameKey(it.name))?.shift()
+    return old ? { ...it, id: old.id, image_path: old.image_path } : { ...it }
+  })
+}
+
+/** 다시 읽은 결과 가운데 이 내역의 것: 결제 금액이 같은 내역, 없으면 품목이 있는 첫 내역. 품목이 하나도 없으면 null */
+export function pickRereadEntry<E extends { amount: number; items: unknown[] }>(entries: E[], amount: number): E | null {
+  const withItems = entries.filter((e) => e.items.length > 0)
+  return withItems.find((e) => e.amount === amount) ?? withItems[0] ?? null
+}
+
 /**
  * 저장된 품목(전)과 고친 품목(후)의 차이. 후의 순서가 sort가 된다.
  * - insert: id가 없는 줄(새로 더한 줄)

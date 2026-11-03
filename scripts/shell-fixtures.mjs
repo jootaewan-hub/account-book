@@ -69,6 +69,15 @@ const transactions = [
   tx('t31', 1, 2800, '이마트 분당점', '장보기', { occurred_on: daysAgo(2), source: 'photo', transaction_items: [
     { id: 'i31a', name: '부침두부 300g', quantity: 1, unit_price: 2800, amount: 2800, pack_size: 300, pack_unit: 'g', image_path: null, sort: 1 },
   ] }),
+  // 영수증 사진을 남긴 내역(D-053): 수정 시트에 '영수증 사진' 칸(썸네일·다시 읽기·사진 지우기). 다섯째 줄은 잘못 읽힌 이름(쭈꾸미)이고 금액 16,000원은
+  // 가짜 다시 읽기 응답(RECEIPT 16,390원)과 달라 "저장된 금액은 바꾸지 않았어요" 문장이 보인다. 숫자는 캡처 확인용 예시
+  tx('t36', 3, 16000, '이마트 수내점', '장보기', { source: 'photo', merchant: '이마트 수내점', receipt_path: `${HH}/t36`, transaction_items: [
+    { id: 'i36a', name: '국산 대파 1단', quantity: 1, unit_price: 3000, amount: 3000, pack_size: null, pack_unit: null, image_path: null, sort: 1 },
+    { id: 'i36b', name: '서울우유 900ml', quantity: 2, unit_price: 2000, amount: 4000, pack_size: 900, pack_unit: 'ml', image_path: null, sort: 2 },
+    { id: 'i36c', name: '농심 신라면 5입', quantity: 1, unit_price: 5000, amount: 5000, pack_size: 5, pack_unit: '입', image_path: null, sort: 3 },
+    { id: 'i36d', name: '부침두부 300g', quantity: 1, unit_price: 2800, amount: 2800, pack_size: 300, pack_unit: 'g', image_path: null, sort: 4 },
+    { id: 'i36e', name: '쭈꾸미 1팩', quantity: 1, unit_price: 1200, amount: 1200, pack_size: null, pack_unit: null, image_path: null, sort: 5 },
+  ] }),
   // 쿠팡 주문 하나를 상품마다 나눠 저장한 내역(D-027 같은 영수증 묶음 'sb1'). 수정 시트에서 '함께 나눠 저장한 내역 4건'이 보인다
   ...[['t40', '오뚜기 사과식초 900ml', 2408], ['t41', '샘표 진간장 금F3 1.7L', 5928], ['t42', '청정원 천일염 굵은소금', 3770], ['t43', '배송비', 3000]]
     .map(([id, title, amount], k) => tx(id, 1, amount, title, '장보기', { occurred_on: daysAgo(1), source: 'photo', platform: '쿠팡', save_batch: 'sb1',
@@ -225,6 +234,26 @@ export const RECEIPT = {
     ],
   }],
 }
+
+/** 수정 시트의 영수증 사진 칸(D-053)에 보일 가짜 영수증 그림(SVG). 실제 영수증이 아니라 캡처 확인용 모양이다 */
+const receiptLine = (y, name, amount) => `<text x="40" y="${y}" font-size="24">${name}</text><text x="560" y="${y}" font-size="24" text-anchor="end">${amount}</text>`
+export const RECEIPT_IMAGE = `<svg xmlns="http://www.w3.org/2000/svg" width="600" height="900" viewBox="0 0 600 900" font-family="system-ui, sans-serif" fill="#1f2328">
+<rect width="600" height="900" fill="#fbfaf6"/>
+<text x="300" y="80" font-size="36" font-weight="700" text-anchor="middle">이마트 수내점</text>
+<text x="300" y="120" font-size="22" text-anchor="middle" fill="#5a5f66">2026-11-03 18:20  POS 03  No.0241</text>
+<line x1="40" y1="150" x2="560" y2="150" stroke="#1f2328" stroke-dasharray="6 6"/>
+${receiptLine(200, '국산 대파 1단', '3,000')}
+${receiptLine(246, '서울우유 900ml  2', '5,000')}
+<text x="60" y="284" font-size="22" fill="#5a5f66">행사할인</text><text x="560" y="284" font-size="22" text-anchor="end" fill="#5a5f66">-1,000</text>
+${receiptLine(330, '농심 신라면 5입', '5,000')}
+${receiptLine(376, '부침두부 300g', '2,800')}
+${receiptLine(422, '포카칩 오리지널 66g', '1,590')}
+<line x1="40" y1="470" x2="560" y2="470" stroke="#1f2328" stroke-dasharray="6 6"/>
+<text x="40" y="530" font-size="28" font-weight="700">합계</text><text x="560" y="530" font-size="28" font-weight="700" text-anchor="end">16,390</text>
+<text x="40" y="580" font-size="22">신용카드</text><text x="560" y="580" font-size="22" text-anchor="end">16,390</text>
+<text x="300" y="720" font-size="20" text-anchor="middle" fill="#5a5f66">화면 확인용 가짜 영수증</text>
+<rect x="120" y="760" width="360" height="60" fill="#1f2328"/>
+</svg>`
 
 /** 긴 영수증을 두 장으로 나눠 찍은 가짜 응답(D-029): 1번은 머리·앞 품목(아래 잘림), 2번은 머리 없이 이어지는 품목과 합계.
  *  앱이 한 내역으로 잇고 '사진 1~2번을 긴 영수증 한 장으로' 안내를 붙이는지 본다. 숫자는 캡처 확인용 예시 */

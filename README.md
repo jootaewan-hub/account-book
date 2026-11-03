@@ -25,6 +25,7 @@
   배달앱은 내역 이름을 가게 이름으로, 매장 영수증·카드 문자는 가맹점 이름으로 둔다.
 - 상품별 내역: 주문·영수증은 기본으로 내역 하나에 저장하고 상품은 품목 줄로 남는다(2026-10-26, D-027). 확인 화면에서 주문마다 "상품 N개를 하나씩 따로 저장"을 켜면 상품마다 내역 하나로 나눈다.
 - 품목 줄 고치기(2026-11-03, D-052): 확인 화면과 저장된 내역의 수정 시트에서 품목 줄마다 "고치기"로 이름·수량·금액을 고치고, 줄을 빼거나 더한다. 개당 가격은 수량·금액으로 다시 세고, 결제 금액은 자동으로 바꾸지 않고 품목 합계와 다르면 차이만 알린다. 저장은 바뀐 줄만 반영한다(`saveTransactionItems`).
+- 영수증 사진 보관과 다시 읽기(2026-11-03, D-053): 영수증으로 넣은 내역은 분석에 쓴 축소 JPEG를 비공개 Storage 버킷 `receipt-images`에 `<가구 id>/<내역 id>/<n>.jpg`로 남기고 `transactions.receipt_path`에 폴더를 적는다(상품별로 나눈 내역은 같은 폴더). 수정 시트의 "영수증 사진" 칸에서 썸네일·크게 보기·"사진 지우기", "영수증 다시 읽기"는 저장된 사진을 다시 읽어 품목 줄을 채우고(이름이 같은 줄은 그대로 고침) 확인 뒤 저장하며 결제 금액은 바꾸지 않는다. 내역을 지우면 같은 사진을 쓰는 내역이 없을 때 사진도 지운다. 사진 올리기가 실패해도 내역은 저장된다(`src/lib/receiptImages.ts`).
   나누면 상품마다 분류를 따로 고르고, 쿠폰·할인은 상품 금액 비율로 나눠 빼며(메모에 기록), 배송비는 따로 한 건. 나눈 내역의 합계는 결제 금액과 같다.
   목록·상세 화면을 함께 찍어 같은 상품이 묶음 주문과 하나짜리 주문으로 두 번 나오면 하나짜리를 빼 둔다(같은 날·원래 금액·이름).
 - 나눠 찍은 긴 영수증(2026-10-26, D-029): 앞 사진에 합계가 없고 바로 다음 사진에 가게 이름·날짜가 없으면 한 영수증으로 읽는다(서버 지시문 + 5장 묶음 경계는 앱의 `stitchEntries`가 잇기). 날짜가 안 보이는 사진은 오늘 대신 바로 옆 사진의 날짜를 쓰고 확인 화면에 안내한다. 각자 머리나 합계가 있는 영수증은 합치지 않는다.
@@ -104,13 +105,14 @@ CSV·두 달 내역·기간 조회는 서버 행 제한과 관계없이 페이�
 | `supabase/migrations/` | DB 테이블, 권한(RLS), 가구 만들기·참여 함수, 내역+품목 저장 함수 |
 | `supabase/functions/extract-entries/` | 문자·사진 → Claude 구조화 출력 → 내역 초안 (Edge Function) |
 | `supabase/functions/export-csv/` | 구글 시트 IMPORTDATA용 CSV (가구별 비밀 주소, 로그인 없이 호출) |
-| `src/lib/` | 날짜·금액·통계 계산, 사진 자르기, Supabase 호출. `dialog.ts`: 시트·창 공통 동작(Tab 순환, Esc, 겹친 창은 맨 위만, 닫히면 연 버튼으로 포커스 복귀, 스크롤 잠금) — 가계부 `Sheet`와 장보기 시트가 함께 쓴다 |
+| `src/lib/` | 날짜·금액·통계 계산, 사진 자르기, Supabase 호출. `dialog.ts`: 시트·창 공통 동작(Tab 순환, Esc, 겹친 창은 맨 위만, 닫히면 연 버튼으로 포커스 복귀, 스크롤 잠금) — 가계부 `Sheet`와 장보기 시트가 함께 쓴다. `itemImages.ts`·`receiptImages.ts`: 상품 사진·영수증 사진 버킷 올리기·목록·지우기, `storageSign.ts`: 서명 주소 묶음 요청 |
 | `src/hooks/` | 가구·내역·일정 불러오기와 Realtime 구독(`useLedger.ts`) |
 | `src/components/` | 화면 (`Motion.tsx`: 숫자 제자리 교체, 알림, 달 넘김 움직임. `ErrorBoundary.tsx`: 한 화면이 그리다 멈추면 그 자리에 오류와 다시 시도) |
 | `src/App.tsx` | 탭·시트 상태. 장보기·통계·고정·설정·스마트 입력은 `lazy`로 따로 묶어 눌렀을 때 받고(첫 화면 JS는 index·api 두 묶음 약 172KB gzip, 2026-10-22 기준), 첫 화면 뒤 1.5초에 미리 받아 둔다 |
 | `src/styles.css` | 색·글자·움직임 토큰과 화면 스타일. 규칙은 `DESIGN.md` |
 | `src/assets/fonts/` | SUIT 2.0.5 가변 글꼴(SIL OFL 1.1, 원본 그대로). 라이선스 전문은 `public/fonts/SUIT-OFL.txt` |
 | `tests/db.test.ts` | 마이그레이션을 PGlite에 적용해 권한 규칙 검증 |
+| `tests/receiptImages.test.ts` | 영수증 사진(D-053): 경로·번호 정리, 올리기 실패 시 되돌리기, 쓰지 않는 폴더만 지우기 |
 | `tests/logic.test.ts` | 날짜·합계 계산 검증 |
 | `tests/smart.test.ts` | 모델 출력 정리, 상품 사진 영역 검사·자르기 영역, 중복 판단, 사진 크기 계산 검증 |
 | `tests/recurring-stats.test.ts` | 반복 날짜(말일·매년), 관리비 알림, 구독 후보, 12개월 추이·증감률·분류별·플랫폼별 계산 검증 |
@@ -122,7 +124,7 @@ CSV·두 달 내역·기간 조회는 서버 행 제한과 관계없이 페이�
 | `tests/*.test.ts` (그 밖) | 순수 계산 시험: 달력·공휴일·음력(`calendar`), 콘텐츠 보안 정책(`csp`), 금액 키패드(`keypad`), 플랫폼·용량 단위(`platform-units`), 고정 항목 아이콘(`recurring-icon`), 시트 스크롤 잠금(`scroll-lock`), 구독 로고(`services`), 관리비 고지서·나눠 보내기(`bills-batches`) |
 | `scripts/shell-fixtures.mjs` | 화면 캡처의 가계부 셸이 쓰는 가짜 Supabase 응답(가구·내역·고정 항목·영수증 분석 결과 등) |
 | `supabase/functions/market-sync/` | 농수산물 시세(공공데이터포털 15156057) 수집(매일 07:10 `.github/workflows/market-sync.yml`, 로그인 없이 부르되 20시간 1회·30분 잠금) |
-| `tests/components/` | 화면 시험(jsdom + Testing Library, 파일 맨 위 `// @vitest-environment jsdom`): 대화상자 공통 동작, ErrorBoundary |
+| `tests/components/` | 화면 시험(jsdom + Testing Library, 파일 맨 위 `// @vitest-environment jsdom`): 대화상자 공통 동작, ErrorBoundary, 품목 고치기, 수정 시트의 영수증 사진·다시 읽기(`entrySheetReceipt`) |
 | `.oxlintrc.json` | 린트 규칙(oxlint). React 훅 규칙·접근성(jsx-a11y)·느슨한 비교. TypeScript 7은 JS API가 없어 typescript-eslint를 쓸 수 없다 |
 | `.github/workflows/ci.yml`, `.github/dependabot.yml` | main이 아닌 브랜치·PR에서 타입 검사·린트·시험·빌드(묶음 크기를 요약에 적음). 의존성 갱신 PR은 매주 월요일 |
 | `src/grocery/` | 장보기 탭: 화면(`components/`), 글 나누기·식약처 대조·가격 규칙·저장소(`lib/`), 화면 CSS(`grocery.css`, `.grocery` 안에서만) |
@@ -230,7 +232,7 @@ npm run screens    # 화면 캡처 (개발 서버를 공개용 Supabase 값으�
 
 - 모든 표에 RLS를 켜서 같은 가구 구성원만 읽고 씁니다. 로그인하지 않은 사용자(anon)는 표 권한이 없습니다.
 - 한 가구는 두 사람까지만 참여할 수 있어, 가입한 다른 사람이 초대 코드 없이는 이 가구에 들어올 수 없습니다.
-- 상품 사진 저장소는 비공개이고 가구별 폴더만 올리고 볼 수 있습니다.
+- 상품 사진·영수증 사진 저장소(`item-images`·`receipt-images`)는 비공개이고 가구별 폴더만 올리고 볼 수 있습니다.
 - 코드와 기록에 비밀 키가 없습니다. 클라이언트에는 공개용 키(publishable key)만 있고, 서비스 키와 식품안전나라 키는 Edge Function 안에만 있습니다.
 - 장보기 함수: `product-search`·`product-check`는 로그인한 사람만 부르고 가구 소속은 RLS로 확인합니다. `food-alerts-sync`는 예약 실행이 로그인 없이 부르지만
   20시간에 한 번만 실제로 받고(그 밖은 건너뜀) 동시 호출은 DB 잠금으로 하나만 받으며, 응답에는 결과 종류만 담습니다.

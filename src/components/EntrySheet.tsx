@@ -3,8 +3,10 @@ import { fetchSaveBatch, friendlyError, type BatchMate } from '../lib/api'
 import { suggestCategory } from '../lib/categorize'
 import { won } from '../lib/format'
 import { fuelText } from '../lib/fuel'
-import { blankItem, cleanItems, type EditableItem, type ItemsChange } from '../lib/itemEdit'
-import { useItemImages } from '../hooks/useItemImages'
+import { fileToJpeg, type PreparedImage } from '../lib/image'
+import { blankItem, cleanItems, mergeReread, pickRereadEntry, type EditableItem, type ItemsChange } from '../lib/itemEdit'
+import { useItemImages, useReceiptImages } from '../hooks/useItemImages'
+import { downloadReceiptImages, listReceiptImages, removeReceiptImages } from '../lib/receiptImages'
 import { isSaveShortcut, isTextField, keypadKey, pressKey, saveKeyLabel } from '../lib/keypad'
 import { SCOPE_LABEL, SCOPES, type Lookup } from '../lib/lookup'
 import { normalizePlatform } from '../lib/platform'
@@ -13,6 +15,7 @@ import { CameraIcon } from './Icons'
 import { InstallmentPicker } from './InstallmentPicker'
 import { ItemEditor } from './ItemEditor'
 import { PackInput } from './PackInput'
+import { PhotoViewer } from './PhotoViewer'
 import { PlatformInput } from './PlatformInput'
 import { Sheet } from './Sheet'
 import { defaultScope, lsSet } from '../lib/localPrefs'
@@ -21,6 +24,8 @@ interface Props {
   open: boolean
   editing: Transaction | null
   defaultDate: string
+  /** 오늘(YYYY-MM-DD). 영수증 다시 읽기(D-053)가 서버에 넘긴다 */
+  today: string
   lookup: Lookup
   categories: Category[]
   usage: Map<string, number>
@@ -41,7 +46,7 @@ const isProduct = (it: EditItem) => it.amount > 0 && !/^배송비/.test(it.name.
 
 const KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '00', '0', '⌫']
 
-export function EntrySheet({ open, editing, defaultDate, lookup, categories, usage, onSave, onDelete, onDeleteMany, onClose, onSmart }: Props) {
+export function EntrySheet({ open, editing, defaultDate, today, lookup, categories, usage, onSave, onDelete, onDeleteMany, onClose, onSmart }: Props) {
   const [type, setType] = useState<TxType>('expense')
   const [amount, setAmount] = useState('')
   const [categoryId, setCategoryId] = useState<string | null>(null)
@@ -63,6 +68,13 @@ export function EntrySheet({ open, editing, defaultDate, lookup, categories, usa
   // 품목 줄(D-052): 열 때 저장된 품목으로 채우고, 저장할 때 전·후를 넘긴다
   const [items, setItems] = useState<EditItem[]>([])
   const urls = useItemImages(items.map((i) => i.image_path))
+  // 영수증 사진(D-053): 폴더(receipt_path)의 파일 경로, 크게 보는 사진, 지우기 확인, 다시 읽기 진행·결과
+  const [receipt, setReceipt] = useState<{ paths: string[]; loaded: boolean; gone: boolean }>({ paths: [], loaded: false, gone: false })
+  const receiptUrls = useReceiptImages(receipt.paths)
+  const [viewing, setViewing] = useState<{ src: string; label: string } | null>(null)
+  const [confirmPhotos, setConfirmPhotos] = useState(false)
+  const [rereading, setRereading] = useState(false)
+  const [reread, setReread] = useState<{ count: number; amount: number; model: string | null } | null>(null)
   const canBatch = Boolean(onDeleteMany)
   // 앱이 다시 그려질 때(실시간 갱신 등) 다시 읽지 않게 내역 id로만 다시 읽는다. 다시 읽으면 두 번 누르기 확인이 풀린다
   // eslint-disable-next-line react/exhaustive-effect-dependencies -- editing은 id·source·household_id만 쓴다
@@ -74,10 +86,24 @@ export function EntrySheet({ open, editing, defaultDate, lookup, categories, usa
     return () => { alive = false }
   }, [open, editing?.id, editing?.source, canBatch])
 
+  // 영수증 사진 목록은 내역 id·폴더가 바뀔 때만 읽는다(실시간 갱신으로 다시 그려져도 다시 읽지 않는다)
+  // eslint-disable-next-line react/exhaustive-effect-dependencies -- editing은 id·receipt_path만 쓴다
+  useEffect(() => {
+    setReceipt({ paths: [], loaded: false, gone: false })
+    const folder = editing?.receipt_path
+    if (!open || !editing || !folder) return
+    let alive = true
+    listReceiptImages(folder).then(
+      (paths) => { if (alive) setReceipt({ paths, loaded: true, gone: false }) },
+      () => { if (alive) setReceipt({ paths: [], loaded: true, gone: false }) })
+    return () => { alive = false }
+  }, [open, editing?.id, editing?.receipt_path])
+
   useEffect(() => {
     if (!open) return
     setErr(''); setBusy(false); setConfirmDelete(false); setCatAuto(false)
     setMonths(null); setSplit(true)
+    setViewing(null); setConfirmPhotos(false); setRereading(false); setReread(null)
     if (editing) {
       setType(editing.type)
       setAmount(String(editing.amount))
@@ -139,7 +165,7 @@ export function EntrySheet({ open, editing, defaultDate, lookup, categories, usa
     let itemChange: ItemsChange | null = null
     if (editing?.items) {
       const c = cleanItems(items)
-      if (c.missingName) return setErr(`품목 번째 줄의 이름을 적어 주세요.`)
+      if (c.missingName) return setErr(`품목 ${c.missingName}번째 줄의 이름을 적어 주세요.`)
       itemChange = { before: editing.items, after: c.items }
     }
     setBusy(true); setErr('')
@@ -163,6 +189,49 @@ export function EntrySheet({ open, editing, defaultDate, lookup, categories, usa
     if (!confirmDelete) return setConfirmDelete(true)
     setBusy(true)
     try { await onDelete(editing.id) } catch (e) { setErr(friendlyError(e)); setBusy(false) }
+  }
+
+  /** 영수증 사진 지우기(D-053): 두 번 누르기 확인 뒤 폴더 파일을 지우고, 같은 폴더를 쓰는 내역 모두의 경로를 비운다 */
+  async function removePhotos() {
+    if (!editing?.receipt_path) return
+    if (!confirmPhotos) return setConfirmPhotos(true)
+    setBusy(true); setErr('')
+    try {
+      await removeReceiptImages(editing.receipt_path)
+      setReceipt({ paths: [], loaded: true, gone: true }); setReread(null)
+    } catch (e) { setErr(friendlyError(e)) } finally { setBusy(false); setConfirmPhotos(false) }
+  }
+
+  /**
+   * 영수증 다시 읽기(D-053): 저장된 사진을 내려받아 다시 줄여 extract-entries에 보내고, 돌아온 품목을 아래 품목 줄에 채운다.
+   * 저장된 줄과 이름이 같으면 그 줄을 고치는 것으로(id 유지), 결제 금액은 바꾸지 않고 다르면 적기만 한다. 저장은 사용자가 확인한 뒤
+   */
+  async function rereadReceipt() {
+    if (!editing?.receipt_path || !receipt.paths.length || rereading) return
+    setRereading(true); setErr('')
+    const prepared: PreparedImage[] = []
+    try {
+      const { analyzeImages, modelLabel, SmartError } = await import('../lib/smart')
+      try {
+        const blobs = await downloadReceiptImages(receipt.paths)
+        for (const b of blobs) prepared.push(await fileToJpeg(b))
+        const res = await analyzeImages(prepared.map(({ media_type, data, width, height }) => ({ media_type, data, width, height })), 'receipt', today)
+        const entry = pickRereadEntry(res.entries, n)
+        if (!entry) { setErr(res.failed[0]?.message || res.note || '영수증에서 품목을 찾지 못했어요.'); return }
+        const fresh: EditableItem[] = entry.items.map((it) => ({
+          name: it.name, quantity: it.quantity, unit_price: it.unit_price, amount: it.amount, pack_size: it.pack_size, pack_unit: it.pack_unit,
+        }))
+        setItems(mergeReread(editing.items ?? [], fresh))
+        setReread({ count: fresh.length, amount: entry.amount, model: modelLabel(res.model) })
+      } catch (e) {
+        setErr(e instanceof SmartError ? e.message : friendlyError(e))
+      }
+    } catch (e) {
+      setErr(friendlyError(e))
+    } finally {
+      for (const p of prepared) URL.revokeObjectURL(p.preview)
+      setRereading(false)
+    }
   }
 
   async function removeBatch() {
@@ -265,6 +334,43 @@ export function EntrySheet({ open, editing, defaultDate, lookup, categories, usa
             <input id="entry-memo" className="input" value={memo} maxLength={200} placeholder="예: 쿠폰 2,000원 적용, 회사 회식"
               onChange={(e) => setMemo(e.target.value)} />
           </div>
+          {/* 영수증 사진(D-053): 썸네일(누르면 크게), 다시 읽기, 사진 지우기(두 번 누르기). 다시 읽은 품목은 아래 품목 줄에 채워진다 */}
+          {editing?.receipt_path && !receipt.gone && (
+            <div className="field receipt-field">
+              <span className="lbl">영수증 사진{receipt.paths.length > 1 ? ` ${receipt.paths.length}장` : ''}</span>
+              {receipt.loaded && receipt.paths.length === 0 ? (
+                <p className="tx-meta receipt-note">사진 파일을 찾지 못했어요.</p>
+              ) : (
+                <div className="receipt-photos">
+                  {(receipt.loaded ? receipt.paths : ['']).map((p, i) => {
+                    const url = p ? receiptUrls.get(p) : undefined
+                    return url
+                      ? <button key={p} type="button" className="receipt-thumb" aria-label={`영수증 사진 ${i + 1} 크게 보기`}
+                          onClick={() => setViewing({ src: url, label: `영수증 사진 ${i + 1}` })}><img src={url} alt="" loading="lazy" /></button>
+                      : <span key={p || i} className="receipt-thumb empty" aria-hidden="true" />
+                  })}
+                </div>
+              )}
+              <div className="receipt-actions">
+                <button type="button" className="ghost" onClick={rereadReceipt} disabled={busy || rereading || !receipt.paths.length}>
+                  {rereading ? '영수증 사진 읽는 중…' : '영수증 다시 읽기'}
+                </button>
+                <button type="button" className="link-btn remove" onClick={removePhotos} disabled={busy || rereading}>
+                  {confirmPhotos ? '한 번 더 누르면 사진을 지워요' : '사진 지우기'}
+                </button>
+              </div>
+              {reread && (
+                <p className="tx-meta receipt-note" role="status">
+                  다시 읽은 품목 {reread.count}개를 아래에 채웠어요. 확인하고 저장해 주세요.
+                  {reread.amount !== n && ` 다시 읽은 영수증의 결제 금액은 ${won(reread.amount)}원이에요. 저장된 금액 ${won(n)}원은 바꾸지 않았어요.`}
+                  {reread.model && ` ${reread.model}로 읽었어요.`}
+                  {' '}
+                  <button type="button" className="link-btn" onClick={() => { setItems(editing.items ?? []); setReread(null) }}>읽기 전 품목으로 되돌리기</button>
+                </p>
+              )}
+            </div>
+          )}
+          {editing?.receipt_path && receipt.gone && <p className="tx-meta receipt-note">영수증 사진을 지웠어요.</p>}
           {/* 품목 줄(D-052): 영수증·문자로 넣은 내역은 줄이 없어도 더할 수 있고, 손으로 넣은 내역은 줄이 있을 때만 보인다 */}
           {editing?.items && (items.length > 0 || editing.source !== 'manual') && (
             <div className="field">
@@ -309,6 +415,7 @@ export function EntrySheet({ open, editing, defaultDate, lookup, categories, usa
           )}
         </div>
       </div>
+      {viewing && <PhotoViewer src={viewing.src} label={viewing.label} onClose={() => setViewing(null)} />}
     </Sheet>
   )
 }

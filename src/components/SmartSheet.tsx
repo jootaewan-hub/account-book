@@ -7,6 +7,7 @@ import { fuelDelta, fuelKind } from '../lib/fuel'
 import { compareTrip, GROCERY_CATEGORY_NAMES, isGroceryEntry, type CompareLine, type CompareResult } from '../lib/shopCompare'
 import { cropImage, fileToJpeg, type PreparedImage } from '../lib/image'
 import { blankItem } from '../lib/itemEdit'
+import { receiptFolder, receiptImageIndexes, setReceiptPath, uploadReceiptImages } from '../lib/receiptImages'
 import { SCOPE_LABEL, SCOPES, type Lookup } from '../lib/lookup'
 import {
   analyze, analyzeBill, analyzeImages, BATCH_SIZE, canSplit, entryDrafts, fuelComplete, isProductLine, markRepeats, modelLabel, parseLiters, parsePricePerLiter, saveBatches, saveDraft, SmartError,
@@ -284,12 +285,15 @@ export function SmartSheet({ open, mode, today, householdId, lookup, categories,
     let fuelSaved = 0
     let fuelFailed = false
     const txOf = new Map<string, string>()
+    // 영수증(분석 결과) 번호 → 그 영수증에서 저장한 내역 id들(영수증 사진을 붙일 때, D-053)
+    const txsOfGroup = new Map<number, string[]>()
     try {
       // 한 주문을 나눠 저장하면 같은 묶음 번호를 붙여 나중에 영수증 단위로 지울 수 있게 한다
       const batchOf = saveBatches(chosen)
       for (const d of chosen) {
         const r = await saveDraft(householdId, d, mode === 'text' ? 'text' : 'photo', batchOf.get(d.key) ?? null)
         txOf.set(d.key, r.txId)
+        txsOfGroup.set(groupOf(d), [...(txsOfGroup.get(groupOf(d)) ?? []), r.txId])
         if (r.installment) installments++
         if (r.fuelSaved === true) fuelSaved++
         if (r.fuelSaved === false) fuelFailed = true
@@ -298,6 +302,9 @@ export function SmartSheet({ open, mode, today, householdId, lookup, categories,
       }
       // 지난 날짜에 산 할부면 이미 지난 회차를 바로 넣는다
       if (installments) await generateRecurring(householdId, today).catch(() => 0)
+      // 영수증 사진(D-053): 영수증마다 그 영수증을 읽은 사진(줄인 JPEG)을 첫 내역의 폴더에 올리고, 그 영수증의 내역 모두가 그 폴더를 가리킨다.
+      // 올리기가 실패해도 내역은 그대로 두고 알린다. 쇼핑 캡처·문자는 올리지 않는다
+      const photosFailed = mode === 'photo' ? !(await saveReceiptPhotos(txsOfGroup)) : false
       // 체크한 장보기 품목을 저장한 내역에 연결한다. 실패해도 내역 저장은 되돌리지 않고 알린다
       let linked = 0
       let linkFailed = false
@@ -306,12 +313,29 @@ export function SmartSheet({ open, mode, today, householdId, lookup, categories,
       }
       const parts = [installments ? `${saved}건 저장했어요. 할부 남은 회차는 고정 탭의 할부에 넣었어요` : null,
         linked ? `장보기 품목 ${linked}개를 연결했어요` : null, linkFailed ? '장보기 연결은 하지 못했어요' : null,
-        fuelSaved ? `주유 기록 ${fuelSaved}건을 넣었어요` : null, fuelFailed ? '주유 기록은 저장하지 못했어요' : null].filter(Boolean)
+        fuelSaved ? `주유 기록 ${fuelSaved}건을 넣었어요` : null, fuelFailed ? '주유 기록은 저장하지 못했어요' : null,
+        photosFailed ? '영수증 사진은 저장하지 못했어요' : null].filter(Boolean)
       await onSaved(saved, chosen[chosen.length - 1].date,
         parts.length ? (installments ? parts.join('. ') : [`${saved}건 저장했어요`, ...parts].join('. ')) : undefined)
     } catch (e) {
       setErr(`${saved}건 저장 후 멈췄어요: ${friendlyError(e)}`); setBusy(false)
     }
+  }
+
+  /** 영수증 사진 올리기(D-053). 모두 됐으면 true, 하나라도 못 올렸거나 경로를 못 적었으면 false */
+  async function saveReceiptPhotos(txsOfGroup: Map<number, string[]>): Promise<boolean> {
+    let ok = true
+    for (const [index, ids] of txsOfGroup) {
+      const g = groups.find((x) => x.index === index)
+      const blobs = g ? receiptImageIndexes(g.entry, images.length).map((i) => images[i - 1].blob) : []
+      if (!blobs.length || !ids.length) continue
+      try {
+        const folder = receiptFolder(householdId, ids[0])
+        if (await uploadReceiptImages(folder, blobs)) await setReceiptPath(ids, folder)
+        else ok = false
+      } catch { ok = false }
+    }
+    return ok
   }
 
   const previews = images.length > 0 && (

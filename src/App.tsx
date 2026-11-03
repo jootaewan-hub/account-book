@@ -416,7 +416,7 @@ function Ledger({ household, meta, userId, email }: {
       </nav>
 
       <ErrorBoundary name="기록하기">
-        <EntrySheet open={sheet.open} editing={sheet.editing} defaultDate={sel.startsWith(ym) ? sel : today}
+        <EntrySheet open={sheet.open} editing={sheet.editing} defaultDate={sel.startsWith(ym) ? sel : today} today={today}
           lookup={lookup} categories={activeCats} usage={usage}
           onSave={save} onDelete={remove} onDeleteMany={removeMany} onClose={() => setSheet({ open: false, editing: null })}
           onSmart={(mode) => { setSheet({ open: false, editing: null }); openSmart(mode) }} />

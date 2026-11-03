@@ -39,8 +39,8 @@ export interface PreparedImage {
   preview: string // blob URL
 }
 
-/** 사진 파일 → 줄인 JPEG(base64). 사진의 회전 정보는 브라우저가 반영해서 그린다. */
-export async function fileToJpeg(file: File): Promise<PreparedImage> {
+/** 사진 파일(또는 내려받은 사진 blob) → 줄인 JPEG(base64). 사진의 회전 정보는 브라우저가 반영해서 그린다. */
+export async function fileToJpeg(file: Blob): Promise<PreparedImage> {
   const url = URL.createObjectURL(file)
   try {
     const img = new Image()
