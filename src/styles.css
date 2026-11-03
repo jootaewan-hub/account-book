@@ -13,7 +13,7 @@
   --canvas: #f2f3f5; --oat: #ffffff; --oat-deep: #e6e8eb; --line: #e9ebee;
   --ink: #23272e; --ink-2: #5b636e; --ink-3: #656c76;
   --sage: #56694e; --sage-soft: #e7ece3; --sage-ink: #3f4f39;
-  --blush: #e8c4b8; --blush-soft: #f6e4dd; --rose-ink: #7a3f2e;
+  --blush-soft: #f6e4dd; --rose-ink: #7a3f2e;
   --slate-soft: #e3eaf2; --slate-ink: #1f3f5e; --ochre-soft: #f5ebd6; --ochre-ink: #5c4a1e;
   --clay: #a8543e; --indigo: #3d5a78; --danger: #a8432f;
   --primary: #23272e; --on-primary: #ffffff;
@@ -42,7 +42,7 @@
     --canvas: #17191c; --oat: #212428; --oat-deep: #2d3136; --line: #2a2d32;
     --ink: #eceef1; --ink-2: #a7aeb8; --ink-3: #9aa1ab;
     --sage: #a3b897; --sage-soft: #2b3327; --sage-ink: #c2d3b6;
-    --blush: #7a5146; --blush-soft: #3b2a25; --rose-ink: #f0b8a8;
+    --blush-soft: #3b2a25; --rose-ink: #f0b8a8;
     --slate-soft: #22303f; --slate-ink: #b5cce6; --ochre-soft: #3a3220; --ochre-ink: #e2c77f;
     --clay: #e09479; --indigo: #9db6d6; --danger: #f0937e;
     --primary: #eceef1; --on-primary: #17191c;
@@ -695,7 +695,7 @@ input[type="search"].input { -webkit-appearance: none; appearance: none; }
 .wx-days { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
 .wx-day { background: var(--canvas); border-radius: var(--r-sm); padding: 12px; min-width: 0; }
 .wx-day .k { font-size: 13px; font-weight: 600; color: var(--ink-2); }
-/* 날씨 아이콘(Lucide, CREDITS.md): 요일 줄 오른쪽, 글자(구름많음·비)와 함께 쓴다 */
+/* 날씨 아이콘(Phosphor, CREDITS.md): 요일 줄 오른쪽, 글자(구름많음·비)와 함께 쓴다 */
 .wx-day-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .wx-icon { color: var(--ink-2); flex: none; }
 .wx-icon svg { width: 24px; height: 24px; display: block; }

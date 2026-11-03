@@ -1,10 +1,10 @@
-// Iconify에서 선 아이콘 하나를 가져와 앱 아이콘 컴포넌트로 바꾼다. 규칙은 docs/design-resources.md 5절.
+// Iconify에서 Phosphor 아이콘 하나를 가져와 앱 아이콘 컴포넌트로 바꾼다. 규칙은 docs/design-resources.md 5절.
 //
-//   node scripts/iconify-icon.mjs lucide:piggy-bank              # 컴포넌트를 화면에만 찍는다(파일은 그대로)
-//   node scripts/iconify-icon.mjs tabler:receipt --name BillIcon --write
+//   node scripts/iconify-icon.mjs ph:piggy-bank                  # 컴포넌트를 화면에만 찍는다(파일은 그대로)
+//   node scripts/iconify-icon.mjs ph:receipt --name BillIcon --write
 //
 // --write: src/components/Icons.tsx 끝에 붙이고, CREDITS.md 아이콘 표에 한 줄 더하고,
-//          그 세트의 라이선스 원문이 public/licenses/에 없으면 받아 둔다(MIT·ISC는 저작권 표시를 함께 배포해야 한다).
+//          그 세트의 라이선스 원문이 public/licenses/에 없으면 받아 둔다(MIT는 저작권 표시를 함께 배포해야 한다).
 // 앱은 실행 중에 Iconify를 부르지 않는다. 도형은 코드에 들어가고, 이 스크립트만 개발할 때 api.iconify.design을 부른다.
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
