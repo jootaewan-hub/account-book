@@ -142,7 +142,7 @@ function WeatherCard({ toast }: { toast: (msg: string) => void }) {
             ))}
           </div>
           <p className="explore-src">
-            {w.now ? `기상청 초단기실황 ${whenText(w.now.observedAt)} 관측 · ` : '지금 기온은 받지 못했어요 · '}
+            {w.now ? `기상청 초단기실황 ${whenText(w.now.observedAt)} 관측, ` : '지금 기온은 받지 못했어요. '}
             기상청 단기예보 {whenText(w.issuedAt)} 발표
           </p>
         </>
@@ -263,7 +263,7 @@ function RegionPicker({ region, onChange }: { region: string; onChange: (v: stri
   if (!editing) {
     return (
       <span className="explore-region">
-        {region} 근처 · <button className="link-btn" onClick={() => { setText(region); setEditing(true) }}>동네 바꾸기</button>
+        {region} 근처 <button className="link-btn" onClick={() => { setText(region); setEditing(true) }}>동네 바꾸기</button>
       </span>
     )
   }
@@ -321,7 +321,7 @@ function ShopRow({ item }: { item: ShopItem }) {
     ...(item.soldOut ? ['품절'] : []),
     ...(item.place ? [item.place] : []),
     ...(item.postedAt ? [agoText(item.postedAt)] : []),
-    ...(item.listPrice !== null ? [`정가 ${won(item.listPrice)}${item.discountRate !== null ? ` · ${item.discountRate}% 할인` : ''}`] : []),
+    ...(item.listPrice !== null ? [`정가 ${won(item.listPrice)}${item.discountRate !== null ? `, ${item.discountRate}% 할인` : ''}`] : []),
     ...item.tags.filter((t) => !(t === '나눔' && item.price === null)),
     ...(item.rating !== null ? [`평점 ${item.rating}${item.reviews ? `(${item.reviews})` : ''}`] : item.reviews ? [`후기 ${item.reviews}`] : []),
   ]
@@ -329,7 +329,7 @@ function ShopRow({ item }: { item: ShopItem }) {
     <a className={`tx${item.soldOut ? ' sold-out' : ''}`} href={item.url} target="_blank" rel="noopener noreferrer">
       <span>
         <span className="tx-title explore-name">{item.name}</span>
-        {meta.length > 0 && <span className="tx-meta num">{meta.join(' · ')}</span>}
+        {meta.length > 0 && <span className="tx-meta num">{meta.join(', ')}</span>}
       </span>
       <span className="tx-amt num">{item.price !== null ? won(item.price) : item.tags.includes('나눔') ? '나눔' : '가격 표시 없음'}</span>
     </a>
@@ -352,7 +352,7 @@ function ResultRow({ item, onOpen }: { item: ExploreItem; onOpen: () => void }) 
       {img && <img className="tx-thumb" src={img} alt="" loading="lazy" />}
       <span>
         <span className="tx-title explore-name">{item.name}</span>
-        <span className="tx-meta num">{meta.join(' · ')}</span>
+        <span className="tx-meta num">{meta.join(', ')}</span>
       </span>
       <span className="tx-amt num">{main ? `${main.qty === 1 ? '' : `${main.qty}개 `}${won(main.price)}` : ''}</span>
     </button>
@@ -382,7 +382,7 @@ function OfferSheet({ item, onClose }: { item: ExploreItem | null; onClose: () =
       {state === 'ready' && data && (
         <div className="explore-offers">
           {data.product.rating !== null && (
-            <p className="tx-meta num">평점 {data.product.rating}{data.product.reviewCount !== null ? ` · 후기 ${data.product.reviewCount.toLocaleString('ko-KR')}` : ''} (다나와)</p>
+            <p className="tx-meta num">평점 {data.product.rating}{data.product.reviewCount !== null ? `, 후기 ${data.product.reviewCount.toLocaleString('ko-KR')}` : ''} (다나와)</p>
           )}
           <h3 className="explore-sub">쇼핑몰별 최저가{data.pageQty !== null && data.pageQty > 1 ? ` (${data.pageQty}개 묶음 기준)` : ''}</h3>
           {offers.length === 0

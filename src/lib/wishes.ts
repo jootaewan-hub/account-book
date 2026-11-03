@@ -43,7 +43,7 @@ export function seedFromSearch(item: ExploreItem | ShopItem, source: string, che
     ? item.variants.find((v) => v.qty === 1) ?? [...item.variants].sort((a, b) => a.qty - b.qty)[0]
     : null
   const price = 'pcode' in item ? variant?.price : item.price
-  const note = 'pcode' in item ? `${variant?.qty ?? 1}개 기준 · 검색 표시 가격 · 배송비 확인 필요` : '상품·매물 표시 가격 · 배송비 확인 필요'
+  const note = 'pcode' in item ? `${variant?.qty ?? 1}개 기준, 검색 표시 가격, 배송비 확인 필요` : '상품·매물 표시 가격, 배송비 확인 필요'
   return {
     title: item.name.slice(0, 200),
     url: 'pcode' in item ? `https://prod.danawa.com/info/?pcode=${encodeURIComponent(item.pcode)}` : wishUrl(item.url),

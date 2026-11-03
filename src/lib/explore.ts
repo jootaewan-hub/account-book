@@ -137,10 +137,10 @@ export function sortOffers(offers: Quote[]): Quote[] {
   return [...offers].sort((a, b) => (offerTotal(a) ?? a.price) - (offerTotal(b) ?? b.price) || a.price - b.price)
 }
 
-/** 상품 줄의 가격 요약: "1개 10,380원 · 100g당 989원 · 판매처 33곳" */
+/** 상품 줄의 가격 요약: "1개 10,380원, 100g당 989원, 판매처 33곳" */
 export function variantText(v: { qty: number; price: number; unitPrice: number | null; unitLabel: string | null; mallCount: number | null }): string {
   const parts = [`${v.qty}개 ${won(v.price)}`]
   if (v.unitPrice !== null && v.unitLabel) parts.push(`${v.unitLabel}당 ${won(v.unitPrice)}`)
   if (v.mallCount !== null) parts.push(`판매처 ${v.mallCount}곳`)
-  return parts.join(' · ')
+  return parts.join(', ')
 }

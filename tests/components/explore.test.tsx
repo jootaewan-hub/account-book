@@ -155,7 +155,7 @@ describe('알아보기 탭', () => {
     fireEvent.click(screen.getByRole('button', { name: '찾기' }))
     expect(await screen.findByText('CJ제일제당 비비고 왕교자 1.05kg')).toBeTruthy()
     expect(calls.find((c) => c.name === 'explore-price')?.body).toEqual({ query: '비비고 왕교자' })
-    expect(screen.getByText('100g당 989원 · 판매처 33곳 · 2개 19,250원 · 평점 4.8(9,217)')).toBeTruthy()
+    expect(screen.getByText('100g당 989원, 판매처 33곳, 2개 19,250원, 평점 4.8(9,217)')).toBeTruthy()
     expect(screen.getByText('10,380원')).toBeTruthy()
     // 콘텐츠 보안 정책 밖 이미지 호스트는 그리지 않는다
     expect(document.querySelector('img.tx-thumb')).toBeNull()
@@ -180,7 +180,7 @@ describe('알아보기 탭', () => {
     ])
     const kurly = screen.getByText('[비비고] 왕교자 만두 대용량 1.05kg').closest('a')
     expect(kurly?.getAttribute('href')).toBe('https://www.kurly.com/goods/5082274')
-    expect(kurly?.textContent).toContain('정가 11,480원 · 8% 할인 · 샛별배송 · 후기 9,999+')
+    expect(kurly?.textContent).toContain('정가 11,480원, 8% 할인, 샛별배송, 후기 9,999+')
     expect(kurly?.textContent).toContain('10,480원')
     expect(screen.getByText(/마켓컬리 검색 “비비고 왕교자”, 오늘 \d\d:\d\d 확인/)).toBeTruthy()
     // 다이소는 7개 중 앞 5개, 품절 표시, 더 보기
@@ -197,7 +197,7 @@ describe('알아보기 탭', () => {
     fireEvent.click(screen.getByRole('button', { name: '찾기' }))
     expect(await screen.findByText('왕교자 미개봉 2봉')).toBeTruthy()
     expect(screen.getByText('중고 매물')).toBeTruthy()
-    expect(screen.getByText('왕교자 미개봉 2봉').closest('a')?.textContent).toContain('수진동 · 3시간 전 · 예약 중')
+    expect(screen.getByText('왕교자 미개봉 2봉').closest('a')?.textContent).toContain('수진동, 3시간 전, 예약 중')
     expect(screen.getByText(/당근 검색 “비비고 왕교자”\(경기도 성남시 여수동 기준\)/)).toBeTruthy()
     const before = calls.length
     fireEvent.click(screen.getByRole('button', { name: '동네 바꾸기' }))

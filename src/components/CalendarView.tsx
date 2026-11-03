@@ -193,7 +193,7 @@ export function CalendarView({ ym, today, sel, cur, prev, loading = false, looku
               {dayAnniv.map((a) => (
                 <button key={a.id} className={`anniv-row k-${a.kind}`} onClick={() => onPlan({ kind: 'anniv', anniv: a })}>
                   <AnnivIcon kind={a.kind} /><b>{a.name}</b>
-                  <span>{[a.category, a.repeat_unit === 'month' || a.repeat_every > 1 ? repeatLabel(a) : null, a.lunar ? `음력 ${a.month}월 ${a.day}일` : null].filter(Boolean).join(' · ')}</span>
+                  <span>{[a.category, a.repeat_unit === 'month' || a.repeat_every > 1 ? repeatLabel(a) : null, a.lunar ? `음력 ${a.month}월 ${a.day}일` : null].filter(Boolean).join(', ')}</span>
                 </button>
               ))}
               {dayEvents.map((e) => {

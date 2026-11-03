@@ -38,7 +38,7 @@ export function AnniversaryCard({ householdId, annivs, today, onChanged, toast }
   const row = (a: Anniversary, date: string | null, days: number | null) => edit === a.id ? <div key={a.id}>{form(a)}</div> : (
     <button key={a.id} className="rc-row anniv-item" onClick={() => setEdit(a.id)}>
       <span className={`anniv-ic k-${a.kind}`}><AnnivIcon kind={a.kind} /></span>
-      <span className="rc-main"><b>{a.name}</b><span>{a.category ? `${a.category} · ` : ''}{annivDateLabel(a)}{a.lunar && date ? `, 양력 ${solarLabel(date)}` : ''}</span></span>
+      <span className="rc-main"><b>{a.name}</b><span>{a.category ? `${a.category}, ` : ''}{annivDateLabel(a)}{a.lunar && date ? `, 양력 ${solarLabel(date)}` : ''}</span></span>
       <span className="rc-side num">{days === null ? '' : dLabel(days)}</span>
     </button>
   )

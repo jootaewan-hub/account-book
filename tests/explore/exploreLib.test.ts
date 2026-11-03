@@ -30,7 +30,7 @@ describe('글자', () => {
     expect(failText('air', 'error')).toBe('에어코리아 미세먼지를 받지 못했어요')
   })
   it('수량별 최저가 줄', () => {
-    expect(variantText({ qty: 2, price: 19250, unitPrice: 917, unitLabel: '100g', mallCount: 132 })).toBe('2개 19,250원 · 100g당 917원 · 판매처 132곳')
+    expect(variantText({ qty: 2, price: 19250, unitPrice: 917, unitLabel: '100g', mallCount: 132 })).toBe('2개 19,250원, 100g당 917원, 판매처 132곳')
     expect(variantText({ qty: 1, price: 900, unitPrice: null, unitLabel: null, mallCount: null })).toBe('1개 900원')
   })
 })
