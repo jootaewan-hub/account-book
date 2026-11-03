@@ -363,6 +363,11 @@ select.input { padding: 9px 10px; }
 /* width: max-content가 없으면 left: 50%인 고정 상자는 화면 너비의 절반에서 줄을 바꾼다 */
 .toast { white-space: normal; text-overflow: clip; text-align: center; width: max-content; max-width: min(calc(100vw - 32px), 420px); }
 .toast:not(.on) { pointer-events: none; }
+/* 저장·삭제를 마친 알림: 토스트가 올라온 뒤 체크를 150ms 늦게 300ms 동안 그린다(체크 선 길이 약 18.4 < 20) */
+.toast-check { display: inline-block; vertical-align: -3px; margin-right: 6px; }
+.toast-check svg { width: 18px; height: 18px; display: block; stroke-width: 2.4; }
+.toast-check path { stroke-dasharray: 20; stroke-dashoffset: 20; }
+.toast.on .toast-check path { stroke-dashoffset: 0; transition: stroke-dashoffset 300ms var(--ease-out) 150ms; }
 
 /* iOS Safari의 날짜 입력은 고유 최소 너비가 있어 옆 칸을 침범한다. 너비를 칸에 맞춘다. */
 .date-input { -webkit-appearance: none; appearance: none; display: block; min-width: 0; max-width: 100%; min-height: 46px; text-align: left; }
@@ -549,7 +554,8 @@ input[type="search"].input { -webkit-appearance: none; appearance: none; }
 .smart-previews { display: flex; gap: 8px; overflow-x: auto; padding-top: 8px; }
 .smart-previews img { height: 120px; border-radius: 10px; flex: none; display: block; }
 .pv { position: relative; flex: none; }
-.pv-x { position: absolute; top: -6px; right: -6px; width: 28px; height: 28px; border-radius: 50%; border: 2px solid var(--canvas); background: var(--primary); color: var(--on-primary); font-size: 16px; line-height: 1; padding: 0; }
+.pv-x { position: absolute; top: -6px; right: -6px; width: 28px; height: 28px; border-radius: 50%; border: 2px solid var(--canvas); background: var(--primary); color: var(--on-primary); font-size: 16px; line-height: 1; padding: 0; display: grid; place-items: center; }
+.pv-x svg { width: 14px; height: 14px; }
 .draft-group { display: flex; flex-direction: column; gap: 10px; }
 /* 영수증·주문 확인 화면의 장보기 품목 연결(D-011) */
 .grocery-match { display: flex; flex-direction: column; gap: 10px; margin-top: 12px; }
@@ -584,7 +590,8 @@ input[type="search"].input { -webkit-appearance: none; appearance: none; }
 .release-older[open] { display: flex; flex-direction: column; gap: 12px; }
 .release-older .release { padding-top: 12px; border-top: 1px solid var(--oat-deep); }
 .thumb-btn { position: relative; border: 0; padding: 0; background: none; width: 44px; height: 44px; }
-.thumb-x { position: absolute; top: -4px; right: -4px; width: 18px; height: 18px; border-radius: 50%; background: var(--primary); color: var(--on-primary); font-size: 12px; line-height: 18px; text-align: center; }
+.thumb-x { position: absolute; top: -4px; right: -4px; width: 18px; height: 18px; border-radius: 50%; background: var(--primary); color: var(--on-primary); display: grid; place-items: center; }
+.thumb-x svg { width: 10px; height: 10px; stroke-width: 2.6; }
 
 /* 관리비 비교표 */
 .bill-table { display: flex; flex-direction: column; font-size: 14px; margin-top: 4px; }
@@ -682,6 +689,10 @@ input[type="search"].input { -webkit-appearance: none; appearance: none; }
 .wx-days { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
 .wx-day { background: var(--canvas); border-radius: var(--r-sm); padding: 12px; min-width: 0; }
 .wx-day .k { font-size: 13px; font-weight: 600; color: var(--ink-2); }
+/* 날씨 아이콘(Lucide, CREDITS.md): 요일 줄 오른쪽, 글자(구름많음·비)와 함께 쓴다 */
+.wx-day-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.wx-icon { color: var(--ink-2); flex: none; }
+.wx-icon svg { width: 24px; height: 24px; display: block; }
 .wx-day .v { font-size: 18px; font-weight: 700; margin-top: 2px; }
 .wx-day-meta { font-size: 13px; font-weight: 500; color: var(--ink-2); margin-top: 4px; }
 .wx-day-meta + .wx-day-meta { margin-top: 0; }
@@ -787,6 +798,7 @@ input[type="search"].input { -webkit-appearance: none; appearance: none; }
   .seg:where(:not(.grocery *))::before, .spend-bar > i { transition: none; }
   .toast { transform: translate(-50%, 0); filter: none; transition: opacity 200ms ease; }
   .toast.on { transform: translate(-50%, 0); }
+  .toast-check path, .toast.on .toast-check path { stroke-dashoffset: 0; transition: none; }
   .soft > span { transition: opacity 150ms ease; filter: none !important; }
   .shimmer { animation: none; color: var(--ink-2); background: none; }
   .wait-bar { animation: wait-in var(--dur-quick) linear 200ms both; background: var(--oat-deep); }

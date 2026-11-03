@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { CheckIcon } from './Icons'
 
 /** 값이 바뀌면 제자리에서 흐림 교차로 바꿔 끼운다 (transitions.dev text-swap-soft). 위치는 움직이지 않는다. */
 export function Soft({ value, className }: { value: string; className?: string }) {
@@ -27,22 +28,27 @@ export function Soft({ value, className }: { value: string; className?: string }
   )
 }
 
-/** 아래에서 올라오는 알림. 올라올 때 350ms, 사라질 때 250ms. */
-export function Toast({ msg }: { msg: string }) {
-  const [text, setText] = useState('')
+/** 아래에서 올라오는 알림. 올라올 때 350ms, 사라질 때 250ms. done(저장·삭제를 마침)이면 글 앞 체크가 올라온 뒤 그려진다. */
+export function Toast({ msg, done = false }: { msg: string; done?: boolean }) {
+  const [shown, setShown] = useState({ text: '', done: false })
   const [on, setOn] = useState(false)
   useEffect(() => {
     if (msg) {
-      setText(msg)
+      setShown({ text: msg, done })
       const r = requestAnimationFrame(() => requestAnimationFrame(() => setOn(true)))
       return () => cancelAnimationFrame(r)
     }
     setOn(false)
-    const t = window.setTimeout(() => setText(''), 300)
+    const t = window.setTimeout(() => setShown({ text: '', done: false }), 300)
     return () => window.clearTimeout(t)
-  }, [msg])
+  }, [msg, done])
   // live region은 늘 그려 두고 글만 바꾼다. 글과 함께 나타나면 보조기기가 읽지 않는다
-  return <div className={`toast${on ? ' on' : ''}`} role="status" aria-live="polite">{text}</div>
+  return (
+    <div className={`toast${on ? ' on' : ''}`} role="status" aria-live="polite">
+      {shown.text && shown.done && <span className="toast-check" aria-hidden="true"><CheckIcon /></span>}
+      {shown.text}
+    </div>
+  )
 }
 
 const reduceMotion = () => typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches
@@ -62,5 +68,28 @@ export function useSlideIn<T extends HTMLElement>(key: string) {
       : [{ opacity: 0, transform: `translateX(${8 * dir}px)`, filter: 'blur(3px)' }, { opacity: 1, transform: 'translateX(0)', filter: 'blur(0)' }]
     el.animate(frames, { duration: 250, easing: 'cubic-bezier(0.22, 1, 0.36, 1)' })
   }, [key])
+  return ref
+}
+
+/**
+ * 기다리던 결과가 도착한 그때 한 번, 줄마다 40ms씩 늦게 흐림 4px→0과 투명도로 들어온다(400ms, 앞 8줄까지).
+ * Magic UI BlurFade(MIT, CREDITS.md)를 옮겼다: 위로 떠오르지 않고(DESIGN.md Motion "하지 않는 것"),
+ * 처음부터 준비돼 있던 내용(탭 전환·같은 날 캐시)과 "더 보기"로 늘어난 줄은 움직이지 않는다. 동작 줄이기면 투명도만.
+ */
+export function useArrival<T extends HTMLElement>(ready: boolean) {
+  const ref = useRef<T>(null)
+  const was = useRef(ready)
+  useLayoutEffect(() => {
+    if (was.current === ready) return
+    was.current = ready
+    const el = ref.current
+    if (!ready || !el) return
+    const frames = reduceMotion()
+      ? [{ opacity: 0 }, { opacity: 1 }]
+      : [{ opacity: 0, filter: 'blur(4px)' }, { opacity: 1, filter: 'blur(0)' }]
+    Array.from(el.children).slice(0, 8).forEach((row, i) => {
+      row.animate?.(frames, { duration: 400, delay: 40 + i * 40, easing: 'cubic-bezier(0.23, 1, 0.32, 1)', fill: 'backwards' })
+    })
+  }, [ready])
   return ref
 }

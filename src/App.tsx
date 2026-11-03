@@ -145,6 +145,7 @@ function Ledger({ household, meta, userId, email }: {
   // 관리비 고지서를 저장하면 통계 탭의 관리비 분석을 다시 불러온다
   const [billsVersion, setBillsVersion] = useState(0)
   const [toastMsg, setToastMsg] = useState('')
+  const [toastDone, setToastDone] = useState(false)
   // 통계에서 분류·플랫폼을 눌러 내역 탭으로 넘어올 때의 조건
   const [listFocus, setListFocus] = useState<ListFocus | null>(null)
   // 내역 탭에서 지울 내역을 고르는 중이면 기록하기 둥근 버튼을 숨긴다(고른 내역 줄이 그 자리에 뜬다)
@@ -184,9 +185,11 @@ function Ledger({ household, meta, userId, email }: {
 
   // 같은 문장이 연달아 와도 앞 토스트의 타이머가 뒤 토스트를 지우지 않도록 번호를 매긴다
   const toastSeq = useRef(0)
-  const toast = useCallback((msg: string) => {
+  // done: 저장·삭제를 마친 알림이면 글 앞에 체크를 그린다(DESIGN.md Motion)
+  const toast = useCallback((msg: string, done = false) => {
     const id = ++toastSeq.current
     setToastMsg(msg)
+    setToastDone(done)
     window.setTimeout(() => { if (toastSeq.current === id) setToastMsg('') }, 2400)
   }, [])
 
@@ -236,7 +239,7 @@ function Ledger({ household, meta, userId, email }: {
     setYm(input.occurred_on.slice(0, 7))
     setSel(input.occurred_on)
     await reload()
-    toast(id ? '수정했어요' : split ? '저장했어요. 할부 남은 회차는 고정 탭의 할부에 넣었어요' : '저장했어요')
+    toast(id ? '수정했어요' : split ? '저장했어요. 할부 남은 회차는 고정 탭의 할부에 넣었어요' : '저장했어요', true)
   }
 
   // 새 버전을 이 기기에서 처음 열면 한 번 알린다(바뀐 점은 설정 > 앱의 업데이트 내역)
@@ -251,14 +254,14 @@ function Ledger({ household, meta, userId, email }: {
     setSel(lastDate)
     await reload()
     setBillsVersion((v) => v + 1)
-    toast(msg ?? `${count}건 저장했어요`)
+    toast(msg ?? `${count}건 저장했어요`, true)
   }
 
   async function toggleNotePin(n: Note) {
     try {
       await noteStore.setPinned(n.id, !n.pinned)
       await notes.reload()
-      toast(n.pinned ? '고정을 풀었어요' : '맨 위에 고정했어요')
+      toast(n.pinned ? '고정을 풀었어요' : '맨 위에 고정했어요', true)
     } catch (e) { toast(friendlyError(e)) }
   }
 
@@ -266,7 +269,7 @@ function Ledger({ household, meta, userId, email }: {
     await deleteTransaction(id)
     setSheet({ open: false, editing: null })
     await reload()
-    toast('삭제했어요')
+    toast('삭제했어요', true)
   }
 
   // 여러 건 지우기(D-027): 내역 탭 고르기, 같은 영수증 묶음. 중간에 멈춰도 목록은 새로 읽는다
@@ -275,7 +278,7 @@ function Ledger({ household, meta, userId, email }: {
     try { n = await deleteTransactions(ids) } catch (e) { await reload(); throw e }
     setSheet({ open: false, editing: null })
     await reload()
-    toast(n === ids.length ? `${n}건 삭제했어요` : `${ids.length}건 중 ${n}건을 지웠어요`)
+    toast(n === ids.length ? `${n}건 삭제했어요` : `${ids.length}건 중 ${n}건을 지웠어요`, n === ids.length)
   }
 
   const { y, m } = parseYM(ym)
@@ -458,7 +461,7 @@ function Ledger({ household, meta, userId, email }: {
         </Suspense>
       </ErrorBoundary>}
 
-      <Toast msg={toastMsg} />
+      <Toast msg={toastMsg} done={toastDone} />
     </div>
   )
 }

@@ -198,8 +198,8 @@ const shellShots = [
   ...each((w, c) => ({ name: `shell-settings-release-${w}-${c}`, path: '/', w, c, shell: true, tab: '설정', releaseOpen: true })),
   ...both(390, (w, c) => ({ name: `shell-new-release-${w}-${c}`, path: '/', w, c, shell: true, tab: '내역', newRelease: true })),
   // 알림(토스트): 짧은 문장과 줄이 바뀌는 긴 문장. 저장 흐름 없이 알림 칸에 글만 넣어 모양을 본다
-  ...each((w, c) => ({ name: `shell-toast-short-${w}-${c}`, path: '/', w, c, shell: true, tab: '내역', toast: '저장했어요' })),
-  ...each((w, c) => ({ name: `shell-toast-long-${w}-${c}`, path: '/', w, c, shell: true, tab: '내역', toast: '저장했어요. 할부 남은 회차는 고정 탭의 할부에 넣었어요. 장보기 연결은 하지 못했어요' })),
+  ...each((w, c) => ({ name: `shell-toast-short-${w}-${c}`, path: '/', w, c, shell: true, tab: '내역', toast: '저장했어요', toastDone: true })),
+  ...each((w, c) => ({ name: `shell-toast-long-${w}-${c}`, path: '/', w, c, shell: true, tab: '내역', toast: '저장했어요. 할부 남은 회차는 고정 탭의 할부에 넣었어요. 장보기 연결은 하지 못했어요', toastDone: true })),
   // 이번 장보기 살펴보기(설계 2026-10-21): 지난 장보기 대비, 비싸진·싸진 것, 최근에 또 산 것, 목록에 없던 것. 가짜 과거 영수증 두 번
   ...each((w, c) => ({ name: `shell-smart-compare-${w}-${c}`, path: '/', w, c, shell: true, tab: '내역', receipt: true, compare: true })),
   // 통계 탭 주유 묶음(설계 2026-10-21): 리터당 가격·지난번 대비·추이 그래프·달별. 가짜 주유 기록 3건
@@ -501,12 +501,14 @@ try {
       }
     }
     if (s.toast) {
-      await page.evaluate((text) => {
+      await page.evaluate(([text, done]) => {
         const t = document.querySelector('.toast')
         if (!t) throw new Error('알림 칸이 없다')
         t.textContent = text
+        // 저장·삭제를 마친 알림(D-047): Motion.tsx Toast가 그리는 체크와 같은 모양(Lucide check)
+        if (done) t.insertAdjacentHTML('afterbegin', '<span class="toast-check" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75"><path d="M20 6L9 17l-5-5"/></svg></span>')
         t.classList.add('on')
-      }, s.toast)
+      }, [s.toast, s.toastDone ?? false])
     }
     if (s.bill) {
       await page.locator('.fab, .side-record').locator('visible=true').first().click()

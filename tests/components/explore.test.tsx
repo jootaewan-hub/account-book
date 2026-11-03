@@ -17,7 +17,7 @@ vi.mock('../../src/lib/supabase', () => ({
   }),
 }))
 
-const { clearWeatherCache, ExploreView } = await import('../../src/components/ExploreView')
+const { clearWeatherCache, ExploreView, weatherIcon } = await import('../../src/components/ExploreView')
 
 const WEATHER = {
   lat: 37.42, lng: 127.13,
@@ -93,6 +93,53 @@ describe('알아보기 탭', () => {
     expect(screen.getByText('등급 없음')).toBeTruthy()
     expect(screen.getByText(/에어코리아 정자동 측정소\(약 1.4km\)/)).toBeTruthy()
     expect(calls[0]).toEqual({ name: 'explore-weather', body: { lat: 37.42, lng: 127.13 } })
+  })
+
+  it('날씨 칸에는 하늘·강수 글자 옆에 아이콘을 붙이고, 읽기는 글자가 맡는다(아이콘은 aria-hidden)', async () => {
+    render(<ExploreView toast={() => {}} />)
+    expect(await screen.findByText('구름많음')).toBeTruthy()
+    const icon = document.querySelector('.wx-day .wx-icon')
+    expect(icon?.getAttribute('data-icon')).toBe('cloud-sun')
+    expect(icon?.getAttribute('aria-hidden')).toBe('true')
+    expect(icon?.querySelector('svg')).toBeTruthy()
+  })
+
+  it('날씨 아이콘: 강수가 있으면 강수를 먼저, 눈이 섞이면 눈, 모르는 값이면 그리지 않는다', () => {
+    expect(weatherIcon('맑음', '없음')).toBe('sun')
+    expect(weatherIcon('구름많음', null)).toBe('cloud-sun')
+    expect(weatherIcon('흐림', '없음')).toBe('cloud')
+    expect(weatherIcon('흐림', '비')).toBe('rain')
+    expect(weatherIcon('맑음', '소나기')).toBe('rain')
+    expect(weatherIcon('흐림', '빗방울')).toBe('drizzle')
+    expect(weatherIcon('흐림', '비/눈')).toBe('snow')
+    expect(weatherIcon(null, '빗방울눈날림')).toBe('snow')
+    expect(weatherIcon(null, null)).toBeNull()
+    expect(weatherIcon('황사', '없음')).toBeNull()
+  })
+
+  it('검색 결과가 도착한 그때 줄마다 늦게 흐림·투명도로 들어오고(위로 떠오르지 않음), 더 보기로 늘어난 줄은 움직이지 않는다', async () => {
+    const animate = vi.fn()
+    Object.defineProperty(Element.prototype, 'animate', { value: animate, configurable: true })
+    try {
+      render(<ExploreView toast={() => {}} />)
+      fireEvent.change(screen.getByRole('textbox', { name: '상품 이름' }), { target: { value: '비비고 왕교자' } })
+      fireEvent.click(screen.getByRole('button', { name: '찾기' }))
+      expect(await screen.findByText('CJ제일제당 비비고 왕교자 1.05kg')).toBeTruthy()
+      await screen.findByText('[비비고] 왕교자 만두 대용량 1.05kg')
+      const more = await screen.findByRole('button', { name: '2개 더 보기' }) // 다이소 7개 중 앞 5개
+      const rows = animate.mock.calls.filter((_, i) => animate.mock.contexts[i] instanceof HTMLElement && (animate.mock.contexts[i] as HTMLElement).classList.contains('explore-result'))
+      expect(rows.length).toBeGreaterThan(0)
+      const [frames, opts] = rows[0]
+      expect(frames).toEqual([{ opacity: 0, filter: 'blur(4px)' }, { opacity: 1, filter: 'blur(0)' }])
+      expect(JSON.stringify(frames)).not.toContain('translate')
+      expect(opts).toMatchObject({ duration: 400, delay: 40, fill: 'backwards' })
+      const before = animate.mock.calls.length
+      fireEvent.click(more)
+      expect(screen.getByRole('button', { name: '접기' })).toBeTruthy()
+      expect(animate.mock.calls.length).toBe(before)
+    } finally {
+      delete (Element.prototype as { animate?: unknown }).animate
+    }
   })
 
   it('활용신청 전이면 그 사실을 적는다', async () => {

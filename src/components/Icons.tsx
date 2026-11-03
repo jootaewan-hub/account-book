@@ -51,3 +51,31 @@ export const AnnivIcon = ({ kind }: { kind: AnnivKind }) => (
 export const NoteIcon = () => (
   <svg {...base} strokeWidth={1.8}><path d="M5.5 3.5h13v11l-6 6h-7z" /><path d="M12.5 20.5v-6h6" /><path d="M8.5 8h7M8.5 11.5h4" /></svg>
 )
+/** Lucide check (ISC, Iconify에서 가져옴, 출처는 CREDITS.md) */
+export const CheckIcon = () => (
+  <svg {...base} strokeWidth={1.75}><path d="M20 6L9 17l-5-5" /></svg>
+)
+/** Lucide sun (ISC, Iconify에서 가져옴, 출처는 CREDITS.md) */
+export const SunIcon = () => (
+  <svg {...base} strokeWidth={1.75}><circle cx="12" cy="12" r="4" /><path d="M12 2v2m0 16v2M4.93 4.93l1.41 1.41m11.32 11.32l1.41 1.41M2 12h2m16 0h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41" /></svg>
+)
+/** Lucide cloud-sun (ISC, Iconify에서 가져옴, 출처는 CREDITS.md) */
+export const CloudSunIcon = () => (
+  <svg {...base} strokeWidth={1.75}><path d="M12 2v2m-7.07.93l1.41 1.41M20 12h2m-2.93-7.07l-1.41 1.41m-1.713 6.31a4 4 0 0 0-5.925-4.128M13 22H7a5 5 0 1 1 4.9-6H13a3 3 0 0 1 0 6" /></svg>
+)
+/** Lucide cloud (ISC, Iconify에서 가져옴, 출처는 CREDITS.md) */
+export const CloudIcon = () => (
+  <svg {...base} strokeWidth={1.75}><path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9" /></svg>
+)
+/** Lucide cloud-rain (ISC, Iconify에서 가져옴, 출처는 CREDITS.md) */
+export const CloudRainIcon = () => (
+  <svg {...base} strokeWidth={1.75}><path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242M16 14v6m-8-6v6m4-4v6" /></svg>
+)
+/** Lucide cloud-drizzle (ISC, Iconify에서 가져옴, 출처는 CREDITS.md) */
+export const CloudDrizzleIcon = () => (
+  <svg {...base} strokeWidth={1.75}><path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242M8 19v1m0-6v1m8 4v1m0-6v1m-4 6v1m0-6v1" /></svg>
+)
+/** Lucide cloud-snow (ISC, Iconify에서 가져옴, 출처는 CREDITS.md) */
+export const CloudSnowIcon = () => (
+  <svg {...base} strokeWidth={1.75}><path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242M8 15h.01M8 19h.01M12 17h.01M12 21h.01M16 15h.01M16 19h.01" /></svg>
+)

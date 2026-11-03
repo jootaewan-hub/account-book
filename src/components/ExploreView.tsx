@@ -7,10 +7,35 @@ import {
 } from '../lib/explore'
 import { sb } from '../lib/supabase'
 import { Sheet } from './Sheet'
+import { CloudDrizzleIcon, CloudIcon, CloudRainIcon, CloudSnowIcon, CloudSunIcon, SunIcon } from './Icons'
+import { useArrival } from './Motion'
 import { seedFromSearch, type WishSeed } from '../lib/wishes'
 
 // 같은 위치는 10분 동안 다시 받지 않는다(탭을 오가도 기상청을 다시 부르지 않게)
 const WEATHER_TTL = 10 * 60_000
+
+/** 기상청 강수형태·하늘상태 글자 → 날씨 아이콘 이름(글자 옆에 덧붙이는 그림, 읽기는 글자가 맡는다). 강수가 있으면 강수가 먼저 */
+export function weatherIcon(sky: string | null, precip: string | null) {
+  if (precip && precip !== '없음') {
+    if (precip.includes('눈')) return 'snow'
+    if (precip === '빗방울') return 'drizzle'
+    return 'rain'
+  }
+  if (sky === '맑음') return 'sun'
+  if (sky === '구름많음') return 'cloud-sun'
+  if (sky === '흐림') return 'cloud'
+  return null
+}
+
+const WX_ICONS = {
+  snow: <CloudSnowIcon />, drizzle: <CloudDrizzleIcon />, rain: <CloudRainIcon />, sun: <SunIcon />, 'cloud-sun': <CloudSunIcon />, cloud: <CloudIcon />,
+}
+
+function WeatherGlyph({ sky, precip }: { sky: string | null; precip: string | null }) {
+  const name = weatherIcon(sky, precip)
+  return name ? <span className="wx-icon" aria-hidden="true" data-icon={name}>{WX_ICONS[name]}</span> : null
+}
+
 const weatherCache = new Map<string, { at: number; data: WeatherResult }>()
 /** 시험이 장면마다 비운다 */
 export const clearWeatherCache = () => weatherCache.clear()
@@ -110,7 +135,7 @@ function WeatherCard({ toast }: { toast: (msg: string) => void }) {
           <div className="wx-days">
             {w.days.map((d) => (
               <div key={d.date} className="wx-day">
-                <div className="k">{dayName(d.date)}</div>
+                <div className="wx-day-head"><div className="k">{dayName(d.date)}</div><WeatherGlyph sky={d.sky} precip={d.precip} /></div>
                 <div className="v num">{degree(d.min)} / {degree(d.max)}</div>
                 <div className="wx-day-meta">{d.sky ?? '하늘 확인 못 함'}{d.precip && d.precip !== '없음' ? `, ${d.precip}` : ''}</div>
                 <div className="wx-day-meta num">강수확률 {d.rainChance === null ? '확인 못 함' : `${d.rainChance}%`}</div>
@@ -257,6 +282,7 @@ function SourceBlock({ label, searchingText, st, onOpen, onKeep, extra }: {
   onKeep?: (seed: WishSeed) => void
 }) {
   const [all, setAll] = useState(false)
+  const listRef = useArrival<HTMLDivElement>(st?.state === 'done')
   if (!st) return null
   const r = st.state === 'done' ? st.result : null
   const items: (ExploreItem | ShopItem)[] = r ? r.items : []
@@ -273,7 +299,7 @@ function SourceBlock({ label, searchingText, st, onOpen, onKeep, extra }: {
           {items.length === 0
             ? <p className="empty">찾은 상품이 없어요</p>
             : (
-              <div className="explore-list">
+              <div className="explore-list" ref={listRef}>
                 {shown.map((it) => <div key={'pcode' in it ? it.pcode : it.id} className="explore-result">
                   {'pcode' in it ? <ResultRow item={it} onOpen={() => onOpen(it)} /> : <ShopRow item={it} />}
                   {onKeep && <button className="link-btn explore-keep" aria-label={`${it.name} 보관하기`}

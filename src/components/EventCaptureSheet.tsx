@@ -6,6 +6,7 @@ import { fileToJpeg, type PreparedImage } from '../lib/image'
 import { modelLabel, SmartError } from '../lib/smart'
 import type { EventInput } from '../lib/types'
 import { EventScopeSeg } from './EventScope'
+import { Close } from './Icons'
 import { PlaceFields } from './PlaceFields'
 import { Sheet } from './Sheet'
 
@@ -218,7 +219,7 @@ export function EventCaptureSheet({ open, today, householdId, onSaved, onManual,
               {images.map((im, i) => (
                 <div key={im.preview} className="pv">
                   <img src={im.preview} alt={`고른 캡처 ${i + 1}`} />
-                  <button className="pv-x" onClick={() => removeImage(i)} aria-label={`캡처 ${i + 1} 빼기`}>×</button>
+                  <button className="pv-x" onClick={() => removeImage(i)} aria-label={`캡처 ${i + 1} 빼기`}><Close /></button>
                 </div>
               ))}
             </div>
