@@ -534,6 +534,21 @@ input[type="search"].input { -webkit-appearance: none; appearance: none; }
 .cat-bar i { display: block; height: 100%; background: var(--sage); border-radius: 0 5px 5px 0; }
 .cat-bar i.other { background: var(--ink-3); }
 
+/* 통계 그래프의 움직임(D-050 보충): 그래프가 처음 그려질 때(통계 탭을 열 때, 다른 달 내용이 도착한 때) 막대가 0에서 제 길이로 위에서부터 차례로 자란다(500ms, 줄마다 30ms 늦게).
+   보고 있는 동안 값이 바뀌면 길이만 250ms에 옮겨 간다. 여섯 달 추이는 분류를 펼친 때(눌러서 연 것에 답함), 12개월·관리비·주유는 그 그래프가 도착한 때.
+   숫자는 어디서도 움직이지 않는다(DESIGN.md Motion "하지 않는 것"). --i는 줄 번호(StatsView nth) */
+@keyframes bar-grow-x { from { width: 0; } }
+@keyframes bar-grow-y { from { height: 0; } }
+@keyframes bar-rise { from { transform: scaleY(0); } }
+@keyframes line-draw { from { stroke-dashoffset: 1; } }
+.cat-bar i { transition: width var(--dur-quick) var(--ease-smooth); }
+.cat-bar i { animation: bar-grow-x 500ms var(--ease-out) backwards; animation-delay: calc(var(--i, 0) * 30ms); }
+.trend-bar i, .bt-bar i { animation: bar-grow-y 400ms var(--ease-out) backwards; animation-delay: calc(var(--i, 0) * 40ms); }
+.month-chart .b { transform-box: fill-box; transform-origin: bottom; animation: bar-rise 500ms var(--ease-out) backwards; animation-delay: calc(var(--i, 0) * 25ms); transition: opacity var(--dur-swap) var(--ease-out); }
+.fuel-chart .line { stroke-dasharray: 1; animation: line-draw 600ms var(--ease-out) both; }
+.fuel-chart .dot { animation: wait-in 200ms var(--ease-out) 450ms backwards; }
+.table-view tbody tr { animation: wait-in 250ms var(--ease-out) backwards; animation-delay: calc(var(--i, 0) * 20ms); }
+
 /* 내보내기 */
 .formula { font-family: var(--font-mono); font-size: 12px; word-break: break-all; background: var(--canvas); border-radius: var(--r-sm); padding: 10px; user-select: all; -webkit-user-select: all; }
 .steps { margin: 6px 0 0; padding-left: 18px; font-size: 14px; color: var(--ink-2); }
@@ -808,6 +823,7 @@ input[type="search"].input { -webkit-appearance: none; appearance: none; }
   .shimmer { animation: none; color: var(--ink-2); background: none; }
   .wait-bar { animation: wait-in var(--dur-quick) linear 200ms both; background: var(--oat-deep); }
   .wait-done { animation: wait-in var(--dur-sheet) linear; }
+  .cat-bar i, .trend-bar i, .bt-bar i, .month-chart .b, .fuel-chart .line, .fuel-chart .dot, .table-view tbody tr { animation: none; transition: none; }
 }
 
 /* 함께 기억할 것(D-038): 달력 화면 묶음, 기억할 것 화면, 적기 시트 */

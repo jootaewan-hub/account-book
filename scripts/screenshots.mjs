@@ -331,7 +331,7 @@ try {
         viewport: SIZES[s.w],
         deviceScaleFactor: s.w === 390 ? 2 : 1,
         colorScheme: s.c,
-        reducedMotion: s.motion ?? 'reduce', // 캡처가 움직임 중간에 찍히지 않게(흐르는 칩 장면만 'no-preference')
+        reducedMotion: process.env.DEBUG_ANIM ? 'no-preference' : (s.motion ?? 'reduce'), // 캡처가 움직임 중간에 찍히지 않게(흐르는 칩 장면만 'no-preference'). DEBUG_ANIM은 움직임을 켜고 본다
         locale: 'ko-KR',
         ...(s.ua ? { userAgent: s.ua, hasTouch: true, isMobile: true } : {}),
       })
@@ -355,6 +355,16 @@ try {
         if (s.tab) {
           if (s.tab === '설정') await page.getByRole('button', { name: '설정', exact: true }).locator('visible=true').first().click()
           else await page.locator('.tabbar .tab', { hasText: s.tab }).click()
+        }
+        // DEBUG_ANIM=1: 탭을 연 직후 돌고 있는 CSS 애니메이션(이름@요소 class)을 적는다. 통계 막대·선이 자라는지 볼 때 쓴다(D-050 보충)
+        if (process.env.DEBUG_ANIM) {
+          await page.locator('.cat-bar i, .month-chart .b, .fuel-chart .line').first().waitFor({ timeout: 10_000 }).catch(() => {})
+          const seen = new Set()
+          for (let k = 0; k < 6; k++) {
+            for (const a of await page.evaluate(() => document.getAnimations().map((a) => `${'animationName' in a ? a.animationName : 'web'}@${String(a.effect?.target?.className?.baseVal ?? a.effect?.target?.className ?? '?').split(' ')[0]}`))) seen.add(a)
+            await page.waitForTimeout(150)
+          }
+          console.log('[anim]', s.name, [...seen].join(' '))
         }
         if (s.tab === '장보기' || s.path.includes('tab=grocery')) await page.getByText('살 것', { exact: true }).waitFor()
         else if (!waiting) await page.waitForLoadState('networkidle')

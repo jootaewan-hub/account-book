@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, type CSSProperties } from 'react'
 import { fetchBills, friendlyError } from '../lib/api'
 import { billTrend, compareBill } from '../lib/bills'
 import { won } from '../lib/format'
@@ -43,8 +43,8 @@ export function BillCard({ householdId, reloadKey, onAdd }: { householdId: strin
       {cmp && <BillTable cmp={cmp} />}
       {bill && trend.some((t) => t.total !== null) && (
         <div className="bill-trend" role="img" aria-label="최근 12개월 관리비">
-          {trend.map((t) => (
-            <div key={t.ym} className={`bt-bar${t.ym === bill.bill_month.slice(0, 7) ? ' on' : ''}`} title={t.total === null ? `${t.ym} 없음` : `${t.ym} ${won(t.total)}원`}>
+          {trend.map((t, i) => (
+            <div key={t.ym} className={`bt-bar${t.ym === bill.bill_month.slice(0, 7) ? ' on' : ''}`} style={{ '--i': i } as CSSProperties} title={t.total === null ? `${t.ym} 없음` : `${t.ym} ${won(t.total)}원`}>
               <i style={{ height: `${t.total === null ? 0 : Math.max(4, (t.total / max) * 100)}%` }} />
               <span>{Number(t.ym.slice(5))}</span>
             </div>

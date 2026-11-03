@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, type CSSProperties } from 'react'
 import { fetchMonthlyTotals, fetchRange, friendlyError } from '../lib/api'
 import { addMonths, dayOf, monthRange, parseYM } from '../lib/dates'
 import { won } from '../lib/format'
@@ -37,6 +37,8 @@ interface Props {
   onPlatform: (name: string, kind: 'platform' | 'merchant' | 'other') => void
 }
 
+/** 줄 번호를 CSS 변수로 넘겨 막대가 위에서부터 차례로 자라게 한다(styles.css 통계 그래프의 움직임) */
+const nth = (i: number) => ({ '--i': i }) as CSSProperties
 const man = (n: number) => (n >= 10_000 ? `${Math.round(n / 10_000).toLocaleString('ko-KR')}만` : won(n))
 
 export function StatsView({ household, ym, today, cur, prev, planTotals, loading, txVersion, lookup, categories, billsVersion, onBill, onFuel, onCategory, onPlatform }: Props) {
@@ -156,10 +158,10 @@ export function StatsView({ household, ym, today, cur, prev, planTotals, loading
       {sumType(cur, 'expense') > 0 && (
         <div className="card">
           <h2 className="section-title">주별로 보면</h2>
-          {weeks.map((w) => (
+          {weeks.map((w, i) => (
             <div key={w.label} className={`week-row${w.future ? ' future' : ''}`}>
               <span className="k num">{w.label}</span>
-              <div className="cat-bar"><i style={{ width: `${maxWeek ? (w.amount / maxWeek) * 100 : 0}%` }} /></div>
+              <div className="cat-bar" style={nth(i)}><i style={{ width: `${maxWeek ? (w.amount / maxWeek) * 100 : 0}%` }} /></div>
               <b className="num">{w.future && w.amount === 0 ? '아직' : won(w.amount)}</b>
             </div>
           ))}
@@ -179,8 +181,8 @@ export function StatsView({ household, ym, today, cur, prev, planTotals, loading
           <table>
             <thead><tr><th>월</th><th>지출</th><th>수입</th></tr></thead>
             <tbody>
-              {series.slice().reverse().map((p) => (
-                <tr key={p.ym}><td>{p.ym}</td><td className="num">{won(p.expense)}</td><td className="num">{won(p.income)}</td></tr>
+              {series.slice().reverse().map((p, i) => (
+                <tr key={p.ym} style={nth(i)}><td>{p.ym}</td><td className="num">{won(p.expense)}</td><td className="num">{won(p.income)}</td></tr>
               ))}
             </tbody>
           </table>
@@ -191,7 +193,7 @@ export function StatsView({ household, ym, today, cur, prev, planTotals, loading
         <h2 className="section-title">어디에 썼나</h2>
         {cats.length === 0 && <p className="empty">이번 달 지출이 없어요</p>}
         {cats.length > 0 && <p className="tx-meta" style={{ marginTop: -6, marginBottom: 6 }}>{future ? '' : noPrev ? '지난달 기록이 없어 비교하지 않아요. ' : ''}눌러서 여섯 달 추이와 내역을 봐요.</p>}
-        {cats.map((c) => {
+        {cats.map((c, i) => {
           const open = openCat === c.id
           return (
             <div className="cat-row" key={c.id ?? 'none'}>
@@ -200,7 +202,7 @@ export function StatsView({ household, ym, today, cur, prev, planTotals, loading
                   <span>{c.name} <span className="muted num">{Math.round(c.share * 100)}%</span></span>
                   <b className="num">{won(c.amount)}</b>
                 </div>
-                <div className="cat-bar"><i style={{ width: `${maxCat ? (c.amount / maxCat) * 100 : 0}%` }} /></div>
+                <div className="cat-bar" style={nth(i)}><i style={{ width: `${maxCat ? (c.amount / maxCat) * 100 : 0}%` }} /></div>
                 {!noPrev && <span className="delta">{c.prev ? <Delta diff={c.amount - c.prev} pct={pctChange(c.amount, c.prev)} /> : <span className="muted">지난달 없음</span>}</span>}
               </button>
               {open && (
@@ -230,13 +232,13 @@ export function StatsView({ household, ym, today, cur, prev, planTotals, loading
       <div className="card shop-card">
         <h2 className="section-title">어디서 샀나</h2>
         {platforms.length === 0 && <p className="empty">{sumType(cur, 'expense') > 0 ? '산 곳으로 묶을 지출이 없어요' : '이번 달 지출이 없어요'}</p>}
-        {platforms.map((p) => (
+        {platforms.map((p, i) => (
           <button className="cat-row cat-btn" key={`${p.kind}:${p.name}`} onClick={() => onPlatform(p.name, p.kind)}>
             <div className="cat-top">
               <span>{p.name} {p.kind === 'merchant' && <span className="tag">매장</span>} <span className="muted num">{p.count}건</span></span>
               <b className="num">{won(p.amount)}</b>
             </div>
-            <div className="cat-bar"><i className={p.name === OTHER_PLATFORM ? 'other' : ''} style={{ width: `${maxPlat ? (p.amount / maxPlat) * 100 : 0}%` }} /></div>
+            <div className="cat-bar" style={nth(i)}><i className={p.name === OTHER_PLATFORM ? 'other' : ''} style={{ width: `${maxPlat ? (p.amount / maxPlat) * 100 : 0}%` }} /></div>
             {!noPrev && <span className="delta">{p.prev ? <Delta diff={p.amount - p.prev} pct={pctChange(p.amount, p.prev)} /> : <span className="muted">지난달 없음</span>}</span>}
           </button>
         ))}
@@ -275,7 +277,7 @@ function Trend({ points }: { points: { ym: string; amount: number }[] }) {
   return (
     <div className="trend" role="img" aria-label={`여섯 달 추이: ${points.map((p) => `${parseYM(p.ym).m}월 ${won(p.amount)}원`).join(', ')}`}>
       {points.map((p, i) => (
-        <div key={p.ym} className={`trend-bar${i === points.length - 1 ? ' on' : ''}`}>
+        <div key={p.ym} className={`trend-bar${i === points.length - 1 ? ' on' : ''}`} style={nth(i)}>
           <span className="num">{p.amount ? man(p.amount) : ''}</span>
           <i style={{ height: `${(p.amount / max) * 100}%` }} />
           <span>{parseYM(p.ym).m}월</span>
@@ -315,7 +317,7 @@ function MonthChart({ points, sel, onSelect }: { points: MonthPoint[]; sel: stri
         const { y: yy, m } = parseYM(p.ym)
         const on = p.ym === sel
         return (
-          <g key={p.ym} className={on ? 'on' : 'off'} onClick={() => onSelect(p.ym)}>
+          <g key={p.ym} className={on ? 'on' : 'off'} style={nth(i)} onClick={() => onSelect(p.ym)}>
             <rect x={L + i * gw} y={T} width={gw} height={ph + B} className="hit" />
             <path d={bar(x0, p.expense)} className="b exp" />
             <path d={bar(x0 + bw + 2, p.income)} className="b inc" />

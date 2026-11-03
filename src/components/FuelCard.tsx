@@ -114,7 +114,7 @@ function FuelChart({ points }: { points: FuelFill[] }) {
     <svg className="fuel-chart" viewBox={`0 0 ${W} ${H}`} role="img" aria-label={`최근 ${points.length}번 주유의 리터당 가격: ${label}`}>
       <line x1={L} x2={W - R} y1={y(hi)} y2={y(hi)} className="grid" />
       <line x1={L} x2={W - R} y1={y(lo)} y2={y(lo)} className="grid" />
-      {line && <polyline points={line} className="line" />}
+      {line && <polyline points={line} pathLength={1} className="line" />} {/* pathLength 1: 선이 왼쪽부터 그어지는 움직임(styles.css .fuel-chart .line) */}
       {points.map((p, i) => (
         <g key={p.id}>
           <circle cx={x(i)} cy={y(p.price_per_liter)} r={fuelKind(p.fuel_type) === kind ? 3.5 : 3} className={fuelKind(p.fuel_type) === kind ? 'dot' : 'dot other'} />
