@@ -309,6 +309,12 @@ npm run screens
     - 확인 필요: 브랜치 `claude/design-resources`는 원격에 7fe6212가 아직 없다(브랜치 푸시가 막힘). main과 같은 커밋이라 기능 차이는 없다.
     - 되돌리기: main을 6acc9a8(배포 기록 43)로.
 
+45. 노션 DESIGN.md 기준 선·모서리·굵기 다듬기와 통계 그래프 움직임(D-050·D-050 보충, v2.26.0) 운영 반영(2026-11-03 12:32~12:35 KST, 사용자 "이대로 배포 커밋 푸쉬 진행"): 브랜치 `claude/notion-design-md`(b797529·7f80bbc) → main fast-forward(7f80bbc)·푸시. awesome-design-md(VoltAgent, MIT) 58개 중 Notion을 골라 값과 "하지 않는 것"만 가져왔다(이유는 결정 기록 D-050).
+    - 됨: Pages 배포(테스트 포함) 성공(run 41572834438), 운영 `version.json` `7f80bbc · 11-03 12:34`, 첫 화면 묶음에 2.26.0·"선과 모서리 다듬기", CSS에 `--r-md:12px`·`bar-grow-x`. DB·서버 함수 변경 없음.
+    - 확인 필요(사용자): 아이폰에서 먹 10% 가는 선이 보이는지(다크 모드 특히), 6px 모서리 버튼의 느낌, 통계 탭을 열 때마다 막대가 자라는 것이 거슬리지 않는지(거슬리면 "불러온 그때만"으로 되돌릴 수 있다. D-050 보충 참고).
+    - 확인 필요: 캡처 `shell-cal-anniv-row` 두 장면은 여전히 시간 초과(배포 기록 43과 같음). `shell-recurring-add`는 '+' 아이콘 뒤 버튼 이름 찾기를 고쳐 다시 찍힌다. 움직임 확인은 `DEBUG_ANIM=1 npm run screens -- shell-stats-390-light`.
+    - 되돌리기: main을 b2985c1(배포 기록 44)로. 모양만 되돌리려면 `src/styles.css`의 `--line`·`--r-*`·`--ink-2` 토큰과 `font-weight: 700`(13곳)만.
+    - 다른 후보 시안(Wise 라임 CTA, Intercom 각진 4px·주황 등)은 `~/awesome-design-md` git 기록 ef729b2의 `design-md/<사이트>/DESIGN.md`에서 꺼내 볼 수 있다(개별 파일은 그 뒤 getdesign.md로 옮겨졌다).
 ### 사용자 할 일
 
 - ~~공공데이터포털 식품영양성분DB(15127578) 활용신청~~ 2026-10-20 마침(사용자). 같은 키로 통하는지는 성분 탭 첫 호출로 확인.
