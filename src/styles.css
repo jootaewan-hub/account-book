@@ -22,6 +22,7 @@
   --who-shared: #36733a; --who-child: #ca9d42; --who-husband: #1c588e; --who-wife: #c67261;
   --chart-exp: var(--sage); --chart-inc: var(--who-husband);
   --scrim: rgba(35, 39, 46, .42);
+  --seg-on: #ffffff; /* 회색 홈 위에서 고른 칸(iOS 나눔 단추처럼 한 단계 밝은 면) */
   --wait-glow: rgba(255, 255, 255, .55); /* 불러오는 중 자리 표시 위를 지나가는 빛 */
   /* 휴대폰 아래 탭 높이: .tab 최소 60px + 윗선 1px (safe-area 제외). 장보기의 담기 바·알림이 이 위에 놓인다 */
   --tabbar-h: 61px;
@@ -48,6 +49,7 @@
     --warn-bg: #3a3220; --warn-ink: #f3d58a;
     --who-shared: #357a3a; --who-child: #ab9017; --who-husband: #4284c5; --who-wife: #ca6e5d;
     --scrim: rgba(0, 0, 0, .55);
+    --seg-on: #3a3f45;
     --wait-glow: rgba(255, 255, 255, .06);
     color-scheme: dark;
   }
@@ -133,7 +135,7 @@ main.wrap { padding-block: 4px calc(150px + env(safe-area-inset-bottom, 0px)); }
 .day { min-height: 58px; border: 0; background: none; padding: 4px 1px 6px; display: flex; flex-direction: column; align-items: center; gap: 2px; min-width: 0; border-radius: var(--r-sm); }
 .day .n { font-size: 14px; font-weight: 500; width: 28px; height: 28px; display: grid; place-items: center; border-radius: 50%; }
 .day.sun .n, .day.hol .n { color: var(--clay); } .day.sat .n { color: var(--indigo); }
-.day.today .n { background: var(--blush); color: var(--ink); font-weight: 800; }
+.day.today .n { background: var(--ink); color: var(--on-primary); font-weight: 800; }
 .day.sel { background: var(--canvas); }
 .day.sel .n { box-shadow: inset 0 0 0 1.5px var(--ink); }
 .day .amt { font-size: 10.5px; font-weight: 600; line-height: 1.2; max-width: 100%; overflow: hidden; white-space: nowrap; color: var(--ink-2); }
@@ -155,7 +157,8 @@ main.wrap { padding-block: 4px calc(150px + env(safe-area-inset-bottom, 0px)); }
 .anniv-mark.k-memorial { color: var(--ink-3); }
 .anniv-list { display: flex; flex-direction: column; gap: 6px; margin: 6px 0 8px; }
 .anniv-row { display: flex; align-items: center; gap: 10px; width: 100%; border: 0; text-align: left; background: var(--blush-soft); color: var(--rose-ink); border-radius: var(--r-sm); padding: 10px 12px; font-size: 13px; }
-.anniv-row.k-event, .anniv-chip.k-event { background: var(--sage-soft); color: var(--sage-ink); }
+.anniv-row.k-event { background: var(--sage-soft); color: var(--sage-ink); }
+.anniv-chip.k-event { background: var(--oat); color: var(--sage-ink); }
 /* 장소가 있는 일정(D-041): 일정 줄과 장소 줄을 한 묶음으로, 장소 줄을 누르면 네이버 지도 */
 .ev-card { background: var(--sage-soft); border-radius: var(--r-sm); }
 .ev-card .anniv-row { background: none; padding-bottom: 4px; }
@@ -201,7 +204,7 @@ main.wrap { padding-block: 4px calc(150px + env(safe-area-inset-bottom, 0px)); }
 @keyframes soon-flow { to { transform: translateX(calc(-50% - 3px)); } }
 .anniv-soon.wrap { overflow: visible; }
 .anniv-soon.wrap .soon-track, .anniv-soon.wrap .soon-set { flex: 1 1 auto; flex-wrap: wrap; }
-.anniv-chip { flex: none; border: 0; display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 0 12px; border-radius: var(--r-chip); background: var(--blush-soft); color: var(--rose-ink); font-size: 14px; font-weight: 600; }
+.anniv-chip { flex: none; border: 0; display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 0 12px; border-radius: var(--r-chip); background: var(--oat); color: var(--rose-ink); font-size: 14px; font-weight: 600; }
 .anniv-chip svg { width: 16px; height: 16px; flex: none; }
 .anniv-chip span { color: var(--ink); }
 .anniv-chip b { font-weight: 800; }
@@ -288,7 +291,7 @@ main.wrap { padding-block: 4px calc(150px + env(safe-area-inset-bottom, 0px)); }
 .seg:where(:not(.grocery *)) button[aria-pressed="true"] { color: var(--ink); font-weight: 700; }
 
 /* 기록하기 버튼, 아래 탭 */
-.fab { position: fixed; z-index: 25; height: 52px; padding: 0 20px 0 16px; border-radius: 26px; border: 0; background: var(--primary); color: var(--on-primary); display: flex; align-items: center; gap: 6px; font-size: 16px; font-weight: 700;
+.fab { position: fixed; z-index: 25; height: 52px; padding: 0 20px 0 16px; border-radius: 14px; border: 0; background: var(--primary); color: var(--on-primary); display: flex; align-items: center; gap: 6px; font-size: 16px; font-weight: 700;
   bottom: calc(92px + env(safe-area-inset-bottom, 0px)); right: calc(max(16px, (100vw - var(--col)) / 2 + 16px) + env(safe-area-inset-right, 0px)); }
 .fab svg { width: 20px; height: 20px; }
 .tabbar { position: fixed; z-index: 24; bottom: 0; left: 50%; transform: translateX(-50%); width: 100%; max-width: var(--col); background: var(--oat); border-top: 1px solid var(--line); padding-bottom: env(safe-area-inset-bottom, 0px); }
@@ -357,7 +360,7 @@ select.input { padding: 9px 10px; }
 .lead { color: var(--ink-2); margin: 0; }
 
 /* 알림: 아래에서 올라오고, 사라질 때가 더 빠르다 */
-.toast { position: fixed; z-index: 60; left: 50%; bottom: calc(160px + env(safe-area-inset-bottom, 0px)); background: var(--primary); color: var(--on-primary); border-radius: 22px; padding: 11px 18px; font-size: 15px; font-weight: 700;
+.toast { position: fixed; z-index: 60; left: 50%; bottom: calc(160px + env(safe-area-inset-bottom, 0px)); background: var(--primary); color: var(--on-primary); border-radius: 12px; padding: 11px 18px; font-size: 15px; font-weight: 700;
   white-space: nowrap; max-width: calc(100% - 32px); overflow: hidden; text-overflow: ellipsis; pointer-events: none;
   opacity: 0; transform: translate(-50%, 16px) scale(.97); filter: blur(2px);
   transition: opacity var(--dur-quick) var(--ease-smooth), transform var(--dur-quick) var(--ease-smooth), filter var(--dur-quick) var(--ease-smooth); }
@@ -570,7 +573,7 @@ input[type="search"].input { -webkit-appearance: none; appearance: none; }
 .grocery-match-line { color: var(--ink-2); }
 .grocery-match-done { margin: 0; font-size: 14px; color: var(--ink-2); }
 .split-toggle { font-size: 14px; color: var(--ink-2); align-items: flex-start; }
-.update-bar { position: fixed; z-index: 70; left: 50%; transform: translateX(-50%); top: calc(8px + env(safe-area-inset-top, 0px)); background: var(--primary); color: var(--on-primary); border: 0; border-radius: 22px; padding: 10px 16px; font-size: 14px; font-weight: 700; white-space: nowrap; max-width: calc(100% - 32px); }
+.update-bar { position: fixed; z-index: 70; left: 50%; transform: translateX(-50%); top: calc(8px + env(safe-area-inset-top, 0px)); background: var(--primary); color: var(--on-primary); border: 0; border-radius: 12px; padding: 10px 16px; font-size: 14px; font-weight: 700; white-space: nowrap; max-width: calc(100% - 32px); }
 .update-bar:active { transform: translateX(-50%) scale(.97); }
 /* 설정 '앱' 카드(AppCard.tsx): 업데이트 확인 결과 줄, 앱 파일 다시 받기 */
 .app-status { margin: 10px 0 0; font-size: 14px; color: var(--ink-2); }
