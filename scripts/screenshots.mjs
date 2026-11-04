@@ -8,7 +8,7 @@
 import { existsSync, mkdirSync, readFileSync } from 'node:fs'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { chromium } from 'playwright'
-import { BILL, EVENT_CAPTURE, EVENT_EXISTING, EVENT_PLACES, EVENT_TEXT, EVENT_TEXT_PASTE, EXPLORE_BUNJANG, EXPLORE_DAANGN, EXPLORE_DAISO, EXPLORE_KURLY, EXPLORE_OHOU, EXPLORE_PRODUCT, EXPLORE_SEARCH, EXPLORE_WEATHER, EXPLORE_WEATHER_NOT_REGISTERED, fakeSession, FUEL_RECEIPT, LONG_RECEIPT, RECEIPT, RECEIPT_IMAGE, TABLES, USER } from './shell-fixtures.mjs'
+import { BILL, EVENT_CAPTURE, EVENT_EXISTING, EVENT_PLACES, EVENT_RANGE, EVENT_RANGE_DAY, EVENT_TEXT, EVENT_TEXT_PASTE, EXPLORE_BUNJANG, EXPLORE_DAANGN, EXPLORE_DAISO, EXPLORE_KURLY, EXPLORE_OHOU, EXPLORE_PRODUCT, EXPLORE_SEARCH, EXPLORE_WEATHER, EXPLORE_WEATHER_NOT_REGISTERED, fakeSession, FUEL_RECEIPT, LONG_RECEIPT, RECEIPT, RECEIPT_IMAGE, TABLES, USER } from './shell-fixtures.mjs'
 
 const BASE = process.env.BASE_URL ?? 'http://localhost:5188' // vite.config.ts server.port와 같다
 const OUT = process.env.OUT_DIR ? pathToFileURL(`${process.env.OUT_DIR.replace(/\/$/, '')}/`) : new URL('../screenshots/', import.meta.url)
@@ -226,8 +226,19 @@ const shellShots = [
   // 관리비 고지서 확인 화면(D-019): 고정 탭에 관리비 항목이 없으면 '관리비' 항목을 만든다는 안내, 있으면 그 항목에 연결한다는 안내. 가짜 고지서 응답(BILL)
   ...each((w, c) => ({ name: `shell-bill-review-${w}-${c}`, path: '/', w, c, shell: true, tab: '내역', bill: true, noUtility: true })),
   ...both(390, (w, c) => ({ name: `shell-bill-review-linked-${w}-${c}`, path: '/', w, c, shell: true, tab: '내역', bill: true })),
-  // 캡처로 일정 넣기(D-039): 달력 고른 날 아래 버튼 두 개, 확인 화면(식당 예약·이미 있는 치과는 빼 둠·결혼식). 가짜 응답(EVENT_CAPTURE)
-  ...both(390, (w, c) => ({ name: `shell-cal-day-adds-${w}-${c}`, path: '/', w, c, shell: true, tab: '달력', center: '.day-adds' })),
+  // 캡처로 일정 넣기(D-039): 달력 고른 날 아래 넣기 칸의 버튼(shell-cal-day-new-*), 확인 화면(식당 예약·이미 있는 치과는 빼 둠·결혼식). 가짜 응답(EVENT_CAPTURE)
+  // 고른 날의 일정 넣기 칸(D-054): 귀리 면 안의 흰 입력칸 + 먹색 "넣기", 아래 보조 버튼 둘. 빈 채로 넣기를 누른 모습(안내 문장)
+  ...each((w, c) => ({ name: `shell-cal-day-new-${w}-${c}`, path: '/', w, c, shell: true, tab: '달력', center: '.day-new' })),
+  { name: 'shell-cal-day-new-miss-390-light', path: '/', w: 390, c: 'light', shell: true, tab: '달력', quickAddEmpty: true, center: '.day-new' },
+  // 기간·중요도(D-054): 달력 칸(기간 이음, 효과 다섯 가지), 고른 날 줄(가족 여행 가운데 날), 다가오는 칩, 일정 폼(기간·중요도·효과 미리보기), 끝이 시작보다 앞일 때
+  ...each((w, c) => ({ name: `shell-cal-range-grid-${w}-${c}`, path: '/', w, c, shell: true, tab: '달력', eventRange: true, center: '.cal-card' })),
+  ...each((w, c) => ({ name: `shell-cal-range-day-${w}-${c}`, path: '/', w, c, shell: true, tab: '달력', eventRange: true, calDay: EVENT_RANGE_DAY, center: '.anniv-list' })),
+  ...both(390, (w, c) => ({ name: `shell-cal-range-soon-${w}-${c}`, path: '/', w, c, shell: true, tab: '달력', eventRange: true, center: '.anniv-soon' })),
+  ...each((w, c) => ({ name: `shell-plan-event-range-${w}-${c}`, path: '/', w, c, shell: true, tab: '달력', eventRange: true, calDay: EVENT_RANGE_DAY, openEvent: '가족 여행', planScroll: '.fx-pick' })),
+  ...both(390, (w, c) => ({ name: `shell-plan-event-range-top-${w}-${c}`, path: '/', w, c, shell: true, tab: '달력', eventRange: true, calDay: EVENT_RANGE_DAY, openEvent: '가족 여행', planScroll: '#ev-title' })),
+  { name: 'shell-plan-event-range-err-390-light', path: '/', w: 390, c: 'light', shell: true, tab: '달력', eventRange: true, calDay: EVENT_RANGE_DAY, openEvent: '가족 여행', rangeEnd: '2026-01-01', planScroll: '#ev-end' },
+  // 숨쉬기 효과는 움직임을 켜고도 한 번 찍는다(움직임 줄이기에서는 테두리로 바뀐다)
+  { name: 'shell-cal-range-grid-motion-390-light', path: '/', w: 390, c: 'light', shell: true, tab: '달력', eventRange: true, motion: 'no-preference', center: '.cal-card' },
   ...each((w, c) => ({ name: `shell-event-capture-${w}-${c}`, path: '/', w, c, shell: true, tab: '달력', eventCapture: true })),
   // 읽기 전: 고른 캡처 미리 보기와 "캡처 1장 읽기"·"캡처 더 넣기"
   // 문자 붙여넣기(D-046): 심포지엄 안내 문자를 붙여넣은 모습
@@ -308,6 +319,7 @@ async function fakeSupabase(context, s = {}) {
     if (s.noNotes && key === 'public.notes') rows = []
     if (s.eventCapture && key === 'public.events') rows = EVENT_EXISTING
     if (s.eventPlaces && key === 'public.events') rows = EVENT_PLACES
+    if (s.eventRange && key === 'public.events') rows = EVENT_RANGE
     // 같음 조건(id=eq.g5 등)은 적용한다: 한 건 조회(maybeSingle)는 행이 하나여야 하고, 상세는 그 품목·상품의 행만 봐야 한다
     if (Array.isArray(rows)) {
       for (const [k, v] of url.searchParams) {
@@ -472,6 +484,10 @@ try {
         await page.waitForTimeout(800) // 자리 표시가 200ms 늦게 나타나는 움직임이 끝날 때까지
       }
       if (s.center) await page.locator(s.center).first().evaluate((el) => el.scrollIntoView({ block: 'center' }))
+      if (s.quickAddEmpty) {
+        await page.locator('.day-new').getByRole('button', { name: '넣기', exact: true }).click()
+        await page.locator('.day-new [role=alert]').waitFor()
+      }
       if (s.where) await page.getByRole('button', { name: '어디서 살지' }).click()
       if (s.record) {
         await page.locator('.fab, .side-record').locator('visible=true').first().click()
@@ -571,10 +587,12 @@ try {
     }
     if (s.openEvent) {
       await page.locator('.anniv-list').getByRole('button', { name: new RegExp(`^${s.openEvent}`) }).click()
-      await page.locator('#ev-address').scrollIntoViewIfNeeded()
+      if (s.rangeEnd) await page.locator('#ev-end').fill(s.rangeEnd)
+      if (s.planScroll) await page.locator(s.planScroll).first().evaluate((el) => el.scrollIntoView({ block: 'center' }))
+      else await page.locator('#ev-address').scrollIntoViewIfNeeded()
     }
     if (s.eventCapture) {
-      await page.getByRole('button', { name: '캡처·문자로 일정 넣기' }).click()
+      await page.getByRole('button', { name: '캡처·문자로 넣기' }).click()
       if (s.eventText) {
         // 문자 붙여넣기(D-046): 붙여넣은 모습(읽기 전)
         await page.getByRole('button', { name: '문자 붙여넣기' }).click()

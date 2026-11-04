@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { anniversariesInMonth, daysBetween, dLabel, repeatLabel, upcomingAnniversaries } from '../lib/anniversaries'
-import { DOW, dayOf, formatDateLong, monthGrid, parseYM } from '../lib/dates'
+import { anniversariesInMonth, dLabel, repeatLabel, upcomingAnniversaries } from '../lib/anniversaries'
+import { DOW, dayOf, formatDateLong, monthGrid, monthRange, parseYM } from '../lib/dates'
+import { byPriority, eventsByDate, fxClass, isRange, priorityWord, rangeLabel, rangePart, upcomingEvents, whenLabel } from '../lib/events'
 import { compact, won } from '../lib/format'
 import { HOLIDAYS } from '../lib/holidays'
 import { hasPlace, naverMapUrl, placeLabel } from '../lib/naverMap'
@@ -9,6 +10,7 @@ import type { Lookup } from '../lib/lookup'
 import type { Anniversary, CalEvent, Transaction } from '../lib/types'
 import { AnnivIcon } from './AnnivIcon'
 import { CalendarIcon, CameraIcon, MapPinIcon, Plus } from './Icons'
+import { EventMark, PriorityTag } from './EventPriority'
 import { Bar, RowsWait, useAppear } from './Loading'
 import type { PlanTarget } from './PlanSheet'
 import { EventScopeTag, eventScopeLabel } from './EventScope'
@@ -32,6 +34,8 @@ interface Props {
   onPlan: (t: PlanTarget) => void
   /** 캡처로 일정 넣기 시트를 연다(D-039) */
   onCapture?: () => void
+  /** 고른 날에 이름만 적어 하루 종일 일정을 바로 넣는다(D-054). 넣었으면 true. 없으면 입력 칸을 보이지 않는다 */
+  onQuickAdd?: (title: string) => Promise<boolean>
   /** 다른 달의 날짜로 옮겨 가서 고른다 (다가오는 기념일) */
   onJump: (date: string) => void
   /** 다가오는 기념일 아래 묶음(함께 기억할 것, D-038) */
@@ -43,17 +47,14 @@ interface Props {
 /** 달력 칸 하나에 보일 기념일·일정 이름 수(넘치면 +N) */
 const MAX_LABELS = 2
 
-export function CalendarView({ ym, today, sel, cur, prev, loading = false, lookup, annivs, events, onSelect, onPlan, onCapture, onJump, onEdit, notes }: Props) {
+export function CalendarView({ ym, today, sel, cur, prev, loading = false, lookup, annivs, events, onSelect, onPlan, onCapture, onQuickAdd, onJump, onEdit, notes }: Props) {
   // 고정지출 예정분(D-030)은 쓴 돈·남은 돈에 넣되(이미 정해진 지출), 칸에서는 점선 금액으로 따로 보인다
   const totals = useMemo(() => dailyTotals(cur.filter((t) => !t.planned)), [cur])
   const planned = useMemo(() => cur.filter((t) => t.planned), [cur])
   const planByDate = useMemo(() => dailyTotals(planned), [planned])
   const annivByDate = useMemo(() => anniversariesInMonth(annivs, ym), [annivs, ym])
-  const evByDate = useMemo(() => {
-    const m = new Map<string, CalEvent[]>()
-    for (const e of events) m.set(e.date, [...(m.get(e.date) ?? []), e])
-    return m
-  }, [events])
+  // 기간 일정(D-054)은 기간 안의 날마다 들어간다(앞 달에 시작한 것도 이 달 날짜에)
+  const evByDate = useMemo(() => { const r = monthRange(ym); return eventsByDate(events, r.start, r.end) }, [events, ym])
   const inc = sumType(cur, 'income')
   const exp = sumType(cur, 'expense')
   const thisMonth = today.slice(0, 7)
@@ -83,8 +84,8 @@ export function CalendarView({ ym, today, sel, cur, prev, loading = false, looku
   // 이번 달을 볼 때만, 30일 안에 오는 기념일·일정 네 개까지 (가까운 순서)
   const soon = ym !== thisMonth ? [] : [
     ...upcomingAnniversaries(annivs, today).map((u) => ({ key: u.a.id, kind: u.a.kind as string, name: u.a.name, category: u.a.category, date: u.date, days: u.days, scope: 'shared' as const })),
-    ...events.filter((e) => e.date >= today).map((e) => ({ key: e.id, kind: 'event', name: e.title, category: null, date: e.date, days: daysBetween(today, e.date), scope: e.scope ?? 'shared' })),
-  ].filter((x) => x.days <= 30).sort((a, b) => a.days - b.days || a.name.localeCompare(b.name))
+    ...upcomingEvents(events, today).map((u) => ({ key: u.e.id, kind: 'event', name: u.e.title, category: null, date: u.date, days: u.days, scope: u.e.scope ?? 'shared', event: u.e, ongoing: u.ongoing })),
+  ].map((x) => ({ event: undefined as CalEvent | undefined, ongoing: false, ...x })).filter((x) => x.days <= 30).sort((a, b) => a.days - b.days || a.name.localeCompare(b.name))
   const de = sumType(dayTx.filter((t) => !t.planned), 'expense')
   const di = sumType(dayTx, 'income')
   const dp = sumType(dayTx.filter((t) => t.planned), 'expense')
@@ -146,17 +147,21 @@ export function CalendarView({ ym, today, sel, cur, prev, loading = false, looku
               const an = annivByDate.get(date)
               const ev = evByDate.get(date)
               const pl = planByDate.get(date)?.expense
-              const labels = [
+              // 일정은 꼭 → 중요 → 보통 순서(두 개까지만 보여서). 중요·꼭은 효과 클래스, 기간 일정은 이웃 날과 이어지게 모서리를 편다(D-054)
+              const labels: { key: string; name: string; cls: string; event?: CalEvent }[] = [
                 ...(an ?? []).map((a) => ({ key: `a-${a.id}`, name: a.name, cls: `an k-${a.kind}` })),
-                ...(ev ?? []).map((e) => ({ key: `e-${e.id}`, name: e.title, cls: `ev s-${e.scope ?? 'shared'}` })),
+                ...byPriority(ev ?? []).map((e) => ({ key: `e-${e.id}`, name: e.title, event: e,
+                  cls: ['ev', `s-${e.scope ?? 'shared'}`, fxClass(e), isRange(e) && `r-${rangePart(e, date)}`,
+                    // 이어지는 날 가운데 그 줄의 첫 칸(일요일·1일): 누구 띠를 여기에만 다시 보인다
+                    isRange(e) && date !== e.date && (dw === 0 || dayOf(date) === 1) && 'r-head'].filter(Boolean).join(' ') })),
               ]
               const cls = ['day', dw === 0 && 'sun', dw === 6 && 'sat', hol && 'hol', an && 'anniv', date === today && 'today', date === sel && 'sel'].filter(Boolean).join(' ')
-              const label = `${m}월 ${dayOf(date)}일${hol ? ` ${hol}` : ''}${an ? ` ${an.map((a) => a.name).join(', ')}` : ''}${ev ? ` 일정 ${ev.map((e) => (e.scope && e.scope !== 'shared' ? `${e.title}(${eventScopeLabel(e.scope)})` : e.title)).join(', ')}` : ''}${t?.expense ? ` 지출 ${won(t.expense)}원` : ''}${t?.income ? ` 수입 ${won(t.income)}원` : ''}${pl ? ` 고정지출 예정 ${won(pl)}원` : ''}`
+              const label = `${m}월 ${dayOf(date)}일${hol ? ` ${hol}` : ''}${an ? ` ${an.map((a) => a.name).join(', ')}` : ''}${ev ? ` 일정 ${ev.map(eventReadName).join(', ')}` : ''}${t?.expense ? ` 지출 ${won(t.expense)}원` : ''}${t?.income ? ` 수입 ${won(t.income)}원` : ''}${pl ? ` 고정지출 예정 ${won(pl)}원` : ''}`
               return (
                 <button key={date} className={cls} aria-label={label} aria-pressed={date === sel} onClick={() => onSelect(date)}>
                   <span className="n num">{dayOf(date)}{an && <span className={`anniv-mark k-${an[0].kind}`}><AnnivIcon a={an[0]} /></span>}</span>
                   {/* 기념일·일정 이름(달력에서 바로 보이게). 두 개까지, 넘치면 +N. 읽기는 칸의 aria-label이 맡는다 */}
-                  {labels.slice(0, MAX_LABELS).map((l) => <span key={l.key} className={`cal-lbl ${l.cls}`} aria-hidden="true">{l.name}</span>)}
+                  {labels.slice(0, MAX_LABELS).map((l) => <span key={l.key} className={`cal-lbl ${l.cls}`} aria-hidden="true">{l.event && <EventMark e={l.event} />}{l.name}</span>)}
                   {labels.length > MAX_LABELS && <span className="cal-lbl more num" aria-hidden="true">+{labels.length - MAX_LABELS}</span>}
                   {t?.income ? <span className="amt inc num">+{compact(t.income)}</span> : null}
                   {t?.expense ? <span className="amt exp num">{compact(t.expense)}</span> : null}
@@ -169,8 +174,10 @@ export function CalendarView({ ym, today, sel, cur, prev, loading = false, looku
 
         {soon.length > 0 && (
           <SoonRow label="다가오는 일정·기념일" items={soon.map((u) => (tab: number | undefined) => (
-            <button key={u.key} className={`anniv-chip k-${u.kind}`} tabIndex={tab} onClick={() => onJump(u.date)}>
-              {u.kind === 'event' ? <CalendarIcon /> : <AnnivIcon a={{ name: u.name, category: u.category, kind: u.kind as Anniversary['kind'] }} />}<span>{u.name}</span><EventScopeTag scope={u.scope} /><b className="num">{dLabel(u.days)}</b>
+            <button key={u.key} className={['anniv-chip', `k-${u.kind}`, u.event && fxClass(u.event)].filter(Boolean).join(' ')} tabIndex={tab} onClick={() => onJump(u.date)}>
+              {u.kind === 'event' ? <CalendarIcon /> : <AnnivIcon a={{ name: u.name, category: u.category, kind: u.kind as Anniversary['kind'] }} />}
+              <span>{u.event && <EventMark e={u.event} />}{u.name}</span>{u.event && <PriorityTag e={u.event} />}<EventScopeTag scope={u.scope} />
+              {u.event && isRange(u.event) && <em className="num">{rangeLabel(u.event)}</em>}<b className="num">{u.ongoing ? '하는 중' : dLabel(u.days)}</b>
             </button>
           ))} />
         )}
@@ -198,16 +205,19 @@ export function CalendarView({ ym, today, sel, cur, prev, loading = false, looku
                 </button>
               ))}
               {dayEvents.map((e) => {
+                // 중요·꼭 효과(D-054)는 줄 전체에: 장소가 있으면 장소 줄까지 묶은 면(ev-card)에 건다
+                const fx = fxClass(e)
+                const placed = hasPlace(e)
                 const row = (
-                  <button key={e.id} className="anniv-row k-event" onClick={() => onPlan({ kind: 'event', event: e })}>
-                    <CalendarIcon /><b>{e.title}</b><EventScopeTag scope={e.scope ?? 'shared'} /><span className="num">{e.time ?? '하루 종일'}</span>
+                  <button key={e.id} className={['anniv-row k-event', !placed && fx].filter(Boolean).join(' ')} onClick={() => onPlan({ kind: 'event', event: e })}>
+                    <CalendarIcon /><b><EventMark e={e} />{e.title}</b><PriorityTag e={e} /><EventScopeTag scope={e.scope ?? 'shared'} /><span className="num">{whenLabel(e)}</span>
                   </button>
                 )
-                if (!hasPlace(e)) return row
+                if (!placed) return row
                 // 장소를 누르면 네이버 지도(좌표가 있으면 대중교통 길찾기, 없으면 검색)를 연다(D-041). 일정 줄 버튼 안에 넣지 않고 나란히 둔다
                 const routed = e.lat !== null && e.lng !== null
                 return (
-                  <div key={e.id} className="ev-card">
+                  <div key={e.id} className={['ev-card', fx].filter(Boolean).join(' ')}>
                     {row}
                     <a className="ev-route" href={naverMapUrl(e, 'transit') ?? undefined} target="_blank" rel="noopener noreferrer"
                       aria-label={`${placeLabel(e)} ${routed ? '길찾기' : '지도 검색'}, 네이버 지도`}>
@@ -218,10 +228,8 @@ export function CalendarView({ ym, today, sel, cur, prev, loading = false, looku
               })}
             </div>
           )}
-          <div className="day-adds">
-            <button className="day-add" onClick={() => onPlan({ kind: 'new', date: sel })}><Plus />일정·기념일 넣기</button>
-            {onCapture && <button className="day-add" onClick={onCapture}><CameraIcon />캡처·문자로 일정 넣기</button>}
-          </div>
+          <DayNew key={sel} label={`${m}월 ${dayOf(sel)}일에 일정 넣기`} onQuickAdd={onQuickAdd} onCapture={onCapture}
+            onDetail={(title) => onPlan({ kind: 'new', date: sel, title })} />
           <div className="tx-list">
             {dayTx.map((t) => <TxRow key={t.id} t={t} lookup={lookup} onClick={() => onEdit(t)} />)}
             {!dayTx.length && (loading ? <RowsWait rows={2} /> : <div className="empty">이 날 기록이 없어요. 기록하기로 추가해 보세요.</div>)}
@@ -229,6 +237,58 @@ export function CalendarView({ ym, today, sel, cur, prev, loading = false, looku
         </div>
       )}
     </section>
+  )
+}
+
+/** 달력 칸 읽기 이름: "양인환대(남편)", "가족 여행(꼭, 11월 7일 ~ 9일)" */
+function eventReadName(e: CalEvent): string {
+  const more = [e.scope && e.scope !== 'shared' ? eventScopeLabel(e.scope) : null, priorityWord(e), isRange(e) ? rangeLabel(e) : null].filter(Boolean)
+  return more.length ? `${e.title}(${more.join(', ')})` : e.title
+}
+
+/**
+ * 고른 날의 일정 넣기 칸(D-054): 귀리 면 안에 제목, 흰 입력칸 + 먹색 "넣기", 그 아래 흰 보조 버튼 둘.
+ * 이름만 적어 넣으면 하루 종일 일정으로 바로 들어가고, 시간·기간·중요도·기념일은 "자세히 넣기" 시트에서 정한다(적던 이름은 가져간다)
+ */
+function DayNew({ label, onQuickAdd, onDetail, onCapture }: {
+  label: string
+  onQuickAdd?: (title: string) => Promise<boolean>
+  onDetail: (title?: string) => void
+  onCapture?: () => void
+}) {
+  const [title, setTitle] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [miss, setMiss] = useState(false)
+  const input = useRef<HTMLInputElement>(null)
+
+  async function add() {
+    const name = title.trim()
+    if (!name) { setMiss(true); input.current?.focus(); return }
+    if (!onQuickAdd || busy) return
+    setBusy(true)
+    try { if (await onQuickAdd(name)) setTitle('') } finally { setBusy(false) }
+  }
+
+  return (
+    <div className="day-new">
+      {onQuickAdd && (
+        <form className="day-new-form" onSubmit={(e) => { e.preventDefault(); void add() }}>
+          <label htmlFor="day-new-title">{label}</label>
+          <div className="day-new-row">
+            <input id="day-new-title" ref={input} className={`input${miss ? ' bad' : ''}`} placeholder="예: 치과 예약, 가족 여행" maxLength={40} autoComplete="off" enterKeyHint="done"
+              aria-invalid={miss || undefined} aria-describedby="day-new-note" value={title} onChange={(e) => { setTitle(e.target.value); setMiss(false) }} />
+            <button className="primary" disabled={busy}>넣기</button>
+          </div>
+          <p id="day-new-note" className={miss ? 'err' : 'day-new-note'} role={miss ? 'alert' : undefined}>
+            {miss ? '일정 이름을 적어 주세요.' : '바로 넣으면 하루 종일 일정이에요. 시간·기간·중요도·기념일은 자세히 넣기에서 정해요.'}
+          </p>
+        </form>
+      )}
+      <div className="day-adds" role="group" aria-label={onQuickAdd ? undefined : label}>
+        <button type="button" className="ghost" onClick={() => onDetail(title.trim() || undefined)}><Plus />자세히 넣기</button>
+        {onCapture && <button type="button" className="ghost" onClick={onCapture}><CameraIcon />캡처·문자로 넣기</button>}
+      </div>
+    </div>
   )
 }
 

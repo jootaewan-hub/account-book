@@ -181,11 +181,27 @@ main.wrap { padding-block: 4px calc(150px + env(safe-area-inset-bottom, 0px)); }
 .day .cal-lbl.an.k-memorial { background: var(--oat-deep); color: var(--ink-2); }
 .day .cal-lbl.ev { background: var(--sage-soft); color: var(--sage-ink); }
 .day .cal-lbl.more { background: none; color: var(--ink-2); line-height: 1.2; }
+/* 기간 일정(D-054): 기간 안의 날마다 이름을 보이고, 이웃 날과 이어지는 쪽은 모서리를 펴고 칸 끝까지 붙인다 */
+.day .cal-lbl.r-start { margin-right: -1px; border-top-right-radius: 0; border-bottom-right-radius: 0; }
+.day .cal-lbl.r-mid { margin-left: -1px; margin-right: -1px; border-radius: 0; }
+.day .cal-lbl.r-end { margin-left: -1px; border-top-left-radius: 0; border-bottom-left-radius: 0; }
+/* 누구 띠는 첫날과 줄이 바뀐 첫 칸(r-head)에만: 날마다 띠가 서면 한 일정이 끊겨 보인다 */
+.day .cal-lbl.ev:is(.r-mid, .r-end):not(.r-head) { box-shadow: none; }
 .day-add { align-self: flex-start; border: 0; background: none; display: inline-flex; align-items: center; gap: 4px; padding: 8px 4px; margin-bottom: 2px; font-size: 14px; font-weight: 700; color: var(--sage-ink); }
 .day-add svg { width: 16px; height: 16px; }
-/* 고른 날의 넣기 버튼 줄: 일정·기념일 넣기, 캡처로 일정 넣기(D-039). 좁으면 두 줄로 */
-.day-adds { display: flex; flex-wrap: wrap; column-gap: 16px; margin-bottom: 2px; }
-.day-adds .day-add { min-height: 44px; margin-bottom: 0; }
+/* 고른 날의 일정 넣기 칸(D-054): 글자 버튼 둘이 바탕과 구별되지 않아, 귀리 면 안에 제목·흰 입력칸(먹 10% 선)·먹색 "넣기"를 두고
+   그 아래 흰 보조 버튼 둘(자세히 넣기, 캡처·문자로 넣기 D-039)을 둔다. 색이 아니라 면·테두리·자리·제목으로 구별한다 */
+.day-new { display: flex; flex-direction: column; gap: 10px; margin: 6px 0 10px; padding: 12px; background: var(--oat); border-radius: var(--r-md); }
+.day-new-form { display: flex; flex-direction: column; gap: 6px; }
+.day-new-form > label { font-size: 14px; font-weight: 700; color: var(--ink); }
+.day-new-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; }
+.day-new-row .primary { width: auto; min-height: 46px; padding: 10px 18px; }
+.day-new-row .input.bad, .plan-form .input.bad { border-color: var(--clay); }
+.day-new-note { margin: 0; font-size: 13px; font-weight: 500; color: var(--ink-2); }
+.day-new .err { font-size: 13px; }
+.day-adds { display: grid; grid-template-columns: repeat(auto-fit, minmax(0, 1fr)); gap: 8px; }
+.day-adds .ghost { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-width: 0; padding: 10px 8px; background: var(--canvas); border: 1px solid var(--line); }
+.day-adds .ghost svg { width: 16px; height: 16px; flex: none; }
 .sheet:where(:not(.grocery *)) .anniv-form { border-top: 0; padding-top: 0; }
 .anniv-row svg { width: 20px; height: 20px; flex: none; }
 .anniv-row b { font-size: 15px; font-weight: 700; color: var(--ink); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -208,10 +224,64 @@ main.wrap { padding-block: 4px calc(150px + env(safe-area-inset-bottom, 0px)); }
 .anniv-chip svg { width: 18px; height: 18px; flex: none; }
 .anniv-chip span { color: var(--ink); }
 .anniv-chip b { font-weight: 700; }
+.anniv-chip em { font-style: normal; font-size: 13px; font-weight: 500; color: var(--ink-2); }
 .anniv-ic { width: 36px; height: 36px; flex: none; border-radius: 50%; background: var(--canvas); display: grid; place-items: center; }
 .anniv-ic svg { width: 22px; height: 22px; }
 .anniv-item .rc-main { flex: 1; }
 .anniv-form { display: flex; flex-direction: column; gap: 8px; padding: 12px 0; border-top: 1px solid var(--line); }
+/* 일정 폼의 기간(D-054): 시작·끝 날짜 아래 한 줄로 기간을 적고, 끝이 시작보다 앞이면 그 줄이 까닭으로 바뀐다 */
+.range-note { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0 12px; margin-top: -2px; font-size: 13px; font-weight: 500; color: var(--ink-2); }
+.range-note p { margin: 0; }
+.range-note p b { font-weight: 700; color: var(--ink); }
+.range-note .err { font-size: 13px; }
+.range-note .link-btn { margin: -8px -6px; font-size: 13px; }
+.ev-time-row { align-items: end; }
+.ev-time-row .check:where(:not(.grocery *)) { align-items: center; min-height: 46px; }
+/* 표시 효과 고르기: 칸마다 달력 칸 이름 모양의 미리보기와 효과 이름. 고른 칸은 먹색 2px 테두리와 굵은 이름 */
+.fx-pick { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 8px; }
+.fx-opt { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; min-width: 0; min-height: 76px; padding: 10px 6px 8px; border: 1px solid var(--line); border-radius: var(--r-sm); background: var(--canvas); color: var(--ink-2);
+  transition: transform var(--dur-press) var(--ease-out); touch-action: manipulation; user-select: none; -webkit-user-select: none; }
+.fx-opt:active { transform: scale(0.97); }
+.fx-opt[aria-pressed="true"] { border-color: var(--ink); outline: 1px solid var(--ink); outline-offset: -2px; color: var(--ink); }
+.fx-name { font-size: 13px; font-weight: 600; }
+.fx-opt[aria-pressed="true"] .fx-name { font-weight: 700; }
+.fx-demo { position: relative; max-width: 100%; padding: 2px 6px; border-radius: 3px; background: var(--sage-soft); color: var(--sage-ink); font-size: 12px; font-weight: 600; line-height: 1.4; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fx-note { margin: 0; font-size: 13px; font-weight: 500; color: var(--ink-2); }
+
+/* 중요도 효과(D-054): 중요(p-high)·꼭(p-must) 일정을 달력 칸 이름(cal-lbl)·고른 날 줄(anniv-row, 장소가 있으면 ev-card)·다가오는 칩(anniv-chip)·
+   폼 미리보기(fx-demo)에서 구별한다. 효과(fx-*)는 일정마다 고른 것. 색만으로 알리지 않는다: 테두리 굵기, 면의 명암, 움직임(+ 꼭은 테두리),
+   점·별, 글자 굵기·밑줄. 줄과 칩에는 "중요"·"꼭" 글자 태그가 늘 함께 붙고, 달력 칸은 읽기 이름에 적는다 */
+/* 테두리: 중요는 1px, 꼭은 먹색 2px. 줄·칩·미리보기는 outline, 달력 칸 이름은 border(기간 일정은 이웃 날 쪽 변을 빼 한 띠로 잇는다) */
+:is(.cal-lbl, .anniv-row, .ev-card, .anniv-chip, .fx-demo).fx-outline.p-high { --fx-w: 1px; --fx-c: currentColor; }
+:is(.cal-lbl, .anniv-row, .ev-card, .anniv-chip, .fx-demo).fx-outline.p-must { --fx-w: 2px; --fx-c: var(--ink); }
+:is(.cal-lbl, .anniv-row, .ev-card, .anniv-chip, .fx-demo).fx-breathe.p-must { --fx-w: 1px; --fx-c: var(--ink); }
+:is(.anniv-row, .ev-card, .anniv-chip, .fx-demo):is(.fx-outline, .fx-breathe.p-must) { outline: var(--fx-w) solid var(--fx-c); outline-offset: calc(-1 * var(--fx-w)); }
+.day .cal-lbl:is(.fx-outline, .fx-breathe.p-must) { border: solid var(--fx-c); border-width: var(--fx-w) var(--fx-r, var(--fx-w)) var(--fx-w) var(--fx-l, var(--fx-w)); padding: 0 2px; }
+.day .cal-lbl.r-start { --fx-r: 0px; } .day .cal-lbl.r-mid { --fx-l: 0px; --fx-r: 0px; } .day .cal-lbl.r-end { --fx-l: 0px; }
+/* 채움: 중요는 세이지 면, 꼭은 먹색 면. 글자는 버튼 글자색(흰 바탕에서 세이지 5.96:1, 먹 12.98:1) */
+:is(.cal-lbl, .anniv-row, .ev-card, .anniv-chip, .fx-demo).fx-fill.p-high { background: var(--sage); color: var(--on-primary); }
+:is(.cal-lbl, .anniv-row, .ev-card, .anniv-chip, .fx-demo).fx-fill.p-must { background: var(--primary); color: var(--on-primary); }
+:is(.anniv-row, .ev-card, .anniv-chip).fx-fill:is(.p-high, .p-must) :is(b, span:not([class~="tag"]), em, .anniv-row, .ev-route) { color: inherit; }
+/* 숨쉬기: 면 위에 같은 색 막이 천천히 짙어졌다 옅어진다(중요 2.8초, 꼭 1.6초에 한 번 + 먹색 1px 테두리). 글자는 움직이지 않는다 */
+:is(.cal-lbl, .anniv-row, .ev-card, .anniv-chip, .fx-demo).fx-breathe:is(.p-high, .p-must) { position: relative; }
+:is(.cal-lbl, .anniv-row, .ev-card, .anniv-chip, .fx-demo).fx-breathe:is(.p-high, .p-must)::after { content: ""; position: absolute; inset: 0; border-radius: inherit; background: currentColor; opacity: .04; pointer-events: none;
+  animation: fx-breathe 2.8s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate; }
+:is(.cal-lbl, .anniv-row, .ev-card, .anniv-chip, .fx-demo).fx-breathe.p-must::after { animation-duration: 1.6s; }
+@keyframes fx-breathe { to { opacity: .3; } }
+/* 점·별: 이름 앞에 중요는 점, 꼭은 별(Phosphor star-fill) */
+.fx-m { display: inline-block; flex: none; vertical-align: 0.04em; margin-right: 0.25em; color: inherit; }
+.fx-m.dot { width: 0.5em; height: 0.5em; border-radius: 50%; background: currentColor; vertical-align: 0.14em; }
+.fx-m.star { width: 0.95em; height: 0.95em; vertical-align: -0.1em; }
+.fx-m.star svg { display: block; width: 100%; height: 100%; }
+/* 굵은 글자: 중요는 먹색 700, 꼭은 밑줄까지 */
+:is(.cal-lbl, .anniv-chip, .fx-demo).fx-bold:is(.p-high, .p-must) { font-weight: 700; color: var(--ink); }
+:is(.cal-lbl, .fx-demo).fx-bold.p-must, :is(.anniv-row, .ev-card, .anniv-chip).fx-bold.p-must :is(b, span:not([class~="tag"]):not(.num)) { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 2px; }
+/* 달력 칸 이름은 줄 높이가 낮아 밑줄이 잘리지 않게 글자에 붙인다 */
+.day .cal-lbl.fx-bold.p-must { text-underline-offset: 0.5px; padding-bottom: 1px; }
+/* 중요·꼭 글자 태그: 중요는 흰 면에 선, 꼭은 먹색 면 */
+.tag:where(:not(.grocery *)).pri { flex: none; background: var(--canvas); color: var(--ink); outline: 1px solid var(--line); outline-offset: -1px; }
+.tag:where(:not(.grocery *)).pri.p-must { background: var(--primary); color: var(--on-primary); outline: 0; }
+.fx-fill.p-must .tag:where(:not(.grocery *)).pri { background: var(--canvas); color: var(--ink); }
 /* 기념일 카테고리 고르기(D-033): 직접 적는 칸 아래 쓴 것·기본 말 칩 */
 .anniv-cats { margin: -2px 0 2px; }
 .anniv-every { display: flex; align-items: center; gap: 8px; font-size: 15px; font-weight: 600; color: var(--ink); }
@@ -845,6 +915,13 @@ input[type="search"].input { -webkit-appearance: none; appearance: none; }
   .sheet:where(:not(.grocery *)) { transform: none; opacity: 0; transition: opacity 200ms ease; }
   .sheet:where(:not(.grocery *)).on { opacity: 1; }
   .seg:where(:not(.grocery *))::before, .spend-bar > i { transition: none; }
+  /* 숨쉬기 효과(D-054)는 멈추고 테두리(중요 1px, 꼭 2px)로 바꿔 구별을 남긴다 */
+  :is(.cal-lbl, .anniv-row, .ev-card, .anniv-chip, .fx-demo).fx-breathe:is(.p-high, .p-must)::after { animation: none; opacity: 0; }
+  :is(.cal-lbl, .anniv-row, .ev-card, .anniv-chip, .fx-demo).fx-breathe.p-high { --fx-w: 1px; --fx-c: currentColor; }
+  :is(.cal-lbl, .anniv-row, .ev-card, .anniv-chip, .fx-demo).fx-breathe.p-must { --fx-w: 2px; }
+  :is(.anniv-row, .ev-card, .anniv-chip, .fx-demo).fx-breathe.p-high { outline: var(--fx-w) solid var(--fx-c); outline-offset: calc(-1 * var(--fx-w)); }
+  .day .cal-lbl.fx-breathe.p-high { border: solid var(--fx-c); border-width: var(--fx-w) var(--fx-r, var(--fx-w)) var(--fx-w) var(--fx-l, var(--fx-w)); padding: 0 2px; }
+  .fx-opt { transition: none; } .fx-opt:active { transform: none; }
   .toast { transform: translate(-50%, 0); filter: none; transition: opacity 200ms ease; }
   .toast.on { transform: translate(-50%, 0); }
   .toast-check svg, .toast.on .toast-check svg { clip-path: none; transition: none; }

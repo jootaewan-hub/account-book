@@ -15,7 +15,7 @@ import { Onboarding } from './components/Onboarding'
 import type { SmartMode } from './components/SmartSheet'
 import { useLedgerMeta, useLiveUpdates, useMonthEvents, useMonthTransactions, useRecurringList } from './hooks/useLedger'
 import { useNotes } from './hooks/useNotes'
-import { deleteTransaction, deleteTransactions, friendlyError, generateRecurring, insertInstallmentPurchase, insertTransaction, saveTransactionItems, updateSpouseRole, updateTransaction } from './lib/api'
+import { deleteTransaction, deleteTransactions, friendlyError, generateRecurring, insertEvent, insertInstallmentPurchase, insertTransaction, saveTransactionItems, updateSpouseRole, updateTransaction } from './lib/api'
 import type { ItemsChange } from './lib/itemEdit'
 import { wasRefreshed } from './lib/appUpdate'
 import { takeNewRelease } from './lib/changelog'
@@ -168,6 +168,15 @@ function Ledger({ household, meta, userId, email }: {
   // 캡처로 일정 넣기(D-039). 처음 열 때 불러오고, 닫히는 움직임을 위해 그 뒤로는 남겨 둔다
   const [capture, setCapture] = useState({ open: false, mounted: false })
   const openCapture = () => setCapture({ open: true, mounted: true })
+  // 달력 고른 날의 넣기 칸(D-054): 이름만 적어 하루 종일·함께·보통 일정으로 바로 넣는다
+  async function quickAddEvent(title: string): Promise<boolean> {
+    try {
+      await insertEvent(household.id, { date: sel, time: null, title, memo: null, place: null, address: null, lat: null, lng: null, scope: 'shared' })
+      await reloadEvents()
+      toast('일정을 넣었어요', true)
+      return true
+    } catch (e) { toast(friendlyError(e)); return false }
+  }
   const closeCapture = () => setCapture((c) => ({ ...c, open: false }))
   useLiveUpdates(household.id, reload, meta.reload, reloadEvents)
 
@@ -338,7 +347,7 @@ function Ledger({ household, meta, userId, email }: {
         {tab === 'cal' && (
           <Screen name="달력">
             <CalendarView ym={ym} today={today} sel={sel} cur={curAll} prev={prevAll} loading={txLoading} lookup={lookup} annivs={meta.anniversaries} events={events}
-              onSelect={setSel} onPlan={setPlan} onCapture={openCapture} onJump={(d) => { setYm(d.slice(0, 7)); setSel(d) }} onEdit={editTx}
+              onSelect={setSel} onPlan={setPlan} onCapture={openCapture} onQuickAdd={quickAddEvent} onJump={(d) => { setYm(d.slice(0, 7)); setSel(d) }} onEdit={editTx}
               notes={<NotesCard rows={notes.rows} error={notes.error} onOpenAll={() => openAside('notes')}
                 onOpen={(note) => setNoteTarget({ note })} onNew={() => setNoteTarget({ note: null })} onRetry={() => void notes.reload()} />} />
           </Screen>

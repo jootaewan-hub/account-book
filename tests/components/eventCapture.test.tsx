@@ -208,12 +208,12 @@ describe('문자 붙여넣기(D-046)', () => {
 })
 
 describe('달력의 캡처로 일정 넣기 버튼', () => {
-  it('고른 날 아래 일정·기념일 넣기 옆에 있고, 누르면 시트를 연다', () => {
+  it('고른 날 아래 넣기 칸의 자세히 넣기 옆에 있고, 누르면 시트를 연다', () => {
     const onCapture = vi.fn()
     render(<CalendarView ym="2026-11" today="2026-11-02" sel="2026-11-02" cur={[]} prev={[]} lookup={makeLookup('u1', [], [], [])}
       annivs={[]} events={[]} onSelect={() => {}} onPlan={() => {}} onCapture={onCapture} onJump={() => {}} onEdit={() => {}} />)
-    expect(screen.getByRole('button', { name: '일정·기념일 넣기' })).toBeTruthy()
-    fireEvent.click(screen.getByRole('button', { name: '캡처·문자로 일정 넣기' }))
+    expect(screen.getByRole('button', { name: '자세히 넣기' })).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: '캡처·문자로 넣기' }))
     expect(onCapture).toHaveBeenCalledOnce()
   })
 

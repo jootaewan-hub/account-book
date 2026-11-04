@@ -214,6 +214,16 @@ export interface CalEvent {
   lng: number | null
   /** 누구 일정인지(D-044): 함께·남편·아내. 이 칸 전의 일정은 함께 */
   scope: Scope
+  /** 여러 날 일정의 끝나는 날(그날 포함, D-054). 하루 일정은 null. 이 칸 전에 읽은 일정은 없을 수 있다 */
+  end_on?: string | null
+  /** 중요도(D-054): 보통·중요·꼭. 없으면 보통 */
+  priority?: EventPriority
+  /** 중요·꼭 일정을 달력에서 구별하는 표시(D-054). 보통 일정에는 쓰지 않는다 */
+  effect?: EventEffect
 }
 
-export type EventInput = Pick<CalEvent, 'date' | 'time' | 'title' | 'memo' | 'place' | 'address' | 'lat' | 'lng' | 'scope'>
+export type EventPriority = 'normal' | 'high' | 'must'
+export type EventEffect = 'outline' | 'fill' | 'breathe' | 'mark' | 'bold'
+
+/** 넣기·고치기에 보내는 칸. 기간·중요도 칸을 보내지 않으면(사진·문자로 넣는 일정) 넣을 때는 DB 기본값, 고칠 때는 그대로 둔다 */
+export type EventInput = Pick<CalEvent, 'date' | 'time' | 'title' | 'memo' | 'place' | 'address' | 'lat' | 'lng' | 'scope' | 'end_on' | 'priority' | 'effect'>

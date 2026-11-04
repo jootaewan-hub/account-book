@@ -84,10 +84,14 @@ export async function deleteAnniversary(id: string): Promise<void> {
   check(await sb().from('anniversaries').delete().eq('id', id))
 }
 
-/** from~to(포함) 사이의 일정. 시간은 HH:MM으로 줄인다 */
+/**
+ * from~to(포함)에 걸치는 일정. 시간은 HH:MM으로 줄인다.
+ * 기간 일정(D-054)은 앞 달에 시작해 이 기간에 끝나는 것도 들어온다: 시작이 to 이전이고, 시작이나 끝이 from 이후
+ */
 export async function fetchEvents(householdId: string, from: string, to: string): Promise<CalEvent[]> {
-  const rows = check(await sb().from('events').select('id, household_id, date, time, title, memo, place, address, lat, lng, scope')
-    .eq('household_id', householdId).gte('date', from).lte('date', to).order('date').order('time', { nullsFirst: true })) as CalEvent[]
+  const rows = check(await sb().from('events').select('id, household_id, date, end_on, time, title, memo, place, address, lat, lng, scope, priority, effect')
+    .eq('household_id', householdId).lte('date', to).or(`date.gte.${from},end_on.gte.${from}`)
+    .order('date').order('time', { nullsFirst: true })) as CalEvent[]
   return rows.map((e) => ({ ...e, time: e.time ? e.time.slice(0, 5) : null }))
 }
 

@@ -425,6 +425,24 @@ export const EVENT_PLACES = [
   { id: 'ev-meet', date: today, time: null, title: '동네 모임', memo: null, place: null, address: null, lat: null, lng: null, scope: 'husband' },
 ]
 
+// 기간·중요도(D-054): 오늘을 낀 기간 일정(하는 중), 며칠 뒤의 사흘짜리 여행(꼭, 채움), 효과 다섯 가지와 보통 일정을 한 달력에
+const plus = (n) => new Date(kst.getTime() + n * 86_400_000).toISOString().slice(0, 10)
+const evr = (id, title, date, more = {}) => ({ id, date, end_on: null, time: null, title, memo: null, place: null, address: null, lat: null, lng: null, scope: 'shared', priority: 'normal', effect: 'outline', ...more })
+export const EVENT_RANGE = [
+  evr('er-biz', '부산 출장', plus(-2), { end_on: plus(1), scope: 'husband' }),
+  evr('er-dental', '치과 진료', today, { time: '10:00', scope: 'wife', priority: 'high', effect: 'mark' }),
+  evr('er-walk', '동네 모임', today, { time: '19:00' }),
+  evr('er-trip', '가족 여행', plus(2), { end_on: plus(4), priority: 'must', effect: 'fill', place: '제주공항', address: '제주 제주시 공항로 2', lat: 33.5071, lng: 126.4934 }),
+  evr('er-check', '건강검진', plus(3), { time: '08:30', priority: 'must', effect: 'breathe' }),
+  evr('er-parents', '부모님 오심', plus(6), { end_on: plus(7), priority: 'high', effect: 'outline' }),
+  evr('er-renew', '보험 갱신', plus(9), { priority: 'must', effect: 'bold' }),
+  evr('er-gift', '선물 사기', plus(9), { priority: 'high', effect: 'fill' }),
+  evr('er-star', '결혼식 축가', plus(11), { time: '12:00', priority: 'must', effect: 'mark' }),
+]
+/** 가족 여행 가운데 날(여행·건강검진이 겹친다)의 날짜 숫자 */
+export const EVENT_RANGE_DAY = Number(plus(3).slice(8, 10))
+export const EVENT_RANGE_MONTH = plus(3).slice(0, 7) === today.slice(0, 7)
+
 // 문자 붙여넣기 응답(가짜, D-046): 열흘 뒤 심포지엄 하나. 붙여넣은 글(EVENT_TEXT_PASTE)에 같은 날짜가 있어 바로 넣는다
 const tenDays = new Date(kst.getTime() + 10 * 86_400_000).toISOString().slice(0, 10)
 export const EVENT_TEXT_PASTE = `[대한○○학회] 2026 추계 심포지엄 안내\n일시: ${Number(tenDays.slice(5, 7))}월 ${Number(tenDays.slice(8, 10))}일 09:00~17:00\n장소: 코엑스 컨퍼런스룸(남) 401호\n사전등록 필수, 평점 6점`

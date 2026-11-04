@@ -553,6 +553,28 @@ describe('일정 (20261015150000_events)', () => {
     expect(await as(A, `select scope from public.events where title = '회식'`)).toEqual([{ scope: 'husband' }])
     expect(await errorOf(as(A, `update public.events set scope = 'friend' where title = '회식'`))).toContain('check')
   })
+
+  it('기간·중요도(20261115000000_event_range_priority): 기본은 하루·보통·테두리, 배우자가 고칠 수 있고 잘못된 기간·값은 막는다', async () => {
+    await as(A, `insert into public.events (household_id, date, title) values ($1, '2026-11-07', '가족 여행')`, [hhA])
+    expect(await as(B, `select end_on, priority, effect from public.events where title = '가족 여행'`)).toEqual([{ end_on: null, priority: 'normal', effect: 'outline' }])
+    await as(B, `update public.events set end_on = '2026-11-09', priority = 'must', effect = 'breathe' where title = '가족 여행'`)
+    expect(await as(A, `select to_char(end_on, 'YYYY-MM-DD') as end_on, priority, effect from public.events where title = '가족 여행'`))
+      .toEqual([{ end_on: '2026-11-09', priority: 'must', effect: 'breathe' }])
+    // 끝나는 날이 시작보다 앞, 1년을 넘는 기간
+    expect(await errorOf(as(A, `update public.events set end_on = '2026-11-06' where title = '가족 여행'`))).toContain('events_range_check')
+    expect(await errorOf(as(A, `update public.events set end_on = '2027-11-09' where title = '가족 여행'`))).toContain('events_range_check')
+    await as(A, `update public.events set end_on = '2027-11-08' where title = '가족 여행'`)
+    // 시작 날을 끝 뒤로 옮기는 것도 막는다
+    expect(await errorOf(as(A, `update public.events set date = '2027-11-09' where title = '가족 여행'`))).toContain('events_range_check')
+    expect(await errorOf(as(A, `update public.events set priority = 'urgent' where title = '가족 여행'`))).toContain('check')
+    expect(await errorOf(as(A, `update public.events set effect = 'sparkle' where title = '가족 여행'`))).toContain('check')
+    // 앱이 달을 읽는 조건(시작이 달 끝 이전이고, 시작이나 끝이 달 처음 이후): 10월에 시작해 11월에 끝나는 일정이 11월에 들어온다
+    await as(A, `insert into public.events (household_id, date, end_on, title) values ($1, '2026-10-30', '2026-11-02', '출장'), ($1, '2026-10-20', null, '지난 일정')`, [hhA])
+    expect((await as<{ title: string }>(B, `select title from public.events
+      where date <= '2026-11-30' and (date >= '2026-11-01' or end_on >= '2026-11-01') and title in ('출장', '지난 일정', '가족 여행') order by date`)).map((r) => r.title))
+      .toEqual(['출장', '가족 여행'])
+    expect(await as(C, `select * from public.events where title = '가족 여행'`)).toHaveLength(0)
+  })
 })
 
 describe('새 가입 막기 (20261015170000_close_signups)', () => {
