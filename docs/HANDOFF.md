@@ -328,6 +328,20 @@ npm run screens
     - 확인 필요(사용자): 아이폰에서 영수증 확인 화면의 "고치기"(이름·수량·금액 칸, 이 줄 빼기, 품목 줄 더하기)와 저장된 내역 수정 시트에서 품목을 고쳐 저장했을 때 목록·장보기 지난 기록에 반영되는지. 캡처는 가짜 데이터라 저장 경로는 운영에서 처음 돈다.
     - 확인 필요: 품목 줄을 지우면 `grocery.purchase_verdicts`의 그 줄 판정도 cascade로 사라진다(의도한 동작, 사용자 안내는 없음).
     - 되돌리기: main을 c49bd4d(배포 기록 46)로. 함수·DB는 손대지 않았다.
+48. 영수증 사진 보관과 다시 읽기(D-053, v2.29.0) 운영 반영(2026-11-05 08:35~08:39 KST, 사용자 "적용하고 배포"): 브랜치 `claude/elated-elbakyan-5d517e`(d21beff, `ci.yml` 통과 41631923390). 순서는 DB → main. 버킷 전에 화면이 먼저 올라가도 사진 올리기만 실패하고 내역은 저장된다(순서가 바뀌어도 깨지지 않음).
+    - 됨: 공유 DB에 `receipt_images` 적용(MCP `apply_migration`, 원격 버전 `20261104233545`, 로컬 파일 `20261114000000_receipt_images.sql`). 적용 전 확인: 버킷·정책·검사·색인 없음, `private.storage_household_ok` 있음, `receipt_path`가 적힌 내역 0건, authenticated의 `receipt_path` update 권한 있음. 적용 뒤 확인: 버킷 `receipt-images`(비공개, 3,145,728바이트, image/jpeg), 정책 `receipt_images_select`·`_insert`·`_delete`(authenticated), `transactions_receipt_path_check`, `transactions_receipt_path_idx`.
+    - 됨: main fast-forward(deb7ccb)·푸시, Pages 배포(테스트 포함) 성공(run 41935133799), 운영 `version.json` `deb7ccb · 11-05 08:38`, 첫 화면 묶음에 2.29.0·`receipt-images`. 서버 함수 변경 없음. 로컬 vitest 1,272개·tsc·oxlint 통과.
+    - 함께 올라간 것: 배포 기록 47(7b73301, `claude/receipt-item-edit`에만 있던 것)을 이 브랜치에 옮겨(04b690e) main에 넣었다. `status.md`의 v2.28.0 줄이 겹쳐 두 줄을 모두 남겼다. 릴리스 날짜는 배포한 날로 고쳤다(deb7ccb, `changelog.ts` 2026-11-05).
+    - 확인 필요(사용자): 아이폰에서 영수증을 새로 찍어 저장한 뒤 그 내역을 열어 "영수증 사진" 썸네일·크게 보기, "영수증 다시 읽기"(품목이 채워지고 금액은 그대로), "사진 지우기", 내역을 지웠을 때 사진도 지워지는지. 실제 Storage 올리기·내려받기는 운영에서 아직 해 보지 않았다(시험은 가짜 Supabase와 PGlite 정책까지).
+    - 확인 필요: 이 버전 전에 넣은 영수증 내역(11-03 이마트 185,770원 포함)에는 사진이 없어 다시 읽을 수 없다.
+    - 되돌리기: 화면은 main을 06e0642(배포 기록 47)로. DB는 그대로 둬도 옛 화면에 영향이 없다(버킷·정책·검사·색인만 더했다). 버킷까지 없애려면 올라간 사진을 먼저 지워야 하고 삭제 구문이라 사용자 승인이 필요하다.
+
+49. 달력 일정 넣기 칸·기간 일정·중요도 효과(D-054, v2.30.0) 운영 반영(2026-11-05 08:59~09:03 KST, 사용자 "적용하고 배포"): 브랜치 `claude/event-range-priority`(5fc5592, `ci.yml` 통과 41937351728) → 공유 DB에 `event_range_priority` 적용(MCP `apply_migration`, 로컬 `20261115000000_event_range_priority.sql`) → main fast-forward(5fc5592)·푸시, Pages 배포(테스트 포함) 성공(run 41938119791), 운영 `version.json` `5fc5592 · 11-05 09:02`, 첫 화면 묶음에 2.30.0. 서버 함수 변경 없음.
+    - 됨: `public.events`에 `end_on date`(null 허용), `priority text not null default 'normal'`, `effect text not null default 'outline'`, 검사 `events_range_check`·`events_priority_check`·`events_effect_check`. 적용 뒤 있던 일정 7건은 모두 기본값(하루·보통·테두리), `authenticated`의 표 단위 update 권한 그대로.
+    - 순서: DB를 먼저 적용했다(새 화면은 일정을 읽을 때 새 칸을 함께 고른다). 이 버전 전의 앱(캐시된 PWA)은 새 칸을 보내지 않아 기본값으로 넣고, 고칠 때 새 칸을 건드리지 않는다.
+    - 확인 필요(사용자): 아이폰에서 고른 날 아래 "N월 N일에 일정 넣기" 칸(이름만 적어 넣기, 키보드에 가리지 않는지), 일정 폼의 "끝나는 날 (선택)" 날짜 칸(비우기는 "끝나는 날 지우기"), 숨쉬기 효과의 움직임, 배우자 기기에서 같은 효과로 보이는지. 캡처는 가짜 데이터라 넣기·고치기 경로는 운영에서 처음 돈다.
+    - 확인 필요: 캡처 장면 `shell-cal-anniv-row-390-*`가 11월에는 찍히지 않는다("다음 달 20일 기념일"이 가짜 기념일 날짜에 기댐, 이 변경 전부터 그런 것으로 보임 — 추측, 기준 커밋에서 돌려 보지는 않았다).
+    - 되돌리기: 화면은 main을 deb7ccb(v2.29.0)로. DB 칸은 그대로 두어도 옛 화면이 쓰지 않아 문제없다(칸을 지우는 것은 새 화면을 되돌린 뒤에만).
 
 
 ### 사용자 할 일
