@@ -24,8 +24,9 @@
   --scrim: rgba(51, 49, 45, .42);
   --seg-on: #ffffff; /* 나눔 단추의 고른 칸: 먹색으로 칠하지 않고 홈(oat-deep)보다 한 단계 밝은 면(D-048) */
   --wait-glow: rgba(255, 255, 255, .55); /* 불러오는 중 자리 표시 위를 지나가는 빛 */
-  /* 휴대폰 아래 탭 높이: .tab 최소 60px + 윗선 1px (safe-area 제외). 장보기의 담기 바·알림이 이 위에 놓인다 */
-  --tabbar-h: 61px;
+  /* 휴대폰 아래 탭과 기록 버튼의 높이(safe-area 제외). 장보기 담기·알림은 이 위에 놓인다. */
+  --record-dock-h: 0px;
+  --tabbar-h: calc(61px + var(--record-dock-h));
   --font-ui: 'SUIT', 'Apple SD Gothic Neo', 'Malgun Gothic', 'Noto Sans KR', system-ui, sans-serif;
   --font-mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
   /* 둥글기는 층마다 다르게(D-048), 한 단계 각지게(D-050, 노션 4·8·12·16): 태그 4, 칩·버튼 6, 안쪽 칸 8, 묶음·기록하기 12, 시트 16. 알약 모양은 쓰지 않는다 */
@@ -104,8 +105,8 @@ button { cursor: pointer; touch-action: manipulation; user-select: none; -webkit
 .today-btn { border: 0; background: var(--oat); border-radius: var(--r-chip); height: 32px; padding: 0 12px; font-size: 13px; font-weight: 600; color: var(--ink); }
 .sync { font-size: 12px; color: var(--ink-3); }
 
-main.wrap { padding-block: 4px calc(150px + env(safe-area-inset-bottom, 0px)); }
-.ledger:is([data-tab="cal"], [data-tab="list"]:not(:has(.pick-bar))) main.wrap { padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px)); }
+main.wrap { padding-block: 4px calc(150px + var(--record-dock-h) + env(safe-area-inset-bottom, 0px)); }
+.ledger:is([data-tab="cal"], [data-tab="list"]:not(:has(.pick-bar))) main.wrap { padding-bottom: calc(96px + var(--record-dock-h) + env(safe-area-inset-bottom, 0px)); }
 .view { display: flex; flex-direction: column; gap: 16px; }
 .card { background: var(--oat); border-radius: var(--r-md); padding: 16px; }
 .section-title { font-size: 17px; font-weight: 700; color: var(--ink); margin: 0 0 10px; }
@@ -403,8 +404,18 @@ main.wrap { padding-block: 4px calc(150px + env(safe-area-inset-bottom, 0px)); }
 .seg:where(:not(.grocery *)) button[aria-pressed="true"] { color: var(--ink); font-weight: 700; }
 
 /* 기록하기 버튼, 아래 탭 */
-.mobile-record-row { display: flex; justify-content: flex-end; margin-bottom: 10px; }
-.mobile-record.primary { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; width: auto; padding-inline: 12px; font-size: 14px; }
+@media (width < 960px) {
+  :root:has(.ledger .mobile-record-row) {
+    --record-dock-h: 56px;
+    scroll-padding-bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom, 0px));
+  }
+}
+.mobile-record-row {
+  height: var(--record-dock-h); padding-block: 6px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.mobile-record.primary { display: flex; align-items: center; justify-content: center; gap: 6px; min-height: 44px; height: 44px; font-size: 15px; }
 .mobile-record svg { width: 17px; height: 17px; }
 .tabbar { position: fixed; z-index: 24; bottom: 0; left: 50%; transform: translateX(-50%); width: 100%; max-width: var(--col); background: var(--canvas); border-top: 1px solid var(--line); padding-bottom: env(safe-area-inset-bottom, 0px); }
 /* 아래 탭 여섯(D-035 알아보기): 칸이 좁아지지 않게 양옆 여백을 줄인다 */

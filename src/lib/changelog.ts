@@ -22,6 +22,13 @@ export const KIND_LABEL: Record<ReleaseKind, string> = { major: '큰 업데이�
 /** 최신이 맨 앞 */
 export const RELEASES: Release[] = [
   {
+    version: '2.32.1', date: '2026-11-05', kind: 'fix', title: '스크롤 중에도 바로 기록하기',
+    items: [
+      '휴대폰에서 기록하기가 아래 탭 바로 위에 항상 보여요. 화면을 위아래로 움직이거나 탭을 바꿔도 누를 수 있어요.',
+      '목록 끝에는 버튼만큼 여유를 두고, 장보기 담기 버튼과는 자리를 나눴어요.',
+    ],
+  },
+  {
     version: '2.32.0', date: '2026-11-05', kind: 'minor', title: '내역 뒤로 가기와 달력·기록 화면 정리',
     items: [
       '내역 제목 옆의 뒤로 가기를 누르면 달력이나 통계처럼 내역을 열기 직전에 보던 화면으로 돌아가요.',

@@ -360,11 +360,6 @@ function Ledger({ household, meta, userId, email }: {
       </header>
 
       <main className="wrap">
-        {(tab === 'cal' || (tab === 'list' && !listPicking)) && (
-          <div className="mobile-record-row">
-            <button className="primary mobile-record" onClick={() => setSheet({ open: true, editing: null })}><Plus />기록하기</button>
-          </div>
-        )}
         {error && <p className="banner" role="alert">내역을 불러오지 못했어요: {error}</p>}
         {!lookup.myRole && tab !== 'settings' && (
           <div className="card role-card" style={{ marginBottom: 16 }}>
@@ -440,9 +435,14 @@ function Ledger({ household, meta, userId, email }: {
       </main>
 
       <nav className="tabbar" aria-label="화면 전환">
+        {(tab !== 'list' || !listPicking) && (
+          <div className="mobile-record-row">
+            <button className="primary mobile-record" onClick={() => setSheet({ open: true, editing: null })}><Plus />기록하기</button>
+          </div>
+        )}
         <div className="wrap">
           <div className="side-brand"><span><HouseIcon /></span><b>우리집 가계부</b></div>
-          {/* 넓은 화면에서만 보인다. 휴대폰은 본문 위 기록하기 버튼을 쓴다 */}
+          {/* 넓은 화면에서만 보인다. 휴대폰은 아래 탭 위 기록하기 버튼을 쓴다 */}
           <button className="primary side-record" onClick={() => setSheet({ open: true, editing: null })}><Plus />기록하기</button>
           <button className="tab" aria-current={tab === 'cal' ? 'page' : undefined} onClick={() => setTab('cal')}><CalendarIcon on={tab === 'cal'} />달력</button>
           <button className="tab" aria-current={tab === 'list' ? 'page' : undefined} onClick={() => openList()}><ListIcon on={tab === 'list'} />내역</button>
