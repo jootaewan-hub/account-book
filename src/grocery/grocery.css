@@ -406,15 +406,16 @@
 .grocery .wish-card { background: var(--oat); border-radius: var(--r-md); padding: 16px; display: grid; gap: 10px; }
 .grocery .wish-title { padding: 0; min-height: 44px; border: 0; background: transparent; color: var(--ink); text-align: left; font: inherit; font-size: 18px; font-weight: 700; overflow-wrap: anywhere; cursor: pointer; }
 .grocery .wish-title:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; border-radius: 4px; }
-.grocery .wish-target { font-weight: 600; }
-.grocery .wish-target span, .grocery .wish-by { color: var(--ink-2); font-size: 13px; font-weight: 400; }
-.grocery .wish-target span { display: block; margin-top: 2px; }
-.grocery .wish-price { color: var(--ink-2); font-size: 13px; }
-.grocery .wish-price p:first-child { color: var(--ink); font-size: 15px; font-weight: 600; }
+.grocery .wish-prices { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); margin: 0; padding: 10px 12px; background: var(--canvas); border: 1px solid var(--line); border-radius: var(--r-sm); }
+.grocery .wish-prices > :only-child { grid-column: 1 / -1; }
+.grocery .wish-prices > div + div { border-left: 1px solid var(--line); padding-left: 12px; }
+.grocery .wish-prices dt, .grocery .wish-by, .grocery .wish-price-source { color: var(--ink-2); font-size: 13px; font-weight: 400; }
+.grocery .wish-prices dd { margin: 0; }
+.grocery .wish-prices .num { color: var(--ink); font-size: 17px; font-weight: 700; overflow-wrap: anywhere; }
 .grocery .wish-memo { font-size: 15px; white-space: pre-wrap; overflow-wrap: anywhere; }
 .grocery .wish-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 8px; }
 .grocery .wish-actions a { display: inline-flex; align-items: center; text-decoration: none; }
-.grocery .wish-actions .btn-secondary { margin-left: auto; }
+.grocery .wish-actions .wish-status { margin-left: auto; border: 1px solid var(--line); background: var(--canvas); min-height: 44px; }
 .grocery .wish-empty { margin: 28px 4px; color: var(--ink-2); font-size: 15px; }
 .grocery .wish-error { margin-top: 16px; padding: 12px; background: var(--clay-soft); border-radius: var(--r-sm); color: var(--clay); }
 .grocery .market-page { padding-top: 0; }

@@ -55,7 +55,7 @@ it('보관함에서 샀어요 표시와 다시 보관을 하고 기존 검색으
   let searched = ''
   render(<div className="grocery"><WishList store={store} members={[]} version={0} onNew={() => {}} onEdit={() => {}} onSearch={(name) => { searched = name }} /></div>)
   await screen.findByRole('button', { name: '커피 머신' })
-  expect(screen.getByText(/^보관 당시/).textContent).toBe('보관 당시 350,000원')
+  expect(screen.getByText('보관 당시').parentElement?.contains(screen.getByText('350,000원'))).toBe(true)
   fireEvent.click(screen.getByRole('button', { name: '가격 다시 찾기' }))
   expect(searched).toBe('커피 머신')
   fireEvent.click(screen.getByRole('button', { name: '샀어요' }))

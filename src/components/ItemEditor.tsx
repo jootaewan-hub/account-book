@@ -11,9 +11,9 @@ import { ItemInfo } from './ItemInfo'
 export function ItemEditor<T extends EditableItem>({ items, onChange, renderThumb, renderExtra, total, make }: {
   items: T[]
   onChange: (items: T[]) => void
-  /** 줄 앞 44px 칸(상품 사진). 없으면 빈 자리 */
+  /** 사진이 있을 때만 줄 앞에 보인다 */
   renderThumb?: (it: T, i: number) => ReactNode
-  /** 이름 줄 아래 더 보일 것(용량 칸 등). 고치는 중에도 보인다 */
+  /** 고치는 중에만 이름 아래에 보이는 입력칸 */
   renderExtra?: (it: T, i: number) => ReactNode
   /** 결제 금액. 품목 합계와 다르면 차이를 적는다 */
   total?: number
@@ -44,12 +44,13 @@ export function ItemEditor<T extends EditableItem>({ items, onChange, renderThum
       <ul className="item-list">
         {items.map((it, i) => {
           const editing = open.has(i)
+          const thumb = renderThumb?.(it, i)
           return (
-            <li key={i} className={editing ? 'editing' : undefined}>
-              {renderThumb ? renderThumb(it, i) : <span className="item-renderThumb empty" aria-hidden="true" />}
+            <li key={i} className={[editing && 'editing', thumb && 'has-thumb'].filter(Boolean).join(' ') || undefined}>
+              {thumb}
               <span className="item-main">
                 {editing ? <ItemFields n={i + 1} it={it} onChange={(p) => patch(i, p)} /> : <ItemInfo it={it} />}
-                {renderExtra?.(it, i)}
+                {editing && renderExtra?.(it, i)}
                 <span className="item-actions">
                   <button type="button" className="link-btn" onClick={() => toggle(i)} aria-expanded={editing}>
                     {editing ? '접기' : '고치기'}

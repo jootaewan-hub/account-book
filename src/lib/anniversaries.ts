@@ -97,54 +97,32 @@ export function annivDateLabel(a: When): string {
   return a.repeat_unit === 'month' || every > 1 ? `${repeatLabel(a)} ${md}` : md
 }
 
-/** 카테고리(없으면 이름)의 말로 아이콘 종류를 정한다: 생일 케이크, 추모 초, 우리 둘 하트, 그 밖 별 */
+export type AnnivIconKey = Exclude<AnnivKind, 'other'> | 'calendar' | 'hospital' | 'money' | 'document' | 'special'
+
+function markerFrom(text: string): AnnivIconKey | null {
+  if (/추모|기일|제사|추도|별세|기제|떠난|무지개/.test(text)) return 'memorial'
+  if (/생일|생신|탄생|태어난|돌잔치|백일|출생/.test(text)) return 'birthday'
+  if (/결혼|연애|만난|사귄|첫 ?만남|커플|프러포즈|약혼/.test(text)) return 'couple'
+  if (/병원|검진|진료|치과|예방접종/.test(text)) return 'hospital'
+  if (/용돈|월급|적금|만기금/.test(text)) return 'money'
+  if (/갱신|만기|계약|보험|면허|여권/.test(text)) return 'document'
+  if (/축일|세례|영명|성당|전역|제대|입대|임관|명절|추석|설날|한가위/.test(text)) return 'special'
+  return null
+}
+
+function markerOf(category: string | null, name: string): AnnivIconKey | null {
+  return markerFrom(category ?? '') ?? markerFrom(name)
+}
+
 export function annivKindOf(category: string | null, name: string): AnnivKind {
-  for (const s of [category ?? '', name]) {
-    if (/생일|생신|탄생|돌잔치|백일/.test(s)) return 'birthday'
-    if (/추모|기일|제사|추도|별세|기제/.test(s)) return 'memorial'
-    if (/기념|결혼|연애|만난|우리|사랑|커플|데이트|프러포즈|약혼/.test(s)) return 'couple'
-  }
+  const marker = markerOf(category, name)
+  if (marker === 'birthday' || marker === 'couple' || marker === 'memorial') return marker
   return 'other'
 }
 
-/** 기념일 그림(D-049, Fluent Emoji): 같은 종류라도 누구의 날인지 보이게, 이름·카테고리의 말로 고른다. DB kind는 그대로 두고 화면에서만 쓴다 */
-export type AnnivIconKey =
-  | 'cake' | 'party' | 'father' | 'mother' | 'father-in-law' | 'mother-in-law' | 'elder' | 'baby' | 'balloon'
-  | 'ring' | 'bouquet' | 'tulip' | 'two-hearts' | 'love-letter' | 'heart-ribbon'
-  | 'candle' | 'dove' | 'church' | 'medal' | 'hospital' | 'money' | 'moon' | 'document' | 'star'
-
-// 누구의 날인지: 처가(장인·장모)를 본가(아버지·어머니)보다 먼저 본다("장인장모님"에 "모님"이 들어 있어서)
-const IN_LAW = /장인|장모|처가|처부모/
-const FATHER = /아버지|아빠|아버님|시아버지|부친/
-const MOTHER = /어머니|엄마|어머님|시어머니|모친/
-const PARENTS = /부모님|양가|시부모|시댁|본가/
-
-export function annivIconOf(a: { name: string; category: string | null; kind: AnnivKind }): AnnivIconKey {
-  const text = `${a.category ?? ''} ${a.name}`
-  const inLaw = IN_LAW.test(text)
-  if (/추모|기일|제사|추도|별세|기제|떠난|무지개/.test(text)) return /떠난|무지개/.test(text) && !/아버지|어머니|할아버지|할머니|장인|장모/.test(text) ? 'dove' : 'candle'
-  if (/축일|세례|영명|성당|본명/.test(text)) return 'church'
-  if (/전역|제대|입대|군대|임관/.test(text)) return 'medal'
-  if (/병원|검진|진료|치과|예방접종/.test(text)) return 'hospital'
-  if (/용돈|월급|적금|만기금/.test(text)) return 'money'
-  if (/명절|추석|설날|한가위/.test(text)) return 'moon'
-  if (/갱신|만기|계약|보험|면허|여권/.test(text)) return 'document'
-  if (/결혼/.test(text)) return inLaw ? 'tulip' : PARENTS.test(text) || FATHER.test(text) || MOTHER.test(text) ? 'bouquet' : 'ring'
-  if (a.kind === 'couple' && /만난|첫 ?만남|소개/.test(text)) return 'two-hearts'
-  if (a.kind === 'couple' && /시작|사귄|연애|커플|프러포즈|고백|약혼/.test(text)) return 'love-letter'
-  if (a.kind === 'birthday' || /생일|생신|탄생|태어난|돌잔치|백일|출생/.test(text)) {
-    if (/장인/.test(text)) return 'father-in-law'
-    if (/장모/.test(text)) return 'mother-in-law'
-    if (/할아버지|할머니|조부모/.test(text)) return 'elder'
-    if (FATHER.test(text)) return 'father'
-    if (MOTHER.test(text)) return 'mother'
-    if (/태어난|아기|돌잔치|백일|출생|아이/.test(text)) return 'baby'
-    if (/^\s*(내|나의|제)\s*생|(^|\s)내생/.test(text)) return 'party'
-    if (/동생|형|누나|언니|오빠|조카/.test(text)) return 'balloon'
-    return 'cake'
-  }
-  if (a.kind === 'couple') return 'heart-ribbon'
-  return 'star'
+/** 월간 칸의 색과 상세 목록의 그림은 같은 분류를 사용한다. */
+export function annivIconOf(a: Pick<Anniversary, 'name' | 'category' | 'kind'>): AnnivIconKey {
+  return markerOf(a.category, a.name) ?? (a.kind !== 'other' && a.category?.trim() !== '기념일' ? a.kind : 'calendar')
 }
 
 /** 고를 수 있는 카테고리: 가구에서 이미 쓴 것(많이 쓴 순서) 뒤에 기본 말 */

@@ -55,7 +55,7 @@
 | `PushPinIcon` | Phosphor `push-pin, push-pin-fill` | Phosphor Icons | MIT, `public/licenses/ph-LICENSE.txt` | https://github.com/phosphor-icons/core | 2026-11-03 |
 | `StarIcon` | Phosphor `star-fill` | Phosphor Icons | MIT, `public/licenses/ph-LICENSE.txt` | https://github.com/phosphor-icons/core | 2026-11-05 |
 
-## 기념일 그림 (Iconify)
+## 이전 기념일 그림 (Iconify, D-049)
 
 기념일만 색 있는 그림(D-049)을 쓴다. 시스템 이모지 글자가 아니라 SVG로 `src/components/AnnivIcon.tsx`에 넣었고, 어느 그림을 쓸지는 `annivIconOf`(`src/lib/anniversaries.ts`)가 이름·카테고리로 정한다.
 

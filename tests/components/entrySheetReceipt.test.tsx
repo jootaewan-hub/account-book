@@ -103,45 +103,60 @@ describe('수정 시트의 영수증 사진', () => {
     expect(screen.queryByText(/^영수증 사진 2장/)).toBeNull()
   })
 
-  it('다시 읽기: 저장된 사진을 보내 품목을 채우고(이름이 같은 줄은 그대로 고침), 금액 차이는 적기만 하며, 저장하면 전·후를 넘긴다', async () => {
-    state.entries = [{ amount: 16390, items: [fresh('국산 대파 1단', 3000), fresh('서울우유 900ml', 4000, 2), fresh('포카칩 오리지널 66g', 1590)] }]
+  it('미리보기는 저장할 품목을 바꾸지 않고, 적용해도 일치하지 않는 기존 줄을 남긴다', async () => {
+    state.entries = [{ amount: 16000, items: [fresh('국산 대파 1단', 3000), fresh('서울우유 900ml', 4000, 2), fresh('포카칩 오리지널 66g', 1590)] }]
     const { onSave } = open()
     await screen.findByText('영수증 사진 2장')
     fireEvent.click(screen.getByRole('button', { name: '영수증 다시 읽기' }))
     expect(screen.getByRole('button', { name: '영수증 사진 읽는 중…' })).toBeTruthy()
-    expect(await screen.findByText(/다시 읽은 품목 3개를 아래에 채웠어요/)).toBeTruthy()
-    expect(screen.getByText(/결제 금액은 16,390원이에요\. 저장된 금액 16,000원은 바꾸지 않았어요/)).toBeTruthy()
-    // 보낸 것: 저장된 사진 2장을 다시 줄인 JPEG, 영수증 모드, 오늘
+    const apply = await screen.findByRole('button', { name: '읽은 품목 적용' })
+    expect(screen.getByText('품목 2개')).toBeTruthy()
     expect(state.analyzed).toEqual([[
       [{ media_type: 'image/jpeg', data: 'B64:hh/t1/1.jpg', width: 10, height: 20 }, { media_type: 'image/jpeg', data: 'B64:hh/t1/2.jpg', width: 10, height: 20 }],
       'receipt', '2026-11-03',
     ]])
-    // 품목 줄이 다시 읽은 것으로 바뀌었고(쭈꾸미는 빠짐), 금액 칸은 그대로
-    expect(screen.getByText('품목 3개')).toBeTruthy()
-    expect(screen.queryByText('쭈꾸미 1팩')).toBeNull()
-    expect(screen.getByText('포카칩 오리지널 66g')).toBeTruthy()
-    expect(screen.getByText('16,000')).toBeTruthy()
+    fireEvent.click(apply)
+    expect(screen.getByText(/일치하지 않은 기존 품목 1개는 목록 끝에 남겼어요/)).toBeTruthy()
+    expect(screen.getByText('품목 4개')).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: '16,000원 저장하기' }))
     await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1))
     const [, id, , change] = onSave.mock.calls[0] as unknown as [unknown, string, unknown, { before: unknown[]; after: { id?: string; name: string }[] }]
     expect(id).toBe('t1')
     expect(change.before).toEqual(tx.items)
-    expect(change.after.map((a) => [a.name, a.id ?? null])).toEqual([['국산 대파 1단', null], ['서울우유 900ml', 'i1'], ['포카칩 오리지널 66g', null]])
+    expect(change.after.map((a) => [a.name, a.id ?? null])).toEqual([
+      ['국산 대파 1단', null], ['서울우유 900ml', 'i1'], ['포카칩 오리지널 66g', null], ['쭈꾸미 1팩', 'i2'],
+    ])
   })
 
-  it('다시 읽기 전으로 되돌릴 수 있고, 읽기가 실패하면 까닭을 보인다', async () => {
+  it.each([
+    { total: 5200, batch: null, message: /일치하는 결제를 하나로 고를 수 없어요/ },
+    { total: 4000, batch: 'split-1', message: /상품별로 나눠 저장한 내역이에요/ },
+  ])('금액이 다르거나 나눈 영수증이면 미리보기만 한다 ($total, $batch)', async ({ total, batch, message }) => {
+    state.entries = [{ amount: total, items: [fresh('서울우유 900ml', 4000, 2), fresh('쭈꾸미 1팩', 1200)] }]
+    const { onSave } = open({ ...tx, amount: 4000, save_batch: batch, items: [tx.items![0]] })
+    await screen.findByText('영수증 사진 2장')
+    fireEvent.click(screen.getByRole('button', { name: '영수증 다시 읽기' }))
+    expect(await screen.findByText(message)).toBeTruthy()
+    expect(screen.getByText(/결제 .*원 · 품목 2개/)).toBeTruthy()
+    expect(screen.queryByRole('button', { name: '읽은 품목 적용' })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: '4,000원 저장하기' }))
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1))
+    const [, , , change] = onSave.mock.calls[0] as unknown as [unknown, unknown, unknown, { after: unknown[] }]
+    expect(change.after).toEqual([tx.items![0]])
+  })
+
+  it('적용 전 수동 편집을 되돌리기로 복원하고, 읽기에 실패하면 까닭을 보인다', async () => {
     state.entries = [{ amount: 16000, items: [fresh('국산 대파 1단', 3000)] }]
     open()
     await screen.findByText('영수증 사진 2장')
+    fireEvent.click(screen.getAllByRole('button', { name: '고치기' })[0])
+    fireEvent.change(screen.getByRole('textbox', { name: '1번째 품목 이름' }), { target: { value: '우유 (수동 수정)' } })
     fireEvent.click(screen.getByRole('button', { name: '영수증 다시 읽기' }))
-    expect(await screen.findByText(/다시 읽은 품목 1개/)).toBeTruthy()
-    expect(screen.queryByText(/바꾸지 않았어요/)).toBeNull() // 금액이 같으면 적지 않는다
-    fireEvent.click(screen.getByRole('button', { name: '읽기 전 품목으로 되돌리기' }))
-    expect(screen.getByText('쭈꾸미 1팩')).toBeTruthy()
-    expect(screen.queryByText(/다시 읽은 품목/)).toBeNull()
+    fireEvent.click(await screen.findByRole('button', { name: '읽은 품목 적용' }))
+    fireEvent.click(screen.getByRole('button', { name: '적용 전 품목으로 되돌리기' }))
+    expect((screen.getByRole('textbox', { name: '1번째 품목 이름' }) as HTMLInputElement).value).toBe('우유 (수동 수정)')
     state.fail = new Error('분석 서버에 연결하지 못했어요.')
     fireEvent.click(screen.getByRole('button', { name: '영수증 다시 읽기' }))
     expect(await screen.findByText('분석 서버에 연결하지 못했어요.')).toBeTruthy()
-    expect(screen.getByText('쭈꾸미 1팩')).toBeTruthy()
   })
 })

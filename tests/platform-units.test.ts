@@ -217,9 +217,9 @@ describe('상품별로 나누기', () => {
     expect(markRepeats(split, [first]).map((d) => d.include)).toEqual([true, true])
   })
 
-  it('나눠 저장하는 주문의 초안끼리 같은 묶음 번호, 한 건짜리 주문은 없음', () => {
+  it('나눠 저장하는 주문의 초안은 같은 묶음 번호, 나눈 품목을 하나만 골라도 번호를 남김', () => {
     let n = 0
     const batches = saveBatches([{ key: '0' }, { key: '1-0' }, { key: '1-1' }, { key: '1-x0' }, { key: '2-0' }, { key: '3-0' }, { key: '3-1' }], () => `b${++n}`)
-    expect(Object.fromEntries(batches)).toEqual({ '1-0': 'b1', '1-1': 'b1', '1-x0': 'b1', '3-0': 'b2', '3-1': 'b2' })
+    expect(Object.fromEntries(batches)).toEqual({ '1-0': 'b1', '1-1': 'b1', '1-x0': 'b1', '2-0': 'b2', '3-0': 'b3', '3-1': 'b3' })
   })
 })

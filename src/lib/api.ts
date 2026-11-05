@@ -127,7 +127,7 @@ export async function fetchTwoMonths(householdId: string, ym: string): Promise<T
   const rows = await readAllPages<TxRowWithItems>((from, to) =>
     sb()
       .from('transactions')
-      .select(TX_WITH_ITEMS, { count: from === 0 ? 'exact' : undefined })
+      .select(`${TX_WITH_ITEMS}, save_batch`, { count: from === 0 ? 'exact' : undefined })
       .eq('household_id', householdId)
       .gte('occurred_on', start)
       .lte('occurred_on', end)
@@ -249,7 +249,7 @@ export type BatchMate = Pick<Transaction, 'id' | 'occurred_on' | 'title' | 'amou
 
 /**
  * 이 내역과 같은 영수증에서 나눠 저장한 내역들(D-027, 이 내역 포함, 저장한 순서).
- * 묶음이 없거나 읽지 못하면(save_batch 칸을 만들기 전 포함) 빈 목록이다. 월 내역 읽기에는 이 칸을 넣지 않는다.
+ * 묶음이 없거나 읽지 못하면 빈 목록이다.
  */
 export async function fetchSaveBatch(tx: Pick<Transaction, 'id' | 'household_id'>): Promise<BatchMate[]> {
   const own = await sb().from('transactions').select('save_batch').eq('id', tx.id).maybeSingle()

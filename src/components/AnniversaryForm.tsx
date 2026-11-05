@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { finishAnnivInput, nextOccurrence } from '../lib/anniversaries'
 import { solarToLunar } from '../lib/lunar'
+import { AnnivIcon } from './AnnivIcon'
 import type { AnniversaryInput } from '../lib/types'
 
 const SOLAR_DAYS = [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
@@ -89,6 +90,12 @@ export function AnniversaryForm({ initial, today, categories, fromDate, editing,
             onClick={() => set({ category: v.category?.trim() === c ? null : c })}>{c}</button>
         ))}
       </div>
+      {v.name.trim() && (
+        <div className="anniv-preview">
+          <span className="anniv-ic"><AnnivIcon a={done} /></span>
+          <span><small>달력 목록 미리보기</small><b>{v.name.trim()}</b></span>
+        </div>
+      )}
       <div className="seg" role="group" aria-label="반복">
         {REPEATS.map(([m, label]) => (
           <button type="button" key={m} aria-pressed={mode === m} onClick={() => pickRepeat(m)}>{label}</button>

@@ -1,5 +1,6 @@
-import { useMemo, useRef, useState, type ReactNode } from 'react'
-import { anniversariesInMonth, dLabel, repeatLabel, upcomingAnniversaries } from '../lib/anniversaries'
+import { useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import ledgerPhoto from '../assets/monthly-ledger.webp'
+import { annivIconOf, anniversariesInMonth, dLabel, repeatLabel, upcomingAnniversaries } from '../lib/anniversaries'
 import { DOW, dayOf, formatDateLong, monthGrid, monthRange, parseYM } from '../lib/dates'
 import { byPriority, eventsByDate, fxClass, isRange, priorityWord, rangeLabel, rangePart, shortDate, upcomingEvents, whenLabel } from '../lib/events'
 import { compact, won } from '../lib/format'
@@ -60,6 +61,14 @@ export function CalendarView({ ym, today, sel, cur, prev, loading = false, looku
   const exp = sumType(cur, 'expense')
   const thisMonth = today.slice(0, 7)
   const gridRef = useSlideIn<HTMLDivElement>(ym)
+  const dayHeading = useRef<HTMLHeadingElement>(null)
+  const [jumpTarget, setJumpTarget] = useState<{ date: string } | null>(null)
+  useLayoutEffect(() => {
+    if (jumpTarget?.date !== sel) return
+    dayHeading.current?.focus({ preventScroll: true })
+    dayHeading.current?.scrollIntoView?.({ block: 'start' })
+    setJumpTarget(null)
+  }, [jumpTarget, sel])
   const appear = useAppear(loading)
 
   let compare: React.ReactNode = null
@@ -104,6 +113,7 @@ export function CalendarView({ ym, today, sel, cur, prev, loading = false, looku
       <div className="cal-top">
         {/* aria-live를 두지 않는다: 달 표시(App)가 이미 읽히고, 배우자 내역이 들어올 때마다 전부 다시 읽히면 시끄럽다 */}
         <div className="hero">
+          <img className="hero-art" src={ledgerPhoto} width={384} height={288} alt="" />
           {loading ? (
             // 이 달 내역이 오기 전에는 0원 대신 숫자 자리만 보인다
             <div className="hero-wait">
@@ -115,6 +125,7 @@ export function CalendarView({ ym, today, sel, cur, prev, loading = false, looku
             </div>
           ) : (
             <div className={appear || undefined}>
+              <p className="hero-kicker">월간 가계부</p>
               <p className="hero-label"><Soft value={hasIncome ? `${m}월에 ${future ? '남을' : '남은'} 돈` : `${m}월에 ${future ? '나갈' : '쓴'} 돈`} /></p>
               <p className={`hero-num num${hasIncome && left < 0 ? ' neg' : ''}`}>
                 <Soft value={hasIncome ? `${left < 0 ? '-' : ''}${won(Math.abs(left))}` : won(exp)} /><small>원</small>
@@ -125,8 +136,8 @@ export function CalendarView({ ym, today, sel, cur, prev, loading = false, looku
                 </div>
               )}
               <div className="hero-legend num">
-                <span>{future ? '나갈 돈' : '쓴 돈'} <b><Soft value={won(exp)} /></b></span>
-                <span className="in">들어온 돈 <b><Soft value={won(inc)} /></b></span>
+                <span>{future ? '나갈 돈' : '쓴 돈'} <b><Soft value={won(exp)} />원</b></span>
+                <span className="in">들어온 돈 <b><Soft value={won(inc)} />원</b></span>
               </div>
               {compare && <p className="compare">{compare}</p>}
               {monthPlan > 0 && (
@@ -139,6 +150,7 @@ export function CalendarView({ ym, today, sel, cur, prev, loading = false, looku
         </div>
 
         <div className="card cal-card">
+          <div className="cal-caption"><h2>{m}월 달력</h2><span><i aria-hidden="true" />오늘</span></div>
           <div className="cal" ref={gridRef}>
             {DOW.map((d, i) => <div key={d} className={`dow${i === 0 ? ' sun' : i === 6 ? ' sat' : ''}`}>{d}</div>)}
             {monthGrid(ym).map((date, i) => {
@@ -151,7 +163,7 @@ export function CalendarView({ ym, today, sel, cur, prev, loading = false, looku
               const pl = planByDate.get(date)?.expense
               // 일정은 꼭 → 중요 → 보통 순서(두 개까지만 보여서). 중요·꼭은 효과 클래스, 기간 일정은 이웃 날과 이어지게 모서리를 편다(D-054)
               const labels: { key: string; name: string; cls: string; event?: CalEvent }[] = [
-                ...(an ?? []).map((a) => ({ key: `a-${a.id}`, name: a.name, cls: `an k-${a.kind}` })),
+                ...(an ?? []).map((a) => ({ key: `a-${a.id}`, name: a.name, cls: `an k-${annivIconOf(a)}` })),
                 ...byPriority(ev ?? []).map((e) => ({ key: `e-${e.id}`, name: e.title, event: e,
                   cls: ['ev', `s-${e.scope ?? 'shared'}`, fxClass(e), isRange(e) && `r-${rangePart(e, date)}`,
                     // 이어지는 날 가운데 그 줄의 첫 칸(일요일·1일): 누구 띠를 여기에만 다시 보인다
@@ -161,7 +173,7 @@ export function CalendarView({ ym, today, sel, cur, prev, loading = false, looku
               const label = `${m}월 ${dayOf(date)}일${hol ? ` ${hol}` : ''}${an ? ` ${an.map((a) => a.name).join(', ')}` : ''}${ev ? ` 일정 ${ev.map(eventReadName).join(', ')}` : ''}${t?.expense ? ` 지출 ${won(t.expense)}원` : ''}${t?.income ? ` 수입 ${won(t.income)}원` : ''}${pl ? ` 고정지출 예정 ${won(pl)}원` : ''}`
               return (
                 <button key={date} className={cls} aria-label={label} aria-pressed={date === sel} onClick={() => onSelect(date)}>
-                  <span className="n num">{dayOf(date)}{an && <span className={`anniv-mark k-${an[0].kind}`}><AnnivIcon a={an[0]} /></span>}</span>
+                  <span className="n num">{dayOf(date)}{an && <span aria-hidden="true" className={`anniv-mark k-${annivIconOf(an[0])}`} />}</span>
                   {/* 기념일·일정 이름(달력에서 바로 보이게). 두 개까지, 넘치면 +N. 읽기는 칸의 aria-label이 맡는다 */}
                   {labels.slice(0, MAX_LABELS).map((l) => <span key={l.key} className={`cal-lbl ${l.cls}`} aria-hidden="true">{l.event && <EventMark e={l.event} />}{l.name}</span>)}
                   {labels.length > MAX_LABELS && <span className="cal-lbl more num" aria-hidden="true">+{labels.length - MAX_LABELS}</span>}
@@ -179,7 +191,10 @@ export function CalendarView({ ym, today, sel, cur, prev, loading = false, looku
       {sel.startsWith(ym) && (
         <div className="day-group">
           <div className="day-head">
-            <h2>{formatDateLong(sel).replace(/^\d+월 /, '')}{HOLIDAYS[sel] ? <span className="tag" style={{ marginLeft: 8, verticalAlign: '2px' }}>{HOLIDAYS[sel]}</span> : null}</h2>
+            <div>
+              <p className="day-kicker">선택한 날</p>
+              <h2 ref={dayHeading} tabIndex={-1}>{formatDateLong(sel)}{HOLIDAYS[sel] ? <span className="tag" style={{ marginLeft: 8, verticalAlign: '2px' }}>{HOLIDAYS[sel]}</span> : null}</h2>
+            </div>
             <div className="tot num">
               {de > 0 && <>{won(de)}원 썼어요</>}
               {de > 0 && di > 0 && <br />}
@@ -216,9 +231,12 @@ export function CalendarView({ ym, today, sel, cur, prev, loading = false, looku
             <DayNew key={sel} label={`${m}월 ${dayOf(sel)}일에 일정 넣기`} onQuickAdd={onQuickAdd} onCapture={onCapture}
               onDetail={(title) => onPlan({ kind: 'new', date: sel, title })} />
           </div>
-          <div className="tx-list">
-            {dayTx.map((t) => <TxRow key={t.id} t={t} lookup={lookup} onClick={() => onEdit(t)} />)}
-            {!dayTx.length && (loading ? <RowsWait rows={2} /> : <div className="empty">이 날 기록이 없어요. 기록하기로 추가해 보세요.</div>)}
+          <div className="cal-day-transactions">
+            <div className="cal-day-section"><h3>이날 내역</h3>{!loading && <span className="num">{dayTx.length}건</span>}</div>
+            <div className="tx-list">
+              {dayTx.map((t) => <TxRow key={t.id} t={t} lookup={lookup} onClick={() => onEdit(t)} />)}
+              {!dayTx.length && (loading ? <RowsWait rows={2} /> : <div className="empty">이날 기록이 없어요.</div>)}
+            </div>
           </div>
         </div>
       )}
@@ -226,7 +244,7 @@ export function CalendarView({ ym, today, sel, cur, prev, loading = false, looku
       <div className="cal-more">
         {soon.length > 0 && (
           <SoonList label="다가오는 일정·기념일" items={soon.map((u) => (
-            <AgendaRow key={u.key} name={u.name} event={u.event} scope={u.scope} onClick={() => onJump(u.date)}
+            <AgendaRow key={u.key} name={u.name} event={u.event} scope={u.scope} onClick={() => { setJumpTarget({ date: u.date }); onJump(u.date) }}
               icon={u.event ? <CalendarIcon /> : <AnnivIcon a={{ name: u.name, category: u.category, kind: u.kind as Anniversary['kind'] }} />}
               meta={u.event && isRange(u.event) ? rangeLabel(u.event) : shortDate(u.date)} trail={u.ongoing ? '하는 중' : dLabel(u.days)} />
           ))} />

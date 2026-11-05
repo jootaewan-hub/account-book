@@ -59,26 +59,32 @@ const FIELDS: (keyof EditableItem)[] = ['name', 'quantity', 'unit_price', 'amoun
 
 const nameKey = (s: string) => s.replace(/\s+/g, '').toLowerCase()
 
-/**
- * 영수증을 다시 읽은 품목(D-053)을 저장된 줄에 맞춘다: 이름이 같은 저장된 줄(앞에서부터 한 번씩)의 id·사진을 이어받아
- * 저장할 때 그 줄은 바뀐 칸만 고치고(장보기 연결도 남는다), 나머지는 새 줄·뺀 줄이 된다. 순서는 다시 읽은 순서
- */
-export function mergeReread<T extends EditableItem>(before: TxItem[], fresh: T[]): (T & { id?: string; image_path?: string | null })[] {
-  const pool = new Map<string, TxItem[]>()
-  for (const b of before) {
-    const k = nameKey(b.name)
-    pool.set(k, [...(pool.get(k) ?? []), b])
+type RereadItem = EditableItem & { id?: string; image_path?: string | null }
+
+/** 이름이 같은 줄의 id·사진을 유지한다. 다시 읽은 목록에 없는 줄도 사용자가 직접 검토할 수 있게 남긴다. */
+export function mergeReread(before: RereadItem[], fresh: EditableItem[]): { items: RereadItem[]; retained: number } {
+  const pool = new Map<string, RereadItem[]>()
+  for (const item of before) {
+    const key = nameKey(item.name)
+    const group = pool.get(key)
+    if (group) group.push(item)
+    else pool.set(key, [item])
   }
-  return fresh.map((it) => {
-    const old = pool.get(nameKey(it.name))?.shift()
-    return old ? { ...it, id: old.id, image_path: old.image_path } : { ...it }
+  const matched = new Set<RereadItem>()
+  const items = fresh.map((item) => {
+    const old = pool.get(nameKey(item.name))?.shift()
+    if (!old) return item
+    matched.add(old)
+    return { ...old, ...item }
   })
+  const retained = before.filter((item) => !matched.has(item))
+  return { items: [...items, ...retained], retained: retained.length }
 }
 
-/** 다시 읽은 결과 가운데 이 내역의 것: 결제 금액이 같은 내역, 없으면 품목이 있는 첫 내역. 품목이 하나도 없으면 null */
+/** 금액이 같은 후보가 하나일 때만 적용할 수 있다. */
 export function pickRereadEntry<E extends { amount: number; items: unknown[] }>(entries: E[], amount: number): E | null {
-  const withItems = entries.filter((e) => e.items.length > 0)
-  return withItems.find((e) => e.amount === amount) ?? withItems[0] ?? null
+  const matches = entries.filter((entry) => entry.items.length > 0 && entry.amount === amount)
+  return matches.length === 1 ? matches[0] : null
 }
 
 /**

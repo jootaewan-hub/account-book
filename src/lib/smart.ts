@@ -575,7 +575,7 @@ export function stitchEntries(entries: CheckedEntry[]): CheckedEntry[] {
  * fuelSaved: 주유 기록을 넣었는지(주유가 아니거나 리터·단가가 비어 있으면 null, 넣기에 실패하면 false — 내역은 그대로 둔다).
  */
 /**
- * 한 주문을 나눠 저장하는 초안끼리 같은 묶음 번호를 붙인다(D-027). 저장할 초안이 2건 이상인 주문만.
+ * 나눈 초안에 같은 영수증 묶음 번호를 붙인다(D-027). 한 품목만 골라도 영수증 전체와 구분한다.
  * 초안 key의 앞 숫자가 주문 번호다('2', '2-0', '2-x0'). 돌려주는 것: 초안 key → 묶음 번호
  */
 export function saveBatches(chosen: Pick<Draft, 'key'>[], newId: () => string = () => crypto.randomUUID()): Map<string, string> {
@@ -586,7 +586,7 @@ export function saveBatches(chosen: Pick<Draft, 'key'>[], newId: () => string = 
   }
   const out = new Map<string, string>()
   for (const keys of byOrder.values()) {
-    if (keys.length < 2) continue
+    if (keys.length < 2 && !keys[0].includes('-')) continue
     const id = newId()
     for (const k of keys) out.set(k, id)
   }

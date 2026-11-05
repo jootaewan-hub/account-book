@@ -147,33 +147,21 @@ describe('기념일 반복·카테고리 (D-033)', () => {
     expect(annivDateLabel(at({ repeat_unit: 'month', start_year: 2026 }))).toBe('매달 10일')
     expect(annivDateLabel(at({ repeat_unit: 'month', repeat_every: 3, start_year: 2026 }))).toBe('3개월마다 10일')
     expect([annivKindOf('생일', '엄마'), annivKindOf(null, '할머니 기일'), annivKindOf('기념일', 'x'), annivKindOf('병원', '건강검진')])
-      .toEqual(['birthday', 'memorial', 'couple', 'other'])
+      .toEqual(['birthday', 'memorial', 'other', 'other'])
     expect(annivCategories([{ category: '병원' }, { category: '생일' }, { category: '병원' }, { category: null }]))
       .toEqual(['병원', '생일', '기념일', '추모', '명절', '갱신'])
   })
 
-  it('기념일 그림(D-049): 같은 생일·결혼기념일이라도 누구의 날인지에 따라 그림이 다르다', () => {
-    // 2026-11-03 우리 가구 기념일 이름·카테고리 그대로
-    const rows: [string, string | null, 'birthday' | 'couple' | 'memorial' | 'other', string][] = [
-      ['아버지생신', '생일', 'birthday', 'father'], ['어머니생신', '생일', 'birthday', 'mother'],
-      ['장인어른생신', '생일', 'birthday', 'father-in-law'], ['장모님 생신', '생일', 'birthday', 'mother-in-law'],
-      ['내생일', '생일', 'birthday', 'party'], ['동생생일', '생일', 'birthday', 'balloon'], ['아인이 태어난날', '생일', 'birthday', 'baby'], ['하리생일', '생일', 'birthday', 'cake'],
-      ['우리결혼기념일', '기념일', 'couple', 'ring'], ['부모님 결혼기념일', '기념일', 'couple', 'bouquet'], ['장인장모님 결혼기념일', '기념일', 'couple', 'tulip'],
-      ['예나처음만난날', '기념일', 'couple', 'two-hearts'], ['예나랑시작', '기념일', 'couple', 'love-letter'],
-      ['별이떠난날', '추모', 'memorial', 'dove'], ['루까 축일', null, 'other', 'church'], ['전역날', null, 'other', 'medal'],
-    ]
-    expect(rows.map(([name, category, kind]) => annivIconOf({ name, category, kind }))).toEqual(rows.map((r) => r[3]))
-    // 화면 예시 데이터와 그 밖의 말
-    expect(annivIconOf({ name: '할머니 기일', category: '추모', kind: 'memorial' })).toBe('candle')
+  it('기념일 그림과 달력 색을 한 분류로 고르고, 예전 분류와 충돌하는 이름을 바로 표시한다', () => {
+    expect(annivIconOf({ name: '엄마 생일 용돈', category: '생일', kind: 'birthday' })).toBe('birthday')
+    expect(annivIconOf({ name: '할머니 기일', category: '기념일', kind: 'couple' })).toBe('memorial')
+    expect(annivKindOf('기념일', '할머니 기일')).toBe('memorial')
+    expect(annivIconOf({ name: '여권 갱신', category: '기념일', kind: 'couple' })).toBe('document')
+    expect(annivIconOf({ name: '결혼기념일', category: '기념일', kind: 'couple' })).toBe('couple')
     expect(annivIconOf({ name: '건강검진', category: '병원', kind: 'other' })).toBe('hospital')
     expect(annivIconOf({ name: '아이 용돈', category: null, kind: 'other' })).toBe('money')
-    expect(annivIconOf({ name: '결혼기념일', category: '기념일', kind: 'couple' })).toBe('ring')
-    expect(annivIconOf({ name: '여권', category: '갱신', kind: 'other' })).toBe('document')
-    expect(annivIconOf({ name: '추석', category: '명절', kind: 'other' })).toBe('moon')
-    expect(annivIconOf({ name: '할아버지 생신', category: '생일', kind: 'birthday' })).toBe('elder')
-    // 우리 기념일이 아니면 '시작'·'만난'으로 연애 그림을 고르지 않는다
-    expect(annivIconOf({ name: '운동 시작한 날', category: null, kind: 'other' })).toBe('star')
-    expect(annivIconOf({ name: '100일', category: '기념일', kind: 'couple' })).toBe('heart-ribbon')
+    expect(annivIconOf({ name: '추석', category: '명절', kind: 'other' })).toBe('special')
+    expect(annivIconOf({ name: '운동 시작한 날', category: '기념일', kind: 'couple' })).toBe('calendar')
   })
 
   it('저장 값 다듬기: 해마다는 시작 해를 두지 않고, 그 밖은 시작 해가 있고, 매달은 양력. 고치기 폼 값은 모든 칸을 옮긴다', () => {

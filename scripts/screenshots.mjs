@@ -182,6 +182,7 @@ const shellShots = [
   ...both(390, (w, c) => ({ name: `shell-smart-item-edit-${w}-${c}`, path: '/', w, c, shell: true, tab: '내역', receipt: true, itemsView: true, itemEdit: true })),
   ...both(390, (w, c) => ({ name: `shell-smart-draft-off-${w}-${c}`, path: '/', w, c, shell: true, tab: '내역', receipt: true, draftOff: true })),
   // 내역 고르기(D-027): 날짜 하나 전부 + 다른 날 한 건을 고른 상태, 아래에 고른 내역 줄. 휴대폰은 한 번 누른 확인 상태도
+  ...each((w, c) => ({ name: `shell-list-home-${w}-${c}`, path: '/', w, c, shell: true, tab: '내역' })),
   ...each((w, c) => ({ name: `shell-list-pick-${w}-${c}`, path: '/', w, c, shell: true, tab: '내역', listPick: { day: 1, row: '스타벅스' } })),
   ...both(390, (w, c) => ({ name: `shell-list-pick-confirm-${w}-${c}`, path: '/', w, c, shell: true, tab: '내역', listPick: { day: 1, row: '스타벅스', confirm: true } })),
   // 나눠 저장한 내역의 수정 시트: 같은 영수증 내역 목록과 '4건 모두 삭제'
@@ -214,7 +215,7 @@ const shellShots = [
   // 통계 탭 주유 묶음(설계 2026-10-21): 리터당 가격·지난번 대비·추이 그래프·달별. 가짜 주유 기록 3건
   ...each((w, c) => ({ name: `shell-stats-fuel-${w}-${c}`, path: '/', w, c, shell: true, tab: '통계', scroll: '.fuel-card' })),
   // 다가오는 일정·기념일 목록(D-055, 칩이 흐르던 D-033을 바꿈): 넓은 화면 왼쪽 단의 달력 아래, 기념일만 있는 달
-  ...both(1280, (w, c) => ({ name: `shell-cal-soon-list-${w}-${c}`, path: '/', w, c, shell: true, tab: '달력', center: '.soon-card' })),
+  ...each((w, c) => ({ name: `shell-cal-soon-list-${w}-${c}`, path: '/', w, c, shell: true, tab: '달력', center: '.soon-card' })),
   // 기념일 넣기(D-033): 카테고리 칩, 반복 네 가지 중 '몇 년마다'와 숫자 칸, 시작한 해
   ...each((w, c) => ({ name: `shell-anniv-form-${w}-${c}`, path: '/', w, c, shell: true, tab: '설정', presses: ['기념일 추가', '몇 년마다', '병원'], center: '.anniv-form' })),
   // 11월 20일: 2년마다 오는 기념일 줄(카테고리·반복 말). 가짜 기념일이 11월에 있어 그 달까지 넘긴다
@@ -498,7 +499,7 @@ try {
       }
       if (s.where) await page.getByRole('button', { name: '어디서 살지' }).click()
       if (s.record) {
-        await page.locator('.fab, .side-record').locator('visible=true').first().click()
+        await page.locator('.mobile-record, .side-record').locator('visible=true').first().click()
         await page.getByRole('dialog').first().waitFor()
       }
       if (s.listPick) {
@@ -527,7 +528,8 @@ try {
           await page.waitForFunction(() => { const im = document.querySelector('.photo-view img'); return im && im.complete && im.naturalWidth > 0 })
         } else if (s.reread) {
           await page.getByRole('button', { name: '영수증 다시 읽기' }).click()
-          await page.getByText(/다시 읽은 품목 \d+개를 아래에 채웠어요/).waitFor()
+          await page.getByText(/이 내역과 일치하는 결제를 하나로 고를 수 없어요/).waitFor()
+          await page.locator('.reread-candidate summary').first().click()
           await page.locator('.receipt-field').evaluate((el) => el.scrollIntoView({ block: 'start' }))
         } else await page.locator('.receipt-field').evaluate((el) => el.scrollIntoView({ block: 'center' }))
       }
@@ -540,7 +542,7 @@ try {
         await page.getByRole('dialog').first().waitFor()
       }
       if (s.receipt) {
-      await page.locator('.fab, .side-record').locator('visible=true').first().click()
+      await page.locator('.mobile-record, .side-record').locator('visible=true').first().click()
       await page.getByRole('button', { name: '영수증', exact: true }).click()
       // 1x1 JPEG 한 장(내용은 쓰지 않는다: 분석 응답은 가짜)
       const jpeg = Buffer.from('/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRofHh0aHBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/wAALCAABAAEBAREA/8QAFAABAAAAAAAAAAAAAAAAAAAACf/EABQQAQAAAAAAAAAAAAAAAAAAAAD/2gAIAQEAAD8AKp//2Q==', 'base64')
@@ -585,7 +587,7 @@ try {
       }, [s.toast, s.toastDone ?? false])
     }
     if (s.bill) {
-      await page.locator('.fab, .side-record').locator('visible=true').first().click()
+      await page.locator('.mobile-record, .side-record').locator('visible=true').first().click()
       await page.getByRole('button', { name: '관리비 고지서', exact: true }).click()
       await page.locator('input[type=file]').setInputFiles({ name: 'b.jpg', mimeType: 'image/jpeg', buffer: TINY_JPEG })
       await page.getByRole('button', { name: /장 분석하기$/ }).click()

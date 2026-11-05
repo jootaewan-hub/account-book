@@ -8,6 +8,7 @@ import { storeOfTx } from '../lib/categorize'
 import { OTHER_PLATFORM, platformOfTx } from '../lib/platform'
 import type { Scope, Transaction } from '../lib/types'
 import { Bar, RowsWait, useAppear } from './Loading'
+import { SearchIcon } from './Icons'
 import { TxRow } from './TxRow'
 
 const DOT: Record<Scope, string> = { shared: 'var(--who-shared)', husband: 'var(--who-husband)', wife: 'var(--who-wife)', child: 'var(--who-child)' }
@@ -106,19 +107,25 @@ export function ListView({ cur, future = false, loading = false, lookup, focus, 
   }
 
   return (
-    <section className="view">
-      <div className="month-sum num">
-        {/* 이 달 내역이 오기 전에는 0원 대신 숫자 자리만 보인다 */}
-        <span>{future ? '나갈 돈' : '쓴 돈'} <b>{loading ? <Bar w={5} /> : `${won(sumType(list, 'expense'))}원`}</b></span>
-        <span className="in">들어온 돈 <b>{loading ? <Bar w={5} /> : `${won(sumType(list, 'income'))}원`}</b></span>
-        {narrowed && <span>{list.length}건</span>}
-        {(real.length > 0 || picking) && (
-          <button className="link-btn pick-toggle" aria-pressed={picking} onClick={togglePicking}>{picking ? '고르기 취소' : '고르기'}</button>
-        )}
+    <section className="view ledger-list-view">
+      <div className="list-overview">
+        <h2>내역 요약</h2>
+        <div className="month-sum num">
+          {/* 이 달 내역이 오기 전에는 0원 대신 숫자 자리만 보인다 */}
+          <span>{future ? '나갈 돈' : '쓴 돈'} <b>{loading ? <Bar w={5} /> : `${won(sumType(list, 'expense'))}원`}</b></span>
+          <span className="in">들어온 돈 <b>{loading ? <Bar w={5} /> : `${won(sumType(list, 'income'))}원`}</b></span>
+          {narrowed && <span>{list.length}건</span>}
+          {(real.length > 0 || picking) && (
+            <button className="link-btn pick-toggle" aria-pressed={picking} onClick={togglePicking}>{picking ? '고르기 취소' : '고르기'}</button>
+          )}
+        </div>
+        {planSum > 0 && <p className="plan-note">고정지출 예정 <b className="num">{won(planSum)}원</b>이 들어 있어요</p>}
       </div>
-      {planSum > 0 && <p className="plan-note">고정지출 예정 <b className="num">{won(planSum)}원</b>이 들어 있어요</p>}
-      <input type="search" className="input" aria-label="내역 찾기" placeholder="이름·품목·메모로 찾기" value={q}
-        autoComplete="off" onChange={(e) => setQ(e.target.value)} />
+      <div className="ledger-list-search">
+        <SearchIcon />
+        <input type="search" className="input" aria-label="내역 찾기" placeholder="이름·품목·메모로 찾기" value={q}
+          autoComplete="off" onChange={(e) => setQ(e.target.value)} />
+      </div>
       {focus && (
         <div className="focus-row">
           <span className="chip" aria-pressed="true">{FOCUS_LABEL[focus.kind]}: {focus.name}</span>

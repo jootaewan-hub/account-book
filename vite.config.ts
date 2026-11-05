@@ -64,7 +64,7 @@ export default defineConfig({
       workbox: {
         navigateFallback: `${base}index.html`,
         // 가계부 데이터(Supabase)는 캐시하지 않는다. 앱 파일만 캐시.
-        globPatterns: ['**/*.{js,css,html,svg,png,woff2,wasm}'],
+        globPatterns: ['**/*.{js,css,html,svg,png,webp,woff2,wasm}'],
         maximumFileSizeToCacheInBytes: 3 * 1024 * 1024, // 바코드 읽기 .wasm(약 1.1MB)도 앱 파일처럼 캐시한다
       },
     }),

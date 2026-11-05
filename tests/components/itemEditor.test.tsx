@@ -57,10 +57,13 @@ describe('ItemEditor', () => {
     expect(screen.getByText('21,340')).toBeTruthy()
   })
 
-  it('앞 칸과 아래 칸은 넘겨준 대로 그린다(사진·용량 칸)', () => {
+  it('사진은 있는 줄만 보이고 용량 입력은 편집 중에만 열린다', () => {
     render(<ItemEditor items={items} onChange={() => {}}
-      renderThumb={(it) => <img alt={`${it.name} 사진`} src="x" />} renderExtra={(it) => <span>{it.name} 용량</span>} />)
+      renderThumb={(it) => it.name === '추황배' ? <img alt="추황배 사진" src="x" /> : null} renderExtra={(it) => <span>{it.name} 용량</span>} />)
     expect(screen.getByAltText('추황배 사진')).toBeTruthy()
+    expect(screen.getAllByRole('img')).toHaveLength(1)
+    expect(screen.queryByText('서울우유 1L 용량')).toBeNull()
+    fireEvent.click(screen.getAllByRole('button', { name: '고치기' })[0])
     expect(screen.getByText('서울우유 1L 용량')).toBeTruthy()
   })
 })

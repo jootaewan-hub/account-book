@@ -12,9 +12,9 @@
 | 2. 컬러 | `DESIGN.md` 토큰 그대로(흰 바탕·귀리 면. 회색 바탕 시안은 사용자가 되돌림, D-048 보충) | Realtime Colors·Coolors는 다른 조합을 미리 볼 때만. 토큰을 바꾸려면 대비(흰 바탕·귀리 면 위 4.5:1)와 `who-*` 색 순서 검증을 다시 한다 | `DESIGN.md` Colors |
 | 3. 폰트 | SUIT 2.0.5 하나 | 바꾸지 않는다. Fontshare 등 목록의 글꼴은 한글 지원을 확인하지 못했다 | `DESIGN.md` Typography |
 | 4. UI 컴포넌트 | Magic UI(MIT) 코드를 옮겨 쓴다 | 소스를 읽고 Web Animations API·일반 CSS로 다시 쓴다(motion·Tailwind를 들이지 않음). 옮긴 것은 `CREDITS.md` "컴포넌트·모션 코드"에 적는다. 21st.dev는 shadcn·Tailwind 설치와 하루 2회 제한이 있어 쓰지 않는다 | "AI처럼 보이지 않게"(CLAUDE.md): 반짝이·테두리 빛(Shimmer Button, Border Beam, Sparkles, Aurora Text, Meteors)·타자 치듯 나오는 글자는 쓰지 않는다 |
-| 5. 아이콘 | Iconify의 Phosphor(MIT) 한 가족. 기념일 그림만 Fluent Emoji Flat(MIT, 색 있는 SVG, D-049) | `node scripts/iconify-icon.mjs ph:이름 --write` (아래 5절) | `DESIGN.md` 아이콘 절: 보통 굵기, 켜진 탭은 -fill, 18px 이하 표시는 -fill·-bold. 이모지 금지 |
-| 6. 일러스트 | 쓰지 않는다 | 빈 상태는 한 문장과 버튼 | `docs/grocery/DESIGN.md` "빈 상태: 그림 없음" |
-| 7. 사진 | 쓰지 않는다 | 상품 사진은 출처 응답의 이미지만 | 화면의 숫자·사진은 출처가 있는 것만 |
+| 5. 아이콘 | Iconify의 Phosphor(MIT) 한 가족 | `node scripts/iconify-icon.mjs ph:이름 --write` (아래 5절) | `DESIGN.md` 아이콘 절: 보통 굵기, 켜진 탭은 -fill, 18px 이하 표시는 -fill·-bold. 이모지 금지 |
+| 6. 일러스트 | 빈 상태에는 쓰지 않는다 | 빈 상태는 한 문장과 버튼 | `docs/grocery/DESIGN.md` "빈 상태: 그림 없음" |
+| 7. 사진 | 월간 장부와 기념일 상세의 케이크·반지·초는 ImageGen 정물 이미지 | 앱에 투명 WebP로 포함한다. 상품 사진은 출처 응답의 이미지만 | 상품 이미지나 실제 영수증으로 쓰지 않는다 |
 | 8. 3D | 쓰지 않는다 | | |
 | 9. 모션 | `src/components/Motion.tsx`와 CSS 토큰 | 새 움직임은 Magic UI·React Bits·transitions.dev를 참고해 이 파일에 쓰고, `DESIGN.md` Motion 표에 한 줄 더한다 | 돈 숫자 굴리기(Number Ticker·Count Up), 화면 들어올 때마다 떠오르기, 자주 하는 동작의 큰 움직임 금지 |
 | 10. 목업 | 쓰지 않는다 | 화면 확인은 `npm run screens` | |

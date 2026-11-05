@@ -55,15 +55,20 @@ export function WishList({ store, members, version, onNew, onEdit, onSearch }: {
       <ul className={`wish-list${rows !== null ? ' fade-in' : ''}`}>
         {shown.map((wish) => <li key={wish.id} className="wish-card">
           <button className="wish-title" onClick={() => onEdit(wish)}>{wish.title}</button>
-          {wish.target_price !== null && <p className="wish-target num">목표 {won(wish.target_price)} <span>직접 정한 금액</span></p>}
-          {wish.quote && <div className="wish-price"><p className="num">보관 당시 {won(wish.quote.price)}</p>
-            <p>{wish.quote.source}, {whenText(wish.quote.checkedAt)} 확인</p><p>{wish.quote.note.replaceAll(' · ', ', ')}</p></div>}
+          {(wish.target_price !== null || wish.quote) && (
+            <dl className="wish-prices">
+              {wish.target_price !== null && <div><dt>목표가</dt><dd className="num">{won(wish.target_price)}</dd></div>}
+              {wish.quote && <div><dt>보관 당시</dt><dd className="num">{won(wish.quote.price)}</dd>
+                <dd className="wish-price-source">{wish.quote.source}, {whenText(wish.quote.checkedAt)} 확인</dd></div>}
+            </dl>
+          )}
+          {wish.quote?.note && <p className="wish-price-source">{wish.quote.note.replaceAll(' · ', ', ')}</p>}
           {wish.memo && <p className="wish-memo">{wish.memo}</p>}
           <p className="wish-by">{lookup.personLabel(wish.created_by)} 보관{wish.bought_at ? `, ${whenText(wish.bought_at)} 구입 표시` : ''}</p>
           <div className="wish-actions">
             {wish.url && <a className="btn-text" href={wish.url} target="_blank" rel="noopener noreferrer">상품 보기</a>}
             <button className="btn-text" onClick={() => onSearch(wish.title)}>가격 다시 찾기</button>
-            <button className="btn-secondary" disabled={busy !== null} onClick={() => void toggle(wish)}>{busy === wish.id ? '저장 중' : wish.bought_at ? '다시 보관' : '샀어요'}</button>
+            <button className="btn-secondary wish-status" disabled={busy !== null} onClick={() => void toggle(wish)}>{busy === wish.id ? '저장 중' : wish.bought_at ? '다시 보관' : '샀어요'}</button>
           </div>
         </li>)}
       </ul>

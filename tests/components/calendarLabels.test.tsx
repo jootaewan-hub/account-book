@@ -61,7 +61,7 @@ it('차례(D-055): 남은 돈·달력 → 고른 날(일정 줄·넣기 칸·내
   expect([...container.querySelector('.cal-view')!.children].map((e) => e.className)).toEqual(['cal-top', 'day-group', 'cal-more'])
   expect([...container.querySelector('.cal-top')!.children].map((e) => e.className)).toEqual(['hero', 'card cal-card'])
   // 고른 날: 머리 줄, 일정 줄과 넣기 칸이 한 면에, 그 아래 내역
-  expect([...container.querySelector('.day-group')!.children].map((e) => e.className)).toEqual(['day-head', 'card day-plan', 'tx-list'])
+  expect([...container.querySelector('.day-group')!.children].map((e) => e.className)).toEqual(['day-head', 'card day-plan', 'cal-day-transactions'])
   expect([...container.querySelector('.day-plan')!.children].map((e) => e.className)).toEqual(['ag-list', 'day-new'])
   expect([...container.querySelector('.cal-more')!.children].map((e) => e.className)).toEqual(['card soon-card', 'remember-card'])
 })

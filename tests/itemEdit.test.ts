@@ -93,29 +93,32 @@ describe('mergeReread (영수증 다시 읽기, D-053)', () => {
   const fresh = (name: string, amount: number, quantity = 1) => ({ name, quantity, unit_price: Math.round(amount / quantity), amount, pack_size: null, pack_unit: null })
 
   it('이름이 같은 저장된 줄의 id·사진을 이어받고(띄어쓰기·대소문자 무시, 앞에서부터 한 번씩), 나머지는 새 줄', () => {
-    const out = mergeReread(before, [fresh('대파', 3200), fresh('서울 우유 900ML', 4000, 2), fresh('포카칩 오리지널 66g', 1590), fresh('대파', 3000)])
+    const { items: out, retained } = mergeReread(before, [fresh('대파', 3200), fresh('서울 우유 900ML', 4000, 2), fresh('포카칩 오리지널 66g', 1590), fresh('대파', 3000)])
     expect(out.map((o) => [o.name, o.id ?? null, o.amount])).toEqual([
-      ['대파', 'c', 3200], ['서울 우유 900ML', 'a', 4000], ['포카칩 오리지널 66g', null, 1590], ['대파', 'd', 3000],
+      ['대파', 'c', 3200], ['서울 우유 900ML', 'a', 4000], ['포카칩 오리지널 66g', null, 1590], ['대파', 'd', 3000], ['쭈꾸미', 'b', 1590],
     ])
-    // 저장할 때: 쭈꾸미(b)는 뺀 줄이 되어 사진도 지워지고, 포카칩은 새 줄, 나머지는 바뀐 칸만
+    // 저장할 때: 쭈꾸미(b)는 유지되고, 포카칩은 새 줄, 나머지는 바뀐 칸만
     const d = diffItems(before, out)
-    expect(d.remove.map((r) => r.id)).toEqual(['b'])
+    expect(retained).toBe(1)
+    expect(d.remove).toEqual([])
     expect(d.insert.map((r) => r.name)).toEqual(['포카칩 오리지널 66g'])
     expect(d.update).toEqual([
       { id: 'c', patch: { unit_price: 3200, amount: 3200, sort: 0 } },
       { id: 'a', patch: { name: '서울 우유 900ML', unit_price: 2000, amount: 4000, sort: 1 } },
+      { id: 'b', patch: { sort: 4 } },
     ])
   })
 
-  it('저장된 줄이 없으면 모두 새 줄이고, 다시 읽은 줄이 없으면 빈 목록(저장하면 모두 뺀다)', () => {
-    expect(mergeReread([], [fresh('대파', 3000)]).map((o) => o.id)).toEqual([undefined])
-    expect(mergeReread(before, [])).toEqual([])
+  it('저장된 줄이 없으면 모두 새 줄이고, 다시 읽은 줄이 없으면 이전 줄을 남긴다', () => {
+    expect(mergeReread([], [fresh('대파', 3000)]).items.map((o) => o.id)).toEqual([undefined])
+    expect(mergeReread(before, [])).toEqual({ items: before, retained: before.length })
   })
 
-  it('pickRereadEntry: 결제 금액이 같은 내역, 없으면 품목이 있는 첫 내역, 품목이 하나도 없으면 null', () => {
+  it('pickRereadEntry: 금액이 같은 후보가 하나일 때만 고른다', () => {
     const e = (amount: number, n: number) => ({ amount, items: Array.from({ length: n }, (_, i) => i) })
     expect(pickRereadEntry([e(100, 0), e(200, 2), e(300, 1)], 300)).toEqual(e(300, 1))
-    expect(pickRereadEntry([e(100, 0), e(200, 2), e(300, 1)], 999)).toEqual(e(200, 2))
+    expect(pickRereadEntry([e(100, 0), e(200, 2), e(300, 1)], 999)).toBeNull()
+    expect(pickRereadEntry([e(200, 1), e(200, 2)], 200)).toBeNull()
     expect(pickRereadEntry([e(100, 0)], 100)).toBeNull()
   })
 })

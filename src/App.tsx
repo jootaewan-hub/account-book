@@ -1,9 +1,9 @@
 import type { Session } from '@supabase/supabase-js'
-import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { CalendarView } from './components/CalendarView'
 import { EntrySheet } from './components/EntrySheet'
 import { ErrorBoundary } from './components/ErrorBoundary'
-import { CalendarIcon, CartIcon, ChartIcon, ChevronLeft, ChevronRight, GearIcon, ListIcon, NoteIcon, Plus, RepeatIcon, SearchIcon } from './components/Icons'
+import { CalendarIcon, CartIcon, ChartIcon, ChevronLeft, ChevronRight, GearIcon, HouseIcon, ListIcon, NoteIcon, Plus, RepeatIcon, SearchIcon } from './components/Icons'
 import { ListView, type ListFocus } from './components/ListView'
 import { BootScreen, ScreenWait } from './components/Loading'
 import { Soft, Toast } from './components/Motion'
@@ -149,7 +149,31 @@ function Ledger({ household, meta, userId, email }: {
   const [toastDone, setToastDone] = useState(false)
   // 통계에서 분류·플랫폼을 눌러 내역 탭으로 넘어올 때의 조건
   const [listFocus, setListFocus] = useState<ListFocus | null>(null)
-  // 내역 탭에서 지울 내역을 고르는 중이면 기록하기 둥근 버튼을 숨긴다(고른 내역 줄이 그 자리에 뜬다)
+  const beforeList = useRef<{ tab: Exclude<Tab, 'list'>; scroll: number }>({ tab: 'cal', scroll: 0 })
+  const nextScroll = useRef<{ tab: Tab; top: number } | null>(null)
+  useLayoutEffect(() => {
+    const pending = nextScroll.current
+    if (pending?.tab !== tab) return
+    window.scrollTo({ top: pending.top, behavior: 'instant' })
+    nextScroll.current = null
+  }, [tab])
+
+  function openList(focus: ListFocus | null = null) {
+    if (tab !== 'list') {
+      if (!isAside(tab) || beforeAside !== 'list') beforeList.current = { tab, scroll: window.scrollY }
+      nextScroll.current = { tab: 'list', top: 0 }
+      setTab('list')
+    }
+    setListFocus(focus)
+  }
+
+  function returnFromList() {
+    const previous = beforeList.current
+    nextScroll.current = { tab: previous.tab, top: previous.scroll }
+    setListFocus(null)
+    setTab(previous.tab)
+  }
+  // 내역 탭에서 지울 내역을 고르는 동안 휴대폰 기록 버튼을 숨긴다
   const [listPicking, setListPicking] = useState(false)
   const wishStore = useMemo(() => createWishStore(sb(), household.id), [household.id])
   const [wishTarget, setWishTarget] = useState<WishTarget | null>(null)
@@ -303,10 +327,16 @@ function Ledger({ household, meta, userId, email }: {
       <header className="topbar">
         <div className="wrap">
           <div className="top-left">
+            {tab === 'list' && (
+              <button className="icon-btn back-btn" onClick={returnFromList} aria-label="뒤로 가기"><ChevronLeft /></button>
+            )}
             {isAside(tab) && (
               <button className="icon-btn narrow-only back-btn" onClick={() => setTab(beforeAside)} aria-label="돌아가기"><ChevronLeft /></button>
             )}
-            <h1 className={tab === 'cal' ? 'brand-mark' : undefined}>{TITLE[tab]}</h1>
+            <h1 className={tab === 'cal' ? 'brand-mark' : undefined}>
+              {tab === 'cal' && <span className="mobile-brand"><HouseIcon /></span>}
+              {TITLE[tab]}
+            </h1>
           </div>
           <div className="top-right">
             {showMonth && (
@@ -330,6 +360,11 @@ function Ledger({ household, meta, userId, email }: {
       </header>
 
       <main className="wrap">
+        {(tab === 'cal' || (tab === 'list' && !listPicking)) && (
+          <div className="mobile-record-row">
+            <button className="primary mobile-record" onClick={() => setSheet({ open: true, editing: null })}><Plus />기록하기</button>
+          </div>
+        )}
         {error && <p className="banner" role="alert">내역을 불러오지 못했어요: {error}</p>}
         {!lookup.myRole && tab !== 'settings' && (
           <div className="card role-card" style={{ marginBottom: 16 }}>
@@ -373,8 +408,8 @@ function Ledger({ household, meta, userId, email }: {
             <StatsView household={household} ym={ym} today={today} cur={curAll} prev={prevAll} planTotals={planTotals} loading={txLoading} txVersion={txVersion} lookup={lookup}
               categories={meta.categories} billsVersion={billsVersion} onBill={() => openSmart('bill')}
               onFuel={() => openSmart('photo')}
-              onCategory={(id, name) => { setListFocus({ kind: 'category', id, name }); setTab('list') }}
-              onPlatform={(name, kind) => { setListFocus(kind === 'merchant' ? { kind: 'merchant', name } : { kind: 'platform', name }); setTab('list') }} />
+              onCategory={(id, name) => openList({ kind: 'category', id, name })}
+              onPlatform={(name, kind) => openList({ kind: kind === 'merchant' ? 'merchant' : 'platform', name })} />
           </Screen>
         )}
         {tab === 'fixed' && (
@@ -404,16 +439,13 @@ function Ledger({ household, meta, userId, email }: {
         )}
       </main>
 
-      {(tab === 'cal' || (tab === 'list' && !listPicking)) && (
-        <button className="fab" onClick={() => setSheet({ open: true, editing: null })}><Plus />기록하기</button>
-      )}
-
       <nav className="tabbar" aria-label="화면 전환">
         <div className="wrap">
-          {/* 넓은 화면에서만 보인다. 휴대폰은 오른쪽 아래 기록하기 버튼을 쓴다 */}
+          <div className="side-brand"><span><HouseIcon /></span><b>우리집 가계부</b></div>
+          {/* 넓은 화면에서만 보인다. 휴대폰은 본문 위 기록하기 버튼을 쓴다 */}
           <button className="primary side-record" onClick={() => setSheet({ open: true, editing: null })}><Plus />기록하기</button>
           <button className="tab" aria-current={tab === 'cal' ? 'page' : undefined} onClick={() => setTab('cal')}><CalendarIcon on={tab === 'cal'} />달력</button>
-          <button className="tab" aria-current={tab === 'list' ? 'page' : undefined} onClick={() => { setListFocus(null); setTab('list') }}><ListIcon on={tab === 'list'} />내역</button>
+          <button className="tab" aria-current={tab === 'list' ? 'page' : undefined} onClick={() => openList()}><ListIcon on={tab === 'list'} />내역</button>
           <button className="tab" aria-current={tab === 'grocery' ? 'page' : undefined} onClick={() => setTab('grocery')}><CartIcon on={tab === 'grocery'} />장보기</button>
           <button className="tab" aria-current={tab === 'stats' ? 'page' : undefined} onClick={() => setTab('stats')}><ChartIcon on={tab === 'stats'} />통계</button>
           <button className="tab" aria-current={tab === 'fixed' ? 'page' : undefined} onClick={() => setTab('fixed')}><RepeatIcon on={tab === 'fixed'} />고정</button>

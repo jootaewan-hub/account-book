@@ -537,7 +537,7 @@ function DraftCard({ d, categories, fills, onChange }: {
               ? <button className="thumb-btn" onClick={() => removePhoto(i)} aria-label={` 사진 빼기`}>
                   <img className="item-thumb" src={it.photo.url} alt="" /><span className="thumb-x" aria-hidden="true"><CloseBold /></span>
                 </button>
-              : <span className="item-thumb empty" aria-hidden="true" />}
+              : null}
             renderExtra={(it, i) => isProductLine(it) && (
               <PackInput name={it.name} size={it.pack_size} unit={it.pack_unit}
                 onChange={(p) => onChange({ items: d.items.map((x, j) => (j === i ? { ...x, ...p } : x)) })} />
