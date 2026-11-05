@@ -6,6 +6,7 @@ import { ErrorBoundary } from './components/ErrorBoundary'
 import { CalendarIcon, CartIcon, ChartIcon, ChevronLeft, ChevronRight, GearIcon, HouseIcon, ListIcon, NoteIcon, Plus, RepeatIcon, SearchIcon } from './components/Icons'
 import { ListView, type ListFocus } from './components/ListView'
 import { BootScreen, ScreenWait } from './components/Loading'
+import { MobileRecord } from './components/MobileRecord'
 import { Soft, Toast } from './components/Motion'
 import { NotesCard } from './components/NotesCard'
 import { PlanSheet, type PlanTarget } from './components/PlanSheet'
@@ -436,9 +437,7 @@ function Ledger({ household, meta, userId, email }: {
 
       <nav className="tabbar" aria-label="화면 전환">
         {(tab !== 'list' || !listPicking) && (
-          <div className="mobile-record-row">
-            <button className="primary mobile-record" onClick={() => setSheet({ open: true, editing: null })}><Plus />기록하기</button>
-          </div>
+          <MobileRecord key={tab} onClick={() => setSheet({ open: true, editing: null })} />
         )}
         <div className="wrap">
           <div className="side-brand"><span><HouseIcon /></span><b>우리집 가계부</b></div>

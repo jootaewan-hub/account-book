@@ -411,12 +411,25 @@ main.wrap { padding-block: 4px calc(150px + var(--record-dock-h) + env(safe-area
   }
 }
 .mobile-record-row {
-  height: var(--record-dock-h); padding-block: 6px;
+  display: flex; justify-content: flex-end; height: var(--record-dock-h); padding-block: 6px;
   padding-left: max(16px, env(safe-area-inset-left, 0px));
   padding-right: max(16px, env(safe-area-inset-right, 0px));
 }
-.mobile-record.primary { display: flex; align-items: center; justify-content: center; gap: 6px; min-height: 44px; height: 44px; font-size: 15px; }
-.mobile-record svg { width: 17px; height: 17px; }
+.mobile-record.primary {
+  display: inline-flex; align-items: center; justify-content: center; width: 126px; min-height: 44px; height: 44px;
+  border-radius: var(--r-md); padding: 0; font-size: 15px;
+  transition: width var(--dur-press) var(--ease-smooth), transform var(--dur-press) var(--ease-out);
+}
+.mobile-record svg { flex: none; width: 19px; height: 19px; }
+.mobile-record span {
+  max-width: 82px; margin-inline-start: 6px; overflow: hidden; white-space: nowrap;
+  transition: max-width var(--dur-press) var(--ease-smooth), margin-inline-start var(--dur-press) var(--ease-smooth), opacity var(--dur-press) ease;
+}
+.mobile-record.primary[data-compact] { width: 44px; }
+.mobile-record[data-compact] span { max-width: 0; margin-inline-start: 0; opacity: 0; }
+@media (prefers-reduced-motion: reduce) {
+  .mobile-record.primary, .mobile-record span { transition: none; }
+}
 .tabbar { position: fixed; z-index: 24; bottom: 0; left: 50%; transform: translateX(-50%); width: 100%; max-width: var(--col); background: var(--canvas); border-top: 1px solid var(--line); padding-bottom: env(safe-area-inset-bottom, 0px); }
 /* 아래 탭 여섯(D-035 알아보기): 칸이 좁아지지 않게 양옆 여백을 줄인다 */
 .tabbar .wrap { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); padding-left: max(6px, env(safe-area-inset-left, 0px)); padding-right: max(6px, env(safe-area-inset-right, 0px)); }

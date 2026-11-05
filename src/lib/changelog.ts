@@ -22,6 +22,12 @@ export const KIND_LABEL: Record<ReleaseKind, string> = { major: '큰 업데이�
 /** 최신이 맨 앞 */
 export const RELEASES: Release[] = [
   {
+    version: '2.32.2', date: '2026-11-05', kind: 'fix', title: '스크롤 방향에 맞춰 움직이는 기록 버튼',
+    items: [
+      '휴대폰에서 아래로 내리면 기록하기가 작은 더하기 버튼으로 접혀요. 위로 올리면 글자가 다시 펼쳐지고, 두 상태 모두 바로 누를 수 있어요.',
+    ],
+  },
+  {
     version: '2.32.1', date: '2026-11-05', kind: 'fix', title: '스크롤 중에도 바로 기록하기',
     items: [
       '휴대폰에서 기록하기가 아래 탭 바로 위에 항상 보여요. 화면을 위아래로 움직이거나 탭을 바꿔도 누를 수 있어요.',
