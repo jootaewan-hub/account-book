@@ -12,7 +12,7 @@
   /* 경계선은 먹 10% 한 값(D-050): 흰 바탕·귀리 면·다크 어디서나 같은 토큰. 흰 바탕 위 #EBEAE9 */
   --line: color-mix(in srgb, var(--ink) 10%, transparent);
   --ink: #33312d; --ink-2: #615d59; --ink-3: #77726a;
-  --sage: #56694e; --sage-soft: #e7ece3; --sage-ink: #3f4f39;
+  --sage: #56694e; --sage-soft: #e7ece3; --sage-mid: #cdd8c5; --sage-ink: #3f4f39; /* sage-mid: 중요 일정의 채움 면(D-055 보충), 세이지 진한 글자 5.97:1 */
   --blush: #e8c4b8; --blush-soft: #f6e4dd; --rose-ink: #7a3f2e;
   --slate-soft: #e3eaf2; --slate-ink: #1f3f5e; --ochre-soft: #f5ebd6; --ochre-ink: #5c4a1e;
   --clay: #a8543e; --indigo: #3d5a78; --danger: #a8432f;
@@ -41,7 +41,7 @@
   :root {
     --canvas: #1c1b19; --oat: #262421; --oat-deep: #34312c;
     --ink: #edeae4; --ink-2: #aba59b; --ink-3: #a09a90;
-    --sage: #a3b897; --sage-soft: #2b3327; --sage-ink: #c2d3b6;
+    --sage: #a3b897; --sage-soft: #2b3327; --sage-mid: #46553f; --sage-ink: #c2d3b6;
     --blush: #7a5146; --blush-soft: #3b2a25; --rose-ink: #f0b8a8;
     --slate-soft: #22303f; --slate-ink: #b5cce6; --ochre-soft: #3a3220; --ochre-ink: #e2c77f;
     --clay: #e09479; --indigo: #9db6d6; --danger: #f0937e;
@@ -245,17 +245,17 @@ main.wrap { padding-block: 4px calc(150px + env(safe-area-inset-bottom, 0px)); }
 /* 중요도 효과(D-054): 중요(p-high)·꼭(p-must) 일정을 달력 칸 이름(cal-lbl)·고른 날과 다가오는 목록의 이름(ag-name, D-055: 줄 전체가 아니라 이름만)·
    폼 미리보기(fx-demo)에서 구별한다. 효과(fx-*)는 일정마다 고른 것. 색만으로 알리지 않는다: 테두리 굵기, 면의 명암, 움직임(+ 꼭은 테두리),
    점·별, 글자 굵기·밑줄. 줄과 칩에는 "중요"·"꼭" 글자 태그가 늘 함께 붙고, 달력 칸은 읽기 이름에 적는다 */
-/* 테두리: 중요는 1px, 꼭은 먹색 2px. 목록의 이름·미리보기는 outline, 달력 칸 이름은 border(기간 일정은 이웃 날 쪽 변을 빼 한 띠로 잇는다) */
+/* 테두리: 중요는 1px, 꼭은 세이지 2px(D-055 보충: 일정에는 먹색 면·선을 쓰지 않는다. 먹색은 행동 버튼의 색). 목록의 이름·미리보기는 outline, 달력 칸 이름은 border(기간 일정은 이웃 날 쪽 변을 빼 한 띠로 잇는다) */
 :is(.cal-lbl, .ag-name, .fx-demo).fx-outline.p-high { --fx-w: 1px; --fx-c: currentColor; }
-:is(.cal-lbl, .ag-name, .fx-demo).fx-outline.p-must { --fx-w: 2px; --fx-c: var(--ink); }
-:is(.cal-lbl, .ag-name, .fx-demo).fx-breathe.p-must { --fx-w: 1px; --fx-c: var(--ink); }
+:is(.cal-lbl, .ag-name, .fx-demo).fx-outline.p-must { --fx-w: 2px; --fx-c: var(--sage); }
+:is(.cal-lbl, .ag-name, .fx-demo).fx-breathe.p-must { --fx-w: 1px; --fx-c: var(--sage); }
 :is(.ag-name, .fx-demo):is(.fx-outline, .fx-breathe.p-must) { outline: var(--fx-w) solid var(--fx-c); outline-offset: calc(-1 * var(--fx-w)); }
 .day .cal-lbl:is(.fx-outline, .fx-breathe.p-must) { border: solid var(--fx-c); border-width: var(--fx-w) var(--fx-r, var(--fx-w)) var(--fx-w) var(--fx-l, var(--fx-w)); padding: 0 2px; }
 .day .cal-lbl.r-start { --fx-r: 0px; } .day .cal-lbl.r-mid { --fx-l: 0px; --fx-r: 0px; } .day .cal-lbl.r-end { --fx-l: 0px; }
-/* 채움: 중요는 세이지 면, 꼭은 먹색 면. 글자는 버튼 글자색(흰 바탕에서 세이지 5.96:1, 먹 12.98:1) */
-:is(.cal-lbl, .ag-name, .fx-demo).fx-fill.p-high { background: var(--sage); color: var(--on-primary); }
-:is(.cal-lbl, .ag-name, .fx-demo).fx-fill.p-must { background: var(--primary); color: var(--on-primary); }
-/* 숨쉬기: 면 위에 같은 색 막이 천천히 짙어졌다 옅어진다(중요 2.8초, 꼭 1.6초에 한 번 + 먹색 1px 테두리). 글자는 움직이지 않는다 */
+/* 채움: 중요는 옅은 세이지 면(sage-mid)에 세이지 진한 글자(5.97:1), 꼭은 세이지 면에 버튼 글자색(5.96:1). 한 색 안에서 짙기로 나눈다(D-055 보충) */
+:is(.cal-lbl, .ag-name, .fx-demo).fx-fill.p-high { background: var(--sage-mid); color: var(--sage-ink); }
+:is(.cal-lbl, .ag-name, .fx-demo).fx-fill.p-must { background: var(--sage); color: var(--on-primary); }
+/* 숨쉬기: 면 위에 같은 색 막이 천천히 짙어졌다 옅어진다(중요 2.8초, 꼭 1.6초에 한 번 + 세이지 1px 테두리). 글자는 움직이지 않는다 */
 :is(.cal-lbl, .ag-name, .fx-demo).fx-breathe:is(.p-high, .p-must) { position: relative; }
 :is(.cal-lbl, .ag-name, .fx-demo).fx-breathe:is(.p-high, .p-must)::after { content: ""; position: absolute; inset: 0; border-radius: inherit; background: currentColor; opacity: .04; pointer-events: none;
   animation: fx-breathe 2.8s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate; }
@@ -271,9 +271,9 @@ main.wrap { padding-block: 4px calc(150px + env(safe-area-inset-bottom, 0px)); }
 :is(.cal-lbl, .ag-name, .fx-demo).fx-bold.p-must { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 2px; }
 /* 달력 칸 이름은 줄 높이가 낮아 밑줄이 잘리지 않게 글자에 붙인다 */
 .day .cal-lbl.fx-bold.p-must { text-underline-offset: 0.5px; padding-bottom: 1px; }
-/* 중요·꼭 글자 태그: 중요는 흰 면에 선, 꼭은 먹색 면 */
+/* 중요·꼭 글자 태그: 중요는 흰 면에 선, 꼭은 옅은 세이지 면에 세이지 선과 굵은 글자 */
 .tag:where(:not(.grocery *)).pri { flex: none; background: var(--canvas); color: var(--ink); outline: 1px solid var(--line); outline-offset: -1px; }
-.tag:where(:not(.grocery *)).pri.p-must { background: var(--primary); color: var(--on-primary); outline: 0; }
+.tag:where(:not(.grocery *)).pri.p-must { background: var(--sage-soft); color: var(--sage-ink); outline: 1px solid var(--sage); font-weight: 700; }
 /* 기념일 카테고리 고르기(D-033): 직접 적는 칸 아래 쓴 것·기본 말 칩 */
 .anniv-cats { margin: -2px 0 2px; }
 .anniv-every { display: flex; align-items: center; gap: 8px; font-size: 15px; font-weight: 600; color: var(--ink); }
