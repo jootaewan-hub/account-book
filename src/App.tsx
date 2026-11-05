@@ -139,6 +139,7 @@ function Ledger({ household, meta, userId, email }: {
   const openAside = (t: Aside) => { if (!isAside(tab)) setBeforeAside(tab); setTab(t) }
   const openSettings = () => openAside('settings')
   const [sheet, setSheet] = useState<{ open: boolean; editing: Transaction | null }>({ open: false, editing: null })
+  const openRecord = () => setSheet({ open: true, editing: null })
   const [smart, setSmart] = useState<{ open: boolean; mode: SmartMode }>({ open: false, mode: 'text' })
   // 스마트 입력 시트는 처음 열 때 불러오고, 그 뒤로는 닫히는 움직임을 위해 화면에 남겨 둔다
   const [smartMounted, setSmartMounted] = useState(false)
@@ -386,7 +387,7 @@ function Ledger({ household, meta, userId, email }: {
         {tab === 'list' && (
           <Screen name="내역">
             <ListView cur={curAll} future={ym > today.slice(0, 7)} loading={txLoading} lookup={lookup} focus={listFocus} onClearFocus={() => setListFocus(null)} onEdit={editTx}
-              onDeleteMany={removeMany} onPickingChange={setListPicking} />
+              onRecord={openRecord} onDeleteMany={removeMany} onPickingChange={setListPicking} />
           </Screen>
         )}
         {tab === 'grocery' && (
@@ -437,12 +438,12 @@ function Ledger({ household, meta, userId, email }: {
 
       <nav className="tabbar" aria-label="화면 전환">
         {(tab !== 'list' || !listPicking) && (
-          <MobileRecord key={tab} onClick={() => setSheet({ open: true, editing: null })} />
+          <MobileRecord key={tab} onClick={openRecord} />
         )}
         <div className="wrap">
           <div className="side-brand"><span><HouseIcon /></span><b>우리집 가계부</b></div>
           {/* 넓은 화면에서만 보인다. 휴대폰은 아래 탭 위 기록하기 버튼을 쓴다 */}
-          <button className="primary side-record" onClick={() => setSheet({ open: true, editing: null })}><Plus />기록하기</button>
+          <button className="primary side-record" onClick={openRecord}><Plus />기록하기</button>
           <button className="tab" aria-current={tab === 'cal' ? 'page' : undefined} onClick={() => setTab('cal')}><CalendarIcon on={tab === 'cal'} />달력</button>
           <button className="tab" aria-current={tab === 'list' ? 'page' : undefined} onClick={() => openList()}><ListIcon on={tab === 'list'} />내역</button>
           <button className="tab" aria-current={tab === 'grocery' ? 'page' : undefined} onClick={() => setTab('grocery')}><CartIcon on={tab === 'grocery'} />장보기</button>
@@ -468,7 +469,7 @@ function Ledger({ household, meta, userId, email }: {
             <SmartSheet open={smart.open} mode={smart.mode} today={today} householdId={household.id}
               lookup={lookup} categories={activeCats} existing={txs}
               onSaved={smartSaved} onClose={closeSmart}
-              onManual={() => { closeSmart(); setSheet({ open: true, editing: null }) }} />
+              onManual={() => { closeSmart(); openRecord() }} />
           </Suspense>
         </ErrorBoundary>
       )}

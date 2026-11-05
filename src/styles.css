@@ -326,7 +326,10 @@ main.wrap { padding-block: 4px calc(150px + var(--record-dock-h) + env(safe-area
 .cal-day-transactions .empty:where(:not(.grocery *)) { padding: 10px 0 4px; }
 .ledger-list-view { gap: 14px; }
 .list-overview { background: var(--oat); border-radius: var(--r-md); padding: 14px 16px; }
-.list-overview h2 { margin: 0 0 7px; font-size: 14px; font-weight: 700; color: var(--sage); }
+.list-overview-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 7px; }
+.list-overview h2 { margin: 0; font-size: 14px; font-weight: 700; color: var(--sage); }
+.list-record.primary { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; width: auto; padding: 8px 12px; font-size: 14px; white-space: nowrap; }
+.list-record svg { width: 17px; height: 17px; }
 .list-overview .month-sum { flex-wrap: wrap; align-items: center; gap: 4px 20px; padding: 0; }
 .list-overview .month-sum > span { font-size: 12px; }
 .list-overview .month-sum b { display: block; font-size: 18px; }

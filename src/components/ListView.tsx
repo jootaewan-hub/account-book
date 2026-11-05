@@ -8,7 +8,7 @@ import { storeOfTx } from '../lib/categorize'
 import { OTHER_PLATFORM, platformOfTx } from '../lib/platform'
 import type { Scope, Transaction } from '../lib/types'
 import { Bar, RowsWait, useAppear } from './Loading'
-import { SearchIcon } from './Icons'
+import { Plus, SearchIcon } from './Icons'
 import { TxRow } from './TxRow'
 
 const DOT: Record<Scope, string> = { shared: 'var(--who-shared)', husband: 'var(--who-husband)', wife: 'var(--who-wife)', child: 'var(--who-child)' }
@@ -31,13 +31,14 @@ interface Props {
   focus: ListFocus | null
   onClearFocus: () => void
   onEdit: (t: Transaction) => void
+  onRecord?: () => void
   /** 고른 내역을 한꺼번에 지운다(D-027). 실패하면 던진다 */
   onDeleteMany: (ids: string[]) => Promise<void>
   /** 고르기를 켜고 끌 때 (켜져 있는 동안 기록하기 둥근 버튼을 숨긴다). 바뀌지 않는 함수를 넘긴다 */
   onPickingChange?: (on: boolean) => void
 }
 
-export function ListView({ cur, future = false, loading = false, lookup, focus, onClearFocus, onEdit, onDeleteMany, onPickingChange }: Props) {
+export function ListView({ cur, future = false, loading = false, lookup, focus, onClearFocus, onEdit, onRecord, onDeleteMany, onPickingChange }: Props) {
   const [filter, setFilter] = useState<'all' | Scope>('all')
   const appear = useAppear(loading)
   const [q, setQ] = useState('')
@@ -109,7 +110,12 @@ export function ListView({ cur, future = false, loading = false, lookup, focus, 
   return (
     <section className="view ledger-list-view">
       <div className="list-overview">
-        <h2>내역 요약</h2>
+        <div className="list-overview-head">
+          <h2>내역 요약</h2>
+          {onRecord && !picking && (
+            <button type="button" className="primary list-record" onClick={onRecord}><Plus />기록하기</button>
+          )}
+        </div>
         <div className="month-sum num">
           {/* 이 달 내역이 오기 전에는 0원 대신 숫자 자리만 보인다 */}
           <span>{future ? '나갈 돈' : '쓴 돈'} <b>{loading ? <Bar w={5} /> : `${won(sumType(list, 'expense'))}원`}</b></span>
