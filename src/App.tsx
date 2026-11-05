@@ -322,6 +322,7 @@ function Ledger({ household, meta, userId, email }: {
 
   const { y, m } = parseYM(ym)
   const showMonth = tab === 'cal' || tab === 'list' || tab === 'stats' || tab === 'fixed'
+  const showRecord = tab !== 'stats' && tab !== 'fixed' && tab !== 'explore'
 
   return (
     // 넓은 화면에서는 아래 탭이 왼쪽 세로 메뉴가 된다 (styles.css 넓은 화면)
@@ -437,13 +438,13 @@ function Ledger({ household, meta, userId, email }: {
       </main>
 
       <nav className="tabbar" aria-label="화면 전환">
-        {(tab !== 'list' || !listPicking) && (
+        {showRecord && (tab !== 'list' || !listPicking) && (
           <MobileRecord key={tab} onClick={openRecord} />
         )}
         <div className="wrap">
           <div className="side-brand"><span><HouseIcon /></span><b>우리집 가계부</b></div>
           {/* 넓은 화면에서만 보인다. 휴대폰은 아래 탭 위 기록하기 버튼을 쓴다 */}
-          <button className="primary side-record" onClick={openRecord}><Plus />기록하기</button>
+          {showRecord && <button className="primary side-record" onClick={openRecord}><Plus />기록하기</button>}
           <button className="tab" aria-current={tab === 'cal' ? 'page' : undefined} onClick={() => setTab('cal')}><CalendarIcon on={tab === 'cal'} />달력</button>
           <button className="tab" aria-current={tab === 'list' ? 'page' : undefined} onClick={() => openList()}><ListIcon on={tab === 'list'} />내역</button>
           <button className="tab" aria-current={tab === 'grocery' ? 'page' : undefined} onClick={() => setTab('grocery')}><CartIcon on={tab === 'grocery'} />장보기</button>

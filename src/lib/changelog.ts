@@ -22,6 +22,10 @@ export const KIND_LABEL: Record<ReleaseKind, string> = { major: '큰 업데이�
 /** 최신이 맨 앞 */
 export const RELEASES: Release[] = [
   {
+    version: '2.32.4', date: '2026-11-05', kind: 'fix', title: '통계·고정·알아보기에서 기록 버튼 정리',
+    items: ['통계, 고정, 알아보기 화면에서는 공통 기록하기 버튼을 숨겨요.'],
+  },
+  {
     version: '2.32.3', date: '2026-11-05', kind: 'fix', title: '내역 요약에서도 바로 기록하기',
     items: ['내역 탭의 내역 요약 옆에서 기록하기를 바로 열 수 있어요.'],
   },
