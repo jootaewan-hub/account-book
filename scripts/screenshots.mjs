@@ -8,7 +8,7 @@
 import { existsSync, mkdirSync, readFileSync } from 'node:fs'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { chromium } from 'playwright'
-import { BILL, EVENT_CAPTURE, EVENT_EXISTING, EVENT_PLACES, EVENT_RANGE, EVENT_RANGE_DAY, EVENT_TEXT, EVENT_TEXT_PASTE, EXPLORE_BUNJANG, EXPLORE_DAANGN, EXPLORE_DAISO, EXPLORE_KURLY, EXPLORE_OHOU, EXPLORE_PRODUCT, EXPLORE_SEARCH, EXPLORE_WEATHER, EXPLORE_WEATHER_NOT_REGISTERED, fakeSession, FUEL_RECEIPT, LONG_RECEIPT, RECEIPT, RECEIPT_IMAGE, TABLES, USER } from './shell-fixtures.mjs'
+import { BILL, EVENT_CAPTURE, EVENT_EXISTING, EVENT_PLACES, EVENT_RANGE, EVENT_RANGE_DAY, EVENT_TEXT, EVENT_TEXT_PASTE, EXPLORE_BUNJANG, EXPLORE_DAANGN, EXPLORE_DAISO, EXPLORE_KURLY, EXPLORE_OHOU, EXPLORE_PRODUCT, EXPLORE_SEARCH, EXPLORE_WEATHER, EXPLORE_WEATHER_NOT_REGISTERED, fakeSession, FUEL_RECEIPT, LONG_RECEIPT, MONTHS_TO_NOV, RECEIPT, RECEIPT_IMAGE, TABLES, USER } from './shell-fixtures.mjs'
 
 const BASE = process.env.BASE_URL ?? 'http://localhost:5188' // vite.config.ts server.port와 같다
 const OUT = process.env.OUT_DIR ? pathToFileURL(`${process.env.OUT_DIR.replace(/\/$/, '')}/`) : new URL('../screenshots/', import.meta.url)
@@ -213,12 +213,12 @@ const shellShots = [
   ...each((w, c) => ({ name: `shell-smart-compare-${w}-${c}`, path: '/', w, c, shell: true, tab: '내역', receipt: true, compare: true })),
   // 통계 탭 주유 묶음(설계 2026-10-21): 리터당 가격·지난번 대비·추이 그래프·달별. 가짜 주유 기록 3건
   ...each((w, c) => ({ name: `shell-stats-fuel-${w}-${c}`, path: '/', w, c, shell: true, tab: '통계', scroll: '.fuel-card' })),
-  // 다가오는 기념일 칩(D-033): 넓은 화면에서 넘치면 흐른다(움직임 그대로 찍어 이어 붙인 칩·양끝 흐림을 본다). 움직임 줄이기는 줄을 바꾼다(shell-cal-1280-*)
-  ...both(1280, (w, c) => ({ name: `shell-cal-chips-flow-${w}-${c}`, path: '/', w, c, shell: true, tab: '달력', motion: 'no-preference', center: '.anniv-soon' })),
+  // 다가오는 일정·기념일 목록(D-055, 칩이 흐르던 D-033을 바꿈): 넓은 화면 왼쪽 단의 달력 아래, 기념일만 있는 달
+  ...both(1280, (w, c) => ({ name: `shell-cal-soon-list-${w}-${c}`, path: '/', w, c, shell: true, tab: '달력', center: '.soon-card' })),
   // 기념일 넣기(D-033): 카테고리 칩, 반복 네 가지 중 '몇 년마다'와 숫자 칸, 시작한 해
   ...each((w, c) => ({ name: `shell-anniv-form-${w}-${c}`, path: '/', w, c, shell: true, tab: '설정', presses: ['기념일 추가', '몇 년마다', '병원'], center: '.anniv-form' })),
-  // 달력 다음 달 20일: 2년마다 오는 기념일 줄(카테고리·반복 말)
-  ...both(390, (w, c) => ({ name: `shell-cal-anniv-row-${w}-${c}`, path: '/', w, c, shell: true, tab: '달력', next: true, calDay: 20, center: '.anniv-list' })),
+  // 11월 20일: 2년마다 오는 기념일 줄(카테고리·반복 말). 가짜 기념일이 11월에 있어 그 달까지 넘긴다
+  ...both(390, (w, c) => ({ name: `shell-cal-anniv-row-${w}-${c}`, path: '/', w, c, shell: true, tab: '달력', months: MONTHS_TO_NOV || undefined, calDay: 20, center: '.day-plan' })),
   // 통계 탭 어디서 샀나(사용자 2026-10-26): 한 번만 간 가게도 '그 밖'으로 묶지 않고 가게마다 한 줄
   ...each((w, c) => ({ name: `shell-stats-shops-${w}-${c}`, path: '/', w, c, shell: true, tab: '통계', center: '.shop-card' })),
   // 주유소 영수증 확인 화면(설계 2026-10-21): 유종·주유량·리터당 칸과 지난 주유 대비. 가짜 응답(FUEL_RECEIPT)
@@ -232,11 +232,15 @@ const shellShots = [
   { name: 'shell-cal-day-new-miss-390-light', path: '/', w: 390, c: 'light', shell: true, tab: '달력', quickAddEmpty: true, center: '.day-new' },
   // 기간·중요도(D-054): 달력 칸(기간 이음, 효과 다섯 가지), 고른 날 줄(가족 여행 가운데 날), 다가오는 칩, 일정 폼(기간·중요도·효과 미리보기), 끝이 시작보다 앞일 때
   ...each((w, c) => ({ name: `shell-cal-range-grid-${w}-${c}`, path: '/', w, c, shell: true, tab: '달력', eventRange: true, center: '.cal-card' })),
-  ...each((w, c) => ({ name: `shell-cal-range-day-${w}-${c}`, path: '/', w, c, shell: true, tab: '달력', eventRange: true, calDay: EVENT_RANGE_DAY, center: '.anniv-list' })),
-  ...both(390, (w, c) => ({ name: `shell-cal-range-soon-${w}-${c}`, path: '/', w, c, shell: true, tab: '달력', eventRange: true, center: '.anniv-soon' })),
+  ...each((w, c) => ({ name: `shell-cal-range-day-${w}-${c}`, path: '/', w, c, shell: true, tab: '달력', eventRange: true, calDay: EVENT_RANGE_DAY, center: '.day-plan' })),
+  ...both(390, (w, c) => ({ name: `shell-cal-range-soon-${w}-${c}`, path: '/', w, c, shell: true, tab: '달력', eventRange: true, center: '.soon-card' })),
+  // "N개 더 보기"로 펼친 모습
+  ...both(390, (w, c) => ({ name: `shell-cal-range-soon-open-${w}-${c}`, path: '/', w, c, shell: true, tab: '달력', eventRange: true, soonOpen: true, center: '.soon-card' })),
   ...each((w, c) => ({ name: `shell-plan-event-range-${w}-${c}`, path: '/', w, c, shell: true, tab: '달력', eventRange: true, calDay: EVENT_RANGE_DAY, openEvent: '가족 여행', planScroll: '.fx-pick' })),
   ...both(390, (w, c) => ({ name: `shell-plan-event-range-top-${w}-${c}`, path: '/', w, c, shell: true, tab: '달력', eventRange: true, calDay: EVENT_RANGE_DAY, openEvent: '가족 여행', planScroll: '#ev-title' })),
   { name: 'shell-plan-event-range-err-390-light', path: '/', w: 390, c: 'light', shell: true, tab: '달력', eventRange: true, calDay: EVENT_RANGE_DAY, openEvent: '가족 여행', rangeEnd: '2026-01-01', planScroll: '#ev-end' },
+  // 일정이 많은 달의 달력 탭 전체(D-055): 위에서 아래까지 한 장
+  ...each((w, c) => ({ name: `shell-cal-busy-${w}-${c}`, path: '/', w, c, shell: true, tab: '달력', eventRange: true, full: true })),
   // 숨쉬기 효과는 움직임을 켜고도 한 번 찍는다(움직임 줄이기에서는 테두리로 바뀐다)
   { name: 'shell-cal-range-grid-motion-390-light', path: '/', w: 390, c: 'light', shell: true, tab: '달력', eventRange: true, motion: 'no-preference', center: '.cal-card' },
   ...each((w, c) => ({ name: `shell-event-capture-${w}-${c}`, path: '/', w, c, shell: true, tab: '달력', eventCapture: true })),
@@ -249,10 +253,10 @@ const shellShots = [
   { name: 'shell-event-capture-input-1280-light', path: '/', w: 1280, c: 'light', shell: true, tab: '달력', eventCapture: 'input' },
   ...both(390, (w, c) => ({ name: `shell-event-capture-dup-${w}-${c}`, path: '/', w, c, shell: true, tab: '달력', eventCapture: true, scrollTo: '.ev-draft.off .draft-head' })),
   // 일정 장소(D-041): 고른 날 일정 줄 아래 장소 줄(좌표 있음 → 길찾기, 주소만 → 지도), 일정 고치기 시트의 장소·주소 칸과 길찾기 링크
-  ...each((w, c) => ({ name: `shell-cal-event-place-${w}-${c}`, path: '/', w, c, shell: true, tab: '달력', eventPlaces: true, center: '.anniv-list' })),
+  ...each((w, c) => ({ name: `shell-cal-event-place-${w}-${c}`, path: '/', w, c, shell: true, tab: '달력', eventPlaces: true, center: '.day-plan' })),
   // 달력 칸의 일정·기념일 이름(두 줄까지, D-043·D-044)과 다가오는 일정·기념일(모두, 손가락 화면은 줄바꿈)
   ...each((w, c) => ({ name: `shell-cal-grid-events-${w}-${c}`, path: '/', w, c, shell: true, tab: '달력', eventPlaces: true, center: '.cal-card' })),
-  ...both(390, (w, c) => ({ name: `shell-cal-soon-all-${w}-${c}`, path: '/', w, c, shell: true, tab: '달력', eventPlaces: true, center: '.anniv-soon' })),
+  ...both(390, (w, c) => ({ name: `shell-cal-soon-all-${w}-${c}`, path: '/', w, c, shell: true, tab: '달력', eventPlaces: true, center: '.soon-card' })),
   ...each((w, c) => ({ name: `shell-plan-event-place-${w}-${c}`, path: '/', w, c, shell: true, tab: '달력', eventPlaces: true, openEvent: '더그랜드롯데 서울 라세느 뷔페 예약' })),
   ...both(390, (w, c) => ({ name: `shell-event-capture-foot-${w}-${c}`, path: '/', w, c, shell: true, tab: '달력', eventCapture: true, scrollTo: '.sheet .link-btn' })),
 ]
@@ -445,7 +449,7 @@ try {
       }
       if (s.calDay) {
         await page.getByRole('button', { name: new RegExp(`^\\d+월 ${s.calDay}일`) }).click()
-        await page.locator('.tx.plan, .anniv-row').first().waitFor()
+        await page.locator('.tx.plan, .ag-row').first().waitFor()
       }
       if (s.tab === '알아보기') await page.waitForFunction(() => document.querySelector('.explore-weather') && !document.body.innerText.includes('기상청 예보 받는 중'))
       if (s.explore?.query) {
@@ -484,6 +488,10 @@ try {
         await page.waitForTimeout(800) // 자리 표시가 200ms 늦게 나타나는 움직임이 끝날 때까지
       }
       if (s.center) await page.locator(s.center).first().evaluate((el) => el.scrollIntoView({ block: 'center' }))
+      if (s.soonOpen) {
+        await page.locator('.soon-more').click()
+        await page.locator(s.center).first().evaluate((el) => el.scrollIntoView({ block: 'center' }))
+      }
       if (s.quickAddEmpty) {
         await page.locator('.day-new').getByRole('button', { name: '넣기', exact: true }).click()
         await page.locator('.day-new [role=alert]').waitFor()
@@ -586,7 +594,7 @@ try {
       await page.getByRole('button', { name: '저장', exact: true }).scrollIntoViewIfNeeded()
     }
     if (s.openEvent) {
-      await page.locator('.anniv-list').getByRole('button', { name: new RegExp(`^${s.openEvent}`) }).click()
+      await page.locator('.day-plan').getByRole('button', { name: new RegExp(`^${s.openEvent}`) }).click()
       if (s.rangeEnd) await page.locator('#ev-end').fill(s.rangeEnd)
       if (s.planScroll) await page.locator(s.planScroll).first().evaluate((el) => el.scrollIntoView({ block: 'center' }))
       else await page.locator('#ev-address').scrollIntoViewIfNeeded()

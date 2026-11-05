@@ -1,11 +1,12 @@
 // @vitest-environment jsdom
 // 달력 칸의 기념일·일정 이름: 칸마다 두 개까지(기념일 먼저), 넘치면 +N. 화면 읽기는 칸의 aria-label이 맡는다
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
-import { afterEach, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { CalendarView } from '../../src/components/CalendarView'
 import { makeLookup } from '../../src/lib/lookup'
 import type { Anniversary, CalEvent } from '../../src/lib/types'
 
+beforeEach(() => localStorage.clear())
 afterEach(cleanup)
 
 const ev = (id: string, title: string, date = '2026-11-11', time: string | null = '18:00', scope: CalEvent['scope'] = 'shared'): CalEvent =>
@@ -29,18 +30,40 @@ it('칸에 기념일·일정 이름을 두 개까지, 넘치면 +N으로 보인�
   expect(screen.getByRole('button', { name: /^11월 12일/ }).querySelectorAll('.cal-lbl')).toHaveLength(0)
 })
 
-it('다가오는 일정·기념일은 30일 안의 것을 모두 보이고(네 개 제한 없음), 남편·아내 일정은 태그를 붙인다', () => {
+it('다가오는 일정·기념일은 30일 안의 것을 줄 맞춘 목록으로 다섯 줄까지 보이고 "N개 더 보기"로 모두 펼친다(D-055). 남편·아내 일정은 태그를 붙인다', () => {
   const list = [ev('e1', '치과', '2026-11-03'), ev('e2', '회식', '2026-11-05', '19:00', 'husband'), ev('e3', '양인환대', '2026-11-07'),
     ev('e4', '라세느', '2026-11-11'), ev('e5', '요가', '2026-11-12', '10:00', 'wife'), ev('e6', '안다즈', '2026-11-15'), ev('e7', '먼 일정', '2026-12-25')]
   render(<CalendarView ym="2026-11" today="2026-11-02" sel="2026-11-05" cur={[]} prev={[]} lookup={makeLookup('u1', [], [], [])}
     annivs={[]} events={list} onSelect={() => {}} onPlan={() => {}} onJump={() => {}} onEdit={() => {}} />)
   const row = screen.getByRole('group', { name: '다가오는 일정·기념일' })
-  expect(row.querySelectorAll('.anniv-chip')).toHaveLength(6)
-  expect(row.textContent).toContain('회식남편')
-  expect(row.textContent).toContain('요가아내')
+  expect(row.querySelector('.soon-count')?.textContent).toBe('6개')
+  expect([...row.querySelectorAll('.ag-row')].map((e) => e.textContent)).toEqual([
+    '치과11월 3일 (화)D-1', '회식남편11월 5일 (목)D-3', '양인환대11월 7일 (토)D-5', '라세느11월 11일 (수)D-9', '요가아내11월 12일 (목)D-10',
+  ])
+  expect(row.textContent).not.toContain('안다즈')
+  const more = screen.getByRole('button', { name: '1개 더 보기' })
+  expect(more.getAttribute('aria-expanded')).toBe('false')
+  fireEvent.click(more)
+  expect(row.querySelectorAll('.ag-row')).toHaveLength(6)
+  expect(row.textContent).toContain('안다즈11월 15일 (일)D-13')
   expect(row.textContent).not.toContain('먼 일정')
+  expect(screen.getByRole('button', { name: '접기' }).getAttribute('aria-expanded')).toBe('true')
+  // 펼친 상태는 기기에 기억한다
+  expect(localStorage.getItem('ab:soonOpen')).toBe('1')
   // 고른 날(5일) 줄에도 누구 일정 태그
-  expect(document.querySelector('.anniv-list .anniv-row.k-event')?.textContent).toBe('회식남편19:00')
+  expect(document.querySelector('.day-plan .ag-row')?.textContent).toBe('회식남편19:00')
+})
+
+it('차례(D-055): 남은 돈·달력 → 고른 날(일정 줄·넣기 칸·내역) → 다가오는 일정·기억할 것', () => {
+  const { container } = render(<CalendarView ym="2026-11" today="2026-11-02" sel="2026-11-05" cur={[]} prev={[]} lookup={makeLookup('u1', [], [], [])}
+    annivs={[anniv]} events={[ev('e2', '회식', '2026-11-05', '19:00')]} notes={<div className="remember-card" />}
+    onSelect={() => {}} onPlan={() => {}} onQuickAdd={async () => true} onJump={() => {}} onEdit={() => {}} />)
+  expect([...container.querySelector('.cal-view')!.children].map((e) => e.className)).toEqual(['cal-top', 'day-group', 'cal-more'])
+  expect([...container.querySelector('.cal-top')!.children].map((e) => e.className)).toEqual(['hero', 'card cal-card'])
+  // 고른 날: 머리 줄, 일정 줄과 넣기 칸이 한 면에, 그 아래 내역
+  expect([...container.querySelector('.day-group')!.children].map((e) => e.className)).toEqual(['day-head', 'card day-plan', 'tx-list'])
+  expect([...container.querySelector('.day-plan')!.children].map((e) => e.className)).toEqual(['ag-list', 'day-new'])
+  expect([...container.querySelector('.cal-more')!.children].map((e) => e.className)).toEqual(['card soon-card', 'remember-card'])
 })
 
 // 기간·중요도(D-054)
@@ -59,12 +82,13 @@ it('기간 일정은 기간 안의 날마다 칸에 보이고(첫날·가운데�
   expect(cls(10)).toEqual([])
   expect(screen.getByRole('button', { name: /^11월 8일/ }).getAttribute('aria-label')).toContain('일정 가족 여행(꼭, 11월 7일 ~ 9일)')
   // 고른 날(가운데 날) 줄: "꼭" 글자 태그와 기간, 효과 클래스. 다가오는 칩에도 기간과 태그
-  const row = document.querySelector('.anniv-list .anniv-row.k-event')
+  // 줄 전체를 칠하지 않고 이름만 달력 칸 이름 모양(고른 효과)으로 보인다(D-055)
+  const row = document.querySelector('.day-plan .ag-row')
   expect(row?.textContent).toBe('가족 여행꼭11월 7일 ~ 9일')
-  expect(row?.className).toBe('anniv-row k-event p-must fx-fill')
-  const chip = screen.getByRole('group', { name: '다가오는 일정·기념일' }).querySelector('.anniv-chip')
+  expect(row?.querySelector('.ag-name')?.className).toBe('ag-name p-must fx-fill')
+  const chip = screen.getByRole('group', { name: '다가오는 일정·기념일' }).querySelector('.ag-row')
   expect(chip?.textContent).toBe('가족 여행꼭11월 7일 ~ 9일D-5')
-  expect(chip?.className).toBe('anniv-chip k-event p-must fx-fill')
+  expect(chip?.querySelector('.ag-name')?.className).toBe('ag-name p-must fx-fill')
 })
 
 it('앞 달에 시작한 기간 일정도 이번 달 날짜에 보이고, 오늘도 이어지면 다가오는 칩은 "하는 중"이며 누르면 오늘로 간다', () => {
@@ -73,7 +97,7 @@ it('앞 달에 시작한 기간 일정도 이번 달 날짜에 보이고, 오늘
     annivs={[]} events={[{ ...ev('b', '출장', '2026-10-30', null, 'husband'), end_on: '2026-11-03' }]} onPlan={() => {}} onSelect={() => {}} onEdit={() => {}} onJump={onJump} />)
   expect([1, 2, 3, 4].map((d) => screen.getByRole('button', { name: new RegExp(`^11월 ${d}일`) }).querySelector('.cal-lbl')?.className))
     .toEqual(['cal-lbl ev s-husband r-mid r-head', 'cal-lbl ev s-husband r-mid', 'cal-lbl ev s-husband r-end', undefined])
-  const chip = screen.getByRole('group', { name: '다가오는 일정·기념일' }).querySelector('.anniv-chip') as HTMLElement
+  const chip = screen.getByRole('group', { name: '다가오는 일정·기념일' }).querySelector('.ag-main') as HTMLElement
   expect(chip.textContent).toBe('출장남편10월 30일 ~ 11월 3일하는 중')
   fireEvent.click(chip)
   expect(onJump).toHaveBeenCalledWith('2026-11-02')
@@ -88,7 +112,9 @@ it('칸에는 꼭 → 중요 → 보통 순서로 두 개까지 보이고, 점·
   expect(labels[0].querySelector('.fx-m.star svg')).toBeTruthy()
   expect(labels[1].querySelector('.fx-m.dot')).toBeTruthy()
   // 고른 날 줄은 시간 순서 그대로(받은 순서)이고 글자 태그로도 알린다
-  expect([...document.querySelectorAll('.anniv-list .anniv-row')].map((e) => e.textContent)).toEqual(['산책18:00', '치과중요18:00', '건강검진꼭18:00'])
+  expect([...document.querySelectorAll('.day-plan .ag-row')].map((e) => e.textContent)).toEqual(['산책18:00', '치과중요18:00', '건강검진꼭18:00'])
+  // 보통 일정의 이름에는 효과 클래스가 없다
+  expect([...document.querySelectorAll('.day-plan .ag-name')].map((e) => e.className)).toEqual(['ag-name', 'ag-name p-high fx-mark', 'ag-name p-must fx-mark'])
 })
 
 it('고른 날의 넣기 칸: 이름을 적고 넣기를 누르면 바로 넣고 칸을 비운다. 비어 있으면 넣지 않고 알린다. 자세히 넣기는 적던 이름을 가져간다', async () => {

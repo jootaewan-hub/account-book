@@ -2,6 +2,7 @@
 //  - 기간: end_on(끝나는 날, 그날 포함)이 시작보다 뒤면 여러 날 일정. 달력 칸에는 기간 안의 날마다 보인다.
 //  - 중요도: 보통·중요·꼭. 중요·꼭은 일정마다 고른 표시 효과(테두리·채움·숨쉬기·점과 별·굵은 글자)로 구별한다.
 import { daysBetween } from './anniversaries'
+import { DOW } from './dates'
 import type { CalEvent, EventEffect, EventPriority } from './types'
 
 export const PRIORITIES: EventPriority[] = ['normal', 'high', 'must']
@@ -38,6 +39,12 @@ export function rangeLabel(e: Ranged): string {
   if (!isRange(e)) return `${m1}월 ${d1}일`
   if (y1 !== y2) return `${y1}년 ${m1}월 ${d1}일 ~ ${y2}년 ${m2}월 ${d2}일`
   return m1 === m2 ? `${m1}월 ${d1}일 ~ ${d2}일` : `${m1}월 ${d1}일 ~ ${m2}월 ${d2}일`
+}
+
+/** 다가오는 목록의 날짜 글: "11월 8일 (일)" */
+export function shortDate(date: string): string {
+  const [y, m, d] = date.split('-').map(Number)
+  return `${m}월 ${d}일 (${DOW[new Date(y, m - 1, d).getDay()]})`
 }
 
 /** 고른 날 줄의 오른쪽 글: 하루 일정은 시간(없으면 '하루 종일'), 기간 일정은 기간(+ 시작 시간) */

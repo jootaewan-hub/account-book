@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { annivCategories, annivDateLabel, annivIconOf, annivInput, annivKindOf, anniversariesInMonth, finishAnnivInput, newAnnivInput, nextOccurrence, occurrencesIn, upcomingAnniversaries } from '../src/lib/anniversaries'
-import { addDays, byPriority, eventsByDate, fxClass, isRange, rangeDays, rangeError, rangeLabel, rangePart, upcomingEvents, whenLabel } from '../src/lib/events'
+import { addDays, byPriority, eventsByDate, fxClass, isRange, rangeDays, rangeError, rangeLabel, rangePart, shortDate, upcomingEvents, whenLabel } from '../src/lib/events'
 import type { Anniversary, CalEvent } from '../src/lib/types'
 import { electionDay, HOLIDAYS } from '../src/lib/holidays'
 import { lunarToSolar, solarToLunar } from '../src/lib/lunar'
@@ -206,6 +206,8 @@ describe('기간 일정·중요도 (D-054)', () => {
     expect(rangeLabel(ev('a', '2026-11-28', '2026-12-02'))).toBe('11월 28일 ~ 12월 2일')
     expect(rangeLabel(ev('a', '2026-12-30', '2027-01-02'))).toBe('2026년 12월 30일 ~ 2027년 1월 2일')
     expect([rangeDays(ev('a', '2026-11-07')), rangeDays(ev('a', '2026-11-07', '2026-11-09'))]).toEqual([1, 3])
+    // 다가오는 목록의 날짜 글(D-055)
+    expect([shortDate('2026-11-08'), shortDate('2026-12-01')]).toEqual(['11월 8일 (일)', '12월 1일 (화)'])
   })
 
   it('끝나는 날이 시작과 같거나 없으면(이 칸 전의 일정 포함) 하루 일정이다', () => {

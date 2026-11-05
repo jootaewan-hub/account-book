@@ -439,6 +439,8 @@ export const EVENT_RANGE = [
   evr('er-gift', '선물 사기', plus(9), { priority: 'high', effect: 'fill' }),
   evr('er-star', '결혼식 축가', plus(11), { time: '12:00', priority: 'must', effect: 'mark' }),
 ]
+/** 가짜 기념일이 몰려 있는 11월까지 달을 몇 번 넘겨야 하는지(11월이면 0) */
+export const MONTHS_TO_NOV = (11 - Number(ym.slice(5, 7)) + 12) % 12
 /** 가족 여행 가운데 날(여행·건강검진이 겹친다)의 날짜 숫자 */
 export const EVENT_RANGE_DAY = Number(plus(3).slice(8, 10))
 export const EVENT_RANGE_MONTH = plus(3).slice(0, 7) === today.slice(0, 7)

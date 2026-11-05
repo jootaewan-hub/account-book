@@ -1,13 +1,14 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useMemo, useRef, useState, type ReactNode } from 'react'
 import { anniversariesInMonth, dLabel, repeatLabel, upcomingAnniversaries } from '../lib/anniversaries'
 import { DOW, dayOf, formatDateLong, monthGrid, monthRange, parseYM } from '../lib/dates'
-import { byPriority, eventsByDate, fxClass, isRange, priorityWord, rangeLabel, rangePart, upcomingEvents, whenLabel } from '../lib/events'
+import { byPriority, eventsByDate, fxClass, isRange, priorityWord, rangeLabel, rangePart, shortDate, upcomingEvents, whenLabel } from '../lib/events'
 import { compact, won } from '../lib/format'
 import { HOLIDAYS } from '../lib/holidays'
 import { hasPlace, naverMapUrl, placeLabel } from '../lib/naverMap'
 import { dailyTotals, samePeriodDiff, sumType } from '../lib/ledger'
+import { lsGet, lsSet } from '../lib/localPrefs'
 import type { Lookup } from '../lib/lookup'
-import type { Anniversary, CalEvent, Transaction } from '../lib/types'
+import type { Anniversary, CalEvent, Scope, Transaction } from '../lib/types'
 import { AnnivIcon } from './AnnivIcon'
 import { CalendarIcon, CameraIcon, MapPinIcon, Plus } from './Icons'
 import { EventMark, PriorityTag } from './EventPriority'
@@ -98,8 +99,9 @@ export function CalendarView({ ym, today, sel, cur, prev, loading = false, looku
 
   return (
     <section className="view cal-view">
-      {/* 넓은 화면에서는 왼쪽 달력, 오른쪽 고른 날의 내역. 휴대폰에서는 이 묶음이 풀려 한 줄로 이어진다 */}
-      <div className="cal-main">
+      {/* 차례(D-055): 남은 돈·달력 → 고른 날(일정·넣기·내역) → 다가오는 일정·기억할 것. 넓은 화면은 왼쪽에 달력 쪽 둘, 오른쪽에 고른 날.
+          휴대폰에서는 이 묶음들이 풀려 한 줄로 이어진다 */}
+      <div className="cal-top">
         {/* aria-live를 두지 않는다: 달 표시(App)가 이미 읽히고, 배우자 내역이 들어올 때마다 전부 다시 읽히면 시끄럽다 */}
         <div className="hero">
           {loading ? (
@@ -172,16 +174,6 @@ export function CalendarView({ ym, today, sel, cur, prev, loading = false, looku
           </div>
         </div>
 
-        {soon.length > 0 && (
-          <SoonRow label="다가오는 일정·기념일" items={soon.map((u) => (tab: number | undefined) => (
-            <button key={u.key} className={['anniv-chip', `k-${u.kind}`, u.event && fxClass(u.event)].filter(Boolean).join(' ')} tabIndex={tab} onClick={() => onJump(u.date)}>
-              {u.kind === 'event' ? <CalendarIcon /> : <AnnivIcon a={{ name: u.name, category: u.category, kind: u.kind as Anniversary['kind'] }} />}
-              <span>{u.event && <EventMark e={u.event} />}{u.name}</span>{u.event && <PriorityTag e={u.event} />}<EventScopeTag scope={u.scope} />
-              {u.event && isRange(u.event) && <em className="num">{rangeLabel(u.event)}</em>}<b className="num">{u.ongoing ? '하는 중' : dLabel(u.days)}</b>
-            </button>
-          ))} />
-        )}
-        {notes}
       </div>
 
       {sel.startsWith(ym) && (
@@ -196,46 +188,51 @@ export function CalendarView({ ym, today, sel, cur, prev, loading = false, looku
               {dp > 0 && <span className="plan">{won(dp)}원 나갈 예정</span>}
             </div>
           </div>
-          {(dayAnniv.length > 0 || dayEvents.length > 0) && (
-            <div className="anniv-list">
-              {dayAnniv.map((a) => (
-                <button key={a.id} className={`anniv-row k-${a.kind}`} onClick={() => onPlan({ kind: 'anniv', anniv: a })}>
-                  <AnnivIcon a={a} /><b>{a.name}</b>
-                  <span>{[a.category, a.repeat_unit === 'month' || a.repeat_every > 1 ? repeatLabel(a) : null, a.lunar ? `음력 ${a.month}월 ${a.day}일` : null].filter(Boolean).join(', ')}</span>
-                </button>
-              ))}
-              {dayEvents.map((e) => {
-                // 중요·꼭 효과(D-054)는 줄 전체에: 장소가 있으면 장소 줄까지 묶은 면(ev-card)에 건다
-                const fx = fxClass(e)
-                const placed = hasPlace(e)
-                const row = (
-                  <button key={e.id} className={['anniv-row k-event', !placed && fx].filter(Boolean).join(' ')} onClick={() => onPlan({ kind: 'event', event: e })}>
-                    <CalendarIcon /><b><EventMark e={e} />{e.title}</b><PriorityTag e={e} /><EventScopeTag scope={e.scope ?? 'shared'} /><span className="num">{whenLabel(e)}</span>
-                  </button>
-                )
-                if (!placed) return row
-                // 장소를 누르면 네이버 지도(좌표가 있으면 대중교통 길찾기, 없으면 검색)를 연다(D-041). 일정 줄 버튼 안에 넣지 않고 나란히 둔다
-                const routed = e.lat !== null && e.lng !== null
-                return (
-                  <div key={e.id} className={['ev-card', fx].filter(Boolean).join(' ')}>
-                    {row}
-                    <a className="ev-route" href={naverMapUrl(e, 'transit') ?? undefined} target="_blank" rel="noopener noreferrer"
-                      aria-label={`${placeLabel(e)} ${routed ? '길찾기' : '지도 검색'}, 네이버 지도`}>
-                      <MapPinIcon /><span>{placeLabel(e)}</span><em>{routed ? '길찾기' : '지도'}</em>
-                    </a>
-                  </div>
-                )
-              })}
-            </div>
-          )}
-          <DayNew key={sel} label={`${m}월 ${dayOf(sel)}일에 일정 넣기`} onQuickAdd={onQuickAdd} onCapture={onCapture}
-            onDetail={(title) => onPlan({ kind: 'new', date: sel, title })} />
+          {/* 그날의 기념일·일정 줄과 넣기 칸을 한 면에(D-055). 줄마다 색 면을 두지 않고 줄 맞춘 목록으로 */}
+          <div className="card day-plan">
+            {(dayAnniv.length > 0 || dayEvents.length > 0) && (
+              <ul className="ag-list" aria-label="이 날의 일정·기념일">
+                {dayAnniv.map((a) => (
+                  <AgendaRow key={a.id} icon={<AnnivIcon a={a} />} name={a.name} onClick={() => onPlan({ kind: 'anniv', anniv: a })}
+                    meta={[a.category, a.repeat_unit === 'month' || a.repeat_every > 1 ? repeatLabel(a) : null, a.lunar ? `음력 ${a.month}월 ${a.day}일` : null].filter(Boolean).join(', ')} />
+                ))}
+                {dayEvents.map((e) => {
+                  // 장소를 누르면 네이버 지도(좌표가 있으면 대중교통 길찾기, 없으면 검색)를 연다(D-041). 일정 줄 버튼 안에 넣지 않고 그 아래 줄로 둔다
+                  const routed = e.lat !== null && e.lng !== null
+                  return (
+                    <AgendaRow key={e.id} icon={<CalendarIcon />} name={e.title} event={e} scope={e.scope ?? 'shared'} meta={whenLabel(e)}
+                      onClick={() => onPlan({ kind: 'event', event: e })}>
+                      {hasPlace(e) && (
+                        <a className="ag-place" href={naverMapUrl(e, 'transit') ?? undefined} target="_blank" rel="noopener noreferrer"
+                          aria-label={`${placeLabel(e)} ${routed ? '길찾기' : '지도 검색'}, 네이버 지도`}>
+                          <MapPinIcon /><span>{placeLabel(e)}</span><em>{routed ? '길찾기' : '지도'}</em>
+                        </a>
+                      )}
+                    </AgendaRow>
+                  )
+                })}
+              </ul>
+            )}
+            <DayNew key={sel} label={`${m}월 ${dayOf(sel)}일에 일정 넣기`} onQuickAdd={onQuickAdd} onCapture={onCapture}
+              onDetail={(title) => onPlan({ kind: 'new', date: sel, title })} />
+          </div>
           <div className="tx-list">
             {dayTx.map((t) => <TxRow key={t.id} t={t} lookup={lookup} onClick={() => onEdit(t)} />)}
             {!dayTx.length && (loading ? <RowsWait rows={2} /> : <div className="empty">이 날 기록이 없어요. 기록하기로 추가해 보세요.</div>)}
           </div>
         </div>
       )}
+
+      <div className="cal-more">
+        {soon.length > 0 && (
+          <SoonList label="다가오는 일정·기념일" items={soon.map((u) => (
+            <AgendaRow key={u.key} name={u.name} event={u.event} scope={u.scope} onClick={() => onJump(u.date)}
+              icon={u.event ? <CalendarIcon /> : <AnnivIcon a={{ name: u.name, category: u.category, kind: u.kind as Anniversary['kind'] }} />}
+              meta={u.event && isRange(u.event) ? rangeLabel(u.event) : shortDate(u.date)} trail={u.ongoing ? '하는 중' : dLabel(u.days)} />
+          ))} />
+        )}
+        {notes}
+      </div>
     </section>
   )
 }
@@ -247,10 +244,43 @@ function eventReadName(e: CalEvent): string {
 }
 
 /**
- * 고른 날의 일정 넣기 칸(D-054): 귀리 면 안에 제목, 흰 입력칸 + 먹색 "넣기", 그 아래 흰 보조 버튼 둘.
+ * 일정·기념일 한 줄(D-055). 고른 날 묶음과 다가오는 목록이 같은 모양을 쓴다: 그림 칸 · 이름 · 태그 · 오른쪽 글(시간·기간·날짜) · D-day.
+ * 중요·꼭 일정(D-054)은 줄 전체를 칠하지 않고 이름만 달력 칸 이름 모양(고른 효과)으로 보이고 "중요"·"꼭" 글자 태그를 붙인다
+ */
+function AgendaRow({ icon, name, event, scope, meta, trail, onClick, children }: {
+  icon: ReactNode
+  name: string
+  /** 일정이면 넘긴다(중요도 효과·태그) */
+  event?: CalEvent
+  scope?: Scope
+  meta?: string
+  /** 오른쪽 끝 굵은 글(D-day) */
+  trail?: string
+  onClick: () => void
+  /** 줄 아래에 붙는 것(장소 줄) */
+  children?: ReactNode
+}) {
+  return (
+    <li className="ag-row">
+      <button className="ag-main" onClick={onClick}>
+        <span className="ag-ico" aria-hidden="true">{icon}</span>
+        <span className={['ag-name', event && fxClass(event)].filter(Boolean).join(' ')}>{event && <EventMark e={event} />}{name}</span>
+        {event && <PriorityTag e={event} />}
+        {scope && <EventScopeTag scope={scope} />}
+        <span className="ag-meta num">{meta}</span>
+        {trail && <b className="ag-d num">{trail}</b>}
+      </button>
+      {children}
+    </li>
+  )
+}
+
+/**
+ * 고른 날의 일정 넣기 칸(D-054, D-055에 일정 줄과 같은 면 안으로): 흰 입력칸 + 먹색 "넣기", 그 아래 흰 보조 버튼 둘.
  * 이름만 적어 넣으면 하루 종일 일정으로 바로 들어가고, 시간·기간·중요도·기념일은 "자세히 넣기" 시트에서 정한다(적던 이름은 가져간다)
  */
 function DayNew({ label, onQuickAdd, onDetail, onCapture }: {
+  /** 입력칸의 읽기 이름("11월 5일에 일정 넣기") */
   label: string
   onQuickAdd?: (title: string) => Promise<boolean>
   onDetail: (title?: string) => void
@@ -273,15 +303,13 @@ function DayNew({ label, onQuickAdd, onDetail, onCapture }: {
     <div className="day-new">
       {onQuickAdd && (
         <form className="day-new-form" onSubmit={(e) => { e.preventDefault(); void add() }}>
-          <label htmlFor="day-new-title">{label}</label>
           <div className="day-new-row">
-            <input id="day-new-title" ref={input} className={`input${miss ? ' bad' : ''}`} placeholder="예: 치과 예약, 가족 여행" maxLength={40} autoComplete="off" enterKeyHint="done"
-              aria-invalid={miss || undefined} aria-describedby="day-new-note" value={title} onChange={(e) => { setTitle(e.target.value); setMiss(false) }} />
+            <input ref={input} className={`input${miss ? ' bad' : ''}`} placeholder="새 일정 (예: 치과 예약)" maxLength={40} autoComplete="off" enterKeyHint="done"
+              aria-label={label} aria-invalid={miss || undefined} aria-describedby={miss ? 'day-new-note' : undefined}
+              value={title} onChange={(e) => { setTitle(e.target.value); setMiss(false) }} />
             <button className="primary" disabled={busy}>넣기</button>
           </div>
-          <p id="day-new-note" className={miss ? 'err' : 'day-new-note'} role={miss ? 'alert' : undefined}>
-            {miss ? '일정 이름을 적어 주세요.' : '바로 넣으면 하루 종일 일정이에요. 시간·기간·중요도·기념일은 자세히 넣기에서 정해요.'}
-          </p>
+          {miss && <p id="day-new-note" className="err" role="alert">일정 이름을 적어 주세요.</p>}
         </form>
       )}
       <div className="day-adds" role="group" aria-label={onQuickAdd ? undefined : label}>
@@ -292,44 +320,29 @@ function DayNew({ label, onQuickAdd, onDetail, onCapture }: {
   )
 }
 
+/** 다가오는 목록에서 접힌 채 보이는 줄 수 */
+const SOON_MAX = 5
+const SOON_OPEN = 'ab:soonOpen'
+
 /**
- * 다가오는 일정·기념일 줄(D-033, D-044: 30일 안의 것은 모두). 칩이 줄을 넘치면 마우스로 쓰는 화면(PC)에서는 옆으로 천천히 흘러 다 보이게 하고, 손가락 화면은 줄을 바꾼다:
- * 같은 칩을 한 번 더 이어 붙여(읽기·탭 이동에서 뺀다) 끊김 없이 돌고, 마우스를 올리거나 포커스가 가면 멈춘다.
- * 움직임 줄이기를 켰으면 흐르지 않고 줄을 바꿔 다 보인다. 손가락으로 쓰는 화면은 지금처럼 밀어서 본다
+ * 다가오는 일정·기념일 목록(D-055): 30일 안의 것을 가까운 순서로 줄 맞춰 보인다. 다섯 줄까지 보이고 "N개 더 보기"로 펼친다(펼친 상태는 기기에 기억).
+ * 색색 칩이 여러 줄로 감기던 것(D-044)과 넓은 화면에서 옆으로 흐르던 것(D-033)을 이 목록 하나로 바꿨다: 잘리는 것 없이 다 볼 수 있고 움직이지 않는다
  */
-function SoonRow({ label, items }: { label: string; items: ((tab: number | undefined) => ReactNode)[] }) {
-  const box = useRef<HTMLDivElement>(null)
-  const set = useRef<HTMLDivElement>(null)
-  const [mode, setMode] = useState<{ kind: 'still' | 'flow' | 'wrap'; width: number }>({ kind: 'still', width: 0 })
-  useEffect(() => {
-    const el = box.current
-    const one = set.current
-    if (!el || !one || typeof ResizeObserver === 'undefined' || typeof window.matchMedia !== 'function') return
-    const fine = window.matchMedia('(hover: hover) and (pointer: fine)')
-    const calm = window.matchMedia('(prefers-reduced-motion: reduce)')
-    const check = () => {
-      // 칩 너비의 합(+ 간격 6px): 줄을 바꿔도 변하지 않는 원래 너비로 넘치는지 본다(scrollWidth는 줄을 바꾸면 줄어 오락가락한다)
-      const chips = [...one.children]
-      const width = chips.reduce((sum, c) => sum + c.getBoundingClientRect().width, 0) + 6 * Math.max(0, chips.length - 1)
-      const over = width > el.clientWidth + 1
-      // 넘치지 않으면 그대로, 손가락 화면·움직임 줄이기는 줄을 바꿔 모두 보이고, 마우스 화면은 흐른다(D-033, D-044)
-      setMode({ kind: !over ? 'still' : !fine.matches || calm.matches ? 'wrap' : 'flow', width })
-    }
-    check()
-    const ro = new ResizeObserver(check)
-    ro.observe(el)
-    ro.observe(one)
-    calm.addEventListener('change', check)
-    return () => { ro.disconnect(); calm.removeEventListener('change', check) }
-  }, [])
-  // 1초에 40px쯤: 칩 네 개(500px 안팎)가 한 바퀴 도는 데 열몇 초
-  const seconds = Math.max(8, Math.round((mode.width + 6) / 40))
+function SoonList({ label, items }: { label: string; items: ReactNode[] }) {
+  const [open, setOpen] = useState(() => lsGet(SOON_OPEN) === '1')
+  const more = items.length - SOON_MAX
   return (
-    <div ref={box} className={`anniv-soon${mode.kind === 'still' ? '' : ` ${mode.kind}`}`} role="group" aria-label={label}>
-      <div className="soon-track" style={mode.kind === 'flow' ? { animationDuration: `${seconds}s` } : undefined}>
-        <div className="soon-set" ref={set}>{items.map((f) => f(undefined))}</div>
-        {mode.kind === 'flow' && <div className="soon-set" aria-hidden="true" inert>{items.map((f) => f(-1))}</div>}
+    <section className="card soon-card" role="group" aria-label={label}>
+      <div className="soon-head">
+        <h2 className="section-title">{label}</h2>
+        <span className="soon-count num">{items.length}개</span>
       </div>
-    </div>
+      <ul className="ag-list">{open ? items : items.slice(0, SOON_MAX)}</ul>
+      {more > 0 && (
+        <button className="link-btn soon-more" aria-expanded={open} onClick={() => { lsSet(SOON_OPEN, open ? '0' : '1'); setOpen(!open) }}>
+          {open ? '접기' : `${more}개 더 보기`}
+        </button>
+      )}
+    </section>
   )
 }

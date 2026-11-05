@@ -74,10 +74,10 @@ button { cursor: pointer; touch-action: manipulation; user-select: none; -webkit
 .app { max-width: var(--col); margin: 0 auto; min-height: 100%; }
 
 /* 누름 반응: 손이 닿는 순간 살짝 줄어든다 */
-.primary, .ghost, .danger, .chip, .anniv-chip, .fab, .smart-btn, .keypad button, .icon-btn, .today-btn, .seg:where(:not(.grocery *)) button, .link-btn, .svc-pick, .pv-x, .update-bar {
+.primary, .ghost, .danger, .chip, .fab, .smart-btn, .keypad button, .icon-btn, .today-btn, .seg:where(:not(.grocery *)) button, .link-btn, .svc-pick, .pv-x, .update-bar {
   transition: transform var(--dur-press) var(--ease-out);
 }
-.primary:active:not(:disabled), .ghost:active:not(:disabled), .danger:active:not(:disabled), .chip:active, .anniv-chip:active, .fab:active, .smart-btn:active,
+.primary:active:not(:disabled), .ghost:active:not(:disabled), .danger:active:not(:disabled), .chip:active, .fab:active, .smart-btn:active,
 .keypad button:active, .icon-btn:active:not(:disabled), .today-btn:active, .seg:where(:not(.grocery *)) button:active, .svc-pick:active, .update-bar:active { transform: scale(0.97); }
 .tx:active, .rc-row:active, .day:active { background: var(--oat); }
 
@@ -141,6 +141,8 @@ main.wrap { padding-block: 4px calc(150px + env(safe-area-inset-bottom, 0px)); }
 .day .amt { font-size: 10.5px; font-weight: 600; line-height: 1.2; max-width: 100%; overflow: hidden; white-space: nowrap; color: var(--ink-2); }
 .day .amt.exp { color: var(--ink-2); } .day .amt.inc { color: var(--indigo); }
 /* 고정지출 예정분(D-030): 아직 내역이 아니라 점선 테두리로 실제 금액과 구별한다. 흐린 글자는 귀리 면 위 대비 기준에 못 미쳐 쓰지 않는다 */
+/* 금액은 칸 아래쪽에 모아 한 주의 금액이 같은 높이에 놓이게 한다(D-055): 이름 줄 수가 달라도 숫자가 들쭉날쭉하지 않다 */
+.day :not(.amt) + .amt { margin-top: auto; }
 .day .amt.plan { border: 1px dashed var(--ink-2); border-radius: 4px; padding: 0 3px; line-height: 1.1; }
 .compare + .compare.plan-sum { margin-top: 2px; }
 /* 합계에 든 고정지출 예정분 안내(내역 탭 합계 아래, 통계 첫 묶음 아래) */
@@ -156,16 +158,6 @@ main.wrap { padding-block: 4px calc(150px + env(safe-area-inset-bottom, 0px)); }
 .anniv-mark { position: absolute; top: -6px; right: -9px; width: 15px; height: 15px; color: var(--clay); pointer-events: none; }
 .anniv-mark svg { width: 100%; height: 100%; display: block; }
 .anniv-mark.k-memorial { color: var(--ink-3); }
-.anniv-list { display: flex; flex-direction: column; gap: 6px; margin: 6px 0 8px; }
-.anniv-row { display: flex; align-items: center; gap: 10px; width: 100%; border: 0; text-align: left; background: var(--blush-soft); color: var(--rose-ink); border-radius: var(--r-sm); padding: 10px 12px; font-size: 13px; }
-.anniv-row.k-event, .anniv-chip.k-event { background: var(--sage-soft); color: var(--sage-ink); }
-/* 장소가 있는 일정(D-041): 일정 줄과 장소 줄을 한 묶음으로, 장소 줄을 누르면 네이버 지도 */
-.ev-card { background: var(--sage-soft); border-radius: var(--r-sm); }
-.ev-card .anniv-row { background: none; padding-bottom: 4px; }
-.ev-route { display: flex; align-items: center; gap: 6px; min-height: 44px; padding: 0 12px 6px 42px; color: var(--sage-ink); font-size: 14px; font-weight: 600; text-decoration: none; }
-.ev-route svg { width: 16px; height: 16px; flex: none; }
-.ev-route span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ev-route em { margin-left: auto; flex: none; font-style: normal; font-size: 13px; text-decoration: underline; text-underline-offset: 3px; }
 .route-links { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; margin-top: -2px; }
 .route-link { display: inline-flex; align-items: center; gap: 4px; min-height: 44px; color: var(--sage-ink); font-size: 14px; font-weight: 700; text-decoration: underline; text-underline-offset: 3px; }
 .route-link svg { width: 16px; height: 16px; flex: none; }
@@ -189,42 +181,44 @@ main.wrap { padding-block: 4px calc(150px + env(safe-area-inset-bottom, 0px)); }
 .day .cal-lbl.ev:is(.r-mid, .r-end):not(.r-head) { box-shadow: none; }
 .day-add { align-self: flex-start; border: 0; background: none; display: inline-flex; align-items: center; gap: 4px; padding: 8px 4px; margin-bottom: 2px; font-size: 14px; font-weight: 700; color: var(--sage-ink); }
 .day-add svg { width: 16px; height: 16px; }
-/* 고른 날의 일정 넣기 칸(D-054): 글자 버튼 둘이 바탕과 구별되지 않아, 귀리 면 안에 제목·흰 입력칸(먹 10% 선)·먹색 "넣기"를 두고
-   그 아래 흰 보조 버튼 둘(자세히 넣기, 캡처·문자로 넣기 D-039)을 둔다. 색이 아니라 면·테두리·자리·제목으로 구별한다 */
-.day-new { display: flex; flex-direction: column; gap: 10px; margin: 6px 0 10px; padding: 12px; background: var(--oat); border-radius: var(--r-md); }
+/* 고른 날의 일정 면(D-055): 그날의 기념일·일정 줄과 넣기 칸을 귀리 면 하나에 담는다. 넣기 칸(D-054)은 흰 입력칸(먹 10% 선)과 먹색 "넣기",
+   그 아래 흰 보조 버튼 둘(자세히 넣기, 캡처·문자로 넣기 D-039). 색이 아니라 면·테두리·자리로 구별한다 */
+.day-plan { display: flex; flex-direction: column; margin: 6px 0 10px; padding: 4px 14px 14px; }
+.day-plan > .day-new:first-child { padding-top: 10px; }
+.day-plan .ag-list + .day-new { border-top: 1px solid var(--oat-deep); padding-top: 12px; }
+.day-new { display: flex; flex-direction: column; gap: 8px; }
 .day-new-form { display: flex; flex-direction: column; gap: 6px; }
-.day-new-form > label { font-size: 14px; font-weight: 700; color: var(--ink); }
 .day-new-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; }
 .day-new-row .primary { width: auto; min-height: 46px; padding: 10px 18px; }
 .day-new-row .input.bad, .plan-form .input.bad { border-color: var(--clay); }
-.day-new-note { margin: 0; font-size: 13px; font-weight: 500; color: var(--ink-2); }
 .day-new .err { font-size: 13px; }
 .day-adds { display: grid; grid-template-columns: repeat(auto-fit, minmax(0, 1fr)); gap: 8px; }
-.day-adds .ghost { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-width: 0; padding: 10px 8px; background: var(--canvas); border: 1px solid var(--line); }
+.day-adds .ghost { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-width: 0; padding: 10px 8px; }
 .day-adds .ghost svg { width: 16px; height: 16px; flex: none; }
+/* 일정·기념일 줄(D-055): 고른 날 면과 다가오는 목록이 함께 쓴다. 줄마다 색 면을 두지 않고 그림 칸·이름·태그·오른쪽 글·D-day를 줄 맞춰 놓고
+   줄 사이는 짙은 귀리 선 하나. 중요·꼭은 이름만 달력 칸 이름 모양(세이지 면 + 고른 효과)으로 */
+.ag-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.ag-row + .ag-row { border-top: 1px solid var(--oat-deep); }
+.ag-main { display: flex; align-items: center; gap: 6px; width: 100%; min-height: 44px; padding: 8px 0; border: 0; background: none; text-align: left; color: var(--ink); touch-action: manipulation; }
+.ag-ico { flex: none; width: 18px; height: 18px; margin-right: 2px; display: grid; place-items: center; color: var(--sage-ink); }
+.ag-ico svg { width: 18px; height: 18px; display: block; }
+.ag-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 15px; font-weight: 700; color: var(--ink); }
+.ag-name:is(.p-high, .p-must) { padding: 1px 7px; border-radius: var(--r-tag); background: var(--sage-soft); color: var(--sage-ink); font-size: 14px; }
+.ag-main .tag:where(:not(.grocery *)) { flex: none; }
+.ag-meta { flex: none; margin-left: auto; padding-left: 4px; font-size: 13px; font-weight: 500; color: var(--ink-2); }
+.ag-d { flex: none; min-width: 44px; text-align: right; font-size: 14px; font-weight: 700; color: var(--ink); }
+/* 장소 줄(D-041): 일정 줄 아래, 이름과 같은 자리에서 시작. 누르면 네이버 지도 */
+.ag-place { display: flex; align-items: center; gap: 6px; min-height: 44px; margin-top: -10px; padding-left: 26px; color: var(--sage-ink); font-size: 14px; font-weight: 600; text-decoration: none; }
+.ag-place svg { width: 16px; height: 16px; flex: none; }
+.ag-place span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ag-place em { margin-left: auto; flex: none; font-style: normal; font-size: 13px; text-decoration: underline; text-underline-offset: 3px; }
+/* 다가오는 일정·기념일 목록(D-055): 제목과 개수, 다섯 줄까지, 넘치면 "N개 더 보기" */
+.soon-card { padding: 14px 14px 8px; }
+.soon-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.soon-head .section-title { margin: 0 0 2px; }
+.soon-count { flex: none; font-size: 13px; font-weight: 600; color: var(--ink-2); }
+.soon-more { align-self: flex-start; margin: 0 -6px; font-size: 13px; }
 .sheet:where(:not(.grocery *)) .anniv-form { border-top: 0; padding-top: 0; }
-.anniv-row svg { width: 20px; height: 20px; flex: none; }
-.anniv-row b { font-size: 15px; font-weight: 700; color: var(--ink); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.anniv-row span { margin-left: auto; color: var(--ink-2); flex: none; }
-/* 누구 일정 태그(D-044)는 이름 바로 뒤에, 시간만 오른쪽 끝 */
-.anniv-row span.tag:where(:not(.grocery *)) { margin-left: 0; }
-.anniv-chip .tag:where(:not(.grocery *)) { flex: none; }
-.anniv-row.k-memorial, .anniv-chip.k-memorial { background: var(--oat); color: var(--ink-2); }
-.anniv-soon { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; padding: 2px 0; }
-.anniv-soon::-webkit-scrollbar { display: none; }
-/* 다가오는 기념일이 줄을 넘칠 때(D-033): PC는 흐르고(같은 칩을 이어 붙여 반 바퀴 = 한 묶음 + 간격 6px), 움직임 줄이기는 줄을 바꾼다 */
-.soon-track, .soon-set { display: flex; gap: 6px; flex: none; }
-.anniv-soon.flow { overflow: hidden; -webkit-mask-image: linear-gradient(90deg, transparent, #000 16px, #000 calc(100% - 16px), transparent); mask-image: linear-gradient(90deg, transparent, #000 16px, #000 calc(100% - 16px), transparent); }
-.anniv-soon.flow .soon-track { animation: soon-flow 14s linear infinite; }
-.anniv-soon.flow:hover .soon-track, .anniv-soon.flow:focus-within .soon-track { animation-play-state: paused; }
-@keyframes soon-flow { to { transform: translateX(calc(-50% - 3px)); } }
-.anniv-soon.wrap { overflow: visible; }
-.anniv-soon.wrap .soon-track, .anniv-soon.wrap .soon-set { flex: 1 1 auto; flex-wrap: wrap; }
-.anniv-chip { flex: none; border: 0; display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 0 12px; border-radius: var(--r-chip); background: var(--blush-soft); color: var(--rose-ink); font-size: 14px; font-weight: 600; }
-.anniv-chip svg { width: 18px; height: 18px; flex: none; }
-.anniv-chip span { color: var(--ink); }
-.anniv-chip b { font-weight: 700; }
-.anniv-chip em { font-style: normal; font-size: 13px; font-weight: 500; color: var(--ink-2); }
 .anniv-ic { width: 36px; height: 36px; flex: none; border-radius: 50%; background: var(--canvas); display: grid; place-items: center; }
 .anniv-ic svg { width: 22px; height: 22px; }
 .anniv-item .rc-main { flex: 1; }
@@ -248,25 +242,24 @@ main.wrap { padding-block: 4px calc(150px + env(safe-area-inset-bottom, 0px)); }
 .fx-demo { position: relative; max-width: 100%; padding: 2px 6px; border-radius: 3px; background: var(--sage-soft); color: var(--sage-ink); font-size: 12px; font-weight: 600; line-height: 1.4; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .fx-note { margin: 0; font-size: 13px; font-weight: 500; color: var(--ink-2); }
 
-/* 중요도 효과(D-054): 중요(p-high)·꼭(p-must) 일정을 달력 칸 이름(cal-lbl)·고른 날 줄(anniv-row, 장소가 있으면 ev-card)·다가오는 칩(anniv-chip)·
+/* 중요도 효과(D-054): 중요(p-high)·꼭(p-must) 일정을 달력 칸 이름(cal-lbl)·고른 날과 다가오는 목록의 이름(ag-name, D-055: 줄 전체가 아니라 이름만)·
    폼 미리보기(fx-demo)에서 구별한다. 효과(fx-*)는 일정마다 고른 것. 색만으로 알리지 않는다: 테두리 굵기, 면의 명암, 움직임(+ 꼭은 테두리),
    점·별, 글자 굵기·밑줄. 줄과 칩에는 "중요"·"꼭" 글자 태그가 늘 함께 붙고, 달력 칸은 읽기 이름에 적는다 */
-/* 테두리: 중요는 1px, 꼭은 먹색 2px. 줄·칩·미리보기는 outline, 달력 칸 이름은 border(기간 일정은 이웃 날 쪽 변을 빼 한 띠로 잇는다) */
-:is(.cal-lbl, .anniv-row, .ev-card, .anniv-chip, .fx-demo).fx-outline.p-high { --fx-w: 1px; --fx-c: currentColor; }
-:is(.cal-lbl, .anniv-row, .ev-card, .anniv-chip, .fx-demo).fx-outline.p-must { --fx-w: 2px; --fx-c: var(--ink); }
-:is(.cal-lbl, .anniv-row, .ev-card, .anniv-chip, .fx-demo).fx-breathe.p-must { --fx-w: 1px; --fx-c: var(--ink); }
-:is(.anniv-row, .ev-card, .anniv-chip, .fx-demo):is(.fx-outline, .fx-breathe.p-must) { outline: var(--fx-w) solid var(--fx-c); outline-offset: calc(-1 * var(--fx-w)); }
+/* 테두리: 중요는 1px, 꼭은 먹색 2px. 목록의 이름·미리보기는 outline, 달력 칸 이름은 border(기간 일정은 이웃 날 쪽 변을 빼 한 띠로 잇는다) */
+:is(.cal-lbl, .ag-name, .fx-demo).fx-outline.p-high { --fx-w: 1px; --fx-c: currentColor; }
+:is(.cal-lbl, .ag-name, .fx-demo).fx-outline.p-must { --fx-w: 2px; --fx-c: var(--ink); }
+:is(.cal-lbl, .ag-name, .fx-demo).fx-breathe.p-must { --fx-w: 1px; --fx-c: var(--ink); }
+:is(.ag-name, .fx-demo):is(.fx-outline, .fx-breathe.p-must) { outline: var(--fx-w) solid var(--fx-c); outline-offset: calc(-1 * var(--fx-w)); }
 .day .cal-lbl:is(.fx-outline, .fx-breathe.p-must) { border: solid var(--fx-c); border-width: var(--fx-w) var(--fx-r, var(--fx-w)) var(--fx-w) var(--fx-l, var(--fx-w)); padding: 0 2px; }
 .day .cal-lbl.r-start { --fx-r: 0px; } .day .cal-lbl.r-mid { --fx-l: 0px; --fx-r: 0px; } .day .cal-lbl.r-end { --fx-l: 0px; }
 /* 채움: 중요는 세이지 면, 꼭은 먹색 면. 글자는 버튼 글자색(흰 바탕에서 세이지 5.96:1, 먹 12.98:1) */
-:is(.cal-lbl, .anniv-row, .ev-card, .anniv-chip, .fx-demo).fx-fill.p-high { background: var(--sage); color: var(--on-primary); }
-:is(.cal-lbl, .anniv-row, .ev-card, .anniv-chip, .fx-demo).fx-fill.p-must { background: var(--primary); color: var(--on-primary); }
-:is(.anniv-row, .ev-card, .anniv-chip).fx-fill:is(.p-high, .p-must) :is(b, span:not([class~="tag"]), em, .anniv-row, .ev-route) { color: inherit; }
+:is(.cal-lbl, .ag-name, .fx-demo).fx-fill.p-high { background: var(--sage); color: var(--on-primary); }
+:is(.cal-lbl, .ag-name, .fx-demo).fx-fill.p-must { background: var(--primary); color: var(--on-primary); }
 /* 숨쉬기: 면 위에 같은 색 막이 천천히 짙어졌다 옅어진다(중요 2.8초, 꼭 1.6초에 한 번 + 먹색 1px 테두리). 글자는 움직이지 않는다 */
-:is(.cal-lbl, .anniv-row, .ev-card, .anniv-chip, .fx-demo).fx-breathe:is(.p-high, .p-must) { position: relative; }
-:is(.cal-lbl, .anniv-row, .ev-card, .anniv-chip, .fx-demo).fx-breathe:is(.p-high, .p-must)::after { content: ""; position: absolute; inset: 0; border-radius: inherit; background: currentColor; opacity: .04; pointer-events: none;
+:is(.cal-lbl, .ag-name, .fx-demo).fx-breathe:is(.p-high, .p-must) { position: relative; }
+:is(.cal-lbl, .ag-name, .fx-demo).fx-breathe:is(.p-high, .p-must)::after { content: ""; position: absolute; inset: 0; border-radius: inherit; background: currentColor; opacity: .04; pointer-events: none;
   animation: fx-breathe 2.8s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate; }
-:is(.cal-lbl, .anniv-row, .ev-card, .anniv-chip, .fx-demo).fx-breathe.p-must::after { animation-duration: 1.6s; }
+:is(.cal-lbl, .ag-name, .fx-demo).fx-breathe.p-must::after { animation-duration: 1.6s; }
 @keyframes fx-breathe { to { opacity: .3; } }
 /* 점·별: 이름 앞에 중요는 점, 꼭은 별(Phosphor star-fill) */
 .fx-m { display: inline-block; flex: none; vertical-align: 0.04em; margin-right: 0.25em; color: inherit; }
@@ -274,14 +267,13 @@ main.wrap { padding-block: 4px calc(150px + env(safe-area-inset-bottom, 0px)); }
 .fx-m.star { width: 0.95em; height: 0.95em; vertical-align: -0.1em; }
 .fx-m.star svg { display: block; width: 100%; height: 100%; }
 /* 굵은 글자: 중요는 먹색 700, 꼭은 밑줄까지 */
-:is(.cal-lbl, .anniv-chip, .fx-demo).fx-bold:is(.p-high, .p-must) { font-weight: 700; color: var(--ink); }
-:is(.cal-lbl, .fx-demo).fx-bold.p-must, :is(.anniv-row, .ev-card, .anniv-chip).fx-bold.p-must :is(b, span:not([class~="tag"]):not(.num)) { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 2px; }
+:is(.cal-lbl, .ag-name, .fx-demo).fx-bold:is(.p-high, .p-must) { font-weight: 700; color: var(--ink); }
+:is(.cal-lbl, .ag-name, .fx-demo).fx-bold.p-must { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 2px; }
 /* 달력 칸 이름은 줄 높이가 낮아 밑줄이 잘리지 않게 글자에 붙인다 */
 .day .cal-lbl.fx-bold.p-must { text-underline-offset: 0.5px; padding-bottom: 1px; }
 /* 중요·꼭 글자 태그: 중요는 흰 면에 선, 꼭은 먹색 면 */
 .tag:where(:not(.grocery *)).pri { flex: none; background: var(--canvas); color: var(--ink); outline: 1px solid var(--line); outline-offset: -1px; }
 .tag:where(:not(.grocery *)).pri.p-must { background: var(--primary); color: var(--on-primary); outline: 0; }
-.fx-fill.p-must .tag:where(:not(.grocery *)).pri { background: var(--canvas); color: var(--ink); }
 /* 기념일 카테고리 고르기(D-033): 직접 적는 칸 아래 쓴 것·기본 말 칩 */
 .anniv-cats { margin: -2px 0 2px; }
 .anniv-every { display: flex; align-items: center; gap: 8px; font-size: 15px; font-weight: 600; color: var(--ink); }
@@ -289,7 +281,7 @@ main.wrap { padding-block: 4px calc(150px + env(safe-area-inset-bottom, 0px)); }
 
 /* 내역 */
 .day-group { display: flex; flex-direction: column; }
-.cal-main { display: contents; } /* 넓은 화면에서만 달력 쪽 한 단으로 묶는다 */
+.cal-top, .cal-more { display: contents; } /* 넓은 화면에서만 달력 쪽을 왼쪽 단으로 묶는다(D-055: 위는 남은 돈·달력, 아래는 다가오는 일정·기억할 것) */
 .day-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; padding: 4px 4px 2px; }
 .day-head h2 { font-size: 17px; font-weight: 700; margin: 0; }
 .day-head .tot { font-size: 13px; font-weight: 600; color: var(--ink-2); text-align: right; }
@@ -895,8 +887,9 @@ input[type="search"].input { -webkit-appearance: none; appearance: none; }
 }
 /* 달력과 고른 날의 내역을 나란히 두는 것은 더 넓을 때만. 그보다 좁으면 달력 칸이 휴대폰보다 좁아져 금액이 맞붙는다 */
 @media (min-width: 1180px) {
-  .cal-view { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 16px 40px; align-items: start; }
-  .cal-main { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+  .cal-view { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); grid-template-rows: auto 1fr; gap: 16px 40px; align-items: start; }
+  .cal-top, .cal-more { display: flex; flex-direction: column; gap: 16px; min-width: 0; grid-column: 1; }
+  .cal-view > .day-group { grid-column: 2; grid-row: 1 / span 2; }
 }
 
 /* 마우스가 있는 기기에서만 올려놓기 효과 */
@@ -910,16 +903,16 @@ input[type="search"].input { -webkit-appearance: none; appearance: none; }
 
 /* 동작 줄이기: 이동·크기 변화는 빼고 투명도만 */
 @media (prefers-reduced-motion: reduce) {
-  .primary, .ghost, .danger, .chip, .anniv-chip, .fab, .smart-btn, .keypad button, .icon-btn, .today-btn, .seg:where(:not(.grocery *)) button, .svc-pick, .update-bar { transition: none; }
-  .primary:active, .ghost:active, .danger:active, .chip:active, .anniv-chip:active, .fab:active, .smart-btn:active, .keypad button:active, .icon-btn:active, .today-btn:active, .seg:where(:not(.grocery *)) button:active, .svc-pick:active { transform: none; }
+  .primary, .ghost, .danger, .chip, .fab, .smart-btn, .keypad button, .icon-btn, .today-btn, .seg:where(:not(.grocery *)) button, .svc-pick, .update-bar { transition: none; }
+  .primary:active, .ghost:active, .danger:active, .chip:active, .fab:active, .smart-btn:active, .keypad button:active, .icon-btn:active, .today-btn:active, .seg:where(:not(.grocery *)) button:active, .svc-pick:active { transform: none; }
   .sheet:where(:not(.grocery *)) { transform: none; opacity: 0; transition: opacity 200ms ease; }
   .sheet:where(:not(.grocery *)).on { opacity: 1; }
   .seg:where(:not(.grocery *))::before, .spend-bar > i { transition: none; }
   /* 숨쉬기 효과(D-054)는 멈추고 테두리(중요 1px, 꼭 2px)로 바꿔 구별을 남긴다 */
-  :is(.cal-lbl, .anniv-row, .ev-card, .anniv-chip, .fx-demo).fx-breathe:is(.p-high, .p-must)::after { animation: none; opacity: 0; }
-  :is(.cal-lbl, .anniv-row, .ev-card, .anniv-chip, .fx-demo).fx-breathe.p-high { --fx-w: 1px; --fx-c: currentColor; }
-  :is(.cal-lbl, .anniv-row, .ev-card, .anniv-chip, .fx-demo).fx-breathe.p-must { --fx-w: 2px; }
-  :is(.anniv-row, .ev-card, .anniv-chip, .fx-demo).fx-breathe.p-high { outline: var(--fx-w) solid var(--fx-c); outline-offset: calc(-1 * var(--fx-w)); }
+  :is(.cal-lbl, .ag-name, .fx-demo).fx-breathe:is(.p-high, .p-must)::after { animation: none; opacity: 0; }
+  :is(.cal-lbl, .ag-name, .fx-demo).fx-breathe.p-high { --fx-w: 1px; --fx-c: currentColor; }
+  :is(.cal-lbl, .ag-name, .fx-demo).fx-breathe.p-must { --fx-w: 2px; }
+  :is(.ag-name, .fx-demo).fx-breathe.p-high { outline: var(--fx-w) solid var(--fx-c); outline-offset: calc(-1 * var(--fx-w)); }
   .day .cal-lbl.fx-breathe.p-high { border: solid var(--fx-c); border-width: var(--fx-w) var(--fx-r, var(--fx-w)) var(--fx-w) var(--fx-l, var(--fx-w)); padding: 0 2px; }
   .fx-opt { transition: none; } .fx-opt:active { transform: none; }
   .toast { transform: translate(-50%, 0); filter: none; transition: opacity 200ms ease; }
