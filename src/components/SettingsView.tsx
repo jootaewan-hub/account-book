@@ -1,19 +1,16 @@
 import { useState } from 'react'
 import { waitGroceryFlush } from '../grocery/flush'
 import { friendlyError, insertCategory, setCategoryArchived, updateDisplayName, updateSpouseRole } from '../lib/api'
-import { disableEventPush } from '../lib/eventReminders'
 import { formatInviteCode } from '../lib/format'
 import { SCOPE_LABEL, type Lookup } from '../lib/lookup'
 import { sb } from '../lib/supabase'
 import type { Anniversary, Category, Household, Spouse } from '../lib/types'
 import { AnniversaryCard } from './AnniversaryCard'
 import { AppCard } from './AppCard'
-import { EventPushDevice } from './EventReminderFields'
 
 // 장보기에서 뺀 품목의 지우기 요청이 서버에 닿은 뒤 로그아웃한다(세션이 먼저 끝나면 거부되어 품목이 되살아난다)
 async function signOut() {
   await waitGroceryFlush()
-  await disableEventPush().catch(() => { /* 푸시 서버에 닿지 않아도 로그아웃한다 */ })
   await sb().auth.signOut()
 }
 
@@ -82,14 +79,8 @@ export function SettingsView({ household, categories, annivs, today, lookup, ema
         </div>
       </div>
 
-      <AnniversaryCard householdId={household.id} annivs={annivs} today={today} reminderMembers={lookup.members} reminderUserId={lookup.me}
+      <AnniversaryCard householdId={household.id} annivs={annivs} today={today}
         onChanged={onChanged} toast={toast} />
-
-      <div className="card">
-        <h2 className="section-title">일정 알림</h2>
-        <p className="tx-meta">알림을 켜 둔 일정과 기념일을 이 기기에서 받아요.</p>
-        <EventPushDevice userId={lookup.me} />
-      </div>
 
       <div className="card">
         <h2 className="section-title">분류</h2>

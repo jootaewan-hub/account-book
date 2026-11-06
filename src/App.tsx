@@ -519,7 +519,7 @@ function Ledger({ household, meta, userId, email }: {
         </ErrorBoundary>
       )}
 
-      <PlanSheet target={plan} householdId={household.id} today={today} annivs={meta.anniversaries} members={meta.members} userId={userId}
+      <PlanSheet target={plan} householdId={household.id} today={today} annivs={meta.anniversaries}
         onOpenTransaction={(id) => void openEventPayment(id)} onEventsChanged={reloadEvents}
         onAnnivsChanged={meta.reload} onClose={() => setPlan(null)} toast={toast} />
 

@@ -4,10 +4,9 @@ import { formatDateLong } from '../lib/dates'
 import { annivCategories, annivInput, newAnnivInput } from '../lib/anniversaries'
 import { eventEffect, eventPriority, EFFECTS, isRange, rangeDays, rangeError, rangeLabel } from '../lib/events'
 import { lsGet, lsSet } from '../lib/localPrefs'
-import type { Anniversary, CalEvent, EventEffect, EventInput, Member } from '../lib/types'
+import type { Anniversary, CalEvent, EventEffect, EventInput } from '../lib/types'
 import { annivFromDate, AnniversaryForm } from './AnniversaryForm'
 import { EventPriorityFields } from './EventPriority'
-import { EventReminderFields } from './EventReminderFields'
 import { EventScopeSeg } from './EventScope'
 import { EventPayments } from './EventPayments'
 import { PlaceFields } from './PlaceFields'
@@ -25,8 +24,6 @@ interface Props {
   today: string
   /** 카테고리 고르기에 쓰는 가구의 기념일 */
   annivs: Anniversary[]
-  members?: Member[]
-  userId?: string
   onOpenTransaction?: (id: string) => void
   onEventsChanged: () => Promise<void>
   onAnnivsChanged: () => Promise<void>
@@ -35,7 +32,7 @@ interface Props {
 }
 
 /** 달력에서 일정·기념일을 넣고 고치는 시트 */
-export function PlanSheet({ target, householdId, today, annivs, members = [], userId, onOpenTransaction, onEventsChanged, onAnnivsChanged, onClose, toast }: Props) {
+export function PlanSheet({ target, householdId, today, annivs, onOpenTransaction, onEventsChanged, onAnnivsChanged, onClose, toast }: Props) {
   const [mode, setMode] = useState<'event' | 'anniv'>('event')
   const paymentSection = useRef<HTMLElement>(null)
   useEffect(() => { if (target) setMode(target.kind === 'anniv' ? 'anniv' : 'event') }, [target])
@@ -65,7 +62,6 @@ export function PlanSheet({ target, householdId, today, annivs, members = [], us
         <EventForm key={target.kind === 'event' ? target.event.id : `new-${target.date}`}
           initial={target.kind === 'event' ? { ...target.event, date: target.event.series_start ?? target.event.date } : { date: target.date, time: null, title: target.title ?? '', memo: null, place: null, address: null, lat: null, lng: null, scope: 'shared' }}
           editing={target.kind === 'event'}
-          members={members} userId={userId}
           occurrence={target.kind === 'event' && target.event.series_start ? target.event.date : undefined}
           onSkip={target.kind === 'event' && target.event.series_start
             ? () => run(() => skipEventOccurrence(target.event.id, target.event.date), onEventsChanged, '이날 일정만 건너뛰었어요') : undefined}
@@ -81,7 +77,6 @@ export function PlanSheet({ target, householdId, today, annivs, members = [], us
       {target && mode === 'anniv' && target.kind !== 'event' && (
         <AnniversaryForm key={target.kind === 'anniv' ? target.anniv.id : `new-${target.date}`} today={today}
           editing={target.kind === 'anniv'} categories={annivCategories(annivs)}
-          reminderMembers={members} reminderUserId={userId}
           fromDate={target.kind === 'new' ? target.date : undefined}
           initial={target.kind === 'anniv' ? annivInput(target.anniv) : newAnnivInput(target.date, annivFromDate(target.date, false))}
           onCancel={onClose}
@@ -100,11 +95,9 @@ function lastEffect(): EventEffect {
   return v && EFFECTS.includes(v) ? v : 'outline'
 }
 
-function EventForm({ initial, editing, members, userId, occurrence, onSkip, onSave, onCancel, onDelete }: {
+function EventForm({ initial, editing, occurrence, onSkip, onSave, onCancel, onDelete }: {
   initial: EventInput
   editing: boolean
-  members: Member[]
-  userId?: string
   occurrence?: string
   onSkip?: () => Promise<void>
   onSave: (v: EventInput) => Promise<void>
@@ -201,7 +194,6 @@ function EventForm({ initial, editing, members, userId, occurrence, onSkip, onSa
       </div>
       <EventPriorityFields priority={v.priority ?? 'normal'} effect={v.effect ?? 'outline'} sample={v.title}
         onChange={(p) => setV({ ...v, ...p })} />
-      {userId && eventPriority(v) !== 'normal' && <EventReminderFields value={v} members={members} userId={userId} onChange={(patch) => setV({ ...v, ...patch })} />}
       <PlaceFields idPrefix="ev" value={v} onChange={(p) => setV({ ...v, ...p })} />
       <div className="field">
         <label htmlFor="ev-memo">메모 (선택)</label>

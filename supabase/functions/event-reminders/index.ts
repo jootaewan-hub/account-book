@@ -7,11 +7,12 @@ const publicKey = Deno.env.get('EVENT_PUSH_PUBLIC_KEY') ?? ''
 const privateKey = Deno.env.get('EVENT_PUSH_PRIVATE_KEY') ?? ''
 const subject = Deno.env.get('EVENT_PUSH_SUBJECT') ?? ''
 const secret = Deno.env.get('EVENT_REMINDERS_CRON_SECRET') ?? ''
+const enabled = Deno.env.get('EVENT_REMINDERS_ENABLED') === 'true'
 
 Deno.serve((req) => handle(req, {
   now: () => new Date(),
-  publicKey: privateKey && subject ? publicKey : '',
-  secret,
+  publicKey: enabled && privateKey && subject ? publicKey : '',
+  secret: enabled ? secret : '',
   claim: async (now) => {
     const anniversaries = await readAllPages<Parameters<typeof anniversaryDates>[0][number]>((from, to) => admin
       .from('anniversaries')

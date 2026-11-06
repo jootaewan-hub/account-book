@@ -225,7 +225,6 @@ const shellShots = [
   ...each((w, c) => ({ name: `shell-cal-soon-list-${w}-${c}`, path: '/', w, c, shell: true, tab: '달력', center: '.soon-card' })),
   // 기념일 넣기(D-033): 카테고리 칩, 반복 네 가지 중 '몇 년마다'와 숫자 칸, 시작한 해
   ...each((w, c) => ({ name: `shell-anniv-form-${w}-${c}`, path: '/', w, c, shell: true, tab: '설정', presses: ['기념일 추가', '몇 년마다', '병원'], center: '.anniv-form' })),
-  ...each((w, c) => ({ name: `shell-anniv-reminder-${w}-${c}`, path: '/', w, c, shell: true, tab: '설정', presses: ['기념일 추가', '생일'], annivReminder: true, center: '.reminder-fields' })),
   // 11월 20일: 2년마다 오는 기념일 줄(카테고리·반복 말). 가짜 기념일이 11월에 있어 그 달까지 넘긴다
   ...both(390, (w, c) => ({ name: `shell-cal-anniv-row-${w}-${c}`, path: '/', w, c, shell: true, tab: '달력', months: MONTHS_TO_NOV || undefined, calDay: 20, center: '.day-plan' })),
   // 통계 탭 어디서 샀나(사용자 2026-10-26): 한 번만 간 가게도 '그 밖'으로 묶지 않고 가게마다 한 줄
@@ -246,7 +245,6 @@ const shellShots = [
   // "N개 더 보기"로 펼친 모습
   ...both(390, (w, c) => ({ name: `shell-cal-range-soon-open-${w}-${c}`, path: '/', w, c, shell: true, tab: '달력', eventRange: true, soonOpen: true, center: '.soon-card' })),
   ...each((w, c) => ({ name: `shell-plan-event-range-${w}-${c}`, path: '/', w, c, shell: true, tab: '달력', eventRange: true, calDay: EVENT_RANGE_DAY, openEvent: '가족 여행', planScroll: '.fx-pick' })),
-  ...each((w, c) => ({ name: `shell-plan-event-reminder-${w}-${c}`, path: '/', w, c, shell: true, tab: '달력', eventRange: true, calDay: EVENT_RANGE_DAY, openEvent: '가족 여행', eventReminder: true, planScroll: '.reminder-fields' })),
   ...both(390, (w, c) => ({ name: `shell-plan-event-range-top-${w}-${c}`, path: '/', w, c, shell: true, tab: '달력', eventRange: true, calDay: EVENT_RANGE_DAY, openEvent: '가족 여행', planScroll: '#ev-title' })),
   { name: 'shell-plan-event-range-err-390-light', path: '/', w: 390, c: 'light', shell: true, tab: '달력', eventRange: true, calDay: EVENT_RANGE_DAY, openEvent: '가족 여행', rangeEnd: '2026-01-01', planScroll: '#ev-end' },
   // 일정이 많은 달의 달력 탭 전체(D-055): 위에서 아래까지 한 장
@@ -513,7 +511,6 @@ try {
       if (s.scroll) await page.locator(s.scroll).first().scrollIntoViewIfNeeded()
       if (s.press) await page.getByRole('button', { name: s.press, exact: true }).click()
       for (const name of s.presses ?? []) await page.getByRole('button', { name, exact: true }).first().click()
-      if (s.annivReminder) await page.getByRole('checkbox', { name: '기념일 알림 받기' }).check()
       if (s.pressWait) await page.getByText(s.pressWait).waitFor()
       if (s.refreshFlow) {
         await page.getByRole('button', { name: '앱 파일 다시 받기' }).click()
@@ -660,18 +657,11 @@ try {
     }
     if (s.openEvent) {
       await page.locator('.day-plan').getByRole('button', { name: new RegExp(`^${s.openEvent}`) }).click()
-      if (s.eventReminder) {
-        const form = page.locator('.sheet.on:not(.closing)').last()
-        await form.getByText('일정 알림 받기', { exact: true }).last().click()
-        await form.getByLabel('알림 시점', { exact: true }).last().evaluate((el) => el.closest('.reminder-fields')?.scrollIntoView({ block: 'center' }))
-      }
       if (s.rangeEnd) await page.locator('#ev-end').fill(s.rangeEnd)
       if (s.eventPayments) await page.getByRole('button', { name: '내역 보기' }).waitFor()
       if (s.weeklyEvent) await page.getByRole('button', { name: '이번 한 번만 건너뛰기', exact: true }).first().waitFor()
-      if (!s.eventReminder) {
-        if (s.planScroll) await page.locator(s.planScroll).first().evaluate((el) => el.scrollIntoView({ block: 'center' }))
-        else await page.locator('#ev-address').scrollIntoViewIfNeeded()
-      }
+      if (s.planScroll) await page.locator(s.planScroll).first().evaluate((el) => el.scrollIntoView({ block: 'center' }))
+      else await page.locator('#ev-address').scrollIntoViewIfNeeded()
     }
     if (s.taskBoard) {
       await page.getByRole('checkbox', { name: '세탁물 찾기 완료' }).waitFor()

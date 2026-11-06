@@ -2,8 +2,7 @@ import { useState } from 'react'
 import { finishAnnivInput, nextOccurrence } from '../lib/anniversaries'
 import { solarToLunar } from '../lib/lunar'
 import { AnnivIcon } from './AnnivIcon'
-import { EventReminderFields } from './EventReminderFields'
-import type { AnniversaryInput, Member } from '../lib/types'
+import type { AnniversaryInput } from '../lib/types'
 
 const SOLAR_DAYS = [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
 const maxDay = (lunar: boolean, month: number) => (lunar ? 30 : SOLAR_DAYS[month - 1])
@@ -26,8 +25,6 @@ interface Props {
   categories: string[]
   /** 달력에서 고른 날짜로 새로 넣을 때: 양력·음력을 바꾸면 이 날짜를 기준으로 월·일을 다시 정한다 */
   fromDate?: string
-  reminderMembers?: Member[]
-  reminderUserId?: string
   editing: boolean
   onSave: (v: AnniversaryInput) => Promise<void>
   onCancel: () => void
@@ -35,7 +32,7 @@ interface Props {
 }
 
 /** 기념일 넣기·고치기 (설정의 기념일 목록과 달력의 일정·기념일 넣기에서 함께 쓴다) */
-export function AnniversaryForm({ initial, today, categories, fromDate, reminderMembers, reminderUserId, editing, onSave, onCancel, onDelete }: Props) {
+export function AnniversaryForm({ initial, today, categories, fromDate, editing, onSave, onCancel, onDelete }: Props) {
   const thisYear = Number(today.slice(0, 4))
   const [v, setV] = useState<AnniversaryInput>(initial)
   // 반복 고르기와 '몇'은 따로 든다: 숫자 칸을 지우고 다시 적는 동안(빈칸, 1) 고르기가 해마다로 돌아가 칸이 사라지면 안 된다
@@ -134,9 +131,6 @@ export function AnniversaryForm({ initial, today, categories, fromDate, reminder
         <p className="tx-meta" style={{ margin: 0 }}>
           {next ? `다가오는 날은 ${v.lunar ? '양력 ' : ''}${solarLabel(next)}이에요.` : v.lunar ? '이 날짜는 아직 양력으로 바꿀 수 없어요.' : '다가오는 날을 찾지 못했어요.'}
         </p>
-      )}
-      {reminderMembers && reminderUserId && (
-        <EventReminderFields value={v} members={reminderMembers} userId={reminderUserId} onChange={set} anniversary />
       )}
       <div className="form-grid" style={{ marginTop: 0 }}>
         <button type="button" className="ghost" onClick={onCancel}>취소</button>
