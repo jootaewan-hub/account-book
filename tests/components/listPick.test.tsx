@@ -3,12 +3,14 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ListView } from '../../src/components/ListView'
+import * as api from '../../src/lib/api'
 import { makeLookup } from '../../src/lib/lookup'
 import { OTHER_PLATFORM } from '../../src/lib/platform'
 import { plannedTxs } from '../../src/lib/recurring'
 import type { Recurring, Transaction } from '../../src/lib/types'
 
 afterEach(cleanup)
+afterEach(() => vi.restoreAllMocks())
 
 const ME = 'u1'
 const lookup = makeLookup(ME, [], [], [{ id: 'food', household_id: 'h', type: 'expense', name: '장보기', sort: 1, archived: false }])
@@ -112,5 +114,39 @@ describe('통계에서 넘어온 조건', () => {
     expect(document.querySelector('.month-sum span')?.textContent).toBe('쓴 돈 12,000원')
     rerender(<ListView {...props} focus={{ kind: 'merchant', name: '홍시 (4~6입/팩)' }} />)
     expect(document.querySelector('.month-sum span')?.textContent).toBe('쓴 돈 0원')
+  })
+})
+
+describe('여러 달 내역 찾기', () => {
+  const periodSearch = { householdId: 'h', today: '2026-02-06', version: 1 }
+  const props = { cur: CUR, lookup, focus: null, onClearFocus: () => {}, onDeleteMany: async () => {} }
+
+  it('검색어가 있을 때만 기간 내역을 읽고, 지난 해 품목을 찾아 수정할 수 있다', async () => {
+    const item = { id: 'i', name: '서울우유 1L', quantity: 1, unit_price: 2980, amount: 2980, pack_size: null, pack_unit: null, image_path: null, sort: 1 }
+    const older = tx('old', '2025-12-14', '동네마트', 2980, { items: [item] })
+    const load = vi.spyOn(api, 'fetchRangeWithItems').mockResolvedValue([older])
+    const onEdit = vi.fn()
+    render(<ListView {...props} periodSearch={periodSearch} onEdit={onEdit} />)
+    fireEvent.change(screen.getByRole('combobox', { name: '검색 기간' }), { target: { value: '3' } })
+    expect(load).not.toHaveBeenCalled()
+    fireEvent.change(screen.getByRole('searchbox'), { target: { value: '서울우유' } })
+    fireEvent.click(await screen.findByRole('button', { name: /동네마트/ }))
+    expect(load).toHaveBeenCalledExactlyOnceWith('h', '2025-12-01', '2026-02-06')
+    expect(screen.getByRole('heading', { name: /2025년 12월 14일/ })).toBeTruthy()
+    expect(onEdit).toHaveBeenCalledWith(older)
+    fireEvent.change(screen.getByRole('combobox', { name: '검색 기간' }), { target: { value: 'month' } })
+    expect(screen.queryByRole('button', { name: /동네마트/ })).toBeNull()
+    expect(screen.getByRole('button', { name: /서울우유/ })).toBeTruthy()
+  })
+
+  it('조회 실패를 빈 결과와 구분하고 같은 기간을 다시 조회한다', async () => {
+    const load = vi.spyOn(api, 'fetchRangeWithItems').mockRejectedValueOnce(new Error('Failed to fetch')).mockResolvedValue([])
+    render(<ListView {...props} periodSearch={periodSearch} onEdit={() => {}} />)
+    fireEvent.change(screen.getByRole('searchbox'), { target: { value: '우유' } })
+    fireEvent.change(screen.getByRole('combobox', { name: '검색 기간' }), { target: { value: '12' } })
+    expect(await screen.findByRole('alert')).toHaveProperty('textContent', '인터넷 연결을 확인해 주세요.')
+    fireEvent.click(screen.getByRole('button', { name: '다시 시도' }))
+    expect(await screen.findByText('조건에 맞는 내역이 없어요.')).toBeTruthy()
+    expect(load.mock.calls).toEqual(Array(2).fill(['h', '2025-03-01', '2026-02-06']))
   })
 })

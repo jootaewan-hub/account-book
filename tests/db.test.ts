@@ -811,3 +811,36 @@ describe('영수증 사진 (20261114000000_receipt_images)', () => {
     expect(await as(B, `select receipt_path from public.transactions where id = $1`, [id])).toEqual([{ receipt_path: null }])
   })
 })
+
+describe('내역과 품목을 함께 저장', () => {
+  it('품목 검사가 실패하면 앞서 한 수정과 삭제도 되돌리고, 성공 후 옛 버전의 재시도는 거절한다', async () => {
+    const [tx] = await as<{ id: string; updated_at: string }>(A, `
+      insert into public.transactions (household_id, type, occurred_on, amount, title, scope)
+      values ($1, 'expense', '2026-11-06', 4000, '마트', 'shared')
+      returning id, updated_at::text`, [hhA])
+    const [keep, remove] = await as<{ id: string }>(A, `
+      insert into public.transaction_items (transaction_id, household_id, name, amount, image_path)
+      values ($1, $2, '우유', 3000, null), ($1, $2, '계란', 1000, $2 || '/egg.jpg') returning id`, [tx.id, hhA])
+    const save = (user: string | null, name: string) => as<{ paths: string[] }>(user,
+      'select public.edit_transaction_with_items($1, $2, $3, $4, $5, $6) as paths', [
+        tx.id, tx.updated_at,
+        JSON.stringify({ type: 'expense', occurred_on: '2026-11-06', amount: 5000, title: '마트 수정', scope: 'shared' }),
+        [remove.id], JSON.stringify([{ id: keep.id, patch: { amount: 4000 } }]),
+        JSON.stringify([{ name, amount: 1000, quantity: 1, sort: 1 }]),
+      ])
+    expect(await errorOf(save(null, '두유'))).toContain('permission denied')
+    expect(await errorOf(save(C, '두유'))).toContain('transaction_edit_conflict')
+    expect(await errorOf(save(B, ''))).toContain('check constraint')
+    expect(await as(A, 'select amount::int, title from public.transactions where id = $1', [tx.id]))
+      .toEqual([{ amount: 4000, title: '마트' }])
+    expect(await as(A, 'select name, amount::int from public.transaction_items where transaction_id = $1 order by name', [tx.id]))
+      .toEqual([{ name: '계란', amount: 1000 }, { name: '우유', amount: 3000 }])
+
+    expect(await save(B, '두유')).toEqual([{ paths: [`${hhA}/egg.jpg`] }])
+    expect(await errorOf(save(A, '두유'))).toContain('transaction_edit_conflict')
+    expect(await as(A, 'select amount::int, title from public.transactions where id = $1', [tx.id]))
+      .toEqual([{ amount: 5000, title: '마트 수정' }])
+    expect(await as(A, 'select name, amount::int from public.transaction_items where transaction_id = $1 order by name', [tx.id]))
+      .toEqual([{ name: '두유', amount: 1000 }, { name: '우유', amount: 4000 }])
+  })
+})

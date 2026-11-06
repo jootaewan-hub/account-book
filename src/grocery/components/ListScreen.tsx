@@ -566,6 +566,7 @@ export default function ListScreen({ store, me, ledger, market, dev }: Props) {
             closeSheet()
           }}
           initialText={sheetText}
+          pendingItems={visible.filter((item) => !item.boughtAt)}
           store={store}
           onBarcode={() => {
             setSheetOpen(false)

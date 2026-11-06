@@ -160,6 +160,7 @@ const shellShots = [
   // 장보기는 화면 높이 그대로: 아래 탭·담기 바가 화면 아래에 어떻게 겹치는지 본다
   ...both(390, (w, c) => ({ name: `shell-grocery-removed-${w}-${c}`, path: '/', w, c, shell: true, tab: '장보기', remove: '삼겹살 600g' })),
   ...each((w, c) => ({ name: `shell-grocery-add-sheet-${w}-${c}`, path: '/', w, c, shell: true, tab: '장보기', sheet: SHEET_TEXT })),
+  ...each((w, c) => ({ name: `shell-grocery-frequent-${w}-${c}`, path: '/', w, c, shell: true, tab: '장보기', sheet: '', frequent: true })),
   // 셸 안 품목 상세: 가짜 데이터에 고른 상품·가격 줄이 있어 내용까지 보인다(P8). 다른 탭 내용은 grocery-item-detail-*(장보기 데모)에서 본다
   ...each((w, c) => ({ name: `shell-grocery-detail-${w}-${c}`, path: '/', w, c, shell: true, tab: '장보기', detail: '비비고 왕교자' })),
   ...each((w, c) => ({ name: `shell-entry-sheet-${w}-${c}`, path: '/', w, c, shell: true, tab: '내역', record: true })),
@@ -184,6 +185,7 @@ const shellShots = [
   ...both(390, (w, c) => ({ name: `shell-smart-draft-off-${w}-${c}`, path: '/', w, c, shell: true, tab: '내역', receipt: true, draftOff: true })),
   // 내역 고르기(D-027): 날짜 하나 전부 + 다른 날 한 건을 고른 상태, 아래에 고른 내역 줄. 휴대폰은 한 번 누른 확인 상태도
   ...each((w, c) => ({ name: `shell-list-home-${w}-${c}`, path: '/', w, c, shell: true, tab: '내역' })),
+  ...each((w, c) => ({ name: `shell-list-search-${w}-${c}`, path: '/', w, c, shell: true, tab: '내역', listSearch: true })),
   ...each((w, c) => ({ name: `shell-list-pick-${w}-${c}`, path: '/', w, c, shell: true, tab: '내역', listPick: { day: 1, row: '스타벅스' } })),
   ...both(390, (w, c) => ({ name: `shell-list-pick-confirm-${w}-${c}`, path: '/', w, c, shell: true, tab: '내역', listPick: { day: 1, row: '스타벅스', confirm: true } })),
   // 나눠 저장한 내역의 수정 시트: 같은 영수증 내역 목록과 '4건 모두 삭제'
@@ -331,6 +333,12 @@ async function fakeSupabase(context, s = {}) {
       for (const [k, v] of url.searchParams) {
         if (v.startsWith('eq.') && !['select', 'order', 'limit', 'offset'].includes(k)) rows = rows.filter((r) => !(k in r) || String(r[k]) === v.slice(3))
       }
+      if (s.listSearch && key === 'public.transactions') {
+        for (const bound of url.searchParams.getAll('occurred_on')) {
+          if (bound.startsWith('gte.')) rows = rows.filter((r) => r.occurred_on >= bound.slice(4))
+          if (bound.startsWith('lte.')) rows = rows.filter((r) => r.occurred_on <= bound.slice(4))
+        }
+      }
     }
     if ((req.headers()['accept'] ?? '').includes('vnd.pgrst.object')) {
       const one = Array.isArray(rows) ? rows[0] : rows
@@ -405,7 +413,12 @@ try {
           }
           console.log('[anim]', s.name, [...seen].join(' '))
         }
-        if (s.tab === '장보기' || s.path.includes('tab=grocery')) await page.getByText('살 것', { exact: true }).waitFor()
+        if (s.tab === '장보기' || s.path.includes('tab=grocery')) {
+          await page.getByText('살 것', { exact: true }).waitFor()
+          if (s.tab === '장보기' && await page.locator('.tabbar .mobile-record, .tabbar .side-record').count()) {
+            throw new Error('장보기 탭에 공통 기록하기 버튼이 남아 있어요.')
+          }
+        }
         else if (!waiting) await page.waitForLoadState('networkidle')
       } else if (s.path === G) {
         await page.getByText('살 것', { exact: true }).waitFor()
@@ -508,6 +521,11 @@ try {
         await page.locator('.day-pick input').nth(s.listPick.day).check()
         await page.locator('.tx.picking', { hasText: s.listPick.row }).click()
         if (s.listPick.confirm) await page.locator('.pick-bar .danger').click()
+      }
+      if (s.listSearch) {
+        await page.getByRole('combobox', { name: '검색 기간' }).selectOption('3')
+        await page.getByRole('searchbox', { name: '내역 찾기' }).fill('주유소')
+        await page.getByText('3건', { exact: true }).waitFor()
       }
       if (s.batch) {
         await page.locator('.tx', { hasText: s.batch }).first().click()
@@ -627,6 +645,10 @@ try {
         await page.getByRole('button', { name: '담기', exact: true }).locator('visible=true').first().click()
         await page.getByRole('dialog').waitFor()
         await page.getByLabel('살 것').fill(s.sheet)
+        if (s.frequent) {
+          await page.getByRole('region', { name: '자주 산 품목' }).getByRole('button', { name: /부침두부/ }).click()
+          await page.getByRole('button', { name: '1개 담기' }).waitFor()
+        }
         // 지난 기록(D-042)을 펼친 모습
         if (s.seenOpen) {
           const more = page.getByRole('button', { name: new RegExp(`^나머지 \\d+건 보기$`) }).first()

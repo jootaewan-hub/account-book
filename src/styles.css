@@ -334,9 +334,12 @@ main.wrap { padding-block: 4px calc(150px + var(--record-dock-h) + env(safe-area
 .list-overview .month-sum > span { font-size: 12px; }
 .list-overview .month-sum b { display: block; font-size: 18px; }
 .list-overview .plan-note { padding: 0; margin-top: 6px; }
-.ledger-list-search { position: relative; }
+.list-search-controls { display: flex; gap: 8px; }
+.ledger-list-search { position: relative; flex: 1; min-width: 0; }
 .ledger-list-search > svg { position: absolute; top: 50%; left: 13px; transform: translateY(-50%); width: 19px; height: 19px; color: var(--sage); pointer-events: none; }
 .ledger-list-search .input { padding-left: 40px; }
+.list-search-period.input { width: auto; }
+.list-search-dates { margin: -7px 0 0; }
 .ledger-list-view .day-head { background: var(--oat); border-radius: var(--r-sm); padding: 8px 12px; }
 .ledger-list-view .tx { padding-inline: 12px; }
 .ledger-list-view .tx:last-child { border-bottom: 0; }

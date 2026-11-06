@@ -216,6 +216,29 @@ describe('결제수단·중복 판단', () => {
     expect(cancel).toMatchObject({ include: false, payment_method_id: 'kakao' })
     expect(cancel.warnings.join()).toContain('취소')
   })
+
+  it('같은 날 같은 금액이어도 다른 결제는 저장 대상으로 남긴다', () => {
+    const [draft] = toDrafts(checkEntries({ note: null, entries: [entry({ merchant: '이마트24' })] }), {
+      today: '2026-10-15', methods, categories: [], fallbackMethodId: null, fallbackScope: 'shared',
+      existing: [{ occurred_on: '2026-10-13', amount: 12400, type: 'expense', title: '다이소', merchant: '다이소' } as Transaction],
+    })
+    expect(draft.include).toBe(true)
+  })
+
+  it('동일한 내역을 고르고 고정지출 예정분은 중복 검사에서 제외한다', () => {
+    const existing = { occurred_on: '2026-10-13', amount: 12400, type: 'expense' } as Transaction
+    const ctx = { today: '2026-10-15', methods, categories: [], fallbackMethodId: null, fallbackScope: 'shared' as const }
+    const entries = checkEntries({ note: null, entries: [entry({ merchant: '이마트24' })] })
+    const unrelated = { ...existing, title: '다이소', merchant: '다이소' }
+    const same = { ...existing, title: '이마트 24', merchant: '이마트 24', occurred_at: '18:42:00' }
+    const [duplicate] = toDrafts(entries, { ...ctx, existing: [unrelated, same] })
+    expect(duplicate.include).toBe(false)
+    expect(duplicate.warnings.join()).toContain('이마트 24')
+    const [planned] = toDrafts(entries, { ...ctx, existing: [{ ...same, planned: { kind: 'fixed', round: null } }] })
+    expect(planned).toMatchObject({ include: true, warnings: [] })
+    const [differentTime] = toDrafts(entries, { ...ctx, existing: [{ ...same, occurred_at: '12:42:00' }] })
+    expect(differentTime).toMatchObject({ include: true, warnings: [] })
+  })
 })
 
 describe('사진 줄이기', () => {

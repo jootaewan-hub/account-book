@@ -16,7 +16,7 @@ import { Onboarding } from './components/Onboarding'
 import type { SmartMode } from './components/SmartSheet'
 import { useLedgerMeta, useLiveUpdates, useMonthEvents, useMonthTransactions, useRecurringList } from './hooks/useLedger'
 import { useNotes } from './hooks/useNotes'
-import { deleteTransaction, deleteTransactions, friendlyError, generateRecurring, insertEvent, insertInstallmentPurchase, insertTransaction, saveTransactionItems, updateSpouseRole, updateTransaction } from './lib/api'
+import { deleteTransaction, deleteTransactions, friendlyError, generateRecurring, insertEvent, insertInstallmentPurchase, insertTransaction, updateSpouseRole, updateTransaction } from './lib/api'
 import type { ItemsChange } from './lib/itemEdit'
 import { wasRefreshed } from './lib/appUpdate'
 import { takeNewRelease } from './lib/changelog'
@@ -267,9 +267,12 @@ function Ledger({ household, meta, userId, email }: {
   async function save(input: TxInput, id?: string, installment?: { months: number; split: boolean } | null, items?: ItemsChange | null) {
     let split = false
     if (id) {
-      await updateTransaction(id, input)
-      // 수정 시트에서 고친 품목 줄(D-052). 내역을 먼저 고치고 품목을 맞춘다
-      if (items) await saveTransactionItems(id, household.id, items)
+      try {
+        await updateTransaction(id, sheet.editing?.updated_at ?? null, input, items)
+      } catch (e) {
+        await reload()
+        throw e
+      }
     } else if (installment) split = await insertInstallmentPurchase(household.id, input, installment.months, installment.split)
     else await insertTransaction(household.id, input)
     // 지난 날짜에 산 할부면 이미 지난 회차를 바로 넣는다
@@ -322,7 +325,7 @@ function Ledger({ household, meta, userId, email }: {
 
   const { y, m } = parseYM(ym)
   const showMonth = tab === 'cal' || tab === 'list' || tab === 'stats' || tab === 'fixed'
-  const showRecord = tab !== 'stats' && tab !== 'fixed' && tab !== 'explore'
+  const showRecord = tab !== 'stats' && tab !== 'fixed' && tab !== 'explore' && tab !== 'grocery'
 
   return (
     // 넓은 화면에서는 아래 탭이 왼쪽 세로 메뉴가 된다 (styles.css 넓은 화면)
@@ -388,7 +391,7 @@ function Ledger({ household, meta, userId, email }: {
         {tab === 'list' && (
           <Screen name="내역">
             <ListView cur={curAll} future={ym > today.slice(0, 7)} loading={txLoading} lookup={lookup} focus={listFocus} onClearFocus={() => setListFocus(null)} onEdit={editTx}
-              onRecord={openRecord} onDeleteMany={removeMany} onPickingChange={setListPicking} />
+              onRecord={openRecord} onDeleteMany={removeMany} onPickingChange={setListPicking} periodSearch={{ householdId: household.id, today, version: txVersion }} />
           </Screen>
         )}
         {tab === 'grocery' && (

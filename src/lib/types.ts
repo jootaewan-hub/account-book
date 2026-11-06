@@ -46,6 +46,7 @@ export interface Transaction {
   household_id: string
   type: TxType
   occurred_on: string // YYYY-MM-DD
+  occurred_at?: string | null // HH:MM[:SS]
   amount: number
   title: string
   memo: string | null
@@ -55,6 +56,7 @@ export interface Transaction {
   source: TxSource
   created_by: string
   created_at: string
+  updated_at?: string
   recurring_id: string | null
   /** 반복 항목의 몇 월분인지 (YYYY-MM-01). 내역 날짜와 다를 수 있다 */
   recurring_month?: string | null

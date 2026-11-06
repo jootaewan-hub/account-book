@@ -23,7 +23,7 @@ const COUNT_RE = /(?:^|\s|(?<=[가-힣]))(?:[x×]\s*(\d+)|(\d+)\s*개)$/i
 // 줄 끝의 용량 표기: 숫자(소수점·분수 허용) + 단위
 const SPEC_RE = new RegExp(String.raw`(?:^|\s|(?<=[가-힣]))((?:\d+\/\d+|\d+(?:\.\d+)?)(?:${UNITS}))$`, 'i')
 
-function parseLine(raw: string): ParsedItem | null {
+export function parseItemLine(raw: string): ParsedItem | null {
   let rest = raw.trim()
   if (!rest) return null
 
@@ -146,6 +146,6 @@ export function parseLines(text: string): ParsedItem[] {
     .normalize('NFC') // macOS·일부 키보드의 자모 분리(NFD) 입력 대비
     .split(/[\r\n]+|(?<!\d),|,(?!\d)|[，、]/) // 숫자 사이의 쉼표(1,000)는 나누지 않는다
     .reduce<string[]>((items, chunk) => (splitChunk(chunk, items), items), [])
-    .map(parseLine)
+    .map(parseItemLine)
     .filter((item): item is ParsedItem => item !== null)
 }

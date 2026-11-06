@@ -194,8 +194,14 @@ export function pickCategory(names: (string | null | undefined)[], text: string,
   return modelId
 }
 
-export function sameTransaction(d: Pick<Draft, 'date' | 'amount' | 'type'>, txs: Transaction[]): Transaction | undefined {
-  return txs.find((t) => t.occurred_on === d.date && t.amount === d.amount && t.type === d.type)
+function sameTransaction(d: Pick<Draft, 'date' | 'time' | 'amount' | 'type' | 'title' | 'merchant' | 'platform'>, txs: Transaction[]): Transaction | undefined {
+  const title = nameKey(d.title)
+  if (!title) return undefined
+  return txs.find((t) => !t.planned && t.occurred_on === d.date && t.amount === d.amount && t.type === d.type
+    && nameKey(t.title) === title
+    && (!t.occurred_at || !d.time || t.occurred_at.slice(0, 5) === d.time)
+    && (!t.merchant || !d.merchant || nameKey(t.merchant) === nameKey(d.merchant))
+    && (!t.platform || !d.platform || t.platform === d.platform))
 }
 
 export function itemsSum(items: DraftItem[]): number {
@@ -282,15 +288,16 @@ export function entryDrafts(e: CheckedEntry, i: number, ctx: DraftContext, split
   if (e.items_match === false) shared.push(`품목 합계 ${itemsSum(e.items).toLocaleString()}원이 결제 금액 ${e.amount.toLocaleString()}원과 달라요.`)
   if (e.is_cancellation) shared.push('승인 취소 문자예요. 원래 내역을 찾아 지워 주세요.')
   const platform = draftPlatform(e)
+  const merchant = e.merchant?.trim() || null
   const items: DraftItem[] = e.items.map((it, j) => ({ ...it, src: `${i}:${j}` }))
   // 주유 내역의 분류는 '차량·주유'(있으면). 주유 값은 그룹의 첫 초안에만 싣는다(주유는 상품 줄이 없어 나뉘지 않는다)
   const fuel = e.fuel ?? null
   const fuelCategory = fuel ? ctx.categories.find((c) => c.type === 'expense' && c.name === FUEL_CATEGORY && !c.archived)?.id ?? null : null
 
   const make = (key: string, title: string, amount: number, category: string | null, its: DraftItem[], memo: string | null): Draft => {
-    const dup = sameTransaction({ date, amount, type: e.type }, ctx.existing)
+    const dup = e.date ? sameTransaction({ date, time: e.time, amount, type: e.type, title, merchant, platform }, ctx.existing) : undefined
     return {
-      key, include: !e.is_cancellation && !dup, type: e.type, date, time: e.time, title, platform, merchant: e.merchant?.trim() || null, amount,
+      key, include: !e.is_cancellation && !dup, type: e.type, date, time: e.time, title, platform, merchant, amount,
       category_id: fuelCategory ?? pickCategory([category, e.category], [title, ...its.map((it) => it.name), e.merchant ?? '', platform ?? ''].join(' '), e.type, ctx.categories),
       payment_method_id: method?.id ?? remembered ?? (match.method === null && match.reason !== 'none' ? null : ctx.fallbackMethodId),
       scope: ctx.fallbackScope, memo, items: its,

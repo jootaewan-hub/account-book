@@ -232,6 +232,10 @@
 .grocery .preview { margin-top: 20px; }
 .grocery .preview-title { margin: 0 0 8px; font-size: 15px; font-weight: 700; }
 .grocery .preview-title .num { color: var(--ink-2); font-weight: 500; }
+.grocery .add-frequent { margin-top: 16px; }
+.grocery .add-frequent-options { display: flex; flex-wrap: wrap; gap: 6px; }
+.grocery .add-frequent-options .btn-secondary { max-width: 100%; padding: 6px 10px; border: 1px solid transparent; overflow-wrap: anywhere; }
+.grocery .add-frequent-options button[aria-pressed="true"] { background: var(--canvas); border-color: var(--sage); }
 .grocery .preview-list { list-style: none; margin: 0; padding: 0 16px; background: var(--oat); border-radius: var(--r-md); }
 .grocery .preview-row { min-height: 48px; padding: 8px 0; }
 .grocery .preview-line { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 32px; }
@@ -380,7 +384,7 @@
 .grocery .record-who button:focus-visible, .grocery .record-check input:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
 
 /* ---------- 가계부 셸 안에서 ---------- */
-/* 가계부 main.wrap이 이미 좌우 16px·아래 여백(아래 탭과 기록하기 버튼 자리)을 두므로, 목록 쪽은 4px만 더해 장보기 원래 좌우 20px을 맞춘다.
+/* 가계부 main.wrap이 이미 좌우 16px·아래 여백(아래 탭과 담기 자리)을 두므로, 목록 쪽은 4px만 더해 장보기 원래 좌우 20px을 맞춘다.
    화면 높이 채우기(100dvh)는 위쪽 줄과 겹쳐 쓸데없는 스크롤을 만들어 뺀다. */
 .grocery .list-page { min-height: 0; padding: 8px 4px 16px; }
 /* 휴대폰: 담기 바와 되돌리기 알림을 가계부 아래 탭(--tabbar-h) 위에 놓고, 아래 탭처럼 앱 폭(--col) 가운데에 둔다 */

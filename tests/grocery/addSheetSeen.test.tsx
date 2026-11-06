@@ -49,4 +49,25 @@ describe('담기 시트의 지난 기록', () => {
     fireEvent.click(screen.getByRole('button', { name: /1\s*개 담기/ }))
     await waitFor(() => expect(onAdd).toHaveBeenCalledOnce())
   })
+
+  it('여러 날에 산 품목만 골라 담고, 이미 담긴 품목과 가격 캡처는 추천에서 뺀다', async () => {
+    const onAdd = vi.fn(async () => {})
+    const store = storeWith(async () => [
+      rec({ name: '무가당 두유 190ml' }),
+      rec({ name: '무가당두유 190ml', date: '2026-10-20', quantity: 2 }),
+      rec({ name: '서울우유 1L' }),
+      rec({ name: '서울우유 1000ml', date: '2026-10-20' }),
+      rec({ name: '달걀' }),
+      rec({ name: '달걀' }),
+      rec({ name: '달걀', date: '2026-10-20', source: 'capture' }),
+    ])
+    render(<AddSheet onAdd={onAdd} onClose={() => {}} store={store} pendingItems={[{ name: '우유', spec: '1L' }]} />)
+    const pick = await screen.findByRole('button', { name: '무가당 두유 190ml ×2' })
+    expect(screen.queryByRole('button', { name: /서울우유/ })).toBeNull()
+    expect(screen.queryByRole('button', { name: '달걀' })).toBeNull()
+    fireEvent.click(pick)
+    expect(pick.getAttribute('aria-pressed')).toBe('true')
+    fireEvent.click(screen.getByRole('button', { name: /1\s*개 담기/ }))
+    expect(onAdd).toHaveBeenCalledExactlyOnceWith([expect.objectContaining({ name: '무가당 두유', spec: '190ml', count: 2 })])
+  })
 })

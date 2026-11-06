@@ -122,12 +122,15 @@ export async function deleteEvent(id: string): Promise<void> {
 
 /** 보고 있는 달과 그 전달의 내역 (전월 비교용) */
 export async function fetchTwoMonths(householdId: string, ym: string): Promise<Transaction[]> {
-  const start = monthRange(addMonths(ym, -1)).start
-  const end = monthRange(ym).end
+  return fetchRangeWithItems(householdId, monthRange(addMonths(ym, -1)).start, monthRange(ym).end)
+}
+
+/** 내역 목록과 기간 검색에 필요한 품목·주유·영수증 묶음을 함께 읽는다. */
+export async function fetchRangeWithItems(householdId: string, start: string, end: string): Promise<Transaction[]> {
   const rows = await readAllPages<TxRowWithItems>((from, to) =>
     sb()
       .from('transactions')
-      .select(`${TX_WITH_ITEMS}, save_batch`, { count: from === 0 ? 'exact' : undefined })
+      .select(`${TX_WITH_ITEMS}, save_batch, occurred_at, updated_at`, { count: from === 0 ? 'exact' : undefined })
       .eq('household_id', householdId)
       .gte('occurred_on', start)
       .lte('occurred_on', end)
@@ -187,23 +190,14 @@ export async function insertInstallmentPurchase(householdId: string, input: TxIn
   return true
 }
 
-export async function updateTransaction(id: string, input: TxInput): Promise<void> {
-  check(await sb().from('transactions').update(input).eq('id', id))
-}
-
-/**
- * 저장된 내역의 품목 줄을 고친다(D-052): 뺀 줄은 지우고(사진도), 바뀐 칸만 고치고, 새 줄은 넣는다. sort는 화면 순서.
- * 표 권한은 가구 RLS(transaction_items_all)와 select·insert·update·delete grant로 이미 열려 있어 함수(RPC)가 필요 없다
- */
-export async function saveTransactionItems(txId: string, householdId: string, change: ItemsChange): Promise<void> {
-  const d = diffItems(change.before, change.after)
-  if (d.remove.length) check(await sb().from('transaction_items').delete().in('id', d.remove.map((r) => r.id)))
-  for (const u of d.update) check(await sb().from('transaction_items').update(u.patch).eq('id', u.id))
-  if (d.insert.length) {
-    check(await sb().from('transaction_items').insert(d.insert.map((r) => ({ ...r, transaction_id: txId, household_id: householdId }))))
-  }
-  const paths = d.remove.map((r) => r.image_path).filter((p): p is string => Boolean(p))
-  if (paths.length) await removeItemImages(paths).catch(() => undefined)
+/** 내역과 품목을 함께 저장한 뒤 실제로 삭제된 품목의 사진을 정리한다. */
+export async function updateTransaction(id: string, updatedAt: string | null, input: TxInput, change?: ItemsChange | null): Promise<void> {
+  const d = change ? diffItems(change.before, change.after) : null
+  const paths = check(await sb().rpc('edit_transaction_with_items', {
+    p_id: id, p_updated_at: updatedAt, p_input: input,
+    p_remove: d?.remove.map((r) => r.id) ?? [], p_update: d?.update ?? [], p_insert: d?.insert ?? [],
+  })) as string[]
+  if (paths?.length) await removeItemImages(paths).catch(() => undefined)
 }
 
 export async function deleteTransaction(id: string): Promise<void> {
@@ -477,6 +471,7 @@ export function friendlyError(e: unknown): string {
   if (msg.includes('invalid_code')) return '초대 코드가 맞지 않아요. 다시 확인해 주세요.'
   if (msg.includes('household_full')) return '이 가계부에는 이미 두 사람이 있어요.'
   if (msg.includes('already_in_household')) return '이미 가계부에 참여하고 있어요.'
+  if (msg.includes('transaction_edit_conflict')) return '내역이 이미 바뀌었어요. 닫고 다시 열어 최신 내역을 확인해 주세요.'
   if (msg.includes('duplicate key') && msg.includes('categories')) return '같은 이름의 분류가 이미 있어요.'
   if (msg.includes('members_household_spouse_role_key')) return '배우자가 이미 그 역할로 등록돼 있어요.'
   if (msg.includes('transactions_recurring_month_key')) return '이번 달 분은 이미 들어가 있어요.'

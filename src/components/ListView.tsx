@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
-import { friendlyError } from '../lib/api'
-import { formatDateLong } from '../lib/dates'
+import { fetchRangeWithItems, friendlyError } from '../lib/api'
+import { addMonths, formatDateLong, monthRange } from '../lib/dates'
 import { won } from '../lib/format'
 import { sumType } from '../lib/ledger'
 import { SCOPE_LABEL, SCOPES, type Lookup } from '../lib/lookup'
@@ -27,6 +27,7 @@ interface Props {
   future?: boolean
   /** 달을 넘겨 새 달 내역을 아직 못 받았을 때 */
   loading?: boolean
+  periodSearch?: { householdId: string; today: string; version: number }
   lookup: Lookup
   focus: ListFocus | null
   onClearFocus: () => void
@@ -38,11 +39,29 @@ interface Props {
   onPickingChange?: (on: boolean) => void
 }
 
-export function ListView({ cur, future = false, loading = false, lookup, focus, onClearFocus, onEdit, onRecord, onDeleteMany, onPickingChange }: Props) {
+export function ListView({ cur, future = false, loading = false, periodSearch, lookup, focus, onClearFocus, onEdit, onRecord, onDeleteMany, onPickingChange }: Props) {
   const [filter, setFilter] = useState<'all' | Scope>('all')
-  const appear = useAppear(loading)
   const [q, setQ] = useState('')
   const needle = q.trim().toLowerCase()
+  const [period, setPeriod] = useState('month')
+  const [retry, setRetry] = useState(0)
+  const [rangeResult, setRangeResult] = useState<{ key: string; rows: Transaction[]; error?: string } | null>(null)
+  const end = periodSearch?.today ?? ''
+  const start = end && period !== 'month' ? monthRange(addMonths(end.slice(0, 7), 1 - Number(period))).start : ''
+  const householdId = periodSearch?.householdId
+  const rangeKey = start && needle ? `${householdId}:${start}:${end}:${periodSearch?.version}:${retry}` : ''
+  useEffect(() => {
+    if (!rangeKey || !householdId) return
+    let active = true
+    fetchRangeWithItems(householdId, start, end).then(
+      (rows) => { if (active) setRangeResult({ key: rangeKey, rows }) },
+      (error) => { if (active) setRangeResult({ key: rangeKey, rows: [], error: friendlyError(error) }) },
+    )
+    return () => { active = false }
+  }, [end, householdId, rangeKey, start])
+  const range = rangeResult?.key === rangeKey ? rangeResult : null
+  const waiting = rangeKey ? !range : loading
+  const appear = useAppear(waiting)
   // 고르기(D-027): 지울 내역을 행·날짜 단위로 고른다. 찾기·거르기를 바꾸면 고른 것을 비워 안 보이는 내역이 지워지지 않게 한다
   const [picking, setPicking] = useState(false)
   const [picked, setPicked] = useState<ReadonlySet<string>>(new Set())
@@ -51,7 +70,7 @@ export function ListView({ cur, future = false, loading = false, lookup, focus, 
   const [err, setErr] = useState('')
   const focusKey = focus ? `${focus.kind}:${focus.name}` : ''
   // eslint-disable-next-line react/exhaustive-effect-dependencies -- 거르는 조건이 바뀌었다는 신호
-  useEffect(() => { setPicked(new Set()); setConfirm(false) }, [filter, needle, focusKey])
+  useEffect(() => { setPicked(new Set()); setConfirm(false) }, [filter, needle, focusKey, start])
   useEffect(() => { onPickingChange?.(picking) }, [picking, onPickingChange])
   // 다른 탭으로 가며 사라질 때 둥근 버튼을 되돌린다
   useEffect(() => () => onPickingChange?.(false), [onPickingChange])
@@ -66,7 +85,7 @@ export function ListView({ cur, future = false, loading = false, lookup, focus, 
     // 가게 이름 없는 결제 줄: 플랫폼도 가게 이름도 모르는 내역만(통계 어디서 샀나와 같은 storeOfTx)
     return focus.name === OTHER_PLATFORM ? !p && !storeOfTx(t) : p === focus.name
   }
-  const list = cur.filter((t) => (filter === 'all' || t.scope === filter) && inFocus(t) && (!needle || matches(t)))
+  const list = (rangeKey ? range?.rows ?? [] : cur).filter((t) => (filter === 'all' || t.scope === filter) && inFocus(t) && (!needle || matches(t)))
   // 고정지출 예정분(D-030)은 DB에 없는 행이라 고를 수도 지울 수도 없다. 고르는 동안에는 목록에서 뺀다
   const real = list.filter((t) => !t.planned)
   const planSum = sumType(list.filter((t) => t.planned), 'expense')
@@ -111,27 +130,35 @@ export function ListView({ cur, future = false, loading = false, lookup, focus, 
     <section className="view ledger-list-view">
       <div className="list-overview">
         <div className="list-overview-head">
-          <h2>내역 요약</h2>
+          <h2>{rangeKey ? '검색 결과 요약' : '내역 요약'}</h2>
           {onRecord && !picking && (
             <button type="button" className="primary list-record" onClick={onRecord}><Plus />기록하기</button>
           )}
         </div>
         <div className="month-sum num">
           {/* 이 달 내역이 오기 전에는 0원 대신 숫자 자리만 보인다 */}
-          <span>{future ? '나갈 돈' : '쓴 돈'} <b>{loading ? <Bar w={5} /> : `${won(sumType(list, 'expense'))}원`}</b></span>
-          <span className="in">들어온 돈 <b>{loading ? <Bar w={5} /> : `${won(sumType(list, 'income'))}원`}</b></span>
-          {narrowed && <span>{list.length}건</span>}
+          <span>{future && !rangeKey ? '나갈 돈' : '쓴 돈'} <b>{waiting ? <Bar w={5} /> : range?.error ? '—' : `${won(sumType(list, 'expense'))}원`}</b></span>
+          <span className="in">들어온 돈 <b>{waiting ? <Bar w={5} /> : range?.error ? '—' : `${won(sumType(list, 'income'))}원`}</b></span>
+          {narrowed && !waiting && !range?.error && <span>{list.length}건</span>}
           {(real.length > 0 || picking) && (
             <button className="link-btn pick-toggle" aria-pressed={picking} onClick={togglePicking}>{picking ? '고르기 취소' : '고르기'}</button>
           )}
         </div>
         {planSum > 0 && <p className="plan-note">고정지출 예정 <b className="num">{won(planSum)}원</b>이 들어 있어요</p>}
       </div>
-      <div className="ledger-list-search">
-        <SearchIcon />
-        <input type="search" className="input" aria-label="내역 찾기" placeholder="이름·품목·메모로 찾기" value={q}
-          autoComplete="off" onChange={(e) => setQ(e.target.value)} />
+      <div className="list-search-controls">
+        <div className="ledger-list-search">
+          <SearchIcon />
+          <input type="search" className="input" aria-label="내역 찾기" placeholder="이름·품목·메모로 찾기" value={q}
+            autoComplete="off" onChange={(e) => setQ(e.target.value)} />
+        </div>
+        {periodSearch && <select className="input list-search-period" aria-label="검색 기간" value={period} onChange={(e) => setPeriod(e.target.value)}>
+          <option value="month">선택한 달</option>
+          <option value="3">최근 3개월</option>
+          <option value="12">최근 12개월</option>
+        </select>}
       </div>
+      {start && <p className="plan-note list-search-dates num">{start.replaceAll('-', '.')} ~ {end.replaceAll('-', '.')} · {needle ? '저장된 내역' : '검색어를 입력하세요'}</p>}
       {focus && (
         <div className="focus-row">
           <span className="chip" aria-pressed="true">{FOCUS_LABEL[focus.kind]}: {focus.name}</span>
@@ -146,13 +173,14 @@ export function ListView({ cur, future = false, loading = false, lookup, focus, 
           </button>
         ))}
       </div>
-      {dates.length === 0 && (loading ? <RowsWait label="이 달 내역 불러오는 중" rows={4} day />
+      {range?.error && <div className="empty"><p role="alert">{range.error}</p><button className="link-btn" onClick={() => setRetry((n) => n + 1)}>다시 시도</button></div>}
+      {!range?.error && dates.length === 0 && (waiting ? <RowsWait label={rangeKey ? '기간 내역 불러오는 중' : '이 달 내역 불러오는 중'} rows={4} day />
         : <div className="empty">{narrowed ? '조건에 맞는 내역이 없어요.' : '이 달에는 해당하는 내역이 없어요.'}</div>)}
       {dates.map((d) => {
         const arr = groups.get(d)!
         const e = sumType(arr, 'expense')
         const i = sumType(arr, 'income')
-        const day = formatDateLong(d).replace(/^\d+월 /, '')
+        const day = rangeKey ? `${d.slice(0, 4)}년 ${formatDateLong(d)}` : formatDateLong(d).replace(/^\d+월 /, '')
         const ids = arr.map((t) => t.id)
         const n = ids.filter((id) => picked.has(id)).length
         return (

@@ -5,6 +5,7 @@ import { READING_TEXT } from '../lib/photo'
 import { listText } from '../../../supabase/functions/grocery-photo/text'
 import { PhotoPick } from './PhotoCapture'
 import { NAME_MAX, parseLines, type ParsedItem } from '../lib/parse'
+import { alreadyShopping, frequentPurchases, shoppingItemKey, shoppingNameKey } from '../lib/frequent'
 import { seenFor, seenPrice, seenUnit, seenWhen, type SeenMatch, type SeenRecord } from '../lib/seen'
 
 const CLOSE_MS = 250 // 가계부 Motion: 닫기는 여는 것(400ms)보다 빠르게
@@ -13,6 +14,7 @@ type Props = {
   onAdd: (items: ParsedItem[]) => Promise<void>
   /** 바코드 시트에서 넘어온 글처럼 처음부터 채워 둘 글 */
   initialText?: string
+  pendingItems?: Pick<ParsedItem, 'name' | 'spec'>[]
   /** 사진으로 담기(P6): 메모·냉장고·영수증 사진을 읽어 살 것 글로 채운다 */
   store?: ListStore
   /** 바코드로 담기(P6) */
@@ -21,13 +23,14 @@ type Props = {
 }
 
 // 담기 시트. 휴대폰은 아래에서 올라오는 시트, 넓은 화면(960px 이상)은 가운데 창이다(CSS가 나눈다).
-export default function AddSheet({ onAdd, onClose, initialText = '', store, onBarcode }: Props) {
+export default function AddSheet({ onAdd, onClose, initialText = '', pendingItems = [], store, onBarcode }: Props) {
   const [text, setText] = useState(initialText)
   const [reading, setReading] = useState(false)
   const [readMsg, setReadMsg] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const parsed = useMemo(() => parseLines(text), [text])
+  const [picked, setPicked] = useState<ReadonlySet<string>>(new Set())
   // 지난 기록(D-042): 시트를 열 때 한 번 읽는다. 못 읽어도 담기는 그대로 된다
   const [seen, setSeen] = useState<{ state: 'loading' | 'ok' | 'error'; rows: SeenRecord[] }>({ state: store ? 'loading' : 'ok', rows: [] })
   useEffect(() => {
@@ -39,7 +42,16 @@ export default function AddSheet({ onAdd, onClose, initialText = '', store, onBa
     )
     return () => { alive = false }
   }, [store])
-  const seenBy = useMemo(() => parsed.map((p) => (seen.rows.length ? seenFor(p.name, seen.rows, 8) : [])), [parsed, seen.rows])
+  const frequent = useMemo(() => frequentPurchases(seen.rows), [seen.rows])
+  const queued = [...pendingItems, ...parsed]
+  const offered = new Set<string>()
+  const suggestions = frequent.filter((p) => {
+    const key = shoppingNameKey(p.name)
+    if (offered.has(key) || queued.some((q) => alreadyShopping(q, p))) return false
+    offered.add(key)
+    return true
+  }).slice(0, 6)
+  const toAdd = [...parsed, ...suggestions.filter((p) => picked.has(shoppingItemKey(p)))]
   const area = useRef<HTMLTextAreaElement>(null)
   const sheet = useRef<HTMLDivElement>(null)
   const titleId = useId()
@@ -50,11 +62,11 @@ export default function AddSheet({ onAdd, onClose, initialText = '', store, onBa
   useFocusTrap(sheet, !closing, { onEscape: close, initialFocus: area })
 
   async function submit() {
-    if (parsed.length === 0 || busy || closing) return
+    if (toAdd.length === 0 || busy || closing) return
     setBusy(true)
     setError(null)
     try {
-      await onAdd(parsed)
+      await onAdd(toAdd)
     } catch {
       setError('담지 못했어요. 잠시 뒤 다시 해 주세요.')
       setBusy(false)
@@ -125,37 +137,60 @@ export default function AddSheet({ onAdd, onClose, initialText = '', store, onBa
             </div>
           )}
           {readMsg && <p className="cand-state" role="alert">{readMsg}</p>}
-          {parsed.length > 0 && (
+          {suggestions.length > 0 && (
+            <section className="add-frequent" aria-label="자주 산 품목">
+              <h3 className="preview-title">자주 산 품목</h3>
+              <div className="add-frequent-options">
+                {suggestions.map((p) => {
+                  const key = shoppingItemKey(p)
+                  const on = picked.has(key)
+                  return <button key={key} type="button" className="btn-secondary" aria-pressed={on} disabled={busy}
+                    onClick={() => setPicked((old) => {
+                      const next = new Set(old)
+                      if (next.has(key)) next.delete(key)
+                      else next.add(key)
+                      return next
+                    })}>
+                    <span aria-hidden="true">{on ? '✓' : '+'}</span> {p.name}{p.spec ? ` ${p.spec}` : ''}{p.count > 1 ? ` ×${p.count}` : ''}
+                  </button>
+                })}
+              </div>
+            </section>
+          )}
+          {toAdd.length > 0 && (
             <section className="preview" aria-label="담을 것 미리보기">
               <h3 className="preview-title">
-                담을 것 <span className="num">{parsed.length}개</span>
+                담을 것 <span className="num">{toAdd.length}개</span>
               </h3>
               {seen.state === 'loading' && <p className="seen-state" role="status">지난 기록 확인 중</p>}
               {seen.state === 'error' && <p className="seen-state">지난 기록을 불러오지 못했어요. 담기는 그대로 돼요.</p>}
               <ul className="preview-list">
-                {parsed.map((p, i) => (
-                  <li key={i} className="preview-row">
-                    <div className="preview-line">
-                      <span className="preview-name">
-                        {p.name}
-                        {p.spec && <span className="row-spec num"> {p.spec}</span>}
-                        {p.specIsDefault && <span className="tag tag-default">기본</span>}
-                        {p.count > 1 && <span className="row-count num"> ×{p.count}</span>}
-                        {p.nameCut && <span className="preview-note">이름이 길어 {NAME_MAX}자까지만 담아요</span>}
-                      </span>
-                      <span className="tag">{p.category}</span>
-                    </div>
-                    {seenBy[i].length > 0 && <SeenBlock key={`${p.name}`} name={p.name} matches={seenBy[i]} />}
-                  </li>
-                ))}
+                {toAdd.map((p, i) => {
+                  const matches = seen.rows.length ? seenFor(p.name, seen.rows, 8) : []
+                  return (
+                    <li key={i} className="preview-row">
+                      <div className="preview-line">
+                        <span className="preview-name">
+                          {p.name}
+                          {p.spec && <span className="row-spec num"> {p.spec}</span>}
+                          {p.specIsDefault && <span className="tag tag-default">기본</span>}
+                          {p.count > 1 && <span className="row-count num"> ×{p.count}</span>}
+                          {p.nameCut && <span className="preview-note">이름이 길어 {NAME_MAX}자까지만 담아요</span>}
+                        </span>
+                        <span className="tag">{p.category}</span>
+                      </div>
+                      {matches.length > 0 && <SeenBlock key={p.name} name={p.name} matches={matches} />}
+                    </li>
+                  )
+                })}
               </ul>
             </section>
           )}
           {error && <p role="alert" className="form-error">{error}</p>}
         </div>
         <div className="sheet-foot">
-          <button type="button" className="btn-primary btn-big" disabled={parsed.length === 0 || busy || closing} onClick={() => void submit()}>
-            {busy ? '담는 중' : <><span className="num">{parsed.length}</span>개 담기</>}
+          <button type="button" className="btn-primary btn-big" disabled={toAdd.length === 0 || busy || closing} onClick={() => void submit()}>
+            {busy ? '담는 중' : <><span className="num">{toAdd.length}</span>개 담기</>}
           </button>
         </div>
       </div>
