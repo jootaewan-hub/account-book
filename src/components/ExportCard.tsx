@@ -3,6 +3,7 @@ import { itemText, toCsv, type ExportRow } from '../../supabase/functions/export
 import { exportToken, fetchExportTransactions, friendlyError } from '../lib/api'
 import { addMonths, monthRange } from '../lib/dates'
 import { SCOPE_LABEL, type Lookup } from '../lib/lookup'
+import { exportRefundMemo } from '../lib/refunds'
 
 interface Props {
   householdId: string
@@ -43,7 +44,8 @@ export function ExportCard({ householdId, today, lookup, toast }: Props) {
         return {
           occurred_on: t.occurred_on, occurred_at: t.occurred_at, type: t.type, amount: Number(t.amount), title: t.title, platform: t.platform,
           category: t.category_id ? lookup.categoryName(t.category_id) : null,
-          scope: t.scope, source: t.source, entered_by: role ? SCOPE_LABEL[role] : lookup.personLabel(t.created_by), memo: t.memo,
+          scope: t.scope, source: t.source, entered_by: role ? SCOPE_LABEL[role] : lookup.personLabel(t.created_by),
+          memo: exportRefundMemo(t.memo, Number(t.amount), t.transaction_refunds),
           items: items.length ? items.map((i) => itemText({
             name: i.name, quantity: Number(i.quantity), unit_price: i.unit_price === null ? null : Number(i.unit_price), amount: Number(i.amount),
             pack_size: i.pack_size === null ? null : Number(i.pack_size), pack_unit: i.pack_unit,

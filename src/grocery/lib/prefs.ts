@@ -21,13 +21,13 @@ export function saveListView(userId: string, v: ListViewMode): void {
 }
 
 /** 장보기 탭 위 전환: 목록 | 시세(D-012, 통합 설계 3-2) */
-export type GroceryView = 'list' | 'market' | 'wishes'
+export type GroceryView = 'list' | 'market' | 'wishes' | 'history'
 const viewKey = (userId: string) => `grocery:view:${userId}`
 
 export function loadGroceryView(userId: string): GroceryView {
   try {
     const view = globalThis.localStorage?.getItem(viewKey(userId))
-    return view === 'market' || view === 'wishes' ? view : 'list'
+    return view === 'market' || view === 'wishes' || view === 'history' ? view : 'list'
   } catch {
     return 'list'
   }

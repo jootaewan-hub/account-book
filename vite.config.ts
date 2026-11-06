@@ -62,6 +62,7 @@ export default defineConfig({
         shortcuts: [{ name: '장보기', short_name: '장보기', url: `${base}?tab=grocery`, icons: [{ src: 'icon-192.png', sizes: '192x192', type: 'image/png' }] }],
       },
       workbox: {
+        importScripts: ['event-push-sw.js'],
         navigateFallback: `${base}index.html`,
         // 가계부 데이터(Supabase)는 캐시하지 않는다. 앱 파일만 캐시.
         globPatterns: ['**/*.{js,css,html,svg,png,webp,woff2,wasm}'],

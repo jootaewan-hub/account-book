@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useEffectEvent, useRef, useState } from 'react'
 import { fetchEvents, fetchHouseholdBundle, fetchRecurring, fetchTwoMonths, friendlyError } from '../lib/api'
 import { addMonths, monthRange } from '../lib/dates'
+import { expandEvents } from '../lib/events'
 import { sb } from '../lib/supabase'
 import type { Anniversary, CalEvent, Category, Household, Member, PaymentMethod, Recurring, Transaction } from '../lib/types'
 
@@ -71,8 +72,10 @@ export function useMonthEvents(householdId: string | undefined, ym: string) {
     if (!householdId) return
     const id = ++req.current
     try {
-      const rows = await fetchEvents(householdId, monthRange(ym).start, monthRange(addMonths(ym, 1)).end)
-      if (id === req.current) setEvents(rows)
+      const from = monthRange(ym).start
+      const to = monthRange(addMonths(ym, 1)).end
+      const rows = await fetchEvents(householdId, from, to)
+      if (id === req.current) setEvents(expandEvents(rows, from, to))
     } catch { /* 일정을 못 불러와도 가계부는 그대로 쓴다 */ }
   }, [householdId, ym])
   useEffect(() => { void reload() }, [reload])
@@ -134,6 +137,9 @@ export function useLiveUpdates(householdId: string | undefined, onTx: () => void
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'transactions', filter }, tx)
       // 삭제 이벤트에는 필터가 적용되지 않아 id만 받고 새로 불러온다
       .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'transactions' }, tx)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'transaction_refunds', filter }, tx)
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'transaction_refunds', filter }, tx)
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'transaction_refunds' }, tx)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'payment_methods', filter }, meta)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'categories', filter }, meta)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'members', filter }, meta)

@@ -1,3 +1,5 @@
+import type { TransactionRefund } from './refunds'
+
 export type TxType = 'expense' | 'income'
 export type Spouse = 'husband' | 'wife'
 /** 누구를 위한 지출(수입)인가 */
@@ -70,6 +72,7 @@ export interface Transaction {
   save_batch?: string | null
   /** 품목 (영수증·쇼핑 주문). 목록 화면에서 불러온 경우에만 있음 */
   items?: TxItem[]
+  refunds?: TransactionRefund[]
   /** 주유 기록(주유소 영수증). 목록 화면에서 불러온 경우에만 있고, 주유 내역이 아니면 null */
   fuel?: TxFuel | null
   /**
@@ -197,14 +200,18 @@ export interface Anniversary {
   repeat_every: number
   /** 시작한 해. 해마다(1년)는 없어도 되고, 그 밖의 반복은 이 해 month월부터 센다 */
   start_year: number | null
+  reminder_offset_minutes?: number | null
+  reminder_recipient?: string | null
 }
 
-export type AnniversaryInput = Pick<Anniversary, 'name' | 'kind' | 'category' | 'lunar' | 'month' | 'day' | 'repeat_unit' | 'repeat_every' | 'start_year'>
+export type AnniversaryInput = Pick<Anniversary, 'name' | 'kind' | 'category' | 'lunar' | 'month' | 'day' | 'repeat_unit' | 'repeat_every' | 'start_year' |
+  'reminder_offset_minutes' | 'reminder_recipient'>
 
 /** 일정: 한 번 있는 일 (병원 예약, 모임 등) */
 export interface CalEvent {
   id: string
   household_id: string
+  updated_at?: string
   date: string // YYYY-MM-DD
   /** HH:MM, 하루 종일이면 null */
   time: string | null
@@ -224,10 +231,18 @@ export interface CalEvent {
   priority?: EventPriority
   /** 중요·꼭 일정을 달력에서 구별하는 표시(D-054). 보통 일정에는 쓰지 않는다 */
   effect?: EventEffect
+  repeat_weeks?: 1 | 2 | null
+  repeat_until?: string | null
+  skipped_on?: string[]
+  /** 달력에 펼친 회차에서 원래 반복 시작 날짜 */
+  series_start?: string
+  reminder_offset_minutes?: number | null
+  reminder_recipient?: string | null
 }
 
 export type EventPriority = 'normal' | 'high' | 'must'
 export type EventEffect = 'outline' | 'fill' | 'breathe' | 'mark' | 'bold'
 
 /** 넣기·고치기에 보내는 칸. 기간·중요도 칸을 보내지 않으면(사진·문자로 넣는 일정) 넣을 때는 DB 기본값, 고칠 때는 그대로 둔다 */
-export type EventInput = Pick<CalEvent, 'date' | 'time' | 'title' | 'memo' | 'place' | 'address' | 'lat' | 'lng' | 'scope' | 'end_on' | 'priority' | 'effect'>
+export type EventInput = Pick<CalEvent, 'date' | 'time' | 'title' | 'memo' | 'place' | 'address' | 'lat' | 'lng' | 'scope' | 'end_on' | 'priority' | 'effect' |
+  'repeat_weeks' | 'repeat_until' | 'reminder_offset_minutes' | 'reminder_recipient'>

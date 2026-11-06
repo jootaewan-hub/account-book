@@ -33,4 +33,23 @@ describe('지난 기록 읽기', () => {
     expect(rows).toEqual([expect.objectContaining({ source: 'capture', where: '쿠팡', name: '비비고 왕교자 1.05kg', quantity: 2, amount: 19800, delivery: 0 })])
     await expect(store({ data: null, error: new Error('denied') }, { data: [], error: null }).seenRecords()).rejects.toThrow('denied')
   })
+
+  it('구매 기록은 가구와 기간을 거른 뒤 서버가 첫 페이지를 잘라 보내도 다음 페이지를 읽는다', async () => {
+    const purchasePages = vi.fn((start: number) => Promise.resolve({
+      data: [{ ...tx[0], occurred_on: start ? '2026-10-15' : '2026-10-14' }], count: start === 0 ? 2 : null, error: null,
+    }))
+    const calls: unknown[][] = []
+    const purchases: unknown = new Proxy({}, { get: (_target, key) => key === 'range' ? purchasePages : (...args: unknown[]) => {
+      calls.push([key, ...args])
+      return purchases
+    } })
+    const client = { from: () => purchases, schema: () => ({ from: () => chain({ data: null, error: { message: 'offline' } }) }) } as unknown as SupabaseClient
+    const result = await createSupabaseStore(client, me).purchaseHistory({ from: '2026-10-01', to: '2026-10-31' })
+    expect(result.rows.map((r) => r.date)).toEqual(['2026-10-14', '2026-10-15'])
+    expect(result.capturesAvailable).toBe(false)
+    expect(calls).toEqual(expect.arrayContaining([
+      ['eq', 'household_id', 'h1'], ['eq', 'type', 'expense'], ['gte', 'occurred_on', '2026-10-01'], ['lte', 'occurred_on', '2026-10-31'], ['order', 'id'],
+    ]))
+    expect(purchasePages.mock.calls).toEqual([[0, 499], [1, 500]])
+  })
 })

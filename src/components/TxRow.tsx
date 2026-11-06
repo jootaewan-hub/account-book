@@ -2,6 +2,7 @@ import { won } from '../lib/format'
 import { fuelText } from '../lib/fuel'
 import { SCOPE_LABEL, type Lookup } from '../lib/lookup'
 import { KIND_LABEL } from '../lib/recurring'
+import { confirmedRefundTotal } from '../lib/refunds'
 import type { Scope, Transaction } from '../lib/types'
 import { useItemImages } from '../hooks/useItemImages'
 import { serviceOf } from '../lib/services'
@@ -29,6 +30,8 @@ export function TxRow({ t, lookup, onClick, picked }: { t: Transaction; lookup: 
   const meta = [cat, store, t.fuel ? fuelText(t.fuel) : null, items > 1 ? `품목 ${items}개` : null, one, t.created_by !== lookup.me ? `${lookup.personLabel(t.created_by)} 입력` : null]
     .filter(Boolean).join(', ')
   const lead = thumb || logo
+  const refunded = confirmedRefundTotal(t.refunds)
+  const refundPending = t.refunds?.some((refund) => refund.refunded_on === null)
   // 할부 회차 (저장할 때·자동 입력할 때 메모 앞에 "할부 2/3회"로 적는다). 태그로 보여 주므로 메모 글에서는 뺀다
   const inst = /^할부 (\d+)\/(\d+)회/.exec(t.memo ?? '')
   const memo = (t.memo ?? '').replace(/^할부 \d+\/\d+회,?\s*/, '')
@@ -39,6 +42,8 @@ export function TxRow({ t, lookup, onClick, picked }: { t: Transaction; lookup: 
         <span className="tx-title">{t.title || cat}</span>
         <span className="tx-meta">
           {t.platform && <span className="tag">{t.platform}</span>}
+          {refunded > 0 && <span className="tag">환불 {won(refunded)}원</span>}
+          {refundPending && <span className="tag">환불 대기</span>}
           {inst && <span className="tag">할부 {inst[1]}/{inst[2]}</span>}
           {t.scope !== 'shared' && <span className={`tag ${WHO_TAG[t.scope]}`}>{SCOPE_LABEL[t.scope]}</span>}
           <span className="num">{meta}</span>

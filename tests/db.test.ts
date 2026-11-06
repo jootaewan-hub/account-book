@@ -844,3 +844,41 @@ describe('내역과 품목을 함께 저장', () => {
       .toEqual([{ name: '두유', amount: 1000 }, { name: '우유', amount: 4000 }])
   })
 })
+
+describe('가구 일정·할 일·결제', () => {
+  it('다른 가구는 회차를 건너뛸 수 없고 같은 날을 두 번 빼도 한 번만 남는다', async () => {
+    const [{ id }] = await as<{ id: string }>(A, `insert into public.events(household_id, date, title, repeat_weeks)
+      values ($1, '2026-11-06', '매주 운동', 1) returning id`, [hhA])
+    const skip = (user: string, day: string) => as(user, 'select public.skip_event_occurrence($1,$2)', [id, day])
+    expect(await errorOf(skip(C, '2026-11-13'))).toContain('event_occurrence_missing')
+    expect(await errorOf(skip(A, '2026-11-14'))).toContain('event_occurrence_missing')
+    await skip(B, '2026-11-13')
+    await skip(A, '2026-11-13')
+    expect(await as(B, 'select cardinality(skipped_on) as n, skipped_on[1]::text as day from public.events where id=$1', [id]))
+      .toEqual([{ n: 1, day: '2026-11-13' }])
+  })
+  it('할 일을 완료한 사람을 남기고 다른 가구의 담당자나 조회를 거절한다', async () => {
+    const sql = `insert into public.household_tasks(household_id,title,due_on,assignee_id)
+      values ($1,'예약 확인','2026-11-19',$2) returning id`
+    expect(await errorOf(as(A, sql, [hhA, C]))).toContain('foreign key')
+    const [{ id }] = await as<{ id: string }>(A, sql, [hhA, B])
+    await as(B, "update public.household_tasks set completed_at=now() where id=$1", [id])
+    expect(await as(A, 'select completed_by from public.household_tasks where id=$1', [id])).toEqual([{ completed_by: B }])
+    expect(await as(C, 'select id from public.household_tasks where id=$1', [id])).toEqual([])
+  })
+  it('일정의 결제는 같은 가구 내역만 잇고 원래 결제를 지우면 연결만 풀린다', async () => {
+    const [{ id: event }] = await as<{ id: string }>(A, "insert into public.events(household_id,date,title) values ($1,'2026-11-21','숙소') returning id", [hhA])
+    const tx = (user: string, hh: string) => as<{ id: string }>(user,
+      "insert into public.transactions(household_id,type,occurred_on,amount,title,scope) values ($1,'expense','2026-11-06',20000,'숙소 예약금','shared') returning id", [hh])
+    const [{ id: other }] = await tx(C, hhC)
+    const [{ id: own }] = await tx(A, hhA)
+    const sql = `insert into public.event_payments(household_id,event_id,title,amount,transaction_id,due_on)
+      values ($1,$2,'예약금',20000,$3,'2026-11-20') returning id`
+    expect(await errorOf(as(A, sql, [hhA, event, other]))).toContain('foreign key')
+    const [{ id }] = await as<{ id: string }>(A, sql, [hhA, event, own])
+    expect(await as(C, 'select id from public.event_payments where id=$1', [id])).toEqual([])
+    await as(B, 'delete from public.transactions where id=$1', [own])
+    expect(await as(B, 'select transaction_id,due_on::text from public.event_payments where id=$1', [id]))
+      .toEqual([{ transaction_id: null, due_on: '2026-11-20' }])
+  })
+})

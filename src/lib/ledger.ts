@@ -1,4 +1,5 @@
 import { dayOf } from './dates'
+import { netAmount } from './refunds'
 import type { Transaction, TxType } from './types'
 
 export function sumType(txs: Transaction[], type: TxType, uptoDay?: number): number {
@@ -6,7 +7,7 @@ export function sumType(txs: Transaction[], type: TxType, uptoDay?: number): num
   for (const t of txs) {
     if (t.type !== type) continue
     if (uptoDay !== undefined && dayOf(t.occurred_on) > uptoDay) continue
-    s += t.amount
+    s += netAmount(t)
   }
   return s
 }
@@ -15,7 +16,7 @@ export function dailyTotals(txs: Transaction[]): Map<string, { expense: number; 
   const map = new Map<string, { expense: number; income: number }>()
   for (const t of txs) {
     const cur = map.get(t.occurred_on) ?? { expense: 0, income: 0 }
-    cur[t.type] += t.amount
+    cur[t.type] += netAmount(t)
     map.set(t.occurred_on, cur)
   }
   return map

@@ -17,6 +17,7 @@ import { ItemEditor } from './ItemEditor'
 import { PackInput } from './PackInput'
 import { PhotoViewer } from './PhotoViewer'
 import { PlatformInput } from './PlatformInput'
+import { RefundSection } from './RefundSection'
 import { Sheet } from './Sheet'
 import { defaultScope, lsSet } from '../lib/localPrefs'
 
@@ -34,6 +35,7 @@ interface Props {
   onDelete: (id: string) => Promise<void>
   /** 같은 영수증에서 나눠 저장한 내역을 한꺼번에 지운다(D-027) */
   onDeleteMany?: (ids: string[]) => Promise<void>
+  onRefundChanged?: () => void
   onClose: () => void
   /** 문자 붙여넣기·사진·쇼핑 캡처 입력으로 전환 */
   onSmart?: (mode: 'text' | 'photo' | 'shop' | 'bill') => void
@@ -50,7 +52,7 @@ const isProduct = (it: EditItem) => it.amount > 0 && !/^배송비/.test(it.name.
 
 const KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '00', '0', '⌫']
 
-export function EntrySheet({ open, editing, defaultDate, today, lookup, categories, usage, onSave, onDelete, onDeleteMany, onClose, onSmart }: Props) {
+export function EntrySheet({ open, editing, defaultDate, today, lookup, categories, usage, onSave, onDelete, onDeleteMany, onRefundChanged, onClose, onSmart }: Props) {
   const [type, setType] = useState<TxType>('expense')
   const [amount, setAmount] = useState('')
   const [categoryId, setCategoryId] = useState<string | null>(null)
@@ -266,7 +268,13 @@ export function EntrySheet({ open, editing, defaultDate, today, lookup, categori
   const onKeyRef = useRef<(e: KeyboardEvent) => void>(() => {})
   onKeyRef.current = (e) => {
     if (busy) return
-    if (isSaveShortcut(e)) { e.preventDefault(); void save(); return }
+    if (isSaveShortcut(e)) {
+      e.preventDefault()
+      const form = (e.target as HTMLElement | null)?.closest?.('form')
+      if (form) form.requestSubmit()
+      else void save()
+      return
+    }
     if (isTextField(e.target as HTMLElement | null)) return
     const k = keypadKey(e)
     if (k) { e.preventDefault(); press(k) }
@@ -434,6 +442,9 @@ export function EntrySheet({ open, editing, defaultDate, today, lookup, categori
               <span className="lbl">주유</span>
               <p className="tx-meta fuel-readonly num">{fuelText(editing.fuel)}. 리터·단가를 고치려면 이 내역을 지우고 영수증을 다시 찍어요.</p>
             </div>
+          )}
+          {open && editing?.type === 'expense' && !editing.planned && onRefundChanged && (
+            <RefundSection key={editing.id} transaction={editing} today={today} onChanged={onRefundChanged} />
           )}
           <p className="err" role="alert">{err}</p>
           <button className="primary" onClick={save} disabled={busy}>{busy ? '저장 중…' : n ? `${won(n)}원 저장하기` : '저장하기'}</button>

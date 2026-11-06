@@ -219,6 +219,23 @@ main.wrap { padding-block: 4px calc(150px + var(--record-dock-h) + env(safe-area
 .day-adds { display: grid; grid-template-columns: repeat(auto-fit, minmax(0, 1fr)); gap: 8px; }
 .day-adds .ghost { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-width: 0; padding: 10px 8px; }
 .day-adds .ghost svg { width: 16px; height: 16px; flex: none; }
+.day-adds:has(.day-task-button) { grid-template-columns: repeat(2, minmax(0, 1fr)) auto; }
+.day-adds .day-task-button { white-space: nowrap; }
+.household-tasks-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 44px; }
+.household-tasks-head .section-title { margin: 0; }
+.household-task-list { list-style: none; margin: 0; padding: 0; }
+.household-task-list li { display: flex; align-items: center; gap: 10px; border-top: 1px solid var(--line); padding-inline: 4px; }
+.household-task-list input[type="checkbox"] { width: 20px; height: 20px; margin: 0; accent-color: var(--sage); flex: none; }
+.household-task-list li:has(input:checked) .household-task-row strong { text-decoration: line-through; }
+.household-task-row { flex: 1; display: flex; flex-direction: column; gap: 4px; justify-content: center; align-items: start; min-height: 48px; padding: 6px 0; border: 0; background: transparent; text-align: left; overflow-wrap: anywhere; }
+.household-task-row > span { font-size: 13px; color: var(--ink-2); }
+.household-tasks-actions { display: flex; align-items: center; gap: 12px; }
+.household-tasks-actions:empty { display: none; }
+.household-tasks-actions button, .household-tasks-head button { min-height: 44px; }
+.event-payments { margin-top: 20px; border-top: 1px solid var(--line); padding-top: 8px; }
+.plan-payments-jump { display: block; min-height: 44px; margin-left: auto; }
+.event-payment-form, .event-payment-picker { padding: 12px; border-radius: var(--r-sm); background: var(--oat); }
+.event-payment-picker .household-task-row { width: 100%; border-bottom: 1px solid var(--line); }
 /* 일정·기념일 줄(D-055): 고른 날 면과 다가오는 목록이 함께 쓴다. 줄마다 색 면을 두지 않고 그림 칸·이름·태그·오른쪽 글·D-day를 줄 맞춰 놓고
    줄 사이는 짙은 귀리 선 하나. 중요·꼭은 이름만 달력 칸 이름 모양(세이지 면 + 고른 효과)으로 */
 .ag-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }

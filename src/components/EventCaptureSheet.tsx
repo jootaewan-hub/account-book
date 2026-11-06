@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
-import { deleteEvents, fetchEvents, friendlyError, insertEvents } from '../lib/api'
+import { deleteEvent, deleteEvents, fetchEvents, friendlyError, insertEvents, updateEvent } from '../lib/api'
 import { formatDateLong } from '../lib/dates'
-import { analyzeEvents, analyzeEventText, canAutoSave, EVENT_PHOTOS_MAX, eventDateRange, eventInput, toEventDrafts, type EventDraft } from '../lib/eventCapture'
+import { analyzeEvents, analyzeEventText, canAutoSave, EVENT_PHOTOS_MAX, eventDateRange, eventInput, eventRevision, toEventDrafts, type EventDraft } from '../lib/eventCapture'
 import { fileToJpeg, type PreparedImage } from '../lib/image'
 import { modelLabel, SmartError } from '../lib/smart'
-import type { EventInput } from '../lib/types'
-import { EventScopeSeg } from './EventScope'
+import type { CalEvent, EventInput } from '../lib/types'
+import { eventScopeLabel, EventScopeSeg, EventScopeTag } from './EventScope'
 import { CloseBold } from './Icons'
 import { PlaceFields } from './PlaceFields'
 import { Sheet } from './Sheet'
@@ -16,6 +16,7 @@ interface Props {
   householdId: string
   /** 넣은 뒤: 넣은 건수와 가장 이른 날짜(달력을 그 날로 옮긴다) */
   onSaved: (count: number, firstDate: string) => Promise<void>
+  onRevised?: (notice: 'change' | 'cancel', date: string) => Promise<void>
   /** 직접 넣기로 바꾸기: 일정 넣기 시트를 연다 */
   onManual: () => void
   onClose: () => void
@@ -32,7 +33,7 @@ const TEXT_SAMPLE = '[○○학회] 2026 추계 심포지엄 안내\n일시: 11�
  * 일정·예약 캡처나 문자를 읽어 달력 일정으로 넣는 시트(D-039, D-046). 캡처는 넣기 전에 확인하고,
  * 문자는 확인할 것이 없으면 바로 넣는다(확인 문장·같은 일정이 있으면 확인 화면).
  */
-export function EventCaptureSheet({ open, today, householdId, onSaved, onManual, onClose }: Props) {
+export function EventCaptureSheet({ open, today, householdId, onSaved, onRevised, onManual, onClose }: Props) {
   const [stage, setStage] = useState<Stage>('input')
   const [src, setSrc] = useState<Src>('photo')
   const [text, setText] = useState('')
@@ -40,6 +41,7 @@ export function EventCaptureSheet({ open, today, householdId, onSaved, onManual,
   const [saved, setSaved] = useState<{ ids: string[]; list: EventInput[] } | null>(null)
   const [images, setImages] = useState<PreparedImage[]>([])
   const [drafts, setDrafts] = useState<EventDraft[]>([])
+  const [revised, setRevised] = useState<Record<string, string>>({})
   const [note, setNote] = useState<string | null>(null)
   const [model, setModel] = useState<string | null>(null)
   const [err, setErr] = useState('')
@@ -54,7 +56,7 @@ export function EventCaptureSheet({ open, today, householdId, onSaved, onManual,
   useEffect(() => {
     reqRef.current++
     if (!open) return
-    setStage('input'); setDrafts([]); setNote(null); setModel(null); setErr(''); setBusy(false); setPreparing(false); setText(''); setSaved(null)
+    setStage('input'); setDrafts([]); setRevised({}); setNote(null); setModel(null); setErr(''); setBusy(false); setPreparing(false); setText(''); setSaved(null)
     setImages((prev) => { prev.forEach((i) => URL.revokeObjectURL(i.preview)); return [] })
   }, [open])
 
@@ -103,12 +105,16 @@ export function EventCaptureSheet({ open, today, householdId, onSaved, onManual,
         : await analyzeEvents(images.map(({ media_type, data, width, height }) => ({ media_type, data, width, height })), today)
       if (id !== reqRef.current) return
       if (!res.events.length) { setErr(res.note || (src === 'text' ? '문자에서 일정을 찾지 못했어요.' : '캡처에서 일정을 찾지 못했어요.')); setStage('input'); return }
-      // 이미 달력에 있는 일정과 견준다. 못 읽어도 넣기는 그대로 된다
-      const range = eventDateRange(res.events)
-      const existing = range ? await fetchEvents(householdId, range.from, range.to).catch(() => []) : []
+      // 기존 일정은 변경·취소를 적용할 때 꼭 필요하다.
+      const hasRevision = res.events.some((e) => e.notice === 'change' || e.notice === 'cancel')
+      const range = eventDateRange(res.events, today)
+      const existing = range ? await fetchEvents(householdId, range.from, range.to).catch((e: unknown) => {
+        if (hasRevision) throw e
+        return []
+      }) : []
       if (id !== reqRef.current) return
       const ds = toEventDrafts(res.events, existing)
-      setDrafts(ds); setRound(id); setModel(modelLabel(res.model))
+      setDrafts(ds); setRevised({}); setRound(id); setModel(modelLabel(res.model))
       // 문자는 확인할 것이 없고 원문과 맞으면(날짜가 원문에 있음, 인터넷 주소 없음) 바로 넣고, 넣은 것을 보이며 되돌리기를 둔다
       if (src === 'text' && canAutoSave(ds, res.note, text)) {
         const list = ds.map((d) => eventInput(d) as EventInput)
@@ -118,7 +124,7 @@ export function EventCaptureSheet({ open, today, householdId, onSaved, onManual,
         setSaved({ ids, list }); setNote(null); setStage('done')
         return
       }
-      setNote([src === 'text' ? '확인할 것이 있어 바로 넣지 않았어요. 고칠 것을 고친 뒤 넣어 주세요.' : null, res.note].filter(Boolean).join('\n') || null)
+      setNote([src === 'text' && !hasRevision ? '확인할 것이 있어 바로 넣지 않았어요. 고칠 것을 고친 뒤 넣어 주세요.' : null, res.note].filter(Boolean).join('\n') || null)
       setStage('review')
     } catch (e) {
       if (id !== reqRef.current) return
@@ -147,7 +153,26 @@ export function EventCaptureSheet({ open, today, householdId, onSaved, onManual,
   }
 
   const patch = (key: string, p: Partial<EventDraft>) => setDrafts((ds) => ds.map((d) => (d.key === key ? { ...d, ...p } : d)))
-  const chosen = drafts.filter((d) => d.include)
+  const chosen = drafts.filter((d) => !d.revision && d.include)
+
+  async function revise(d: EventDraft, existing: CalEvent) {
+    if (busy || !d.revision || Object.values(revised).includes(existing.id)) return
+    const { notice } = d.revision
+    const change = eventRevision(d, existing)
+    if (notice === 'change' && !change) return
+    const request = reqRef.current
+    setBusy(true); setErr('')
+    try {
+      if (notice === 'cancel') await deleteEvent(existing.id, existing.updated_at ?? null)
+      else if (change) await updateEvent(existing.id, change, existing.updated_at ?? null)
+      if (request === reqRef.current) setRevised((prev) => ({ ...prev, [d.key]: existing.id }))
+      await onRevised?.(notice, notice === 'change' && change ? change.date : existing.date)
+    } catch (e) {
+      if (request === reqRef.current) setErr(friendlyError(e))
+    } finally {
+      if (request === reqRef.current) setBusy(false)
+    }
+  }
 
   async function save() {
     const list: EventInput[] = []
@@ -168,7 +193,8 @@ export function EventCaptureSheet({ open, today, householdId, onSaved, onManual,
   }
 
   return (
-    <Sheet open={open} title="캡처·문자로 일정 넣기" onClose={stage === 'done' ? () => void finish() : onClose}>
+    <Sheet open={open} title={stage === 'review' && drafts.every((d) => d.revision) ? '예약 변경·취소 확인' : '캡처·문자로 일정 넣기'}
+      onClose={stage === 'done' ? () => void finish() : onClose}>
       {stage === 'done' && saved && (
         <div className="ev-done">
           <p className="lead" role="status">일정 {saved.list.length}건을 넣었어요</p>
@@ -255,18 +281,87 @@ export function EventCaptureSheet({ open, today, householdId, onSaved, onManual,
       {stage === 'review' && (
         <>
           {note && <p className="note">{note}</p>}
-          {drafts.map((d) => <EventDraftCard key={`${round}:${d.key}`} d={d} onChange={(p) => patch(d.key, p)} />)}
+          {drafts.map((d) => d.revision
+            ? <EventRevisionCard key={`${round}:${d.key}`} d={d} revision={d.revision} busy={busy}
+                revised={revised} onConfirm={(event) => void revise(d, event)} />
+            : <EventDraftCard key={`${round}:${d.key}`} d={d} onChange={(p) => patch(d.key, p)} />)}
           <p className="err" role="alert">{err}</p>
-          <button className="primary" disabled={busy || !chosen.length} onClick={() => void save()}>
+          {drafts.some((d) => !d.revision) && <button className="primary" disabled={busy || !chosen.length} onClick={() => void save()}>
             {busy ? '넣는 중…' : chosen.length ? `일정 ${chosen.length}건 넣기` : '넣을 일정을 고르세요'}
-          </button>
+          </button>}
           <button className="ghost" disabled={busy} onClick={() => { setStage('input'); setErr('') }}>다시 하기</button>
           {model && <p className="tx-meta">{model}로 읽었어요</p>}
         </>
       )}
 
-      {stage !== 'loading' && stage !== 'done' && <button className="link-btn" onClick={onManual}>직접 넣기로 바꾸기</button>}
+      {stage !== 'loading' && stage !== 'done' && (stage !== 'review' || drafts.some((d) => !d.revision))
+        && <button className="link-btn" disabled={busy} onClick={onManual}>직접 넣기로 바꾸기</button>}
     </Sheet>
+  )
+}
+
+function eventWhen(e: Pick<CalEvent, 'date' | 'time' | 'end_on'>): string {
+  const date = (d: string) => `${d.slice(0, 4)}년 ${formatDateLong(d)}`
+  const range = e.end_on && e.end_on !== e.date ? ` ~ ${date(e.end_on)}` : ''
+  return `${date(e.date)}${e.time ? ` ${e.time}` : ' 하루 종일'}${range}`
+}
+
+function EventRevisionCard({ d, revision, busy, revised, onConfirm }: {
+  d: EventDraft
+  revision: NonNullable<EventDraft['revision']>
+  busy: boolean
+  revised: Record<string, string>
+  onConfirm: (event: CalEvent) => void
+}) {
+  const [selectedId, setSelectedId] = useState('')
+  const available = revision.candidates.filter((event) => !Object.values(revised).includes(event.id))
+  const selected = available.find((event) => event.id === selectedId)
+  const change = selected ? eventRevision(d, selected) : null
+  const cancel = revision.notice === 'cancel'
+  const label = cancel ? '취소' : '변경'
+  const applied = Boolean(revised[d.key])
+  return (
+    <section className="card draft ev-draft">
+      <h3 className="lead">{label} 안내 · {d.title}</h3>
+      {applied ? <p className="note" role="status">{cancel ? '일정을 지웠어요.' : '일정을 바꿨어요.'}</p> : <>
+        {d.warnings.filter((w) => !w.startsWith(`${label} 안내로 보여요`)).map((w) => <p key={w} className="banner">{w}</p>)}
+        {(d.date || d.time) && <p className="note">
+          {cancel ? '취소된 예약' : '안내에 적힌 새 일정'} · {d.date && formatDateLong(d.date)} {d.time}
+        </p>}
+        {available.length === 0 ? <p className="note">맞는 기존 일정을 찾지 못했어요.</p> : <>
+          <div className="field">
+            <label htmlFor={`ec-${d.key}-original`}>기존 일정 선택</label>
+            <select id={`ec-${d.key}-original`} className="input" disabled={busy} value={selected?.id ?? ''}
+              onChange={(e) => setSelectedId(e.target.value)}>
+              <option value="">달력에서 일정 고르기</option>
+              {available.map((e) => <option key={e.id} value={e.id}>{eventWhen(e)} · {e.scope !== 'shared' && `${eventScopeLabel(e.scope)} · `}{e.title}</option>)}
+            </select>
+          </div>
+          {selected && <>
+            <div className="field">
+              <b>{selected.title} <EventScopeTag scope={selected.scope} /></b>
+              {(selected.place || selected.address) && <span>{selected.place || selected.address}</span>}
+              {selected.memo && <span>{selected.memo}</span>}
+            </div>
+            <div className="row2">
+              <div className="field">
+                <b>{label} 전</b>
+                <span className="num">{eventWhen(selected)}</span>
+              </div>
+              <div className="field">
+                <b>{label} 후</b>
+                {cancel ? <span>달력에서 이 일정을 지워요.</span> : change
+                  ? <span className="num">{eventWhen({ ...selected, ...change })}</span>
+                  : <span>바꿀 날짜나 시간이 없어요.</span>}
+              </div>
+            </div>
+          </>}
+          <button className="primary" disabled={busy || !selected || (!cancel && !change)} onClick={() => selected && onConfirm(selected)}>
+            {cancel ? '확인하고 일정 지우기' : '확인하고 일정 바꾸기'}
+          </button>
+        </>}
+      </>}
+    </section>
   )
 }
 

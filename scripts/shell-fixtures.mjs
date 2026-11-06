@@ -416,6 +416,20 @@ export const EVENT_CAPTURE = {
 }
 // 그 달에 이미 넣어 둔 일정(가구 칸 없이: 가짜 응답의 같음 조건을 그대로 통과한다)
 export const EVENT_EXISTING = [{ id: 'ev-dentist', date: `${ym}-27`, time: '10:00', title: '연세밝은치과', memo: null, place: null, address: null, lat: null, lng: null, scope: 'shared' }]
+export const EVENT_REVISION_EXISTING = [{ ...EVENT_CAPTURE.events[0], id: 'ev-dinner', scope: 'shared', updated_at: `${ym}-20T03:30:00Z` }]
+export const EVENT_REVISION = {
+  model: EVENT_CAPTURE.model,
+  note: null,
+  events: [{
+    ...EVENT_CAPTURE.events[0], notice: 'change', previousDate: `${ym}-24`, previousTime: '18:30', bookingNo: 'A1234',
+    date: `${ym}-26`, time: '19:00',
+  }],
+}
+export const EVENT_CANCEL = {
+  model: EVENT_CAPTURE.model,
+  note: null,
+  events: [{ ...EVENT_CAPTURE.events[0], notice: 'cancel', bookingNo: 'A1234' }],
+}
 // 오늘 일정(D-041): 좌표가 있는 장소(길찾기), 주소만 있는 장소(지도 검색), 장소 없는 일정
 const today = kst.toISOString().slice(0, 10)
 export const EVENT_PLACES = [
@@ -443,6 +457,17 @@ export const EVENT_RANGE = [
 export const MONTHS_TO_NOV = (11 - Number(ym.slice(5, 7)) + 12) % 12
 /** 가족 여행 가운데 날(여행·건강검진이 겹친다)의 날짜 숫자 */
 export const EVENT_RANGE_DAY = Number(plus(3).slice(8, 10))
+export const EVENT_WEEKLY = [evr('ev-weekly', '저녁 운동', plus(-14), { time: '19:00', repeat_weeks: 1, repeat_until: plus(45), skipped_on: [plus(-7)] })]
+export const HOUSEHOLD_TASKS = [
+  { id: 'task-laundry', household_id: HH, title: '세탁물 찾기', due_on: plus(2), assignee_id: ME, completed_at: null, completed_by: null, updated_at: ago(20) },
+  { id: 'task-gift', household_id: HH, title: '부모님 선물 주문', due_on: plus(6), assignee_id: YOU, completed_at: null, completed_by: null, updated_at: ago(15) },
+  { id: 'task-fuel', household_id: HH, title: '차량 정비 예약', due_on: plus(-1), assignee_id: null, completed_at: ago(60), completed_by: YOU, updated_at: ago(60) },
+]
+export const EVENT_PAYMENTS = [
+  { id: 'ep1', household_id: HH, event_id: 'ev-buffet', title: '예약금', amount: 6500, due_on: today, transaction_id: 't3',
+    transaction: { id: 't3', occurred_on: today, amount: 6500, title: '뷔페 예약금' }, updated_at: ago(30) },
+  { id: 'ep2', household_id: HH, event_id: 'ev-buffet', title: '잔금', amount: 90000, due_on: plus(2), transaction_id: null, transaction: null, updated_at: ago(30) },
+]
 export const EVENT_RANGE_MONTH = plus(3).slice(0, 7) === today.slice(0, 7)
 
 // 문자 붙여넣기 응답(가짜, D-046): 열흘 뒤 심포지엄 하나. 붙여넣은 글(EVENT_TEXT_PASTE)에 같은 날짜가 있어 바로 넣는다

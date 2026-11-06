@@ -54,7 +54,7 @@ export function StatsView({ household, ym, today, cur, prev, planTotals, loading
 
   useEffect(() => { setSel(ym); setOpenCat(undefined) }, [ym])
 
-  // 달이 바뀔 때만: 작년 같은 달과 지난 넉 달
+  // 작년 같은 달과 지난 넉 달. 이전 결제에 환불이 추가될 수도 있어 내역 변경 시에도 다시 읽는다.
   useEffect(() => {
     let alive = true
     const ly = addMonths(ym, -12)
@@ -64,7 +64,8 @@ export function StatsView({ household, ym, today, cur, prev, planTotals, loading
     ]).then(([l, o]) => { if (alive) { setLastYear(l); setOlder(o); setErr('') } })
       .catch((e) => { if (alive) setErr(friendlyError(e)) })
     return () => { alive = false }
-  }, [household.id, ym])
+    // eslint-disable-next-line react/exhaustive-effect-dependencies -- txVersion은 내역을 다시 읽었다는 신호
+  }, [household.id, ym, txVersion])
 
   // 내역이 바뀔 때마다(txVersion): 12개월 합계 (서버에서 더하는 가벼운 호출)
   useEffect(() => {

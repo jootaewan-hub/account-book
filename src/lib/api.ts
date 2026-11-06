@@ -4,6 +4,7 @@ import { removeItemImages } from './itemImages'
 import { removeUnusedReceiptImages } from './receiptImages'
 import { utilityItemForBill } from './bills'
 import { installmentPlan } from './recurring'
+import { normalizeRefunds, REFUND_COLUMNS, type TransactionRefundRow } from './refunds'
 import { sb } from './supabase'
 import { readAllPages } from '../../supabase/functions/_shared/pagination'
 import type {
@@ -15,13 +16,15 @@ const TX_COLUMNS =
   'id, household_id, type, occurred_on, amount, title, memo, category_id, payment_method_id, scope, source, created_by, created_at, recurring_id, recurring_month, platform, merchant, receipt_path'
 const ITEM_COLUMNS = 'id, name, quantity, unit_price, amount, pack_size, pack_unit, image_path, sort'
 // 주유 기록(fuel_fills)은 내역 하나에 하나라 함께 읽는다
-const TX_WITH_ITEMS = `${TX_COLUMNS}, transaction_items(${ITEM_COLUMNS}), fuel_fills(liters, price_per_liter, fuel_type)`
+const TX_REFUNDS = `transaction_refunds(${REFUND_COLUMNS})`
+const TX_WITH_ITEMS = `${TX_COLUMNS}, transaction_items(${ITEM_COLUMNS}), fuel_fills(liters, price_per_liter, fuel_type), ${TX_REFUNDS}`
 // 품목 줄이 있는 내역만 (장보기 비교용 과거 기록)
 const TX_WITH_ITEMS_ONLY = `${TX_COLUMNS}, transaction_items!inner(${ITEM_COLUMNS}), fuel_fills(liters, price_per_liter, fuel_type)`
 
 type Num = number | string
 type FuelRow = { liters: Num; price_per_liter: Num; fuel_type: string | null }
-type TxRowWithItems = Omit<Transaction, 'items' | 'fuel'> & {
+type TxRow = Omit<Transaction, 'refunds'> & { transaction_refunds?: TransactionRefundRow[] }
+type TxRowWithItems = Omit<TxRow, 'items' | 'fuel'> & {
   transaction_items?: {
     id: string; name: string; quantity: Num; unit_price: Num | null; amount: Num
     pack_size: Num | null; pack_unit: string | null; image_path: string | null; sort: number
@@ -43,7 +46,11 @@ function withItems(r: TxRowWithItems): Transaction {
   const items = (raw ?? []).map((i) => ({
     ...i, quantity: Number(i.quantity), unit_price: numOrNull(i.unit_price), amount: Number(i.amount), pack_size: numOrNull(i.pack_size),
   })).sort((a, b) => a.sort - b.sort)
-  return { ...t, amount: Number(t.amount), items, fuel: fuelOf(fuelRaw) }
+  return { ...withRefunds(t), items, fuel: fuelOf(fuelRaw) }
+}
+
+function withRefunds({ transaction_refunds, ...row }: TxRow): Transaction {
+  return { ...row, amount: Number(row.amount), refunds: normalizeRefunds(transaction_refunds) }
 }
 
 function check<T>(res: { data: T | null; error: { message: string } | null }): T {
@@ -70,7 +77,7 @@ export async function fetchHouseholdBundle(): Promise<{
   return { household, members: check(members), methods: check(methods), categories: check(categories), anniversaries: check(anniversaries) }
 }
 
-const ANNIV_COLUMNS = 'id, household_id, name, kind, category, lunar, month, day, repeat_unit, repeat_every, start_year'
+const ANNIV_COLUMNS = 'id, household_id, name, kind, category, lunar, month, day, repeat_unit, repeat_every, start_year, reminder_offset_minutes, reminder_recipient'
 
 export async function insertAnniversary(householdId: string, a: AnniversaryInput): Promise<void> {
   check(await sb().from('anniversaries').insert({ ...a, household_id: householdId }))
@@ -89,10 +96,17 @@ export async function deleteAnniversary(id: string): Promise<void> {
  * 기간 일정(D-054)은 앞 달에 시작해 이 기간에 끝나는 것도 들어온다: 시작이 to 이전이고, 시작이나 끝이 from 이후
  */
 export async function fetchEvents(householdId: string, from: string, to: string): Promise<CalEvent[]> {
-  const rows = check(await sb().from('events').select('id, household_id, date, end_on, time, title, memo, place, address, lat, lng, scope, priority, effect')
-    .eq('household_id', householdId).lte('date', to).or(`date.gte.${from},end_on.gte.${from}`)
-    .order('date').order('time', { nullsFirst: true })) as CalEvent[]
+  const rows = await readAllPages<CalEvent>((start, end) => sb().from('events')
+    .select('id, household_id, updated_at, date, end_on, time, title, memo, place, address, lat, lng, scope, priority, effect, repeat_weeks, repeat_until, skipped_on, reminder_offset_minutes, reminder_recipient',
+      { count: start === 0 ? 'exact' : undefined })
+    .eq('household_id', householdId).lte('date', to)
+    .or(`date.gte.${from},end_on.gte.${from},and(repeat_weeks.not.is.null,or(repeat_until.is.null,repeat_until.gte.${from}))`)
+    .order('date').order('time', { nullsFirst: true }).order('id').range(start, end))
   return rows.map((e) => ({ ...e, time: e.time ? e.time.slice(0, 5) : null }))
+}
+
+export async function skipEventOccurrence(id: string, date: string): Promise<void> {
+  check(await sb().rpc('skip_event_occurrence', { p_id: id, p_date: date }))
 }
 
 export async function insertEvent(householdId: string, e: EventInput): Promise<void> {
@@ -112,12 +126,19 @@ export async function deleteEvents(ids: string[]): Promise<void> {
   check(await sb().from('events').delete().in('id', ids))
 }
 
-export async function updateEvent(id: string, e: EventInput): Promise<void> {
-  check(await sb().from('events').update(e).eq('id', id))
+const EVENT_CHANGED = '달력 일정이 달라졌어요. 다시 읽어 주세요.'
+
+/** 캡처 확인 화면에서 본 일정이 그 사이 달라졌으면 다시 읽게 한다. */
+export async function updateEvent(id: string, e: Partial<EventInput>, expectedUpdatedAt?: string | null): Promise<void> {
+  const query = sb().from('events').update(e).eq('id', id)
+  if (expectedUpdatedAt === undefined) { check(await query); return }
+  if (!expectedUpdatedAt || !check(await query.eq('updated_at', expectedUpdatedAt).select('id')).length) throw new Error(EVENT_CHANGED)
 }
 
-export async function deleteEvent(id: string): Promise<void> {
-  check(await sb().from('events').delete().eq('id', id))
+export async function deleteEvent(id: string, expectedUpdatedAt?: string | null): Promise<void> {
+  const query = sb().from('events').delete().eq('id', id)
+  if (expectedUpdatedAt === undefined) { check(await query); return }
+  if (!expectedUpdatedAt || !check(await query.eq('updated_at', expectedUpdatedAt).select('id')).length) throw new Error(EVENT_CHANGED)
 }
 
 /** 보고 있는 달과 그 전달의 내역 (전월 비교용) */
@@ -139,6 +160,12 @@ export async function fetchRangeWithItems(householdId: string, start: string, en
       .order('id', { ascending: false }).range(from, to),
   )
   return rows.map(withItems)
+}
+
+export async function fetchTransactionWithItems(householdId: string, id: string): Promise<Transaction | null> {
+  const row = check(await sb().from('transactions').select(`${TX_WITH_ITEMS}, save_batch, occurred_at, updated_at`)
+    .eq('household_id', householdId).eq('id', id).maybeSingle()) as TxRowWithItems | null
+  return row && withItems(row)
 }
 
 /** prefix: 할부 회차처럼 앱이 앞에 붙이는 메모. 사용자가 적은 메모(input.memo)는 그 뒤에 잇는다 */
@@ -285,25 +312,26 @@ export async function setCategoryArchived(id: string, archived: boolean): Promis
 
 /** 기간 내역 (통계·내보내기·구독 찾기) */
 export async function fetchRange(householdId: string, from: string, to: string): Promise<Transaction[]> {
-  const rows = await readAllPages<Transaction>((start, end) =>
-    sb().from('transactions').select(TX_COLUMNS, { count: start === 0 ? 'exact' : undefined }).eq('household_id', householdId)
+  const rows = await readAllPages<TxRow>((start, end) =>
+    sb().from('transactions').select(`${TX_COLUMNS}, ${TX_REFUNDS}`, { count: start === 0 ? 'exact' : undefined }).eq('household_id', householdId)
       .gte('occurred_on', from).lte('occurred_on', to)
       .order('occurred_on', { ascending: true }).order('created_at', { ascending: true }).order('id', { ascending: true }).range(start, end),
   )
-  return rows.map((r) => ({ ...r, amount: Number(r.amount) }))
+  return rows.map(withRefunds)
 }
 
 type ExportTransaction = Pick<TxRowWithItems,
   'occurred_on' | 'type' | 'amount' | 'title' | 'platform' | 'memo' | 'scope' | 'source' | 'created_by' | 'category_id'> & {
   occurred_at: string | null
   transaction_items: Omit<NonNullable<TxRowWithItems['transaction_items']>[number], 'id' | 'image_path'>[]
+  transaction_refunds?: TransactionRefundRow[]
 }
 
 /** CSV 다운로드용 전체 내역. 기간·가구 필터를 모든 페이지에 적용한다. */
 export async function fetchExportTransactions(householdId: string, from?: string, to?: string): Promise<ExportTransaction[]> {
   return readAllPages<ExportTransaction>((start, end) => {
     let q = sb().from('transactions')
-      .select('id, occurred_on, occurred_at, created_at, type, amount, title, platform, memo, scope, source, created_by, category_id, transaction_items(name, quantity, unit_price, amount, pack_size, pack_unit, sort)', { count: start === 0 ? 'exact' : undefined })
+      .select(`id, occurred_on, occurred_at, created_at, type, amount, title, platform, memo, scope, source, created_by, category_id, transaction_items(name, quantity, unit_price, amount, pack_size, pack_unit, sort), ${TX_REFUNDS}`, { count: start === 0 ? 'exact' : undefined })
       .eq('household_id', householdId)
     if (from) q = q.gte('occurred_on', from)
     if (to) q = q.lte('occurred_on', to)

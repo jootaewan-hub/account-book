@@ -9,6 +9,8 @@ import { existsSync, mkdirSync, readFileSync } from 'node:fs'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { chromium } from 'playwright'
 import { BILL, EVENT_CAPTURE, EVENT_EXISTING, EVENT_PLACES, EVENT_RANGE, EVENT_RANGE_DAY, EVENT_TEXT, EVENT_TEXT_PASTE, EXPLORE_BUNJANG, EXPLORE_DAANGN, EXPLORE_DAISO, EXPLORE_KURLY, EXPLORE_OHOU, EXPLORE_PRODUCT, EXPLORE_SEARCH, EXPLORE_WEATHER, EXPLORE_WEATHER_NOT_REGISTERED, fakeSession, FUEL_RECEIPT, LONG_RECEIPT, MONTHS_TO_NOV, RECEIPT, RECEIPT_IMAGE, TABLES, USER } from './shell-fixtures.mjs'
+import { EVENT_CANCEL, EVENT_REVISION, EVENT_REVISION_EXISTING } from './shell-fixtures.mjs'
+import { EVENT_PAYMENTS, EVENT_WEEKLY, HOUSEHOLD_TASKS } from './shell-fixtures.mjs'
 
 const BASE = process.env.BASE_URL ?? 'http://localhost:5188' // vite.config.ts server.port와 같다
 const OUT = process.env.OUT_DIR ? pathToFileURL(`${process.env.OUT_DIR.replace(/\/$/, '')}/`) : new URL('../screenshots/', import.meta.url)
@@ -161,6 +163,7 @@ const shellShots = [
   ...both(390, (w, c) => ({ name: `shell-grocery-removed-${w}-${c}`, path: '/', w, c, shell: true, tab: '장보기', remove: '삼겹살 600g' })),
   ...each((w, c) => ({ name: `shell-grocery-add-sheet-${w}-${c}`, path: '/', w, c, shell: true, tab: '장보기', sheet: SHEET_TEXT })),
   ...each((w, c) => ({ name: `shell-grocery-frequent-${w}-${c}`, path: '/', w, c, shell: true, tab: '장보기', sheet: '', frequent: true })),
+  ...each((w, c) => ({ name: `shell-grocery-history-${w}-${c}`, path: '/', w, c, shell: true, tab: '장보기', purchaseHistory: true })),
   // 셸 안 품목 상세: 가짜 데이터에 고른 상품·가격 줄이 있어 내용까지 보인다(P8). 다른 탭 내용은 grocery-item-detail-*(장보기 데모)에서 본다
   ...each((w, c) => ({ name: `shell-grocery-detail-${w}-${c}`, path: '/', w, c, shell: true, tab: '장보기', detail: '비비고 왕교자' })),
   ...each((w, c) => ({ name: `shell-entry-sheet-${w}-${c}`, path: '/', w, c, shell: true, tab: '내역', record: true })),
@@ -188,6 +191,7 @@ const shellShots = [
   ...each((w, c) => ({ name: `shell-list-search-${w}-${c}`, path: '/', w, c, shell: true, tab: '내역', listSearch: true })),
   ...each((w, c) => ({ name: `shell-list-pick-${w}-${c}`, path: '/', w, c, shell: true, tab: '내역', listPick: { day: 1, row: '스타벅스' } })),
   ...both(390, (w, c) => ({ name: `shell-list-pick-confirm-${w}-${c}`, path: '/', w, c, shell: true, tab: '내역', listPick: { day: 1, row: '스타벅스', confirm: true } })),
+  ...each((w, c) => ({ name: `shell-entry-refund-${w}-${c}`, path: '/', w, c, shell: true, tab: '내역', refund: true })),
   // 나눠 저장한 내역의 수정 시트: 같은 영수증 내역 목록과 '4건 모두 삭제'
   ...each((w, c) => ({ name: `shell-entry-batch-${w}-${c}`, path: '/', w, c, shell: true, tab: '내역', batch: '샘표 진간장' })),
   // 저장된 내역의 품목 줄 고치기(D-052): 수정 시트에서 첫 줄의 고치기를 누른 상태
@@ -221,6 +225,7 @@ const shellShots = [
   ...each((w, c) => ({ name: `shell-cal-soon-list-${w}-${c}`, path: '/', w, c, shell: true, tab: '달력', center: '.soon-card' })),
   // 기념일 넣기(D-033): 카테고리 칩, 반복 네 가지 중 '몇 년마다'와 숫자 칸, 시작한 해
   ...each((w, c) => ({ name: `shell-anniv-form-${w}-${c}`, path: '/', w, c, shell: true, tab: '설정', presses: ['기념일 추가', '몇 년마다', '병원'], center: '.anniv-form' })),
+  ...each((w, c) => ({ name: `shell-anniv-reminder-${w}-${c}`, path: '/', w, c, shell: true, tab: '설정', presses: ['기념일 추가', '생일'], annivReminder: true, center: '.reminder-fields' })),
   // 11월 20일: 2년마다 오는 기념일 줄(카테고리·반복 말). 가짜 기념일이 11월에 있어 그 달까지 넘긴다
   ...both(390, (w, c) => ({ name: `shell-cal-anniv-row-${w}-${c}`, path: '/', w, c, shell: true, tab: '달력', months: MONTHS_TO_NOV || undefined, calDay: 20, center: '.day-plan' })),
   // 통계 탭 어디서 샀나(사용자 2026-10-26): 한 번만 간 가게도 '그 밖'으로 묶지 않고 가게마다 한 줄
@@ -241,6 +246,7 @@ const shellShots = [
   // "N개 더 보기"로 펼친 모습
   ...both(390, (w, c) => ({ name: `shell-cal-range-soon-open-${w}-${c}`, path: '/', w, c, shell: true, tab: '달력', eventRange: true, soonOpen: true, center: '.soon-card' })),
   ...each((w, c) => ({ name: `shell-plan-event-range-${w}-${c}`, path: '/', w, c, shell: true, tab: '달력', eventRange: true, calDay: EVENT_RANGE_DAY, openEvent: '가족 여행', planScroll: '.fx-pick' })),
+  ...each((w, c) => ({ name: `shell-plan-event-reminder-${w}-${c}`, path: '/', w, c, shell: true, tab: '달력', eventRange: true, calDay: EVENT_RANGE_DAY, openEvent: '가족 여행', eventReminder: true, planScroll: '.reminder-fields' })),
   ...both(390, (w, c) => ({ name: `shell-plan-event-range-top-${w}-${c}`, path: '/', w, c, shell: true, tab: '달력', eventRange: true, calDay: EVENT_RANGE_DAY, openEvent: '가족 여행', planScroll: '#ev-title' })),
   { name: 'shell-plan-event-range-err-390-light', path: '/', w: 390, c: 'light', shell: true, tab: '달력', eventRange: true, calDay: EVENT_RANGE_DAY, openEvent: '가족 여행', rangeEnd: '2026-01-01', planScroll: '#ev-end' },
   // 일정이 많은 달의 달력 탭 전체(D-055): 위에서 아래까지 한 장
@@ -248,6 +254,8 @@ const shellShots = [
   // 숨쉬기 효과는 움직임을 켜고도 한 번 찍는다(움직임 줄이기에서는 테두리로 바뀐다)
   { name: 'shell-cal-range-grid-motion-390-light', path: '/', w: 390, c: 'light', shell: true, tab: '달력', eventRange: true, motion: 'no-preference', center: '.cal-card' },
   ...each((w, c) => ({ name: `shell-event-capture-${w}-${c}`, path: '/', w, c, shell: true, tab: '달력', eventCapture: true })),
+  ...each((w, c) => ({ name: `shell-event-revision-${w}-${c}`, path: '/', w, c, shell: true, tab: '달력', eventCapture: true, eventRevision: 'change' })),
+  ...each((w, c) => ({ name: `shell-event-cancel-${w}-${c}`, path: '/', w, c, shell: true, tab: '달력', eventCapture: true, eventRevision: 'cancel' })),
   // 읽기 전: 고른 캡처 미리 보기와 "캡처 1장 읽기"·"캡처 더 넣기"
   // 문자 붙여넣기(D-046): 심포지엄 안내 문자를 붙여넣은 모습
   ...each((w, c) => ({ name: `shell-event-text-${w}-${c}`, path: '/', w, c, shell: true, tab: '달력', eventCapture: 'input', eventText: '[대한○○학회] 2026 추계 심포지엄 안내\n일시: 2026년 11월 21일(토) 09:00~17:00\n장소: 코엑스 컨퍼런스룸(남) 401호\n사전등록: 11/14까지, 평점 6점' })),
@@ -262,6 +270,9 @@ const shellShots = [
   ...each((w, c) => ({ name: `shell-cal-grid-events-${w}-${c}`, path: '/', w, c, shell: true, tab: '달력', eventPlaces: true, center: '.cal-card' })),
   ...both(390, (w, c) => ({ name: `shell-cal-soon-all-${w}-${c}`, path: '/', w, c, shell: true, tab: '달력', eventPlaces: true, center: '.soon-card' })),
   ...each((w, c) => ({ name: `shell-plan-event-place-${w}-${c}`, path: '/', w, c, shell: true, tab: '달력', eventPlaces: true, openEvent: '더그랜드롯데 서울 라세느 뷔페 예약' })),
+  ...each((w, c) => ({ name: `shell-plan-weekly-${w}-${c}`, path: '/', w, c, shell: true, tab: '달력', weeklyEvent: true, openEvent: '저녁 운동', planScroll: '.event-repeat-fields' })),
+  ...each((w, c) => ({ name: `shell-calendar-tasks-${w}-${c}`, path: '/', w, c, shell: true, tab: '달력', taskBoard: true })),
+  ...each((w, c) => ({ name: `shell-plan-payment-${w}-${c}`, path: '/', w, c, shell: true, tab: '달력', eventPlaces: true, eventPayments: true, openEvent: '더그랜드롯데 서울 라세느 뷔페 예약', planScroll: '.event-payments' })),
   ...both(390, (w, c) => ({ name: `shell-event-capture-foot-${w}-${c}`, path: '/', w, c, shell: true, tab: '달력', eventCapture: true, scrollTo: '.sheet .link-btn' })),
 ]
 
@@ -285,7 +296,10 @@ async function fakeSupabase(context, s = {}) {
     if (url.pathname === '/functions/v1/extract-entries') {
       let body = null
       try { body = req.postDataJSON() } catch { /* JSON이 아니면 영수증 응답 */ }
-      if (body?.kind === 'event') return json(body.text ? EVENT_TEXT : EVENT_CAPTURE)
+      if (body?.kind === 'event') {
+        if (s.eventRevision) return json(s.eventRevision === 'cancel' ? EVENT_CANCEL : EVENT_REVISION)
+        return json(body.text ? EVENT_TEXT : EVENT_CAPTURE)
+      }
       return json(body?.mode === 'bill' ? BILL : s.fuel ? FUEL_RECEIPT : s.longReceipt ? LONG_RECEIPT : RECEIPT)
     }
     if (url.pathname === '/functions/v1/explore-weather') return json(s.weatherNotRegistered ? EXPLORE_WEATHER_NOT_REGISTERED : EXPLORE_WEATHER)
@@ -322,12 +336,25 @@ async function fakeSupabase(context, s = {}) {
     if (s.hold?.includes(key)) return
     if (process.env.DEBUG_SHOTS && !(key in TABLES)) console.log('[no fixture]', key, url.search.slice(0, 120))
     let rows = key in TABLES ? TABLES[key] : []
+    if (s.refund && key === 'public.transactions') rows = rows.map((t) => t.id === 't3' ? {
+      ...t, transaction_refunds: [
+        { id: 'refund-a', amount: 1200, requested_on: t.occurred_on, refunded_on: t.occurred_on },
+        { id: 'refund-b', amount: 2000, requested_on: t.occurred_on, refunded_on: null },
+      ],
+    } : t)
     // noUtility: 고정 탭에 관리비·공과금 항목이 없는 가구(고지서가 '관리비' 항목을 만드는 안내를 본다)
     if (s.noUtility && key === 'public.recurring') rows = rows.filter((r) => r.kind !== 'utility')
     if (s.noNotes && key === 'public.notes') rows = []
     if (s.eventCapture && key === 'public.events') rows = EVENT_EXISTING
+    if (s.eventRevision && key === 'public.events') rows = EVENT_REVISION_EXISTING
     if (s.eventPlaces && key === 'public.events') rows = EVENT_PLACES
     if (s.eventRange && key === 'public.events') rows = EVENT_RANGE
+    if (s.weeklyEvent && key === 'public.events') rows = EVENT_WEEKLY
+    if (s.taskBoard && key === 'public.household_tasks') rows = HOUSEHOLD_TASKS
+    if (s.eventPayments && key === 'public.event_payments') rows = EVENT_PAYMENTS
+    if (s.purchaseHistory && key === 'grocery.captured_quotes') rows = [
+      { seller: '마트몰', price: 2600, qty: 1, delivery: 0, captured_on: RECEIPT.entries[0].date, products: { name: '서울우유 900ml' } },
+    ]
     // 같음 조건(id=eq.g5 등)은 적용한다: 한 건 조회(maybeSingle)는 행이 하나여야 하고, 상세는 그 품목·상품의 행만 봐야 한다
     if (Array.isArray(rows)) {
       for (const [k, v] of url.searchParams) {
@@ -486,6 +513,7 @@ try {
       if (s.scroll) await page.locator(s.scroll).first().scrollIntoViewIfNeeded()
       if (s.press) await page.getByRole('button', { name: s.press, exact: true }).click()
       for (const name of s.presses ?? []) await page.getByRole('button', { name, exact: true }).first().click()
+      if (s.annivReminder) await page.getByRole('checkbox', { name: '기념일 알림 받기' }).check()
       if (s.pressWait) await page.getByText(s.pressWait).waitFor()
       if (s.refreshFlow) {
         await page.getByRole('button', { name: '앱 파일 다시 받기' }).click()
@@ -527,6 +555,14 @@ try {
         await page.getByRole('searchbox', { name: '내역 찾기' }).fill('주유소')
         await page.getByText('3건', { exact: true }).waitFor()
       }
+      if (s.purchaseHistory) {
+        await page.getByRole('button', { name: '구매 기록', exact: true }).click()
+        await page.getByRole('button', { name: '90일', exact: true }).click()
+        await page.getByRole('searchbox', { name: '구매 품목 찾기' }).fill('서울우유')
+        await page.getByRole('button', { name: /^서울우유/ }).click()
+        await page.getByRole('heading', { name: /실제 구매가/ }).waitFor()
+        await page.getByRole('heading', { name: /가격 캡처/ }).waitFor()
+      }
       if (s.batch) {
         await page.locator('.tx', { hasText: s.batch }).first().click()
         await page.getByRole('dialog').first().waitFor()
@@ -535,6 +571,14 @@ try {
           await page.getByRole('button', { name: '고치기' }).first().click()
           await page.locator('.item-editor').evaluate((el) => el.scrollIntoView({ block: 'center' }))
         } else await page.locator('.batch-del').evaluate((el) => el.scrollIntoView({ block: 'end' }))
+      }
+      if (s.refund) {
+        await page.locator('.tx', { hasText: '스타벅스' }).filter({ hasText: '환불 대기' }).click()
+        const refunds = page.getByRole('region', { name: '환불 기록' })
+        await refunds.getByText('순지출 5,300원').waitFor()
+        await refunds.getByRole('button', { name: '2,000원 환불 수정' }).click()
+        await refunds.getByLabel('상태').selectOption('refunded')
+        await refunds.evaluate((el) => el.scrollIntoView({ block: 'center' }))
       }
       if (s.openTx) {
         await page.locator('.tx', { hasText: s.openTx }).first().click()
@@ -616,13 +660,38 @@ try {
     }
     if (s.openEvent) {
       await page.locator('.day-plan').getByRole('button', { name: new RegExp(`^${s.openEvent}`) }).click()
+      if (s.eventReminder) {
+        const form = page.locator('.sheet.on:not(.closing)').last()
+        await form.getByText('일정 알림 받기', { exact: true }).last().click()
+        await form.getByLabel('알림 시점', { exact: true }).last().evaluate((el) => el.closest('.reminder-fields')?.scrollIntoView({ block: 'center' }))
+      }
       if (s.rangeEnd) await page.locator('#ev-end').fill(s.rangeEnd)
-      if (s.planScroll) await page.locator(s.planScroll).first().evaluate((el) => el.scrollIntoView({ block: 'center' }))
-      else await page.locator('#ev-address').scrollIntoViewIfNeeded()
+      if (s.eventPayments) await page.getByRole('button', { name: '내역 보기' }).waitFor()
+      if (s.weeklyEvent) await page.getByRole('button', { name: '이번 한 번만 건너뛰기', exact: true }).first().waitFor()
+      if (!s.eventReminder) {
+        if (s.planScroll) await page.locator(s.planScroll).first().evaluate((el) => el.scrollIntoView({ block: 'center' }))
+        else await page.locator('#ev-address').scrollIntoViewIfNeeded()
+      }
+    }
+    if (s.taskBoard) {
+      await page.getByRole('checkbox', { name: '세탁물 찾기 완료' }).waitFor()
+      await page.getByRole('button', { name: '완료한 일도 보기' }).click()
+      await page.getByRole('region', { name: '함께 할 일' }).evaluate((el) => el.scrollIntoView({ block: 'center' }))
     }
     if (s.eventCapture) {
       await page.getByRole('button', { name: '캡처·문자로 넣기' }).click()
-      if (s.eventText) {
+      if (s.eventRevision) {
+        if (s.eventRevision === 'cancel') {
+          await page.locator('input[type=file]').setInputFiles({ name: 'cap.jpg', mimeType: 'image/jpeg', buffer: TINY_JPEG })
+          await page.getByRole('button', { name: '캡처 1장 읽기' }).click()
+        } else {
+          await page.getByRole('button', { name: '문자 붙여넣기' }).click()
+          await page.getByLabel('붙여넣을 문자').fill('을지로 정육식당 예약 변경 · 기존 24일 18:30 → 변경 26일 19:00 · 예약번호 A1234')
+          await page.getByRole('button', { name: '읽고 일정 넣기' }).click()
+        }
+        await page.getByLabel('기존 일정 선택').selectOption(EVENT_REVISION_EXISTING[0].id)
+        await page.getByRole('button', { name: s.eventRevision === 'cancel' ? '확인하고 일정 지우기' : '확인하고 일정 바꾸기' }).waitFor()
+      } else if (s.eventText) {
         // 문자 붙여넣기(D-046): 붙여넣은 모습(읽기 전)
         await page.getByRole('button', { name: '문자 붙여넣기' }).click()
         await page.getByLabel('붙여넣을 문자').fill(s.eventText === 'paste' ? EVENT_TEXT_PASTE : s.eventText)

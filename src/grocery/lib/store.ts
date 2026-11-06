@@ -15,7 +15,7 @@ import {
 } from './products'
 import type { ItemSources, ShopFind, ShopLink, ShopPrice, ShopSource, StoreGood, StoreOption, StorePrice } from './sources'
 import type { OurPurchase } from './ours'
-import type { SeenRecord } from './seen'
+import type { HistoryPeriod, PurchaseHistory, SeenRecord } from './seen'
 import type { CapturedQuoteInput, ListItem, PhotoImage, PhotoJob, PhotoResult, PriceRead, ProductRead } from './photo'
 import { MATCH_VERSION } from '../../../supabase/functions/_shared/productMatch'
 import type { IngredientRow, IngredientSource, ItemIngredients, ItemNutrition, NutritionRow, ProductAuto } from './foodInfo'
@@ -61,6 +61,7 @@ export interface ListStore {
   ourPurchases(itemId: string): Promise<OurPurchase[]>
   /** 담을 때 보는 지난 기록(D-042): 최근 1년 지출 내역의 상품 줄(영수증·쇼핑 주문)과 가격 캡처. 읽기만 한다 */
   seenRecords(): Promise<SeenRecord[]>
+  purchaseHistory(period: HistoryPeriod): Promise<PurchaseHistory>
   /** 비슷한 기록이 같은 상품인지 적는다(grocery.decide_purchase) */
   decidePurchase(itemId: string, transactionItemId: string, same: boolean): Promise<void>
   /** 사진·캡처 읽기(grocery-photo, P4). 실패는 던진다. 읽은 값은 화면에서 확인·고친 뒤에만 쓴다 */
@@ -319,6 +320,9 @@ export function createMemoryStore(
     },
     async seenRecords() {
       return (demoPrices.seen ?? []).map((r) => ({ ...r }))
+    },
+    async purchaseHistory({ from, to }) {
+      return { rows: (demoPrices.seen ?? []).filter((r) => (!from || r.date >= from) && r.date <= to), capturesAvailable: true }
     },
     async readPhoto(job) {
       if (!demoPrices.photo) throw new Error('no_demo')

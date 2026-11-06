@@ -6,7 +6,8 @@ import { kstDay } from './products'
 import { SEONGNAM_AREAS } from '../../../supabase/functions/_shared/tprice'
 import type { ItemSources, ShopFind, ShopPrice, StoreGood, StoreOption, StorePrice } from './sources'
 import type { OurPurchase } from './ours'
-import { ledgerSeen, type LedgerTx, type SeenRecord } from './seen'
+import { captureSeen, ledgerSeen, type CaptureRow, type LedgerTx, type SeenRecord } from './seen'
+import { readAllPages } from '../../../supabase/functions/_shared/pagination'
 import { invokePhoto } from './photo'
 import type { IngredientRow, IngredientSource, ItemIngredients, ItemNutrition, Nutrition, NutritionRow, ProductAuto } from './foodInfo'
 import type { ListStore, BarcodeRecord, CandidateAlert } from './store'
@@ -351,15 +352,29 @@ export function createSupabaseStore(client: SupabaseClient, me: Membership): Lis
       ])
       if (txs.error) throw txs.error
       if (caps.error) console.warn('seen_captures_failed', caps.error.message)
-      type CapRow = { seller: string; price: number; qty: number; delivery: number | null; captured_on: string; products: { name: string } | null }
-      const out: SeenRecord[] = ledgerSeen((txs.data ?? []) as unknown as LedgerTx[])
-      for (const c of (caps.error ? [] : (caps.data ?? [])) as unknown as CapRow[]) {
-        if (!c.products?.name) continue
-        out.push({ source: 'capture', date: c.captured_on, where: c.seller, name: c.products.name, quantity: c.qty, amount: c.price, unitPrice: null,
-          packSize: null, packUnit: null, delivery: c.delivery })
-      }
+      const out = [...ledgerSeen((txs.data ?? []) as unknown as LedgerTx[]), ...captureSeen((caps.error ? [] : (caps.data ?? [])) as unknown as CaptureRow[])]
       seenCache = { at: Date.now(), rows: out }
       return out.map((r) => ({ ...r }))
+    },
+    async purchaseHistory({ from, to }) {
+      const [txs, captures] = await Promise.all([
+        readAllPages<LedgerTx>((start, end) => {
+          let q = client.from('transactions')
+            .select('id, occurred_on, created_at, platform, title, merchant, source, memo, transaction_items!inner(name, quantity, unit_price, amount, pack_size, pack_unit)',
+              { count: start === 0 ? 'exact' : undefined })
+            .eq('household_id', me.householdId).eq('type', 'expense').lte('occurred_on', to)
+          if (from) q = q.gte('occurred_on', from)
+          return q.order('occurred_on').order('id').range(start, end)
+        }),
+        readAllPages<CaptureRow>((start, end) => {
+          let q = g().from('captured_quotes').select('id, seller, price, qty, delivery, captured_on, captured_at, unit_price, unit_label, products(name)',
+            { count: start === 0 ? 'exact' : undefined })
+            .eq('household_id', me.householdId).lte('captured_on', to)
+          if (from) q = q.gte('captured_on', from)
+          return q.order('captured_on').order('id').range(start, end)
+        }).catch(() => null),
+      ])
+      return { rows: [...ledgerSeen(txs), ...captureSeen(captures ?? [])], capturesAvailable: captures !== null }
     },
     async ourPurchases(itemId) {
       const { data, error } = await g().rpc('our_purchases', { p_item: itemId })

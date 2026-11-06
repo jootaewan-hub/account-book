@@ -107,6 +107,7 @@ describe('일정 폼의 중요도', () => {
     fireEvent.click(screen.getByRole('button', { name: '고치기' }))
     await vi.waitFor(() => expect(state.updated).toHaveLength(1))
     expect(state.updated[0]).toEqual(['e1', { date: '2026-11-07', end_on: '2026-11-09', time: '14:00', title: '제주 여행', memo: null,
-      place: null, address: null, lat: null, lng: null, scope: 'wife', priority: 'high', effect: 'mark' }])
+      place: null, address: null, lat: null, lng: null, scope: 'wife', priority: 'high', effect: 'mark',
+      repeat_weeks: null, repeat_until: null, reminder_offset_minutes: null, reminder_recipient: null }])
   })
 })

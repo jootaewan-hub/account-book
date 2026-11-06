@@ -20,6 +20,13 @@ export const EventSchema = z.object({
   phone: z.string().nullable().describe('가게·장소 연락처. 없으면 null'),
   detail: z.string().nullable().describe('그 밖에 알아 둘 것을 짧게(60자 안팎): 메뉴·코스, 좌석, 진료 과목, 준비물, 예약금, 끝나는 날 등. 없으면 null'),
   notice: z.enum(['booking', 'change', 'cancel']).describe('새 예약·일정 안내 booking, 날짜·시간 변경 안내 change, 취소 안내 cancel'),
+  previous: z.object({
+    year: z.number().nullable(),
+    month: z.number().nullable(),
+    day: z.number().nullable(),
+    weekday: z.string().nullable(),
+    start_time: z.string().nullable(),
+  }).nullable().describe('변경 전 예약 날짜와 시각. 원문에 따로 적힌 값만 쓰고, 없으면 null'),
   images: z.array(z.number()).describe('이 일정을 읽은 이미지 번호(1부터)'),
 })
 
@@ -43,7 +50,8 @@ export const EVENT_PROMPT = `당신은 한국 부부가 쓰는 가계부 앱의 
 - 학회·심포지엄·세미나·설명회는 하루에 일정 하나입니다(세션마다 나누지 않음). title은 행사 이름을 짧게, start_time은 등록 또는 첫 순서 시각, end_time은 끝나는 시각, place는 행사장 이름(층·홀까지), detail에는 등록 방법·평점·준비물처럼 꼭 알아야 할 것만 짧게 적습니다. 이틀 이상이면 날마다 하나씩 만듭니다.
 - place는 가게·병원·장소 이름, address는 화면에 적힌 주소, people은 인원 수, booking_no는 예약·접수 번호, phone은 가게·장소 연락처입니다. 예약한 사람의 이름·전화번호는 넣지 않습니다.
 - detail에는 그 밖에 알아 둘 것을 짧게 적습니다: 메뉴·코스, 좌석, 진료 과목, 준비물, 예약금, 주차 안내 등.
-- notice는 새 예약·일정 안내면 "booking", 날짜·시간이 바뀌었다는 안내면 "change"(바뀐 뒤의 날짜·시간을 씀), 취소 안내면 "cancel"입니다.
+- notice는 새 예약·일정 안내면 "booking", 날짜·시간이 바뀌었다는 안내면 "change", 예약이 취소됐다는 안내면 "cancel"입니다. 단순한 변경·취소 방법 안내나 규정은 예약 변경·취소로 보지 않습니다.
+- 변경 안내는 year·month·day·weekday·start_time에 변경 후 일정의 값만, previous에 변경 전 일정의 값만 씁니다. 날짜만 또는 시각만 바뀌어 다른 값이 없으면 null로 둡니다. 변경 전과 후를 별도 일정으로 만들지 않습니다. 취소 안내는 year·month·day·weekday·start_time에 취소된 예약의 날짜·시각을 쓰고, 취소한 시각은 쓰지 않습니다. 변경 전 일정이 적혀 있지 않거나 변경 안내가 아니면 previous는 null입니다.
 - images에는 그 일정을 읽은 이미지 번호를 모두 넣습니다(1부터).
 - 보이지 않거나 확실하지 않은 값은 지어내지 말고 null로 둡니다.
 - 광고·쿠폰·영수증처럼 일정이 없는 화면이면 events를 빈 배열로 하고 note에 이유를 적습니다.`

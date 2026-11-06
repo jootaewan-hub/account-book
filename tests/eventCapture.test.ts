@@ -1,14 +1,19 @@
 // 캡처로 일정 넣기(D-039): 서버의 날짜 정하기·길이 맞추기(eventCheck.ts)와 앱의 초안·중복·저장 전 검사(eventCapture.ts)
-import { describe, expect, it } from 'vitest'
+import { createClient, type SupabaseClient } from '@supabase/supabase-js'
+import { describe, expect, it, vi } from 'vitest'
 import type { z } from 'zod'
 import {
   checkEvents, checkTime, EVENT_MAX, eventMemo, fencePasted, normWeekday, resolveEventDate, validDate, weekdayOf, type RawEvent,
 } from '../supabase/functions/extract-entries/eventCheck'
 import { buildUserText } from '../supabase/functions/extract-entries/extract'
 import { EventResultSchema, EventSchema } from '../supabase/functions/extract-entries/events'
-import { canAutoSave, dateInText, eventDateRange, eventInput, sameEvent, toEventDrafts, type EventDraft } from '../src/lib/eventCapture'
+import { canAutoSave, dateInText, eventDateRange, eventInput, eventRevision, sameEvent, toEventDrafts, type EventDraft } from '../src/lib/eventCapture'
 import { buildEventPasteText, EVENT_PROMPT } from '../supabase/functions/extract-entries/events'
+import { deleteEvent, updateEvent } from '../src/lib/api'
 import type { CalEvent } from '../src/lib/types'
+
+const api = vi.hoisted(() => ({ client: null as SupabaseClient | null }))
+vi.mock('../src/lib/supabase', () => ({ sb: () => api.client }))
 
 // 모델 출력 형식과 정리 함수의 입력 모양이 같아야 한다(다르면 타입 검사에서 걸린다)
 const sameShape: RawEvent = {} as z.infer<typeof EventSchema>
@@ -17,7 +22,7 @@ void sameShape
 const TODAY = '2026-11-02' // 월요일
 const raw = (p: Partial<RawEvent>): RawEvent => ({
   title: '을지로 정육식당 저녁 예약', year: null, month: 11, day: 15, weekday: null, start_time: '18:30', end_time: null,
-  place: null, address: null, people: null, booking_no: null, phone: null, detail: null, notice: 'booking', images: [1], ...p,
+  place: null, address: null, people: null, booking_no: null, phone: null, detail: null, notice: 'booking', previous: null, images: [1], ...p,
 })
 
 describe('날짜 정하기 (resolveEventDate)', () => {
@@ -108,6 +113,15 @@ describe('일정 정리 (checkEvents)', () => {
     expect(change.warnings[0]).toMatch(/^변경 안내로 보여요/)
   })
 
+  it('변경 전 날짜와 시각, 예약번호를 바뀐 일정과 따로 보낸다', () => {
+    const [change] = checkEvents([raw({
+      notice: 'change', month: 12, day: 28, start_time: '19:30', booking_no: ' ABC-34 ',
+      previous: { year: null, month: 11, day: 15, weekday: '일', start_time: '9:30' },
+    })], TODAY, 1)
+    expect(change).toMatchObject({ date: '2026-12-28', time: '19:30', previousDate: '2026-11-15', previousTime: '09:30', bookingNo: 'ABC-34' })
+    expect(eventDateRange([change], TODAY)).toEqual({ from: '2026-11-15', to: '2026-12-28' })
+  })
+
   it('이미지 번호는 받은 장 수 안의 정수만, 겹침 없이', () => {
     expect(checkEvents([raw({ images: [2, 1, 2, 7, 1.5] })], TODAY, 2)[0].images).toEqual([1, 2])
   })
@@ -121,6 +135,26 @@ describe('일정 정리 (checkEvents)', () => {
 
 const ev = (p: Partial<CalEvent>): CalEvent => ({ id: 'e1', household_id: 'h', date: '2026-11-15', time: '18:30', title: '을지로 정육식당 예약', memo: null,
   place: null, address: null, lat: null, lng: null, scope: 'shared', ...p })
+
+describe('예약 변경·취소 저장', () => {
+  it('확인한 시각의 일정만 고치거나 지운다', async () => {
+    const expected = '2026-10-30T08:01:00+00:00'
+    const fetch = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) =>
+      new Response(init?.method === 'PATCH' ? '[{"id":"e1"}]' : '[]', { headers: { 'Content-Type': 'application/json' } }))
+    api.client = createClient('https://events.test', 'test-key', {
+      global: { fetch }, auth: { autoRefreshToken: false, persistSession: false, detectSessionInUrl: false },
+    })
+    await updateEvent('e1', { date: '2026-11-16', time: '19:00' }, expected)
+    await expect(deleteEvent('e1', expected)).rejects.toThrow('달력 일정이 달라졌어요.')
+    expect(fetch.mock.calls.map(([input, init]) => {
+      const url = new URL(input as URL)
+      return { method: init?.method, path: url.pathname, id: url.searchParams.get('id'), version: url.searchParams.get('updated_at'), body: init?.body }
+    })).toEqual([
+      { method: 'PATCH', path: '/rest/v1/events', id: 'eq.e1', version: `eq.${expected}`, body: '{"date":"2026-11-16","time":"19:00"}' },
+      { method: 'DELETE', path: '/rest/v1/events', id: 'eq.e1', version: `eq.${expected}`, body: undefined },
+    ])
+  })
+})
 
 describe('초안과 중복 (toEventDrafts)', () => {
   it('같은 날 비슷한 제목이면 같은 일정으로 본다', () => {
@@ -149,6 +183,28 @@ describe('초안과 중복 (toEventDrafts)', () => {
   it('이미 있는 일정을 읽을 범위는 초안 날짜의 처음·끝', () => {
     expect(eventDateRange([{ date: '2026-12-01' }, { date: null }, { date: '2026-11-15' }])).toEqual({ from: '2026-11-15', to: '2026-12-01' })
     expect(eventDateRange([{ date: null }])).toBeNull()
+  })
+
+  it('예약번호가 맞는 일정을 먼저 제안하고, 반복 일정과 같은 예약의 새 초안은 빼 둔다', () => {
+    const [change, booking] = checkEvents([
+      raw({ notice: 'change', booking_no: 'ABC-34', day: 25 }),
+      raw({ notice: 'booking', booking_no: 'ABC-34' }),
+    ], TODAY, 1)
+    const existing = [
+      ev({ id: 'name' }),
+      ev({ id: 'number', title: '가족 저녁', memo: '예약번호 ABC34 · 직접 적은 메모' }),
+      ev({ id: 'series', memo: '예약번호 ABC-34', repeat_weeks: 1 }),
+    ]
+    const drafts = toEventDrafts([change, booking], existing)
+    expect(drafts).toHaveLength(1)
+    expect(drafts[0].include).toBe(false)
+    expect(drafts[0].revision?.candidates.map((event) => event.id)).toEqual(['number', 'name'])
+  })
+
+  it('날짜 또는 시간이 생략된 변경 안내는 기존 값을 쓴다', () => {
+    expect(eventRevision({ date: '', time: '13:00' }, ev({}))).toEqual({ date: '2026-11-15', time: '13:00' })
+    expect(eventRevision({ date: '2026-11-16', time: null }, ev({}))).toEqual({ date: '2026-11-16', time: '18:30' })
+    expect(eventRevision({ date: '', time: null }, ev({}))).toBeNull()
   })
 })
 

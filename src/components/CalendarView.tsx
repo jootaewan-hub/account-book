@@ -36,6 +36,8 @@ interface Props {
   onPlan: (t: PlanTarget) => void
   /** 캡처로 일정 넣기 시트를 연다(D-039) */
   onCapture?: () => void
+  onAddTask?: () => void
+  tasks?: ReactNode
   /** 고른 날에 이름만 적어 하루 종일 일정을 바로 넣는다(D-054). 넣었으면 true. 없으면 입력 칸을 보이지 않는다 */
   onQuickAdd?: (title: string) => Promise<boolean>
   /** 다른 달의 날짜로 옮겨 가서 고른다 (다가오는 기념일) */
@@ -49,7 +51,7 @@ interface Props {
 /** 달력 칸 하나에 보일 기념일·일정 이름 수(넘치면 +N) */
 const MAX_LABELS = 2
 
-export function CalendarView({ ym, today, sel, cur, prev, loading = false, lookup, annivs, events, onSelect, onPlan, onCapture, onQuickAdd, onJump, onEdit, notes }: Props) {
+export function CalendarView({ ym, today, sel, cur, prev, loading = false, lookup, annivs, events, onSelect, onPlan, onCapture, onAddTask, tasks, onQuickAdd, onJump, onEdit, notes }: Props) {
   // 고정지출 예정분(D-030)은 쓴 돈·남은 돈에 넣되(이미 정해진 지출), 칸에서는 점선 금액으로 따로 보인다
   const totals = useMemo(() => dailyTotals(cur.filter((t) => !t.planned)), [cur])
   const planned = useMemo(() => cur.filter((t) => t.planned), [cur])
@@ -94,7 +96,7 @@ export function CalendarView({ ym, today, sel, cur, prev, loading = false, looku
   // 이번 달을 볼 때만, 30일 안에 오는 기념일·일정 네 개까지 (가까운 순서)
   const soon = ym !== thisMonth ? [] : [
     ...upcomingAnniversaries(annivs, today).map((u) => ({ key: u.a.id, kind: u.a.kind as string, name: u.a.name, category: u.a.category, date: u.date, days: u.days, scope: 'shared' as const })),
-    ...upcomingEvents(events, today).map((u) => ({ key: u.e.id, kind: 'event', name: u.e.title, category: null, date: u.date, days: u.days, scope: u.e.scope ?? 'shared', event: u.e, ongoing: u.ongoing })),
+    ...upcomingEvents(events, today).map((u) => ({ key: `${u.e.id}:${u.e.date}`, kind: 'event', name: u.e.title, category: null, date: u.date, days: u.days, scope: u.e.scope ?? 'shared', event: u.e, ongoing: u.ongoing })),
   ].map((x) => ({ event: undefined as CalEvent | undefined, ongoing: false, ...x })).filter((x) => x.days <= 30).sort((a, b) => a.days - b.days || a.name.localeCompare(b.name))
   const de = sumType(dayTx.filter((t) => !t.planned), 'expense')
   const di = sumType(dayTx, 'income')
@@ -215,7 +217,8 @@ export function CalendarView({ ym, today, sel, cur, prev, loading = false, looku
                   // 장소를 누르면 네이버 지도(좌표가 있으면 대중교통 길찾기, 없으면 검색)를 연다(D-041). 일정 줄 버튼 안에 넣지 않고 그 아래 줄로 둔다
                   const routed = e.lat !== null && e.lng !== null
                   return (
-                    <AgendaRow key={e.id} icon={<CalendarIcon />} name={e.title} event={e} scope={e.scope ?? 'shared'} meta={whenLabel(e)}
+                    <AgendaRow key={e.id} icon={<CalendarIcon />} name={e.title} event={e} scope={e.scope ?? 'shared'}
+                      meta={[whenLabel(e), e.repeat_weeks === 1 ? '매주' : e.repeat_weeks === 2 ? '격주' : null].filter(Boolean).join(' · ')}
                       onClick={() => onPlan({ kind: 'event', event: e })}>
                       {hasPlace(e) && (
                         <a className="ag-place" href={naverMapUrl(e, 'transit') ?? undefined} target="_blank" rel="noopener noreferrer"
@@ -228,7 +231,7 @@ export function CalendarView({ ym, today, sel, cur, prev, loading = false, looku
                 })}
               </ul>
             )}
-            <DayNew key={sel} label={`${m}월 ${dayOf(sel)}일에 일정 넣기`} onQuickAdd={onQuickAdd} onCapture={onCapture}
+            <DayNew key={sel} label={`${m}월 ${dayOf(sel)}일에 일정 넣기`} onQuickAdd={onQuickAdd} onCapture={onCapture} onAddTask={onAddTask}
               onDetail={(title) => onPlan({ kind: 'new', date: sel, title })} />
           </div>
           <div className="cal-day-transactions">
@@ -242,6 +245,7 @@ export function CalendarView({ ym, today, sel, cur, prev, loading = false, looku
       )}
 
       <div className="cal-more">
+        {tasks}
         {soon.length > 0 && (
           <SoonList label="다가오는 일정·기념일" items={soon.map((u) => (
             <AgendaRow key={u.key} name={u.name} event={u.event} scope={u.scope} onClick={() => { setJumpTarget({ date: u.date }); onJump(u.date) }}
@@ -297,12 +301,13 @@ function AgendaRow({ icon, name, event, scope, meta, trail, onClick, children }:
  * 고른 날의 일정 넣기 칸(D-054, D-055에 일정 줄과 같은 면 안으로): 흰 입력칸 + 먹색 "넣기", 그 아래 흰 보조 버튼 둘.
  * 이름만 적어 넣으면 하루 종일 일정으로 바로 들어가고, 시간·기간·중요도·기념일은 "자세히 넣기" 시트에서 정한다(적던 이름은 가져간다)
  */
-function DayNew({ label, onQuickAdd, onDetail, onCapture }: {
+function DayNew({ label, onQuickAdd, onDetail, onCapture, onAddTask }: {
   /** 입력칸의 읽기 이름("11월 5일에 일정 넣기") */
   label: string
   onQuickAdd?: (title: string) => Promise<boolean>
   onDetail: (title?: string) => void
   onCapture?: () => void
+  onAddTask?: () => void
 }) {
   const [title, setTitle] = useState('')
   const [busy, setBusy] = useState(false)
@@ -333,6 +338,7 @@ function DayNew({ label, onQuickAdd, onDetail, onCapture }: {
       <div className="day-adds" role="group" aria-label={onQuickAdd ? undefined : label}>
         <button type="button" className="ghost" onClick={() => onDetail(title.trim() || undefined)}><Plus />자세히 넣기</button>
         {onCapture && <button type="button" className="ghost" onClick={onCapture}><CameraIcon />캡처·문자로 넣기</button>}
+        {onAddTask && <button type="button" className="ghost day-task-button" onClick={onAddTask}><Plus />할 일</button>}
       </div>
     </div>
   )

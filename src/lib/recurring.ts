@@ -1,5 +1,6 @@
 // 고정지출·구독·관리비 계산. DB의 generate_recurring과 같은 규칙(31일 → 그 달 마지막 날, 매년은 시작 달 기준)을 쓴다.
 import { addMonths, daysInMonth, monthRange, ymd, parseYM } from './dates'
+import { netAmount } from './refunds'
 import type { MonthTotal, Recurring, RecurringKind, Transaction } from './types'
 
 export const KIND_LABEL: Record<RecurringKind, string> = { fixed: '고정지출', subscription: '구독', utility: '관리비·공과금', installment: '할부' }
@@ -101,7 +102,7 @@ export interface MonthItem { date: string | null; state: MonthState; amount: num
 
 export function monthItem(r: Recurring, txs: Transaction[], history: Transaction[], ym: string, today: string): MonthItem {
   const rec = txs.find((t) => !t.planned && t.recurring_id === r.id && (t.recurring_month ?? t.occurred_on).startsWith(ym))
-  if (rec) return { date: rec.occurred_on, state: 'done', amount: rec.amount, estimate: false }
+  if (rec) return { date: rec.occurred_on, state: 'done', amount: netAmount(rec), estimate: false }
   const date = dueDate(r, ym)
   if (!date || !r.active) return { date: null, state: 'none', amount: r.amount, estimate: false }
   const state: MonthState = date > today ? 'planned' : 'missing'

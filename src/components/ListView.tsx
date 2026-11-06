@@ -99,7 +99,7 @@ export function ListView({ cur, future = false, loading = false, periodSearch, l
   const narrowed = Boolean(needle) || focus !== null
   // 지우는 것은 지금 화면에 보이는 것 중 고른 것만 (달을 넘기면 지난달에 고른 것은 빠진다)
   const chosen = real.filter((t) => picked.has(t.id))
-  const chosenSum = chosen.reduce((s, t) => s + (t.type === 'expense' ? t.amount : 0), 0)
+  const chosenSum = sumType(chosen, 'expense')
 
   function togglePicking() {
     setPicking((p) => !p)

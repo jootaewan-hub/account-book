@@ -12,6 +12,7 @@ export type SeenRecord = {
   source: SeenSource
   /** 산 날·캡처한 날 YYYY-MM-DD */
   date: string
+  recordedAt?: string
   /** 영수증은 가게, 주문은 쇼핑몰(플랫폼), 캡처는 판매처 */
   where: string
   /** 기록에 적힌 상품명 그대로 */
@@ -21,10 +22,31 @@ export type SeenRecord = {
   amount: number
   /** 1개 값(기록에 있으면) */
   unitPrice: number | null
+  unitLabel?: string | null
   packSize: number | null
   packUnit: string | null
   /** 캡처에 적힌 배송비 */
   delivery?: number | null
+}
+
+export type HistoryPeriod = { from?: string; to: string }
+export type PurchaseHistory = { rows: SeenRecord[]; capturesAvailable: boolean }
+export type CaptureRow = {
+  seller: string; price: number; qty: number; delivery: number | null; captured_on: string
+  unit_price?: number | null; unit_label?: string | null
+  captured_at?: string
+  products: { name: string } | { name: string }[] | null
+}
+
+export function captureSeen(rows: CaptureRow[]): SeenRecord[] {
+  return rows.flatMap((r) => {
+    const product = Array.isArray(r.products) ? r.products[0] : r.products
+    return product?.name ? [{
+      source: 'capture' as const, date: r.captured_on, recordedAt: r.captured_at, where: r.seller, name: product.name,
+      quantity: Number(r.qty), amount: Number(r.price), unitPrice: r.unit_price ?? null, unitLabel: r.unit_label ?? null,
+      packSize: null, packUnit: null, delivery: r.delivery,
+    }] : []
+  })
 }
 
 export type SeenMatch = SeenRecord & {
@@ -147,6 +169,7 @@ export function seenUnit(m: SeenMatch): string {
 /** 가계부 지출 내역 한 건(지난 기록용으로 읽는 칸) */
 export type LedgerTx = {
   occurred_on: string
+  created_at?: string
   platform: string | null
   title: string
   merchant?: string | null
@@ -170,7 +193,7 @@ export function ledgerSeen(txs: LedgerTx[]): SeenRecord[] {
       const memoPlace = /^산 곳: (.+)$/m.exec(t.memo ?? '')?.[1].trim()
       const source: SeenSource = t.source === 'photo' ? (t.platform ? 'order' : 'receipt') : t.source === 'manual' && sameTitle ? 'list' : 'ledger'
       const where = t.platform || t.merchant?.trim() || memoPlace || (!sameTitle ? t.title.trim() : '')
-      out.push({ source, date: t.occurred_on, where, name: it.name, quantity: Number(it.quantity) || 1, amount: it.amount, unitPrice: it.unit_price,
+      out.push({ source, date: t.occurred_on, recordedAt: t.created_at, where, name: it.name, quantity: Number(it.quantity) || 1, amount: Number(it.amount), unitPrice: it.unit_price,
         packSize: it.pack_size === null ? null : Number(it.pack_size), packUnit: it.pack_unit })
     }
   }

@@ -1,6 +1,8 @@
 // 캡처로 일정 넣기(D-039): 일정·예약 캡처를 서버(extract-entries, kind 'event')에서 읽고,
 // 읽은 일정을 고칠 수 있는 초안으로 만들어 이미 있는 일정과 견준 뒤, 저장하기 전에 표 검사와 같은 기준으로 확인한다.
 import { checkTime, EVENT_ADDRESS_MAX, EVENT_MEMO_MAX, EVENT_PLACE_MAX, EVENT_TITLE_MAX, validDate, type CheckedEvent } from '../../supabase/functions/extract-entries/eventCheck'
+import { daysBetween } from './anniversaries'
+import { addDays } from './events'
 import { invoke, SmartError } from './smart'
 import type { CalEvent, EventInput, Scope } from './types'
 
@@ -49,6 +51,10 @@ export interface EventDraft {
   /** 누구 일정(D-044). 캡처에서는 알 수 없어 함께로 두고 사람이 고른다 */
   scope: Scope
   warnings: string[]
+  revision?: {
+    notice: 'change' | 'cancel'
+    candidates: CalEvent[]
+  }
 }
 
 const norm = (s: string) => s.replace(/[\s·.,:;()[\]{}'"!?~\-_/]/g, '').toLowerCase()
@@ -65,31 +71,79 @@ export function sameEvent(a: Pick<EventInput, 'date' | 'time' | 'title'>, b: Pic
   return a.time !== null && a.time === b.time && x.slice(0, 2) === y.slice(0, 2)
 }
 
-/**
- * 서버가 읽은 일정 → 초안. 취소 안내, 이미 달력에 있는 일정, 앞 초안과 같은 일정은 빼 둔다(체크를 켜면 넣을 수 있다).
- * existing은 초안 날짜 범위의 일정이다(eventDateRange로 읽는다).
- */
+const isRevision = (e: CheckedEvent) => e.notice === 'change' || e.notice === 'cancel'
+const bookingNo = (e: Pick<CheckedEvent, 'bookingNo' | 'memo'>) =>
+  norm(e.bookingNo || e.memo?.match(/예약번호\s*[:：]?\s*([\p{L}\p{N}_-]+)/u)?.[1] || '')
+
+function similarName(a: string | null | undefined, b: string | null | undefined): boolean {
+  const name = (s: string) => norm(s.normalize('NFKC')).replace(/예약|일정|변경|취소|안내|확정|저녁|점심/g, '')
+  const x = name(a ?? '')
+  const y = name(b ?? '')
+  return x.length >= 2 && y.length >= 2 && (x.includes(y) || y.includes(x))
+}
+
+/** 예약번호, 변경 전 날짜·시간, 제목·장소가 겹치는 순으로 기존 일정 후보를 보여 준다. */
+function revisionCandidates(e: CheckedEvent, existing: CalEvent[]): CalEvent[] {
+  const number = bookingNo(e)
+  const oldDate = e.notice === 'cancel' ? e.date : e.previousDate
+  const oldTime = e.notice === 'cancel' ? e.time : e.previousTime
+  const anchor = oldDate ?? e.date
+  return existing.flatMap((event) => {
+    if (event.repeat_weeks) return []
+    const sameNumber = Boolean(number && number === bookingNo(event))
+    const sameDate = Boolean(oldDate && oldDate === event.date)
+    const sameTime = Boolean(oldTime && oldTime === event.time)
+    const sameName = similarName(e.title, event.title) || similarName(e.place, event.place)
+      || similarName(e.place, event.title) || similarName(e.title, event.place)
+    if (!sameNumber && !sameName && !(sameDate && sameTime)) return []
+    const score = (sameNumber ? 100 : 0) + (sameDate ? 30 : 0) + (sameTime ? 10 : 0) + (sameName ? 5 : 0)
+    return [{ event, score, distance: anchor ? Math.abs(daysBetween(anchor, event.date)) : 0 }]
+  }).sort((a, b) => b.score - a.score || a.distance - b.distance).map(({ event }) => event)
+}
+
+/** 서버가 읽은 일정 → 새 일정 초안 또는 기존 일정 변경·취소 검토. */
 export function toEventDrafts(events: CheckedEvent[], existing: CalEvent[]): EventDraft[] {
   const out: EventDraft[] = []
+  const revisions = events.filter(isRevision)
   events.forEach((e, i) => {
     const warnings = [...e.warnings]
     const d = { date: e.date ?? '', time: e.time, title: e.title }
+    const notice = e.notice
+    const revision = notice === 'change' || notice === 'cancel' ? { notice, candidates: revisionCandidates(e, existing) } : undefined
+    const number = bookingNo(e)
+    // 같은 안내에서 바뀌기 전·후를 각각 읽었더라도 같은 예약을 새로 넣지 않는다.
+    if (!revision && revisions.some((r) => (number && number === bookingNo(r))
+      || ((e.date === r.date || e.date === r.previousDate) && sameEvent(d, { ...r, date: d.date })))) return
     const dup = existing.find((x) => sameEvent(d, x))
     const again = out.find((x) => sameEvent(d, x))
-    if (dup) warnings.push(`같은 날 "${dup.title}"${dup.time ? `(${dup.time})` : ''} 일정이 이미 있어서 빼 두었어요.`)
+    if (!revision && dup) warnings.push(`같은 날 "${dup.title}"${dup.time ? `(${dup.time})` : ''} 일정이 이미 있어서 빼 두었어요.`)
     else if (again) warnings.push('위 일정과 같아 보여서 빼 두었어요.')
     // 좌표는 둘 다 있을 때만(이 기능 전 서버의 응답에는 장소 칸이 없다)
     const coords = typeof e.lat === 'number' && typeof e.lng === 'number' ? { lat: e.lat, lng: e.lng } : { lat: null, lng: null }
-    out.push({ key: String(i), include: e.notice !== 'cancel' && !dup && !again, title: e.title, date: d.date, time: e.time, memo: e.memo ?? '',
-      place: e.place ?? '', address: e.address ?? '', ...coords, scope: 'shared', warnings })
+    out.push({ key: String(i), include: !revision && !dup && !again, title: e.title, date: d.date, time: e.time, memo: e.memo ?? '',
+      place: e.place ?? '', address: e.address ?? '', ...coords, scope: 'shared', warnings, revision })
   })
   return out
 }
 
 /** 초안 날짜의 처음·끝(이미 있는 일정을 읽을 범위). 날짜가 하나도 없으면 null */
-export function eventDateRange(events: Pick<CheckedEvent, 'date'>[]): { from: string; to: string } | null {
-  const dates = events.map((e) => e.date).filter((d): d is string => Boolean(d)).sort()
+export function eventDateRange(events: (Pick<CheckedEvent, 'date' | 'previousDate'> & { notice?: CheckedEvent['notice'] })[], today?: string): { from: string; to: string } | null {
+  const dates = events.flatMap((e) => {
+    if (!today || !e.notice || e.notice === 'booking') return [e.date]
+    // 변경 전 날짜가 빠진 안내는 새 날짜(취소는 원래 예약 날짜) 주변에서도 기존 일정을 찾는다.
+    const anchor = e.date ?? today
+    return e.previousDate ? [e.previousDate, e.date] : [addDays(anchor, -90), addDays(anchor, 90)]
+  }).filter((d): d is string => Boolean(d)).sort()
   return dates.length ? { from: dates[0], to: dates[dates.length - 1] } : null
+}
+
+/** 바뀐 날짜·시간만 보낸다. 기간 일정은 원래 길이만큼 끝 날짜도 옮긴다. */
+export function eventRevision(d: Pick<EventDraft, 'date' | 'time'>, event: CalEvent): Pick<EventInput, 'date' | 'time' | 'end_on'> | null {
+  const date = d.date || event.date
+  const time = d.time ?? event.time
+  if (date === event.date && time === event.time) return null
+  const end = event.end_on && date !== event.date ? addDays(date, daysBetween(event.date, event.end_on)) : undefined
+  return { date, time, ...(end && { end_on: end }) }
 }
 
 /** 확인 없이 바로 넣는 일정 수 상한(D-046). 붙여넣은 글은 믿을 수 없는 입력이라 많이 나오면 사람이 본다 */
@@ -120,7 +174,7 @@ const hasUrl = (s: string) =>
  */
 export function canAutoSave(drafts: EventDraft[], note: string | null = null, text = ''): boolean {
   return drafts.length > 0 && drafts.length <= AUTO_SAVE_MAX && !note?.trim() && !hasUrl(text)
-    && drafts.every((d) => d.include && d.warnings.length === 0 && typeof eventInput(d) !== 'string' && dateInText(d.date, text)
+    && drafts.every((d) => !d.revision && d.include && d.warnings.length === 0 && typeof eventInput(d) !== 'string' && dateInText(d.date, text)
       && !hasUrl([d.title, d.memo, d.place, d.address].join('\n')))
 }
 

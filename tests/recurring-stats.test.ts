@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest'
+import { categoryTrend, weeklySpend } from '../src/lib/insights'
+import { dailyTotals, sumType } from '../src/lib/ledger'
 import { dueDate, endMonthFor, historyRange, installmentPlan, installmentsLeft, monthlyAmount, nextDue, pastAmounts, monthItem, pendingInputs, phaseAt, termAt, plannedInMonth, plannedTotals, plannedTxs, subscriptionCandidates, termLeft, termOf } from '../src/lib/recurring'
 import { categoryBreakdown, monthSeries, OTHER_PLATFORM, pctChange, platformBreakdown, platformOf, scopeSplit, totalOf } from '../src/lib/stats'
 import type { Category, MonthTotal, Recurring, Transaction } from '../src/lib/types'
@@ -86,6 +88,26 @@ describe('통계', () => {
       { id: null, name: '분류 없음', amount: 10000, prev: 0, share: 0.2 },
     ])
     expect(scopeSplit([...cur, tx({ scope: 'child', amount: 7000 })])).toEqual({ shared: 50000, husband: 0, wife: 0, child: 7000 })
+  })
+
+  it('다음 달에 받은 여러 부분 환불을 원래 날짜와 분류에서만 차감한다', () => {
+    const purchase = tx({ category_id: 'food', scope: 'child', amount: 10000, title: '쿠팡', refunds: [
+      { id: 'a', amount: 3000, requested_on: '2026-10-30', refunded_on: '2026-11-01' },
+      { id: 'b', amount: 2000, requested_on: '2026-10-30', refunded_on: '2026-11-03' },
+      { id: 'c', amount: 1000, requested_on: '2026-10-30', refunded_on: null },
+    ] })
+    const cur = [purchase, tx({ type: 'income', amount: 12000 })]
+    expect(sumType(cur, 'expense')).toBe(5000)
+    expect(sumType(cur, 'income')).toBe(12000)
+    expect(dailyTotals(cur).get(purchase.occurred_on)).toEqual({ expense: 5000, income: 12000 })
+    expect(categoryBreakdown(cur, [], [])[0]).toMatchObject({ id: 'food', amount: 5000, share: 1 })
+    expect(scopeSplit(cur).child).toBe(5000)
+    expect(platformBreakdown(cur, [])[0]).toMatchObject({ name: '쿠팡', amount: 5000, count: 1 })
+    expect(categoryTrend(cur, 'food', '2026-11', 2)).toEqual([
+      { ym: '2026-10', amount: 5000 }, { ym: '2026-11', amount: 0 },
+    ])
+    expect(weeklySpend(cur, '2026-10', '2026-11-03')[2].amount).toBe(5000)
+    expect(purchase.amount).toBe(10000)
   })
 
   it('플랫폼별 지출: 이름으로 알아보고, 큰 것부터, 모르는 것은 마지막에 그 외로', () => {

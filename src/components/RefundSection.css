@@ -1,0 +1,14 @@
+.refund-section { border-top: 1px solid var(--line); padding-top: 14px; }
+.refund-heading, .refund-list li { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.refund-heading { color: var(--ink-2); font-size: 14px; }
+.refund-heading h3 { margin: 0; }
+.refund-list { list-style: none; margin: 0; padding: 0; font-size: 14px; }
+.refund-list li { padding: 7px 0; }
+.refund-list li + li { border-top: 1px solid var(--line); }
+.field.refund-form { gap: 10px; }
+.refund-form label { font-size: 14px; color: var(--ink-2); }
+
+@media (min-width: 960px) {
+  .field.refund-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .refund-form > :not(label) { grid-column: 1 / -1; }
+}

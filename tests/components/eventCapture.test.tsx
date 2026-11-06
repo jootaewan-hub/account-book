@@ -11,6 +11,7 @@ const state = vi.hoisted(() => ({
   existing: [] as CalEvent[],
   inserted: [] as EventInput[][],
   deleted: [] as string[][],
+  revised: [] as { id: string; patch?: Partial<EventInput>; expectedUpdatedAt: string | null }[],
   fail: null as Error | null,
   fetchRange: null as [string, string] | null,
   // 읽기·넣기를 붙잡아 두는 문(시트를 그 사이에 닫는 시험)
@@ -39,6 +40,8 @@ vi.mock('../../src/lib/api', () => ({
     return list.map((_, i) => `new-${i}`)
   },
   deleteEvents: async (ids: string[]) => { state.deleted.push(ids) },
+  updateEvent: async (id: string, patch: Partial<EventInput>, expectedUpdatedAt: string | null) => { state.revised.push({ id, patch, expectedUpdatedAt }) },
+  deleteEvent: async (id: string, expectedUpdatedAt: string | null) => { state.revised.push({ id, expectedUpdatedAt }) },
 }))
 
 const { EventCaptureSheet } = await import('../../src/components/EventCaptureSheet')
@@ -46,7 +49,7 @@ const { CalendarView } = await import('../../src/components/CalendarView')
 const { makeLookup } = await import('../../src/lib/lookup')
 
 beforeEach(() => {
-  Object.assign(state, { events: [], note: null, existing: [], inserted: [], deleted: [], fail: null, fetchRange: null, readGate: null, insertGate: null })
+  Object.assign(state, { events: [], note: null, existing: [], inserted: [], deleted: [], revised: [], fail: null, fetchRange: null, readGate: null, insertGate: null })
   URL.revokeObjectURL = () => {}
 })
 afterEach(cleanup)
@@ -54,6 +57,12 @@ afterEach(cleanup)
 const checked = (p: Partial<CheckedEvent>): CheckedEvent => ({
   title: '을지로 정육식당 저녁 예약', date: '2026-11-15', time: '18:30', memo: '4명 · 예약번호 A1234', notice: 'booking', warnings: [], images: [1], ...p,
 })
+
+const originalBooking: CalEvent = {
+  id: 'booking', household_id: 'h', date: '2026-11-15', end_on: '2026-11-17', time: '18:30',
+  title: '정육식당', memo: '예약번호 A1234 · 직접 적은 메모', place: '을지로 정육식당', address: '서울 중구',
+  lat: 37.5, lng: 127, scope: 'husband', priority: 'must', effect: 'bold', updated_at: '2026-10-30T08:01:00Z',
+}
 
 async function readCapture() {
   const onSaved = vi.fn(async () => {})
@@ -66,6 +75,21 @@ async function readCapture() {
 }
 
 describe('캡처로 일정 넣기 시트', () => {
+  it('취소 캡처는 일정 선택과 확인을 거친 뒤에만 기존 일정을 지운다', async () => {
+    state.events = [checked({ date: null, notice: 'cancel', bookingNo: 'A1234' })]
+    state.existing = [originalBooking]
+    await readCapture()
+    const confirm = await screen.findByRole('button', { name: '확인하고 일정 지우기' })
+    expect((confirm as HTMLButtonElement).disabled).toBe(true)
+    fireEvent.change(screen.getByLabelText('기존 일정 선택'), { target: { value: 'booking' } })
+    expect(screen.getByText('취소 후')).toBeTruthy()
+    expect(state.revised).toEqual([])
+    fireEvent.click(confirm)
+    expect(await screen.findByText('일정을 지웠어요.')).toBeTruthy()
+    expect(state.revised).toEqual([{ id: 'booking', expectedUpdatedAt: originalBooking.updated_at }])
+    expect(state.inserted).toEqual([])
+  })
+
   it('읽은 일정을 보여 주고, 고친 값으로 넣은 뒤 가장 이른 날짜를 알린다', async () => {
     state.events = [checked({}), checked({ title: '치과 진료', date: '2026-11-03', time: null, memo: null })]
     const { onSaved } = await readCapture()
@@ -145,6 +169,32 @@ describe('문자 붙여넣기(D-046)', () => {
   const gate = () => { let open = () => {}; const p = new Promise<void>((r) => { open = r }); return { p, open } }
 
   const symposium = () => checked({ title: '추계 심포지엄', date: '2026-11-21', time: '09:00', memo: '09:00~17:00 · 사전등록, 평점 6점', place: '코엑스 401호', address: null })
+
+  it('변경 문자는 다른 날의 기존 일정과 견주고 확인한 뒤 날짜와 시간만 바꾼다', async () => {
+    state.events = [checked({ notice: 'change', previousDate: '2026-11-15', date: '2026-11-21', time: '19:00' })]
+    state.existing = [originalBooking]
+    await readText('정육식당 예약 11/15 18:30 → 11/21 19:00로 변경되었습니다.')
+    await screen.findByRole('heading', { name: /변경 안내/ })
+    fireEvent.change(screen.getByLabelText('기존 일정 선택'), { target: { value: 'booking' } })
+    expect(screen.getByText('변경 전')).toBeTruthy()
+    expect(screen.getByText('변경 후')).toBeTruthy()
+    expect(state.revised).toEqual([])
+    expect(state.inserted).toEqual([])
+    fireEvent.click(screen.getByRole('button', { name: '확인하고 일정 바꾸기' }))
+    expect(await screen.findByText('일정을 바꿨어요.')).toBeTruthy()
+    expect(state.revised).toEqual([{ id: 'booking', expectedUpdatedAt: originalBooking.updated_at,
+      patch: { date: '2026-11-21', time: '19:00', end_on: '2026-11-23' } }])
+    expect(state.inserted).toEqual([])
+  })
+
+  it('기존 일정을 못 찾은 변경 문자는 새 일정으로 넣을 수 없다', async () => {
+    state.events = [checked({ notice: 'change' })]
+    await readText('을지로 정육식당 11/15로 예약 변경')
+    expect(await screen.findByText('맞는 기존 일정을 찾지 못했어요.')).toBeTruthy()
+    expect(screen.queryByRole('button', { name: /넣기|일정 바꾸기/ })).toBeNull()
+    expect(state.inserted).toEqual([])
+    expect(state.revised).toEqual([])
+  })
 
   it('확인할 것이 없고 원문에 날짜가 있으면 바로 넣고, 넣은 것을 보이며 확인을 누르면 달력으로', async () => {
     state.events = [symposium()]

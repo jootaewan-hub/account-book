@@ -3,6 +3,7 @@ import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRe
 import { CalendarView } from './components/CalendarView'
 import { EntrySheet } from './components/EntrySheet'
 import { ErrorBoundary } from './components/ErrorBoundary'
+import { HouseholdTasks } from './components/HouseholdTasks'
 import { CalendarIcon, CartIcon, ChartIcon, ChevronLeft, ChevronRight, GearIcon, HouseIcon, ListIcon, NoteIcon, Plus, RepeatIcon, SearchIcon } from './components/Icons'
 import { ListView, type ListFocus } from './components/ListView'
 import { BootScreen, ScreenWait } from './components/Loading'
@@ -16,7 +17,7 @@ import { Onboarding } from './components/Onboarding'
 import type { SmartMode } from './components/SmartSheet'
 import { useLedgerMeta, useLiveUpdates, useMonthEvents, useMonthTransactions, useRecurringList } from './hooks/useLedger'
 import { useNotes } from './hooks/useNotes'
-import { deleteTransaction, deleteTransactions, friendlyError, generateRecurring, insertEvent, insertInstallmentPurchase, insertTransaction, updateSpouseRole, updateTransaction } from './lib/api'
+import { deleteTransaction, deleteTransactions, fetchTransactionWithItems, friendlyError, generateRecurring, insertEvent, insertInstallmentPurchase, insertTransaction, updateSpouseRole, updateTransaction } from './lib/api'
 import type { ItemsChange } from './lib/itemEdit'
 import { wasRefreshed } from './lib/appUpdate'
 import { takeNewRelease } from './lib/changelog'
@@ -109,8 +110,16 @@ const isAside = (t: Tab): t is Aside => t === 'notes' || t === 'settings'
 
 /** 처음 열 탭: ?tab=grocery(예전 장보기 주소의 안내 페이지가 여기로 보낸다). 다른 값은 무시한다. 설정에서 앱 파일을 다시 받았으면 설정 */
 function initialTab(): Tab {
+  if (reminderDate()) return 'cal'
   if (wasRefreshed()) return 'settings'
   return new URLSearchParams(window.location.search).get('tab') === 'grocery' ? 'grocery' : 'cal'
+}
+
+function reminderDate(): string | null {
+  const value = new URLSearchParams(window.location.search).get('eventDate')
+  if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null
+  const date = new Date(`${value}T00:00:00Z`)
+  return Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === value ? value : null
 }
 
 const TITLE: Record<Tab, string> = { cal: '우리집', list: '내역', grocery: '장보기', stats: '통계', fixed: '고정 지출', explore: '알아보기', notes: '함께 기억할 것', settings: '설정' }
@@ -131,8 +140,8 @@ function Ledger({ household, meta, userId, email }: {
   email: string
 }) {
   const [today, setToday] = useState(todayLocal())
-  const [ym, setYm] = useState(today.slice(0, 7))
-  const [sel, setSel] = useState(today)
+  const [sel, setSel] = useState(() => reminderDate() ?? today)
+  const [ym, setYm] = useState(sel.slice(0, 7))
   const [tab, setTab] = useState<Tab>(initialTab)
   // 설정·기억할 것은 아래 탭이 아니라 톱니 버튼·달력 화면 묶음으로 연다. 돌아가기는 그 화면을 연 아래 탭으로
   const [beforeAside, setBeforeAside] = useState<Exclude<Tab, Aside>>('cal')
@@ -191,6 +200,7 @@ function Ledger({ household, meta, userId, email }: {
   // 고정지출 예정분(D-030)에 쓰는 반복 항목. 고정 탭에서 다른 탭으로 올 때마다 다시 읽어 고친 것이 바로 보인다
   const recurring = useRecurringList(household.id, tab === 'cal' || tab === 'list' || tab === 'stats')
   const [plan, setPlan] = useState<PlanTarget | null>(null)
+  const [taskOpen, setTaskOpen] = useState(false)
   // 캡처로 일정 넣기(D-039). 처음 열 때 불러오고, 닫히는 움직임을 위해 그 뒤로는 남겨 둔다
   const [capture, setCapture] = useState({ open: false, mounted: false })
   const openCapture = () => setCapture({ open: true, mounted: true })
@@ -250,6 +260,14 @@ function Ledger({ household, meta, userId, email }: {
   const planTotals = useMemo(() => plannedTotals(recurring, txs, addMonths(ym, -12), ym, today), [recurring, txs, ym, today])
   // 예정 내역은 고칠 것이 없으므로 고정 탭(같은 달)으로 보낸다
   const editTx = (t: Transaction) => { if (t.planned) setTab('fixed'); else setSheet({ open: true, editing: t }) }
+  async function openEventPayment(id: string) {
+    try {
+      const tx = await fetchTransactionWithItems(household.id, id)
+      if (!tx) { toast('연결된 내역을 찾지 못했어요.', false); return }
+      setPlan(null)
+      editTx(tx)
+    } catch (e) { toast(friendlyError(e), false) }
+  }
   const usage = useMemo(() => {
     const m = new Map<string, number>()
     for (const t of txs) if (t.category_id) m.set(t.category_id, (m.get(t.category_id) ?? 0) + 1)
@@ -384,6 +402,8 @@ function Ledger({ household, meta, userId, email }: {
           <Screen name="달력">
             <CalendarView ym={ym} today={today} sel={sel} cur={curAll} prev={prevAll} loading={txLoading} lookup={lookup} annivs={meta.anniversaries} events={events}
               onSelect={setSel} onPlan={setPlan} onCapture={openCapture} onQuickAdd={quickAddEvent} onJump={(d) => { setYm(d.slice(0, 7)); setSel(d) }} onEdit={editTx}
+              onAddTask={() => setTaskOpen(true)} tasks={<HouseholdTasks householdId={household.id} members={meta.members} today={today} selected={sel}
+                adding={taskOpen} onAdd={() => setTaskOpen(true)} onCloseAdd={() => setTaskOpen(false)} />}
               notes={<NotesCard rows={notes.rows} error={notes.error} onOpenAll={() => openAside('notes')}
                 onOpen={(note) => setNoteTarget({ note })} onNew={() => setNoteTarget({ note: null })} onRetry={() => void notes.reload()} />} />
           </Screen>
@@ -464,6 +484,7 @@ function Ledger({ household, meta, userId, email }: {
         <EntrySheet open={sheet.open} editing={sheet.editing} defaultDate={sel.startsWith(ym) ? sel : today} today={today}
           lookup={lookup} categories={activeCats} usage={usage}
           onSave={save} onDelete={remove} onDeleteMany={removeMany} onClose={() => setSheet({ open: false, editing: null })}
+          onRefundChanged={() => void reload()}
           onSmart={(mode) => { setSheet({ open: false, editing: null }); openSmart(mode) }} />
       </ErrorBoundary>
 
@@ -482,6 +503,11 @@ function Ledger({ household, meta, userId, email }: {
         <ErrorBoundary name="캡처·문자로 일정 넣기">
           <Suspense fallback={null}>
             <EventCaptureSheet open={capture.open} today={today} householdId={household.id} onClose={closeCapture}
+              onRevised={async (notice, date) => {
+                setYm(date.slice(0, 7)); setSel(date)
+                await reloadEvents()
+                toast(notice === 'change' ? '예약 일정을 옮겼어요' : '취소된 예약을 지웠어요')
+              }}
               onManual={() => { closeCapture(); setPlan({ kind: 'new', date: sel.startsWith(ym) ? sel : today }) }}
               onSaved={async (n, first) => {
                 // 넣은 일정이 보이게 가장 이른 날짜로 옮긴다(다른 달이면 그 달 일정을 새로 읽는다)
@@ -493,7 +519,8 @@ function Ledger({ household, meta, userId, email }: {
         </ErrorBoundary>
       )}
 
-      <PlanSheet target={plan} householdId={household.id} today={today} annivs={meta.anniversaries} onEventsChanged={reloadEvents}
+      <PlanSheet target={plan} householdId={household.id} today={today} annivs={meta.anniversaries} members={meta.members} userId={userId}
+        onOpenTransaction={(id) => void openEventPayment(id)} onEventsChanged={reloadEvents}
         onAnnivsChanged={meta.reload} onClose={() => setPlan(null)} toast={toast} />
 
       {wishTarget && <ErrorBoundary name="물건 보관함">

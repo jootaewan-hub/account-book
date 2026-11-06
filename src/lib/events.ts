@@ -24,6 +24,21 @@ export function addDays(date: string, n: number): string {
   return `${t.getUTCFullYear()}-${pad(t.getUTCMonth() + 1)}-${pad(t.getUTCDate())}`
 }
 
+/** 달력에 필요한 기간의 반복 회차만 계산한다. id는 원래 일정의 id를 유지한다. */
+export function expandEvents(events: CalEvent[], from: string, to: string): CalEvent[] {
+  const rows: CalEvent[] = []
+  for (const event of events) {
+    if (!event.repeat_weeks) { rows.push(event); continue }
+    const step = event.repeat_weeks * 7
+    const skip = new Set(event.skipped_on)
+    const offset = Math.max(0, Math.ceil(daysBetween(event.date, from) / step)) * step
+    for (let day = addDays(event.date, offset); day <= to && (!event.repeat_until || day <= event.repeat_until); day = addDays(day, step)) {
+      if (!skip.has(day)) rows.push({ ...event, date: day, end_on: null, series_start: event.date })
+    }
+  }
+  return rows.sort((a, b) => a.date.localeCompare(b.date) || (a.time ?? '').localeCompare(b.time ?? ''))
+}
+
 /** 끝나는 날. 하루 일정이면 시작 날 */
 export const eventEnd = (e: Ranged): string => (e.end_on && e.end_on > e.date ? e.end_on : e.date)
 export const isRange = (e: Ranged): boolean => eventEnd(e) !== e.date

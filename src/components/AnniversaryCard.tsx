@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { annivCategories, annivDateLabel, annivInput, dLabel, newAnnivInput, upcomingAnniversaries } from '../lib/anniversaries'
 import { deleteAnniversary, friendlyError, insertAnniversary, updateAnniversary } from '../lib/api'
-import type { Anniversary } from '../lib/types'
+import type { Anniversary, Member } from '../lib/types'
 import { AnniversaryForm } from './AnniversaryForm'
 import { AnnivIcon } from './AnnivIcon'
 
@@ -9,12 +9,14 @@ interface Props {
   householdId: string
   annivs: Anniversary[]
   today: string
+  reminderMembers: Member[]
+  reminderUserId: string
   onChanged: () => Promise<void>
   toast: (msg: string) => void
 }
 
 /** 설정 > 기념일: 가까운 순서로 보여 주고, 눌러서 고치거나 새로 넣는다 */
-export function AnniversaryCard({ householdId, annivs, today, onChanged, toast }: Props) {
+export function AnniversaryCard({ householdId, annivs, today, reminderMembers, reminderUserId, onChanged, toast }: Props) {
   // null: 닫힘, 'new': 새로 넣기, 그 밖: 고치는 기념일 id
   const [edit, setEdit] = useState<string | null>(null)
   const up = upcomingAnniversaries(annivs, today)
@@ -29,6 +31,7 @@ export function AnniversaryCard({ householdId, annivs, today, onChanged, toast }
   const categories = annivCategories(annivs)
   const form = (a: Anniversary | null) => (
     <AnniversaryForm key={a?.id ?? 'new'} today={today} editing={a !== null} categories={categories}
+      reminderMembers={reminderMembers} reminderUserId={reminderUserId}
       initial={a ? annivInput(a) : newAnnivInput()}
       onCancel={() => setEdit(null)}
       onSave={(v) => run(() => (a ? updateAnniversary(a.id, v) : insertAnniversary(householdId, v)), a ? '기념일을 고쳤어요' : '기념일을 넣었어요')}

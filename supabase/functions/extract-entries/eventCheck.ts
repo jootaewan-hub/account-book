@@ -39,6 +39,8 @@ export interface RawEvent {
   phone: string | null
   detail: string | null
   notice: EventNotice
+  /** 원문에 따로 보이는 변경 전 날짜·시각 */
+  previous?: Pick<RawEvent, 'year' | 'month' | 'day' | 'weekday' | 'start_time'> | null
   images: number[]
 }
 
@@ -56,6 +58,9 @@ export interface CheckedEvent {
   lat?: number | null
   lng?: number | null
   notice: EventNotice
+  previousDate?: string | null
+  previousTime?: string | null
+  bookingNo?: string | null
   /** 확인해 달라는 문장(날짜를 못 읽음, 요일이 안 맞음, 지난 날짜, 취소·변경 안내) */
   warnings: string[]
   /** 이 일정을 읽은 이미지 번호(1부터) */
@@ -162,18 +167,22 @@ export function eventMemo(e: RawEvent, time: string | null): string | null {
 
 const NOTICE_WARNING: Record<EventNotice, string | null> = {
   booking: null,
-  change: '변경 안내로 보여요. 전에 넣은 일정이 있으면 달력에서 고치거나 지워 주세요.',
-  cancel: '취소 안내로 보여요. 넣지 않게 빼 두었어요. 전에 넣은 일정은 달력에서 지워 주세요.',
+  change: '변경 안내로 보여요. 달력에서 바꿀 일정을 골라 주세요.',
+  cancel: '취소 안내로 보여요. 달력에서 지울 일정을 골라 주세요.',
 }
 
 /** 모델 출력 → 저장할 수 있는 일정. 제목도 날짜도 없는 것은 버린다 */
 export function checkEvents(raw: RawEvent[], today: string, imageCount: number): CheckedEvent[] {
   return raw.slice(0, EVENT_MAX).flatMap((e) => {
     const title = clip(squash(e.title) || squash(e.place) || '', EVENT_TITLE_MAX)
-    const { date, warnings } = resolveEventDate(e, today)
-    if (!title && !date) return []
     const time = checkTime(e.start_time)
     const notice: EventNotice = e.notice === 'change' || e.notice === 'cancel' ? e.notice : 'booking'
+    const bookingNo = squash(e.booking_no) || null
+    const { date, warnings } = resolveEventDate(e, today)
+    const previous = notice === 'change' ? e.previous : null
+    if (!title && !date && !(notice !== 'booking' && (time || previous || bookingNo))) return []
+    // 날짜가 생략된 취소·시간 변경은 달력에 있는 날짜를 바탕으로 검토한다.
+    const dateWarnings = !date && (notice === 'cancel' || (notice === 'change' && time)) ? [] : warnings
     const noticeWarning = NOTICE_WARNING[notice]
     const images = Array.isArray(e.images)
       ? [...new Set(e.images.filter((n) => Number.isInteger(n) && n >= 1 && n <= imageCount))].sort((a, b) => a - b)
@@ -188,7 +197,12 @@ export function checkEvents(raw: RawEvent[], today: string, imageCount: number):
       lat: null,
       lng: null,
       notice,
-      warnings: noticeWarning ? [noticeWarning, ...warnings] : warnings,
+      ...(notice !== 'booking' && {
+        previousDate: previous ? resolveEventDate(previous, today).date : null,
+        previousTime: checkTime(previous?.start_time),
+        bookingNo,
+      }),
+      warnings: noticeWarning ? [noticeWarning, ...dateWarnings] : dateWarnings,
       images,
     }]
   })

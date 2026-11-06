@@ -2,6 +2,7 @@
 import { NON_PURCHASE_CATEGORIES, storeOfTx } from './categorize'
 import { addMonths } from './dates'
 import { OTHER_PLATFORM, platformOfTx } from './platform'
+import { netAmount } from './refunds'
 import type { Category, MonthTotal, Scope, Transaction } from './types'
 
 export { OTHER_PLATFORM, platformOf } from './platform'
@@ -49,7 +50,7 @@ export function categoryBreakdown(cur: Transaction[], prev: Transaction[], categ
   const names = new Map(categories.map((c) => [c.id, c.name]))
   const sum = (txs: Transaction[]) => {
     const m = new Map<string | null, number>()
-    for (const t of txs) if (t.type === 'expense') m.set(t.category_id, (m.get(t.category_id) ?? 0) + t.amount)
+    for (const t of txs) if (t.type === 'expense') m.set(t.category_id, (m.get(t.category_id) ?? 0) + netAmount(t))
     return m
   }
   const a = sum(cur)
@@ -65,7 +66,7 @@ export function categoryBreakdown(cur: Transaction[], prev: Transaction[], categ
 /** 누구를 위한 지출인가별 합계 */
 export function scopeSplit(cur: Transaction[]): Record<Scope, number> {
   const out: Record<Scope, number> = { shared: 0, husband: 0, wife: 0, child: 0 }
-  for (const t of cur) if (t.type === 'expense') out[t.scope] += t.amount
+  for (const t of cur) if (t.type === 'expense') out[t.scope] += netAmount(t)
   return out
 }
 
@@ -99,7 +100,7 @@ export function platformBreakdown(cur: Transaction[], prev: Transaction[], categ
       const k = keyOf(t)
       if (!k) continue
       const v = m.get(`${k.kind}\n${k.name}`) ?? { ...k, amount: 0, count: 0 }
-      v.amount += t.amount; v.count++
+      v.amount += netAmount(t); v.count++
       m.set(`${k.kind}\n${k.name}`, v)
     }
     return m

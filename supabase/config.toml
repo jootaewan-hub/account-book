@@ -49,3 +49,7 @@ verify_jwt = true
 
 [functions.explore-weather]
 verify_jwt = true
+
+# 예약 실행 전용. 함수에서 별도 Cron 토큰을 확인한다.
+[functions.event-reminders]
+verify_jwt = false

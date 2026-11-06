@@ -3,6 +3,7 @@
 import { addMonths, dayOf, daysInMonth } from './dates'
 import { won } from './format'
 import { sumType } from './ledger'
+import { netAmount } from './refunds'
 import { pctChange } from './stats'
 import type { Category, Transaction } from './types'
 
@@ -24,7 +25,7 @@ export function weeklySpend(cur: Transaction[], ym: string, today: string): Week
     const to = from + 6 >= days ? days : from + 6
     const amount = cur.reduce((s, t) => {
       const d = dayOf(t.occurred_on)
-      return t.type === 'expense' && d >= from && d <= to ? s + t.amount : s
+      return t.type === 'expense' && d >= from && d <= to ? s + netAmount(t) : s
     }, 0)
     const future = ym > thisMonth || (ym === thisMonth && from > dayOf(today))
     rows.push({ label: `${from}~${to}일`, from, to, amount, future })
@@ -58,7 +59,7 @@ export function categoryTrend(txs: Transaction[], categoryId: string | null, ym:
   for (const t of txs) {
     if (t.type !== 'expense' || t.category_id !== categoryId) continue
     const p = out.find((o) => t.occurred_on.startsWith(o.ym))
-    if (p) p.amount += t.amount
+    if (p) p.amount += netAmount(t)
   }
   return out
 }
@@ -87,13 +88,13 @@ function byCategory(cur: Transaction[], prev: Transaction[], categories: Categor
   for (const t of cur) {
     if (t.type !== 'expense') continue
     const row = m.get(t.category_id) ?? { id: t.category_id, name: (t.category_id && names.get(t.category_id)) || '분류 없음', amount: 0, count: 0, prev: 0 }
-    row.amount += t.amount; row.count++
+    row.amount += netAmount(t); row.count++
     m.set(t.category_id, row)
   }
   for (const t of prev) {
     if (t.type !== 'expense') continue
     const row = m.get(t.category_id)
-    if (row) row.prev += t.amount
+    if (row) row.prev += netAmount(t)
   }
   return [...m.values()].sort((a, b) => b.amount - a.amount)
 }
@@ -112,10 +113,10 @@ export function monthFacts({ cur, prev, ym, today, categories }: InsightInput): 
   facts.push({ key: 'top', text: `${top.name}에 가장 많이 썼어요. ${won(top.amount)}원, 전체의 ${pct(top.amount, total)}%예요.` })
 
   // 가장 큰 한 건은 실제로 나간 것 중에서 고른다(고정지출 예정분 D-030은 아직 내역이 아니다)
-  const biggest = cur.filter((t) => t.type === 'expense' && !t.planned).sort((a, b) => b.amount - a.amount)[0]
+  const biggest = cur.filter((t) => t.type === 'expense' && !t.planned && netAmount(t) > 0).sort((a, b) => netAmount(b) - netAmount(a))[0]
   if (biggest) {
     const bName = biggest.title || cats.find((c) => c.id === biggest.category_id)?.name || '이름 없음'
-    facts.push({ key: 'biggest', text: `가장 큰 지출은 ${md(biggest.occurred_on)} ${bName} ${won(biggest.amount)}원이에요.` })
+    facts.push({ key: 'biggest', text: `가장 큰 지출은 ${md(biggest.occurred_on)} ${bName} ${won(netAmount(biggest))}원이에요.` })
   }
 
   const proj = projectMonth(cur, ym, today)
@@ -133,8 +134,8 @@ export function monthFacts({ cur, prev, ym, today, categories }: InsightInput): 
     if (down) facts.push({ key: 'down', text: `${down.name} 지출은 지난달보다 ${won(down.prev - down.amount)}원 줄었어요 (${pctChange(down.amount, down.prev)}%).` })
   }
 
-  const recurring = cur.filter((t) => t.type === 'expense' && t.recurring_id).reduce((s, t) => s + t.amount, 0)
-  const ahead = cur.filter((t) => t.type === 'expense' && t.planned).reduce((s, t) => s + t.amount, 0)
+  const recurring = cur.filter((t) => t.type === 'expense' && t.recurring_id).reduce((s, t) => s + netAmount(t), 0)
+  const ahead = cur.filter((t) => t.type === 'expense' && t.planned).reduce((s, t) => s + netAmount(t), 0)
   if (recurring > 0) {
     facts.push({ key: 'recurring', text: ahead > 0
       ? `고정지출·구독이 ${won(recurring)}원(앞으로 나갈 ${won(ahead)}원 포함), 전체의 ${pct(recurring, total)}%예요.`
@@ -178,7 +179,7 @@ export function monthTips({ cur, prev, ym, today, categories }: InsightInput): T
   }
 
   // 잦은 소액 지출
-  const frequent = cats.filter((c) => c.count >= 8 && c.amount / c.count <= 15_000 && isDiscretionary(c.name)).sort((a, b) => b.count - a.count)[0]
+  const frequent = cats.filter((c) => c.count >= 8 && c.amount > 0 && c.amount / c.count <= 15_000 && isDiscretionary(c.name)).sort((a, b) => b.count - a.count)[0]
   if (frequent) {
     const avg = Math.round(frequent.amount / frequent.count)
     tips.push({ key: 'frequent', saving: avg * 4,
@@ -186,10 +187,10 @@ export function monthTips({ cur, prev, ym, today, categories }: InsightInput): T
   }
 
   // 큰 지출 한 건이 고정 탭에 없다
-  const big = cur.filter((t) => t.type === 'expense' && t.title && !t.recurring_id).sort((a, b) => b.amount - a.amount)[0]
-  if (big && big.amount / total >= 0.3) {
+  const big = cur.filter((t) => t.type === 'expense' && t.title && !t.recurring_id).sort((a, b) => netAmount(b) - netAmount(a))[0]
+  if (big && netAmount(big) / total >= 0.3) {
     tips.push({ key: 'fixed', saving: null,
-      text: `${big.title} ${won(big.amount)}원이 이번 달의 ${pct(big.amount, total)}%예요. 매달 나가는 돈이라면 고정 탭에 등록해 두면 날짜에 맞춰 자동으로 들어가요.` })
+      text: `${big.title} ${won(netAmount(big))}원이 이번 달의 ${pct(netAmount(big), total)}%예요. 매달 나가는 돈이라면 고정 탭에 등록해 두면 날짜에 맞춰 자동으로 들어가요.` })
   }
 
   // 분류가 안 나뉘어 있다
@@ -201,7 +202,7 @@ export function monthTips({ cur, prev, ym, today, categories }: InsightInput): T
   // 배송비
   const ship = cur.filter((t) => t.type === 'expense' && t.title === '배송비')
   if (ship.length >= 3) {
-    tips.push({ key: 'shipping', saving: null, text: `배송비로 ${won(ship.reduce((s, t) => s + t.amount, 0))}원 썼어요 (${ship.length}번). 장바구니에 모아 한 번에 주문하면 줄어요.` })
+    tips.push({ key: 'shipping', saving: null, text: `배송비로 ${won(ship.reduce((s, t) => s + netAmount(t), 0))}원 썼어요 (${ship.length}번). 장바구니에 모아 한 번에 주문하면 줄어요.` })
   }
 
   return tips.sort((a, b) => (b.saving ?? -1) - (a.saving ?? -1))
