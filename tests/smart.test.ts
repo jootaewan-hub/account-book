@@ -217,12 +217,33 @@ describe('결제수단·중복 판단', () => {
     expect(cancel.warnings.join()).toContain('취소')
   })
 
-  it('같은 날 같은 금액이어도 다른 결제는 저장 대상으로 남긴다', () => {
+  it('같은 날 같은 금액이어도 이름이 다르면 저장 대상으로 남기되, 비슷한 내역을 알린다', () => {
     const [draft] = toDrafts(checkEntries({ note: null, entries: [entry({ merchant: '이마트24' })] }), {
       today: '2026-10-15', methods, categories: [], fallbackMethodId: null, fallbackScope: 'shared',
       existing: [{ occurred_on: '2026-10-13', amount: 12400, type: 'expense', title: '다이소', merchant: '다이소' } as Transaction],
     })
     expect(draft.include).toBe(true)
+    expect(draft.warnings).toEqual(['같은 날 같은 금액 내역이 있어요 (다이소). 같은 결제면 체크를 풀어 주세요.'])
+  })
+
+  it('이름을 읽지 못해도 같은 날 같은 금액 내역을 알린다', () => {
+    const [draft] = toDrafts(checkEntries({ note: null, entries: [entry({ merchant: '' })] }), {
+      today: '2026-10-15', methods, categories: [], fallbackMethodId: null, fallbackScope: 'shared',
+      existing: [{ occurred_on: '2026-10-13', amount: 12400, type: 'expense', title: '다이소' } as Transaction],
+    })
+    expect(draft.include).toBe(true)
+    expect(draft.warnings.join()).toContain('다이소')
+  })
+
+  it('두 시각을 다 알 때 10분 안쪽이면 알리고, 10분을 넘으면 다른 결제로 본다', () => {
+    const ctx = { today: '2026-10-15', methods, categories: [], fallbackMethodId: null, fallbackScope: 'shared' as const }
+    const entries = checkEntries({ note: null, entries: [entry({ merchant: '이마트24' })] }) // 18:42
+    const row = (occurred_at: string) => ({ occurred_on: '2026-10-13', amount: 12400, type: 'expense', title: '이마트 24', merchant: '이마트 24', occurred_at }) as Transaction
+    const [near] = toDrafts(entries, { ...ctx, existing: [row('18:52:00')] })
+    expect(near.include).toBe(true)
+    expect(near.warnings.join()).toContain('이마트 24')
+    const [far] = toDrafts(entries, { ...ctx, existing: [row('18:53:00')] })
+    expect(far).toMatchObject({ include: true, warnings: [] })
   })
 
   it('동일한 내역을 고르고 고정지출 예정분은 중복 검사에서 제외한다', () => {

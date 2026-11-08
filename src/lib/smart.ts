@@ -204,6 +204,18 @@ function sameTransaction(d: Pick<Draft, 'date' | 'time' | 'amount' | 'type' | 't
     && (!t.platform || !d.platform || t.platform === d.platform))
 }
 
+const NEAR_MINUTES = 10
+const minuteOf = (time: string) => Number(time.slice(0, 2)) * 60 + Number(time.slice(3, 5))
+
+/**
+ * 이름이 달라 같은 내역으로 단정하지 못하지만 같은 결제일 수 있는 내역. 카드 문자의 가맹점명과 영수증의 지점명은 다를 수 있고 시각도 조금 다를 수 있어,
+ * 같은 날·같은 금액이면 저장 대상으로 두고 알리기만 한다. 두 시각을 다 아는데 10분을 넘게 차이 나면 다른 결제로 본다
+ */
+function similarTransaction(d: Pick<Draft, 'date' | 'time' | 'amount' | 'type'>, txs: Transaction[]): Transaction | undefined {
+  return txs.find((t) => !t.planned && t.occurred_on === d.date && t.amount === d.amount && t.type === d.type
+    && (!t.occurred_at || !d.time || Math.abs(minuteOf(t.occurred_at) - minuteOf(d.time)) <= NEAR_MINUTES))
+}
+
 export function itemsSum(items: DraftItem[]): number {
   return items.reduce((s, it) => s + it.amount, 0)
 }
@@ -296,13 +308,15 @@ export function entryDrafts(e: CheckedEntry, i: number, ctx: DraftContext, split
 
   const make = (key: string, title: string, amount: number, category: string | null, its: DraftItem[], memo: string | null): Draft => {
     const dup = e.date ? sameTransaction({ date, time: e.time, amount, type: e.type, title, merchant, platform }, ctx.existing) : undefined
+    const similar = !dup && e.date && !e.is_cancellation ? similarTransaction({ date, time: e.time, amount, type: e.type }, ctx.existing) : undefined
     return {
       key, include: !e.is_cancellation && !dup, type: e.type, date, time: e.time, title, platform, merchant, amount,
       category_id: fuelCategory ?? pickCategory([category, e.category], [title, ...its.map((it) => it.name), e.merchant ?? '', platform ?? ''].join(' '), e.type, ctx.categories),
       payment_method_id: method?.id ?? remembered ?? (match.method === null && match.reason !== 'none' ? null : ctx.fallbackMethodId),
       scope: ctx.fallbackScope, memo, items: its,
       installment: e.type === 'expense' ? e.installment_months ?? null : null, splitInstallment: true,
-      warnings: dup ? [`같은 날 같은 금액 내역이 이미 있어요${dup.title ? ` (${dup.title})` : ''}.`] : [],
+      warnings: dup ? [`같은 날 같은 금액 내역이 이미 있어요${dup.title ? ` (${dup.title})` : ''}.`]
+        : similar ? [`같은 날 같은 금액 내역이 있어요${similar.title ? ` (${similar.title})` : ''}. 같은 결제면 체크를 풀어 주세요.`] : [],
       fuel: null,
     }
   }

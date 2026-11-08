@@ -30,8 +30,8 @@ interface Props {
   lookup: Lookup
   categories: Category[]
   usage: Map<string, number>
-  /** installment: 새 지출을 할부로 넣을 때 개월 수와 달마다 나눠 넣을지. items: 수정 시트에서 고친 품목 줄(D-052, 고친 것이 있을 때만) */
-  onSave: (input: TxInput, id?: string, installment?: { months: number; split: boolean } | null, items?: ItemsChange | null) => Promise<void>
+  /** installment: 새 지출을 할부로 넣을 때 개월 수와 달마다 나눠 넣을지. items: 수정 시트에서 고친 품목 줄(D-052, 고친 것이 있을 때만). updatedAt: 충돌 검사 기준(시트에서 사진을 지웠으면 그 뒤의 값) */
+  onSave: (input: TxInput, id?: string, installment?: { months: number; split: boolean } | null, items?: ItemsChange | null, updatedAt?: string | null) => Promise<void>
   onDelete: (id: string) => Promise<void>
   /** 같은 영수증에서 나눠 저장한 내역을 한꺼번에 지운다(D-027) */
   onDeleteMany?: (ids: string[]) => Promise<void>
@@ -82,6 +82,8 @@ export function EntrySheet({ open, editing, defaultDate, today, lookup, categori
   const [rereading, setRereading] = useState(false)
   const [reread, setReread] = useState<Reread | null>(null)
   const receiptRequest = useRef(0)
+  // 저장의 충돌 검사 기준. 사진 지우기처럼 시트 안에서 이 내역을 바꾸면 새 값으로 옮긴다(editing을 바꾸면 고치던 칸이 초기화된다)
+  const expectedUpdatedAt = useRef<string | null>(null)
   const splitReceipt = Boolean(editing?.save_batch || batch.length)
   const rereadChoice = reread?.kind === 'preview' && editing && !splitReceipt
     ? pickRereadEntry(reread.candidates, editing.amount)
@@ -114,6 +116,7 @@ export function EntrySheet({ open, editing, defaultDate, today, lookup, categori
 
   useEffect(() => {
     if (!open) return
+    expectedUpdatedAt.current = editing?.updated_at ?? null
     setErr(''); setBusy(false); setConfirmDelete(false); setCatAuto(false)
     setMonths(null); setSplit(true)
     setViewing(null); setConfirmPhotos(false); setRereading(false); setReread(null)
@@ -190,7 +193,7 @@ export function EntrySheet({ open, editing, defaultDate, today, lookup, categori
     }
     try {
       const installment = !editing && type === 'expense' && months ? { months, split } : null
-      await onSave(input, editing?.id, installment, itemChange)
+      await onSave(input, editing?.id, installment, itemChange, expectedUpdatedAt.current)
       if (!editing) lsSet(`ab:lastScope:${lookup.me}`, scope)
     } catch (e) {
       setErr(friendlyError(e)); setBusy(false)
@@ -210,7 +213,8 @@ export function EntrySheet({ open, editing, defaultDate, today, lookup, categori
     if (!confirmPhotos) return setConfirmPhotos(true)
     setBusy(true); setErr('')
     try {
-      await removeReceiptImages(editing.receipt_path)
+      const rows = await removeReceiptImages(editing.receipt_path)
+      expectedUpdatedAt.current = rows.find((r) => r.id === editing.id)?.updated_at ?? expectedUpdatedAt.current
       setReceipt({ paths: [], loaded: true, gone: true }); setReread(null)
     } catch (e) { setErr(friendlyError(e)) } finally { setBusy(false); setConfirmPhotos(false) }
   }

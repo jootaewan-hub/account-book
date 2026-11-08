@@ -20,7 +20,7 @@ vi.mock('../../src/lib/itemImages', () => ({ signedUrls: async () => new Map() }
 vi.mock('../../src/lib/receiptImages', () => ({
   listReceiptImages: async (folder: string) => state.files.filter((f) => f.startsWith(`${folder}/`)),
   downloadReceiptImages: async (paths: string[]) => paths.map((p) => new Blob([p], { type: 'image/jpeg' })),
-  removeReceiptImages: async (folder: string) => { state.removed.push(folder) },
+  removeReceiptImages: async (folder: string) => { state.removed.push(folder); return [{ id: 't1', updated_at: 'v2' }, { id: 'other', updated_at: 'v9' }] },
   signedReceiptUrls: async (paths: string[]) => new Map(paths.map((p) => [p, `https://x/${p}?t=1`])),
 }))
 vi.mock('../../src/lib/image', () => ({
@@ -101,6 +101,26 @@ describe('수정 시트의 영수증 사진', () => {
     expect(await screen.findByText('영수증 사진을 지웠어요.')).toBeTruthy()
     expect(state.removed).toEqual(['hh/t1'])
     expect(screen.queryByText(/^영수증 사진 2장/)).toBeNull()
+  })
+
+  it('고치지 않고 저장하면 시트를 열 때의 updated_at으로 충돌을 검사한다', async () => {
+    const { onSave } = open({ ...tx, updated_at: 'v1' })
+    await screen.findByText('영수증 사진 2장')
+    fireEvent.click(screen.getByRole('button', { name: '16,000원 저장하기' }))
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1))
+    expect(onSave.mock.calls[0]).toHaveLength(5)
+    expect((onSave.mock.calls[0] as unknown[])[4]).toBe('v1')
+  })
+
+  it('사진을 지운 뒤 저장하면 사진 지우기가 바꾼 updated_at으로 저장한다(자기 변경을 충돌로 보지 않게)', async () => {
+    const { onSave } = open({ ...tx, updated_at: 'v1' })
+    await screen.findByText('영수증 사진 2장')
+    fireEvent.click(screen.getByRole('button', { name: '사진 지우기' }))
+    fireEvent.click(screen.getByRole('button', { name: '한 번 더 누르면 사진을 지워요' }))
+    await screen.findByText('영수증 사진을 지웠어요.')
+    fireEvent.click(screen.getByRole('button', { name: '16,000원 저장하기' }))
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1))
+    expect((onSave.mock.calls[0] as unknown[])[4]).toBe('v2')
   })
 
   it('미리보기는 저장할 품목을 바꾸지 않고, 적용해도 일치하지 않는 기존 줄을 남긴다', async () => {

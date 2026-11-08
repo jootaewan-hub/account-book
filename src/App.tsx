@@ -282,11 +282,11 @@ function Ledger({ household, meta, userId, email }: {
     setSel(next === today.slice(0, 7) ? today : `${next}-01`)
   }
 
-  async function save(input: TxInput, id?: string, installment?: { months: number; split: boolean } | null, items?: ItemsChange | null) {
+  async function save(input: TxInput, id?: string, installment?: { months: number; split: boolean } | null, items?: ItemsChange | null, updatedAt?: string | null) {
     let split = false
     if (id) {
       try {
-        await updateTransaction(id, sheet.editing?.updated_at ?? null, input, items)
+        await updateTransaction(id, updatedAt ?? null, input, items)
       } catch (e) {
         await reload()
         throw e

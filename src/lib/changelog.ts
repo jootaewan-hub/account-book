@@ -22,6 +22,13 @@ export const KIND_LABEL: Record<ReleaseKind, string> = { major: '큰 업데이�
 /** 최신이 맨 앞 */
 export const RELEASES: Release[] = [
   {
+    version: '2.34.2', date: '2026-11-08', kind: 'fix', title: '사진 지운 뒤 저장과 중복 안내',
+    items: [
+      '영수증 사진을 지운 뒤 같은 화면에서 저장하면 내역이 이미 바뀌었다고 막히던 문제를 고쳤어요.',
+      '문자·사진으로 읽은 내역과 같은 날, 같은 금액의 내역이 있으면 이름이 달라도 알려 줘요. 같은 결제면 체크를 풀어 주세요.',
+    ],
+  },
+  {
     version: '2.34.1', date: '2026-11-06', kind: 'fix', title: '일정 알림 출시 보류',
     items: ['일정과 기념일의 푸시 알림 설정을 숨겼어요.'],
   },
