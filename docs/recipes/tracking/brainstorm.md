@@ -6,7 +6,12 @@
 
 ## 맥에서 이어서 하기
 
+맥북에는 홈 폴더에 `~/acout-book`이 있다(2026-11-18 저녁, 폴더 이름과 안의 폴더 이름만 확인했다. 이 저장소가 맞는지는 `git remote -v`로 확인한다).
+
 ```
+cd ~/acout-book
+git remote -v          # jootaewan-hub/account-book 인지 확인
+git status             # 하던 일이 남아 있으면 먼저 커밋하거나 치워 둔다
 git fetch origin
 git checkout claude/recipes-docs
 ```
@@ -51,7 +56,7 @@ docs/recipes/tracking/brainstorm.md를 읽고 superpowers:brainstorming으로 �
 - 화면은 재료가 중심이다. 재료마다 풍미, 그 재료로 가능한 레시피, 추천 레시피가 보인다.
 - 추천은 "쉽게, 그리고 맛있게 먹을 수 있는 레시피"다.
 - 추천 기준(Claude 제안, 사용자 "그렇게 하자"): 쉬움은 재료 수와 단계 수로 본다. 맛있음은 우리 집 기록(별점, 다시 만든 횟수, 즐겨찾기)을 먼저 보고 그다음 궁합 점수를 본다. 줄마다 왜 추천했는지 까닭을 적는다.
-- 모르는 것: 쿡앱의 전체 자료(`data/`)가 어디에 있는지. 저장소에는 없고(gitignore), 윈도우 PC의 작업 폴더에서도 `cookapp-claude` 폴더를 찾지 못했다.
+- 쿡앱의 전체 자료(`data/`): 저장소에는 없고(gitignore), 윈도우 PC의 작업 폴더에서도 `cookapp-claude` 폴더를 찾지 못했다. 맥북의 `~/cookapp`에 `data` 폴더가 있다(2026-11-18 저녁, 폴더 이름만 확인). 그 안에 사전 약 1,558개와 레시피 자료가 들어 있는지는 확인 필요.
 
 ## Claude가 제안했고 아직 확정되지 않은 것
 
