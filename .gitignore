@@ -13,3 +13,6 @@ supabase/.temp/
 
 # Playwright MCP 브라우저 도구가 남기는 화면 기록(번개장터·컬리·참가격 스킬)
 .playwright-mcp/
+
+# 레시피 수집 작업 파일(자막·받아쓰기 원문, 내려받은 영상·음성). 공개 저장소에 넣지 않는다
+.recipe-cache/
