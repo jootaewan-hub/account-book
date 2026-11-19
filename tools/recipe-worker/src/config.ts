@@ -17,6 +17,8 @@ const ConfigSchema = z.object({
   secretFile: z.string().min(1).default('~/.config/recipe-worker/secret'),
   cacheDir: z.string().min(1).default('~/Library/Caches/recipe-worker'),
   claudePath: z.string().min(1).default('~/.local/bin/claude'),
+  // 비우면 CLI 기본 모델. 쓰고 싶은 모델이 정해지면(A2 뒤) 채운다.
+  claudeModel: z.string().min(1).optional(),
   ytDlpPath: z.string().min(1).default('/opt/homebrew/bin/yt-dlp'),
   // 설치된 yt-dlp가 더 필요로 하는 인자(예: JS 실행기). 설치 뒤 yt-dlp --help로 확인해 채운다.
   ytDlpExtraArgs: z.array(z.string()).default([]),
@@ -36,6 +38,7 @@ export type WorkerConfig = {
   secretFile: string
   cacheDir: string
   claudePath: string
+  claudeModel?: string
   ytDlpPath: string
   ytDlpExtraArgs: string[]
   brewPath: string
