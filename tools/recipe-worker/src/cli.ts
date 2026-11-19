@@ -1,13 +1,17 @@
 // 사용법: node src/cli.ts run [설정 파일]
+//        node src/cli.ts google-auth [설정 파일]
 //        node src/cli.ts dry-run <주소> --out <파일> [--no-description] [--config <설정 파일>]
 import { spawn as nodeSpawn, type ChildProcess } from 'node:child_process'
-import { mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { dirname, resolve, sep } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { normalizeRecipeUrl } from '../../../supabase/functions/_shared/recipeSource.ts'
 import { createApi } from './api.ts'
 import { createClaudeRun, type ClaudeRun } from './claude.ts'
 import { DEFAULT_CONFIG_PATH, loadConfig, type WorkerConfig } from './config.ts'
+import { createDrive, type Drive } from './export/drive.ts'
+import { exportOnce } from './export/loop.ts'
+import { googleAuth } from './export/google.ts'
 import { createDailyCounter, isOnHours, startLoop, type LoopDeps } from './loop.ts'
 import { cleanCache, processJob, processJobDetailed, type CollectFn } from './pipeline.ts'
 
@@ -78,6 +82,14 @@ export async function run(configPath: string = DEFAULT_CONFIG_PATH, spawn: Spawn
   const now = () => new Date()
   const claudeRun = createClaudeRun(cfg)
 
+  // 드라이브는 토큰 파일이 생기면(google-auth 뒤) 다음 번부터 쓴다. 없으면 건너뛰고 옵시디언만
+  let drive: Drive | null = null
+  const getDrive = (): Drive | null => {
+    if (!cfg.driveTokenFile || !existsSync(cfg.driveTokenFile)) return null
+    drive ??= createDrive(cfg.driveTokenFile, fetch, { cacheDir: cfg.cacheDir })
+    return drive
+  }
+
   const deps: LoopDeps = {
     api,
     cfg,
@@ -85,6 +97,7 @@ export async function run(configPath: string = DEFAULT_CONFIG_PATH, spawn: Spawn
     doneToday: counter.doneToday,
     onClaimed: counter.increment,
     onBusy: (b) => caffeine.busy(b),
+    exportPass: () => exportOnce(api, getDrive(), cfg.obsidianDir),
     process: async (job, onStage) => {
       const dict = await api.dict() // 일마다 한 번
       return processJob(job, { cfg, run: claudeRun, dict, onStage, now })
@@ -160,13 +173,18 @@ if (isMain) {
       console.error(e instanceof Error ? e.message : '끝내지 못했어요')
       process.exit(1)
     })
+  } else if (cmd === 'google-auth') {
+    googleAuth(loadConfig(path ?? DEFAULT_CONFIG_PATH)).then(() => { console.error('구글 연결을 저장했어요') }, (e: unknown) => {
+      console.error(e instanceof Error ? e.message : '구글 연결을 하지 못했어요')
+      process.exit(1)
+    })
   } else if (cmd === 'run') {
     run(path).catch((e: unknown) => {
       console.error(e instanceof Error ? e.message : '시작하지 못했어요')
       process.exit(1)
     })
   } else {
-    console.error('사용법: node src/cli.ts run [설정 파일] | dry-run <주소> --out <파일> [--no-description]')
+    console.error('사용법: node src/cli.ts run [설정 파일] | google-auth [설정 파일] | dry-run <주소> --out <파일> [--no-description]')
     process.exit(2)
   }
 }

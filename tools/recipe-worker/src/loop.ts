@@ -28,7 +28,12 @@ export type LoopDeps = {
   every?: (ms: number, fn: () => void) => () => void
   /** 처리 시작·끝(밤새 깨어 있기용) */
   onBusy?: (busy: boolean) => void
+  /** 일이 없을 때 돌리는 사본 고리. 건수를 돌려준다(10건이면 더 있을 수 있어 바로 다시 돈다) */
+  exportPass?: () => Promise<number>
 }
+
+/** 사본 고리는 아무리 자주 돌아도 이 간격보다 촘촘하지 않다 */
+export const EXPORT_EVERY_MS = 2 * 60_000
 
 export type RunResult = 'idle' | 'done' | 'failed' | 'released' | 'limited'
 
@@ -133,6 +138,7 @@ export function startLoop(deps: LoopDeps, intervalMs = 20_000): { stop: () => Pr
   let stopped = false
   let timer: ReturnType<typeof setTimeout> | undefined
   let current: Promise<void> = Promise.resolve()
+  let lastExport = -Infinity
 
   const tick = async () => {
     let next = intervalMs
@@ -140,6 +146,15 @@ export function startLoop(deps: LoopDeps, intervalMs = 20_000): { stop: () => Pr
       // 켜진 시간은 잠 막기(caffeinate)에만 쓴다. 깨어 있으면 시간과 상관없이 일을 가져온다.
       const r = await runOnce(deps)
       if (r === 'done') next = 0
+      // 서버에 닿았고(claim이 던지지 않았다) 일이 돌고 있지 않을 때만. 같은 tick 안이라 일과 겹치지 않는다
+      else if (deps.exportPass && (r === 'idle' || r === 'limited') && deps.now().getTime() - lastExport >= EXPORT_EVERY_MS) {
+        lastExport = deps.now().getTime()
+        try {
+          if ((await deps.exportPass()) >= 10) lastExport = -Infinity
+        } catch {
+          console.error('사본을 만들지 못했어요')
+        }
+      }
     } catch {
       console.error('일을 가져오지 못했어요')
     }
