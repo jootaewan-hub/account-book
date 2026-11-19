@@ -222,3 +222,40 @@ describe('실시간 구독', () => {
     expect(ch.removed).toBe(true)
   })
 })
+
+describe('덧붙인 값 비우기(DB check 제약)', () => {
+  const seed = () => mk({
+    'recipe.recipes': [{
+      id: 'r1', household_id: H, status: 'review', servings: null, servings_origin: null, servings_suggested: 2,
+      review_items: [{ target: 'servings.value', reason: 'x', candidates: [] }, { target: 'ingredients[0].amount', reason: 'y', candidates: [] }],
+      corrections: [
+        { target: 'ingredients[0].amount', before: '5', after: '1', origin: 'asr', at_seconds: 3, method: 'rule' },
+        { target: 'servings.value', before: '4', after: '2', origin: 'user', at_seconds: null, method: 'rule' },
+      ],
+    }],
+    'recipe.ingredients': [{ id: 'i0', household_id: H, recipe_id: 'r1', position: 1, amount: null, origin: 'editor', suggested_amount: 2, suggested_unit: 'g', needs_review: true }],
+  })
+  const updates = (f: ReturnType<typeof seed>['f'], table: string) => f.calls.filter((c) => c.table === table && c.op === 'update')
+  it('확인 처리: 인분·분량을 쓰면 덧붙인 값을 같은 갱신에서 비운다', async () => {
+    const { f, store } = seed()
+    await store.resolveReview('r1', 0, { value: '3', origin: 'asr', at_seconds: 1 })
+    expect(updates(f, 'recipe.recipes')[0].payload).toMatchObject({ servings: 3, servings_suggested: null })
+    await store.resolveReview('r1', 0, { value: '7', origin: 'asr', at_seconds: 1 })
+    expect(updates(f, 'recipe.ingredients')[0].payload).toMatchObject({ amount: 7, suggested_amount: null, suggested_unit: null })
+  })
+  it('되돌리기: 분량·인분을 되살릴 때도 덧붙인 값을 비운다', async () => {
+    const { f, store } = seed()
+    await store.revertCorrection('r1', 0)
+    expect(updates(f, 'recipe.ingredients')[0].payload).toMatchObject({ amount: 5, suggested_amount: null, suggested_unit: null })
+    await store.revertCorrection('r1', 0)
+    expect(updates(f, 'recipe.recipes').at(-1)?.payload).toMatchObject({ servings: 4, servings_suggested: null })
+  })
+  it('분량을 null로 되돌리면 덧붙인 값은 건드리지 않는다', async () => {
+    const { f, store } = mk({
+      'recipe.recipes': [{ id: 'r1', household_id: H, status: 'saved', corrections: [{ target: 'ingredients[0].amount', before: 'null', after: '1', origin: 'asr', at_seconds: 3, method: 'rule' }] }],
+      'recipe.ingredients': [{ id: 'i0', household_id: H, recipe_id: 'r1', position: 1, amount: 1 }],
+    })
+    await store.revertCorrection('r1', 0)
+    expect(updates(f, 'recipe.ingredients')[0].payload).toEqual({ amount: null })
+  })
+})

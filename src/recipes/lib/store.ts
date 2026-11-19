@@ -98,14 +98,17 @@ class Edits {
   glossary = new Map<number, RowPatch>()
   set(t: Target, field: string, value: unknown) {
     if (t.kind === 'servings') {
-      if (field === 'value') this.recipe.servings = value
+      // check (servings is null or servings_suggested is null): 출처 인분을 쓰면 덧붙인 인분은 비운다
+      if (field === 'value') { this.recipe.servings = value; if (value !== null) this.recipe.servings_suggested = null }
       else if (field === 'origin') this.recipe.servings_origin = value
       else if (field === 'basis') this.recipe.servings_basis = value
     } else if (t.kind === 'glossary') {
       this.glossary.set(t.index, { ...this.glossary.get(t.index), [field]: value })
     } else if (t.kind !== 'conflicts') {
       const k = `${t.kind}:${t.index}`
-      this.rows.set(k, { ...this.rows.get(k), [field]: value })
+      // check (amount is null or (suggested_amount is null and suggested_unit is null))
+      const extra = t.kind === 'ingredients' && field === 'amount' && value !== null ? { suggested_amount: null, suggested_unit: null } : {}
+      this.rows.set(k, { ...this.rows.get(k), [field]: value, ...extra })
     }
   }
 }
