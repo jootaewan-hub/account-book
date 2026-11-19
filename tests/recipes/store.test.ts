@@ -320,3 +320,37 @@ describe('재료 고치기의 출처 규칙', () => {
     expect(f.tables['recipe.ingredients'][0]).toMatchObject({ amount: 1, unit: '작은술', amount_text: null, origin: 'user', at_seconds: null })
   })
 })
+
+describe('실제로 바뀐 값만 고친 것으로', () => {
+  const seed = () => ({
+    'recipe.recipes': [{ id: 'r1', household_id: H, status: 'review', review_items: [
+      { target: 'ingredients[0].amount', reason: '흐려요', candidates: [] },
+      { target: 'steps[0].body', reason: '흐려요', candidates: [] },
+    ] }],
+    'recipe.ingredients': [{ id: 'i0', household_id: H, recipe_id: 'r1', position: 1, name: '후추', amount: 2, unit: '큰술', note: null, origin: 'asr', at_seconds: 242, needs_review: true }],
+    'recipe.steps': [{ id: 's0', household_id: H, recipe_id: 'r1', position: 1, title: '손질', body: '썰기', origin: 'asr', needs_review: true }],
+  })
+  it('같은 이름·분량에 메모만 달라졌다면 출처·시각·확인 표시와 확인 항목을 그대로 둔다', async () => {
+    const { f, store } = mk(seed())
+    await store.editIngredient('r1', 0, { name: '후추', amount: 2, unit: '큰술', note: '넉넉히' })
+    expect(f.tables['recipe.ingredients'][0]).toMatchObject({ note: '넉넉히', origin: 'asr', at_seconds: 242, needs_review: true })
+    expect((f.tables['recipe.recipes'][0].review_items as unknown[]).length).toBe(2)
+    expect(f.tables['recipe.recipes'][0].status).toBe('review')
+  })
+  it('값이 실제로 바뀌면 그 줄의 확인 항목만 지우고, 남은 것이 없으면 saved', async () => {
+    const { f, store } = mk(seed())
+    await store.editIngredient('r1', 0, { amount: 3 })
+    expect(f.tables['recipe.ingredients'][0]).toMatchObject({ amount: 3, origin: 'user', at_seconds: null, needs_review: false })
+    expect((f.tables['recipe.recipes'][0].review_items as { target: string }[]).map((x) => x.target)).toEqual(['steps[0].body'])
+    expect(f.tables['recipe.recipes'][0].status).toBe('review')
+    await store.editStep('r1', 0, { title: '손질', body: '얇게 썰기' })
+    expect(f.tables['recipe.steps'][0]).toMatchObject({ body: '얇게 썰기', origin: 'user', needs_review: false })
+    expect(f.tables['recipe.recipes'][0]).toMatchObject({ review_items: [], status: 'saved' })
+  })
+  it('같은 값을 보내면 아무것도 쓰지 않는다', async () => {
+    const { f, store } = mk(seed())
+    await store.editIngredient('r1', 0, { name: '후추', amount: 2 })
+    await store.editStep('r1', 0, { title: '손질', body: '썰기' })
+    expect(f.calls.some((c) => c.op === 'update')).toBe(false)
+  })
+})

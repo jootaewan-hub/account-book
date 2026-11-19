@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { StoredRecipe } from '../../supabase/functions/_shared/recipeStored'
 import { RecipeDetail } from '../../src/recipes/components/RecipeDetail'
 import type { RecipeStore } from '../../src/recipes/lib/store'
+import { amountView, parseQty } from '../../src/recipes/lib/detail'
 
 beforeEach(() => {
   vi.stubGlobal('requestAnimationFrame', (fn: FrameRequestCallback) => { fn(0); return 1 })
@@ -227,7 +228,28 @@ describe('가진 재료', () => {
   })
 })
 
+describe('ml 계산 방어', () => {
+  it('읽을 수 없는 양이면 ml 없이 글만 보인다', () => {
+    expect(Number.isNaN(parseQty('?'))).toBe(true)
+    expect(parseQty('1½')).toBe(1.5)
+    const v = amountView({ amount: 1, unit: '큰술' }, Number.NaN, true, '계량스푼')
+    expect(v.main).not.toContain('NaNml')
+  })
+})
+
 describe('고치기와 지우기', () => {
+  it('메모만 고치면 바뀐 칸만 보낸다', async () => {
+    const store = fake()
+    await show(store)
+    fireEvent.click(screen.getByRole('button', { name: '고치기' }))
+    const sheet = screen.getByRole('dialog', { name: '레시피 고치기' })
+    fireEvent.change(within(sheet).getByLabelText('재료 2 메모'), { target: { value: '황설탕도 가능' } })
+    fireEvent.click(within(sheet).getByRole('button', { name: '저장' }))
+    await act(async () => {})
+    expect(store.editIngredient.mock.calls).toEqual([['r1', 1, { note: '황설탕도 가능' }]])
+    expect(store.editStep).not.toHaveBeenCalled()
+    expect(store.update).not.toHaveBeenCalled()
+  })
   it('분류·재료·단계를 고치면 store의 update·editIngredient·editStep을 부른다', async () => {
     const store = fake()
     await show(store)

@@ -22,6 +22,7 @@ export function parseQty(text: string): number {
   return Number(text)
 }
 const fmtMl = (v: number) => `${Number(v.toFixed(1))}ml`
+const ok = (n: number) => Number.isFinite(n)
 const join = (n: string, unit: string | null | undefined) => `${n}${unit ?? ''}`
 const SPOON = new Set(Object.keys(UNIT_ML))
 
@@ -34,7 +35,7 @@ export function amountView(g: Amounts, factor: number, scaled: boolean, tool: Me
   const tail = tool === '밥숟가락' && spoon ? ' · 밥숟가락 기준' : ''
   let main: string | null = null
   if (g.amount != null) {
-    const ml = (n: number) => { const v = unitMl(g.unit ?? null, tool ?? '확인 못 함'); return v === null ? '' : ` (${fmtMl(v * n)})` }
+    const ml = (n: number) => { const v = unitMl(g.unit ?? null, tool ?? '확인 못 함'); return v === null || !ok(n) ? '' : ` (${fmtMl(v * n)})` }
     const orig = join(String(g.amount), g.unit) + ml(g.amount)
     const shownQty = scaled ? scaleAmount(g.amount, g.unit ?? null, factor) : ''
     main = scaled ? `원래 ${join(String(g.amount), g.unit)}${ml(g.amount)} → ${join(shownQty, g.unit)}${ml(parseQty(shownQty))}` : orig

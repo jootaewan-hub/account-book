@@ -154,6 +154,15 @@ export function createRecipeStore(client: SupabaseClient, householdId: string, u
     if (!done?.length) throw new Error(GONE)
   }
 
+  /** 그 줄의 확인 항목을 지운 review_items(남은 것이 없고 확인 중이었으면 saved). 지울 것이 없으면 빈 패치 */
+  async function dropReview(recipeId: string, prefix: string): Promise<RowPatch> {
+    const row = await recipeRow(recipeId, 'status,review_items')
+    const items = (row.review_items ?? []) as ReviewItem[]
+    const rest = items.filter((x) => !x.target.startsWith(prefix))
+    if (rest.length === items.length) return {}
+    return rest.length === 0 && row.status === 'review' ? { review_items: rest, status: 'saved' } : { review_items: rest }
+  }
+
   return {
     async listRecipes() {
       const cols = 'id,title,summary,status,source_key,source_url,source_title,channel,cuisine,mains,main_details,methods,occasions,difficulty,favorite,rating,memo,servings,servings_origin,review_count,added_at,updated_at'
@@ -315,43 +324,61 @@ export function createRecipeStore(client: SupabaseClient, householdId: string, u
         if (x.length > max) throw new Error(`${label}은 ${max}자 안에서 적어 주세요.`)
         return x || null
       }
+      const rows = checked(await r().from('ingredients').select('*').eq('household_id', householdId).eq('recipe_id', recipeId).order('position', { ascending: true })) as unknown as Record<string, unknown>[]
+      const cur = rows[index]
+      if (!cur) throw new Error('그 줄이 이미 바뀌었어요. 목록을 다시 확인해 주세요.')
+      const was = (k: string) => (cur[k] === undefined || cur[k] === '' ? null : cur[k])
+      let valueChanged = false
       if ('name' in patch) {
         const name = text(patch.name, 60, '재료 이름')
         if (!name) throw new Error('재료 이름을 적어 주세요.')
-        edits.set(t, 'name', name)
-        edits.set(t, 'ingredient_key', null) // 이름을 바꾸면 사전과의 연결은 끊는다(가진 재료로 세지 않음)
+        if (name !== was('name')) {
+          valueChanged = true
+          edits.set(t, 'name', name)
+          edits.set(t, 'ingredient_key', null) // 이름을 바꾸면 사전과의 연결은 끊는다(가진 재료로 세지 않음)
+        }
       }
       if ('amount' in patch) {
         if (patch.amount !== null && patch.amount !== undefined && !(Number.isFinite(patch.amount) && patch.amount > 0)) throw new Error('분량은 0보다 큰 숫자예요.')
-        edits.set(t, 'amount', patch.amount ?? null)
-        if (patch.amount != null && !('amount_text' in patch)) edits.set(t, 'amount_text', null) // 숫자를 적으면 "약간" 같은 글은 비운다
+        const amount = patch.amount ?? null
+        const before = was('amount') === null ? null : Number(was('amount'))
+        if (amount !== before) {
+          valueChanged = true
+          edits.set(t, 'amount', amount)
+          if (amount !== null && !('amount_text' in patch)) edits.set(t, 'amount_text', null) // 숫자를 적으면 "약간" 같은 글은 비운다
+        }
       }
-      if ('unit' in patch) edits.set(t, 'unit', text(patch.unit, 12, '단위'))
-      if ('amount_text' in patch) edits.set(t, 'amount_text', text(patch.amount_text, 20, '분량 글'))
-      if ('note' in patch) edits.set(t, 'note', text(patch.note, 160, '메모'))
+      if ('unit' in patch) { const u = text(patch.unit, 12, '단위'); if (u !== was('unit')) { valueChanged = true; edits.set(t, 'unit', u) } }
+      if ('amount_text' in patch) { const x = text(patch.amount_text, 20, '분량 글'); if (x !== was('amount_text')) { valueChanged = true; edits.set(t, 'amount_text', x) } }
+      if ('note' in patch) { const n = text(patch.note, 160, '메모'); if (n !== was('note')) edits.set(t, 'note', n) }
       if (!edits.rows.size) return
-      // 메모만 고친 줄은 출처·영상 시각을 그대로 둔다. 이름·분량·단위·분량 글이 바뀔 때만 user 출처로 바꾼다
-      if (['name', 'amount', 'unit', 'amount_text'].some((k) => k in patch)) {
+      const recipePatch: RowPatch = {}
+      if (valueChanged) {
+        // 값이 실제로 바뀐 줄만 user 출처로 두고 확인 표시를 지운다. 같은 줄의 확인 항목도 함께 지워 needs_review와 맞춘다
         edits.set(t, 'origin', 'user'); edits.set(t, 'at_seconds', null); edits.set(t, 'needs_review', false)
+        Object.assign(recipePatch, await dropReview(recipeId, `ingredients[${index}].`))
       }
-      await applyEdits(recipeId, edits, {})
+      await applyEdits(recipeId, edits, recipePatch)
     },
     async editStep(recipeId, index, patch) {
       const edits = new Edits()
       const t: Target = { kind: 'steps', index, field: '' }
+      const rows = checked(await r().from('steps').select('*').eq('household_id', householdId).eq('recipe_id', recipeId).order('position', { ascending: true })) as unknown as Record<string, unknown>[]
+      const cur = rows[index]
+      if (!cur) throw new Error('그 줄이 이미 바뀌었어요. 목록을 다시 확인해 주세요.')
       if ('title' in patch) {
         const title = (patch.title ?? '').trim()
         if (!title || title.length > 30) throw new Error('단계 이름을 30자 안에서 적어 주세요.')
-        edits.set(t, 'title', title)
+        if (title !== cur.title) edits.set(t, 'title', title)
       }
       if ('body' in patch) {
         const body = (patch.body ?? '').trim()
         if (!body || body.length > 400) throw new Error('단계 내용을 400자 안에서 적어 주세요.')
-        edits.set(t, 'body', body)
+        if (body !== cur.body) edits.set(t, 'body', body)
       }
       if (!edits.rows.size) return
       edits.set(t, 'origin', 'user'); edits.set(t, 'needs_review', false)
-      await applyEdits(recipeId, edits, {})
+      await applyEdits(recipeId, edits, await dropReview(recipeId, `steps[${index}].`))
     },
 
     async archive(recipeId) {
