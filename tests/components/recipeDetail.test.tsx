@@ -321,3 +321,19 @@ describe('불러오기', () => {
     expect(document.body.textContent).not.toMatch(/AI|분석/)
   })
 })
+
+describe('다시 읽기 신호', () => {
+  it('reloadToken이 바뀌면 레시피와 가진 재료를 다시 읽고, 같은 값이면 읽지 않는다', async () => {
+    const store = fake()
+    const view = (token: number) => <RecipeDetail store={store as unknown as RecipeStore} recipeId="r1" title="제육" onBack={() => {}} reloadToken={token} />
+    const { rerender } = render(view(0))
+    await screen.findByRole('group', { name: '인분 고르기' })
+    const n = store.listPantry.mock.calls.length
+    rerender(view(0))
+    await act(async () => {})
+    expect(store.listPantry.mock.calls.length).toBe(n)
+    rerender(view(1))
+    await act(async () => {})
+    expect(store.listPantry.mock.calls.length).toBe(n + 1)
+  })
+})

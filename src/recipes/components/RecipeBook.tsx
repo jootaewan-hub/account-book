@@ -14,9 +14,10 @@ function Select({ label, value, options, onChange }: { label: string; value: str
   )
 }
 
-export function RecipeBook({ recipes, cookable, loading, onOpen, onReview }: {
+export function RecipeBook({ recipes, cookable, loading, onOpen, onReview, onPantry }: {
   recipes: RecipeSummary[]; cookable: CookableRow[] | null; loading: boolean; onOpen: (id: string) => void
   /** 확인 필요 거르기를 켠 채 "확인 시작"을 누르면, 보이는 첫 레시피의 확인 화면을 연다 */ onReview?: (id: string) => void
+  /** "가진 재료" 화면으로 가는 길 */ onPantry?: () => void
 }) {
   const [cuisine, setCuisine] = useState('')
   const [main, setMain] = useState('')
@@ -66,6 +67,7 @@ export function RecipeBook({ recipes, cookable, loading, onOpen, onReview }: {
         {cookable && <button className="rcp-chip" type="button" aria-pressed={pick === 'now'} onClick={() => setPick(pick === 'now' ? '' : 'now')}>지금 만들 수 있음</button>}
         {cookable && <button className="rcp-chip" type="button" aria-pressed={pick === 'few'} onClick={() => setPick(pick === 'few' ? '' : 'few')}>1~2개만 사면 됨</button>}
         {reviewCount > 0 && <button className="rcp-chip" type="button" aria-pressed={review} onClick={() => setReview((x) => !x)}>확인 필요 {reviewCount}</button>}
+        {onPantry && <button className="rcp-chip" type="button" onClick={onPantry}>가진 재료</button>}
       </div>
       {review && onReview && shown.length > 0 && (
         <button className="rcp-btn rcp-btn-primary rcp-review-start" type="button" onClick={() => onReview(shown[0].id)}>확인 시작</button>

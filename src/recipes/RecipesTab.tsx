@@ -5,6 +5,8 @@ import type { StoredRecipe } from '../../supabase/functions/_shared/recipeStored
 import { sb } from '../lib/supabase'
 import { AddBar } from './components/AddBar'
 import { JobList } from './components/JobList'
+import { MissingSheet } from './components/MissingSheet'
+import { PantryScreen } from './components/PantryScreen'
 import { RecipeBook } from './components/RecipeBook'
 import { RecipeDetail } from './components/RecipeDetail'
 import { createRecipeStore, type CookableRow, type InboxJob, type RecipeStore, type RecipeSummary, type WorkerStatus } from './lib/store'
@@ -37,8 +39,10 @@ export function RecipesTab({ householdId, userId, store: injected }: { household
   const [busy, setBusy] = useState(false)
   const [openId, setOpenId] = useState<string | null>(null)
   const [openReview, setOpenReview] = useState(false)
-  // 모자란 재료를 장보기에 담는 창(Task 21)이 이 값을 읽는다
-  const [, setMissingFor] = useState<StoredRecipe | null>(null)
+  const [missingFor, setMissingFor] = useState<StoredRecipe | null>(null)
+  const [pantryOpen, setPantryOpen] = useState(false)
+  // 장보기에 담은 뒤 열려 있는 상세가 가진 재료를 다시 읽게 하는 신호
+  const [detailReload, setDetailReload] = useState(0)
   const [pending, setPending] = useState<string | null>(readAddParam)
   const [now, setNow] = useState(() => Date.now())
   const seq = useRef(0)
@@ -89,6 +93,9 @@ export function RecipesTab({ householdId, userId, store: injected }: { household
     await add(url)
   }
 
+  /** 가진 재료나 장보기가 바뀌었을 수 있어 레시피북의 "가진 재료 N/M"과 열려 있는 상세를 새로 읽는다 */
+  function refreshPantry() { void load(); setDetailReload((n) => n + 1) }
+
   const opened = openId ? recipes.find((r) => r.id === openId) : undefined
   const normalized = pending ? normalizeRecipeUrl(pending) : null
 
@@ -117,7 +124,9 @@ export function RecipesTab({ householdId, userId, store: injected }: { household
       )}
       {opened ? (
         <RecipeDetail key={opened.id} store={store} recipeId={opened.id} title={opened.title} initialMode={openReview ? 'review' : undefined}
-          onBack={() => { setOpenId(null); setOpenReview(false); void load() }} onMissing={setMissingFor} />
+          onBack={() => { setOpenId(null); setOpenReview(false); void load() }} onMissing={setMissingFor} reloadToken={detailReload} />
+      ) : pantryOpen ? (
+        <PantryScreen store={store} onBack={() => { setPantryOpen(false); void load() }} />
       ) : (
         <>
           <AddBar busy={busy} onSubmit={add} />
@@ -129,9 +138,10 @@ export function RecipesTab({ householdId, userId, store: injected }: { household
             </div>
           )}
           <JobList jobs={jobs} worker={worker} now={now} onRetry={(j) => void retry(j)} />
-          <RecipeBook recipes={recipes} cookable={cookable} loading={loading} onOpen={(id) => { setOpenReview(false); setOpenId(id) }} onReview={(id) => { setOpenReview(true); setOpenId(id) }} />
+          <RecipeBook recipes={recipes} cookable={cookable} loading={loading} onOpen={(id) => { setOpenReview(false); setOpenId(id) }} onReview={(id) => { setOpenReview(true); setOpenId(id) }} onPantry={() => setPantryOpen(true)} />
         </>
       )}
+      {missingFor && <MissingSheet recipe={missingFor} store={store} onClose={() => { setMissingFor(null); refreshPantry() }} />}
     </div>
   )
 }

@@ -209,6 +209,15 @@ describe('가진 재료', () => {
     await store.setPantry('egg', null)
     expect(f.tables['recipe.pantry']).toEqual([])
   })
+  it('장보기에서 산 것으로 넣으면 출처가 grocery이고, 이미 있는 줄을 고칠 때도 그 출처를 쓴다', async () => {
+    const { f, store } = mk()
+    await store.setPantry('egg', 'have', 'grocery')
+    expect(f.tables['recipe.pantry']).toEqual([expect.objectContaining({ ingredient_key: 'egg', state: 'have', source: 'grocery', added_by: U })])
+    await store.setPantry('egg', 'always')
+    expect(f.tables['recipe.pantry'][0]).toMatchObject({ state: 'always', source: 'manual' })
+    await store.setPantry('egg', 'have', 'grocery')
+    expect(f.tables['recipe.pantry'][0]).toMatchObject({ state: 'have', source: 'grocery' })
+  })
 })
 
 describe('모자란 재료를 장보기에', () => {

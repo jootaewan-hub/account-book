@@ -10,6 +10,7 @@ export type AddUrlResult = { kind: 'added' | 'exists_recipe' | 'exists_job' | 'i
 export type RetryResult = 'retried' | 'exists_job' | 'unchanged'
 export type ReviewChoice = { value: string; origin: Origin; at_seconds: number | null }
 export type PantryState = 'have' | 'always'
+export type PantrySource = 'manual' | 'grocery'
 
 export type RecipeSummary = {
   id: string; title: string; summary: string | null; status: 'review' | 'saved' | 'archived'
@@ -60,7 +61,8 @@ export interface RecipeStore {
   editIngredient(recipeId: string, index: number, patch: IngredientPatch): Promise<void>
   editStep(recipeId: string, index: number, patch: StepPatch): Promise<void>
   archive(recipeId: string): Promise<void>
-  setPantry(key: string, state: PantryState | null): Promise<void>
+  /** source는 가진 재료에 넣은 길: 직접(manual) 또는 장보기에서 산 것(grocery). state가 null이면 끈다 */
+  setPantry(key: string, state: PantryState | null, source?: PantrySource): Promise<void>
   addMissingToGrocery(recipe: { ingredients: readonly { name: string; ingredient_key?: string | null }[] }, keys: string[]): Promise<number>
   subscribe(changed: () => void): () => void
 }
@@ -392,17 +394,17 @@ export function createRecipeStore(client: SupabaseClient, householdId: string, u
       await applyEdits(recipeId, new Edits(), { status: 'archived' })
     },
 
-    async setPantry(key, state) {
+    async setPantry(key, state, source = 'manual') {
       const pantry = () => r().from('pantry')
       if (state === null) {
         checked(await pantry().delete().eq('household_id', householdId).eq('ingredient_key', key))
         return
       }
       // upsert는 on conflict 때 가구·재료·담은 사람 칸까지 고치려 해서 칸 단위 권한에 막힌다. 고치고, 없으면 넣는다.
-      const change = async () => checked(await pantry().update({ state, source: 'manual', noted_at: new Date().toISOString() })
+      const change = async () => checked(await pantry().update({ state, source, noted_at: new Date().toISOString() })
         .eq('household_id', householdId).eq('ingredient_key', key).select('ingredient_key')) as unknown[] | null
       if ((await change())?.length) return
-      const { error } = await pantry().insert({ household_id: householdId, ingredient_key: key, state, source: 'manual', added_by: userId })
+      const { error } = await pantry().insert({ household_id: householdId, ingredient_key: key, state, source, added_by: userId })
       if (error?.code === '23505') { await change(); return }
       checked({ data: null, error })
     },

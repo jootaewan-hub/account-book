@@ -199,3 +199,24 @@
 @media (prefers-reduced-motion: reduce) {
   .recipes .rcp-btn { transition: none; }
 }
+
+/* 가진 재료 화면과 모자란 재료 시트 */
+.recipes .rcp-pantry { display: flex; flex-direction: column; gap: 16px; }
+.recipes .rcp-pantry-top { display: flex; align-items: center; gap: 8px; }
+.recipes .rcp-pantry-group, .recipes .rcp-pantry-add { display: flex; flex-direction: column; gap: 8px; }
+.recipes .rcp-pantry-list { display: flex; flex-direction: column; margin: 0; padding: 0; list-style: none; }
+.recipes .rcp-pantry-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 56px; border-top: 1px solid var(--line); }
+.recipes .rcp-pantry-list > .rcp-pantry-row:first-child { border-top: 0; }
+.recipes .rcp-pantry-name { flex: 1; min-width: 0; font-size: 16px; font-weight: 600; overflow-wrap: anywhere; }
+.recipes .rcp-pantry-pick { display: flex; flex: none; gap: 8px; }
+.recipes .rcp-pantry-row .rcp-btn { min-height: 44px; padding: 0 14px; }
+.recipes .rcp-pantry-bought { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; padding: 12px; border-radius: var(--r-md); background: var(--oat); }
+.recipes .rcp-pantry-bought-title { margin: 0; font-size: 16px; font-weight: 700; }
+.recipes .rcp-pantry-bought-list { display: flex; flex-wrap: wrap; gap: 4px 12px; margin: 0; padding: 0; list-style: none; font-size: 15px; }
+.recipes .rcp-missing-list { display: flex; flex-direction: column; margin: 0; padding: 0; list-style: none; }
+.recipes .rcp-missing-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 48px; border-top: 1px solid var(--line); }
+.recipes .rcp-missing-list > .rcp-missing-row:first-child { border-top: 0; }
+.recipes .rcp-missing-check { display: flex; align-items: center; gap: 12px; flex: 1; min-height: 48px; font-size: 16px; }
+.recipes .rcp-missing-check input { flex: none; width: 24px; height: 24px; accent-color: var(--primary); }
+.recipes .rcp-missing-name { font-size: 16px; font-weight: 600; overflow-wrap: anywhere; }
+.recipes .rcp-missing-check input:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }

@@ -248,3 +248,26 @@ describe('출처 글과 영상 시각', () => {
 })
 
 beforeEach(() => { vi.useRealTimers() })
+
+describe('가진 재료와 모자란 재료(Task 21)', () => {
+  const pantryFake = () => ({
+    ...fake({ recipes: [recipe({})], cookable: [{ recipe_id: 'r1', have: 1, need: 2, missing: ['tofu'] }] }),
+    listPantry: vi.fn(async () => [] as { ingredient_key: string; state: 'have' | 'always'; source: string }[]),
+    listDict: vi.fn(async () => [{ id: 'egg', name: '계란', aliases: [], category: '유제품·난류' }]),
+    recentBought: vi.fn(async () => []),
+    setPantry: vi.fn(async () => {}),
+  })
+  it('레시피북의 "가진 재료"가 화면을 열고, 뒤로 가면 레시피북을 다시 읽는다', async () => {
+    const store = pantryFake()
+    await open(store)
+    const before = store.cookable.mock.calls.length
+    fireEvent.click(screen.getByRole('button', { name: '가진 재료' }))
+    expect(await screen.findByRole('heading', { name: '가진 재료' })).toBeTruthy()
+    expect(screen.queryByRole('textbox', { name: '유튜브 주소' })).toBeNull()
+    await act(async () => {})
+    fireEvent.click(screen.getByRole('button', { name: '뒤로' }))
+    await screen.findByRole('textbox', { name: '유튜브 주소' })
+    await act(async () => {})
+    expect(store.cookable.mock.calls.length).toBeGreaterThan(before)
+  })
+})

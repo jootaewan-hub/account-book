@@ -46,10 +46,11 @@ function ConfirmDelete({ title, busy, onCancel, onConfirm }: { title: string; bu
   )
 }
 
-export function RecipeDetail({ store, recipeId, title, onBack, onMissing, initialMode }: {
+export function RecipeDetail({ store, recipeId, title, onBack, onMissing, initialMode, reloadToken }: {
   store: RecipeStore; recipeId: string; /** 목록에서 아는 이름(불러오는 동안 보인다) */ title?: string
   onBack: () => void; onMissing?: (recipe: StoredRecipe) => void
   /** 'review'면 확인 화면부터 연다(레시피북의 "확인 시작") */ initialMode?: 'review'
+  /** 값이 바뀌면 레시피와 가진 재료를 다시 읽는다(장보기에 담은 뒤) */ reloadToken?: number
 }) {
   const [mode, setMode] = useState<'detail' | 'review' | 'cook'>(initialMode ?? 'detail')
   const [recipe, setRecipe] = useState<StoredRecipe | null>(null)
@@ -74,6 +75,8 @@ export function RecipeDetail({ store, recipeId, title, onBack, onMissing, initia
     } finally { if (mine === seq.current) setLoading(false) }
   }, [store, recipeId])
   useEffect(() => { void load() }, [load])
+  const seenToken = useRef(reloadToken)
+  useEffect(() => { if (seenToken.current !== reloadToken) { seenToken.current = reloadToken; void load() } }, [reloadToken, load])
 
   const base = useMemo(() => (recipe ? servingsBase(recipe) : null), [recipe])
   const chosen = servings ?? base?.base ?? null
