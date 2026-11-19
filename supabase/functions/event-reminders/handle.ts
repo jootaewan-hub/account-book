@@ -1,4 +1,5 @@
 import { occurrencesIn } from '../_shared/anniversaryOccurrences.ts'
+import { secretMatches } from '../_shared/secret.ts'
 
 const minute = 60_000
 const kst = 9 * 60 * minute
@@ -60,13 +61,6 @@ const cors = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
   'Access-Control-Allow-Methods': 'GET, OPTIONS',
   'Cache-Control': 'no-store',
-}
-
-async function secretMatches(provided: string, expected: string): Promise<boolean> {
-  if (!provided || !expected || provided.length > 512) return false
-  const encode = new TextEncoder()
-  const [a, b] = await Promise.all([provided, expected].map(async (v) => new Uint8Array(await crypto.subtle.digest('SHA-256', encode.encode(v)))))
-  return a.reduce((diff, byte, i) => diff | (byte ^ b[i]), 0) === 0
 }
 
 export async function handle(req: Request, deps: Deps): Promise<Response> {

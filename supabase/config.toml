@@ -53,3 +53,7 @@ verify_jwt = true
 # 예약 실행 전용. 함수에서 별도 Cron 토큰을 확인한다.
 [functions.event-reminders]
 verify_jwt = false
+
+# recipe-worker(레시피 처리기용)는 맥 처리기가 로그인 없이 부른다(헤더 x-recipe-worker-secret의 비밀 값으로 막고, 값이 비면 모든 요청을 401로 거절한다).
+[functions.recipe-worker]
+verify_jwt = false
