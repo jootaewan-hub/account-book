@@ -10,14 +10,18 @@ export const [ISSUE_DRIVE_AUTH, ISSUE_DRIVE_WRITE, ISSUE_OBSIDIAN] = EXPORT_ISSU
 /** 사본 상태. 한 번 돌 때(쓰려던 것이 있을 때) 본 까닭 중 가장 무거운 것 하나, 다 되면 null */
 export function createExportHealth(now: () => Date = () => new Date()) {
   let state: ExportHealth = { issue: null, checkedAt: null }
+  let from: 'probe' | 'export' | null = null
   const order: readonly ExportIssue[] = [ISSUE_DRIVE_AUTH, ISSUE_OBSIDIAN, ISSUE_DRIVE_WRITE]
   return {
-    /** 이번에 본 까닭들(없으면 괜찮음)을 남긴다 */
-    record(seen: Iterable<ExportIssue>) {
+    /** 이번에 본 까닭들(없으면 괜찮음)을 남긴다. by: 시험 파일(probe)로 본 것인지, 사본을 써 보며(export) 본 것인지 */
+    record(seen: Iterable<ExportIssue>, by: 'probe' | 'export' = 'export') {
       const set = new Set(seen)
       state = { issue: order.find((x) => set.has(x)) ?? null, checkedAt: now().toISOString() }
+      from = by
     },
     get: (): ExportHealth => ({ ...state }),
+    /** 지금 남은 문제가 시험 파일로 본 것인가(그러면 다시 시험해 풀렸는지 볼 수 있다) */
+    probeIssue: () => state.issue !== null && from === 'probe',
   }
 }
 export type ExportHealthTracker = ReturnType<typeof createExportHealth>
@@ -59,7 +63,15 @@ export async function probeExports(
       try { await o.drive.probe() } catch (e) { seen.push(e instanceof DriveAuthError ? ISSUE_DRIVE_AUTH : ISSUE_DRIVE_WRITE) }
     }
   }
-  health.record(seen)
+  health.record(seen, 'probe')
+}
+
+/**
+ * 알리기 전에: 켤 때 시험(probe)으로 본 문제가 남아 있으면 다시 시험한다. 켤 때 네트워크가 아직 없었던 따위의 문제가
+ * 보관할 레시피가 없어 사본 고리가 돌지 않는 동안 앱에 계속 남지 않게 한다. 사본을 써 보며 본 문제는 다음 사본 고리가 고친다.
+ */
+export async function recheckBeforePing(health: ExportHealthTracker, o: Parameters<typeof probeExports>[1]): Promise<void> {
+  if (health.probeIssue()) await probeExports(health, o)
 }
 
 const FIRST_MS = 5 * 60_000

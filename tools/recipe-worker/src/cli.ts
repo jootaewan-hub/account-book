@@ -12,7 +12,7 @@ import { createClaudeRun, createUsageMeter, usageLine, type ClaudeRun } from './
 import { DEFAULT_CONFIG_PATH, loadConfig, type WorkerConfig } from './config.ts'
 import { doctor } from './doctor.ts'
 import { createDrive, type Drive } from './export/drive.ts'
-import { createBackoff, createExportHealth, exportOnce, probeExports } from './export/loop.ts'
+import { createBackoff, createExportHealth, exportOnce, probeExports, recheckBeforePing } from './export/loop.ts'
 import { googleAuth } from './export/google.ts'
 import { createDailyCounter, isOnHours, startLoop, type LoopDeps } from './loop.ts'
 import { cleanCache, processJob, processJobDetailed, type CollectFn } from './pipeline.ts'
@@ -116,12 +116,15 @@ export async function run(configPath: string = DEFAULT_CONFIG_PATH, spawn: Spawn
   }
 
   const version = packageVersion()
-  const ping = () => { api.ping(version, health.get()).catch(() => {}) }
+  const sendPing = () => { api.ping(version, health.get()).catch(() => {}) }
+  const probeOpts = () => ({ obsidianDir: cfg.obsidianDir, driveConfigured: !!cfg.driveTokenFile, drive: getDrive() })
+  // 켤 때 시험으로 본 문제가 남아 있으면 알리기 전에 다시 시험한다(풀렸으면 지운다)
+  const ping = () => { void recheckBeforePing(health, probeOpts()).catch(() => {}).finally(sendPing) }
   const syncCaffeine = () => caffeine.sync(isOnHours(now(), cfg.onHours))
   // 첫 알림은 시험을 마친 뒤에(시험이 실패해도 알린다)
-  void probeExports(health, { obsidianDir: cfg.obsidianDir, driveConfigured: !!cfg.driveTokenFile, drive: getDrive() })
+  void probeExports(health, probeOpts())
     .catch(() => {})
-    .finally(ping)
+    .finally(sendPing)
   syncCaffeine()
   const pingTimer = setInterval(ping, PING_MS)
   const caffeineTimer = setInterval(syncCaffeine, 60_000)

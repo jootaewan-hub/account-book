@@ -8,7 +8,7 @@ import type { ExportItem, StoredRecipe } from '../../../supabase/functions/_shar
 import type { WorkerApi } from '../../../tools/recipe-worker/src/api'
 import type { WorkerConfig } from '../../../tools/recipe-worker/src/config'
 import { DriveAuthError, DriveHttpError, type Drive } from '../../../tools/recipe-worker/src/export/drive'
-import { createBackoff, createExportHealth, exportOnce, probeExports } from '../../../tools/recipe-worker/src/export/loop'
+import { createBackoff, createExportHealth, exportOnce, probeExports, recheckBeforePing } from '../../../tools/recipe-worker/src/export/loop'
 import { startLoop, type LoopDeps } from '../../../tools/recipe-worker/src/loop'
 import gold from '../../../docs/recipes/contract/examples/youtube-AkX6uA4BaDs.json'
 
@@ -339,5 +339,25 @@ describe('사본 상태(I7)', () => {
     const none = tracker()
     await probeExports(none, { obsidianDir: null, driveConfigured: false, drive: null })
     expect(none.get()).toEqual({ issue: null, checkedAt: null })
+  })
+
+  it('켤 때 시험으로 본 문제는 알리기 전에 다시 시험해 풀리면 지운다. 사본을 써 보며 본 문제는 다시 시험하지 않는다', async () => {
+    const h = tracker()
+    // 켤 때 네트워크가 아직 없어 드라이브 시험이 실패했다
+    await probeExports(h, { obsidianDir: null, driveConfigured: true, drive: mkDrive({ probe: vi.fn(async () => { throw new Error('구글에 닿지 못했어요') }) }) })
+    expect(h.get().issue).toBe('구글 드라이브에 쓰지 못했어요')
+    const ok = mkDrive()
+    await recheckBeforePing(h, { obsidianDir: null, driveConfigured: true, drive: ok })
+    expect(ok.probe).toHaveBeenCalledTimes(1)
+    expect(h.get().issue).toBeNull()
+    // 괜찮으면 다시 시험하지 않는다
+    await recheckBeforePing(h, { obsidianDir: null, driveConfigured: true, drive: ok })
+    expect(ok.probe).toHaveBeenCalledTimes(1)
+    // 사본 고리가 본 문제는 다음 사본 고리가 고친다(시험 파일로 지우지 않는다)
+    await exportOnce(mkApi([item('a')]), mkDrive({ upsertDoc: vi.fn(async () => { throw new DriveHttpError(500) }) }), null, quiet, { health: h })
+    expect(h.get().issue).toBe('구글 드라이브에 쓰지 못했어요')
+    await recheckBeforePing(h, { obsidianDir: null, driveConfigured: true, drive: ok })
+    expect(ok.probe).toHaveBeenCalledTimes(1)
+    expect(h.get().issue).toBe('구글 드라이브에 쓰지 못했어요')
   })
 })
