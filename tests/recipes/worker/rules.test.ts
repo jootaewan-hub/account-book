@@ -73,6 +73,7 @@ function invariant(out: Out, e: Evidence) {
   const covered = (prefix: string) => items.some((it) => it.target === prefix || it.target.startsWith(`${prefix}.`))
   r.ingredients.forEach((g, i) => expect(Boolean(g.needs_review), `ingredients[${i}]`).toBe(covered(`ingredients[${i}]`)))
   r.steps.forEach((s, i) => expect(Boolean(s.needs_review), `steps[${i}]`).toBe(covered(`steps[${i}]`)))
+  ;(r.principles ?? []).forEach((x, i) => expect(Boolean(x.needs_review), `principles[${i}]`).toBe(covered(`principles[${i}]`)))
   for (const g of r.ingredients) {
     if (g.amount !== null) {
       expect(g.origin).not.toBe('editor')
@@ -117,8 +118,10 @@ describe('checkRecipe', () => {
     r.ingredients[1] = { name: '간장', amount: 3, unit: '큰술', origin: 'caption_auto', at_seconds: 60 }
     const out = run(r)
     expect(out.recipe.ingredients[1]).toMatchObject({ amount: 3, origin: 'description', at_seconds: null })
+    // 출처와 시각을 따로 남겨 둘 다 되돌릴 수 있게
     expect(out.corrections).toEqual([
       { target: 'ingredients[1].origin', before: 'caption_auto', after: 'description', origin: 'description', at_seconds: null, method: 'rule' },
+      { target: 'ingredients[1].at_seconds', before: '60', after: null, origin: 'description', at_seconds: null, method: 'rule' },
     ])
     expect(out.reviews).toEqual([])
     expect(out.recipe.corrections).toEqual(out.corrections)
@@ -131,6 +134,7 @@ describe('checkRecipe', () => {
     expect(out.recipe.ingredients[4]).toMatchObject({ origin: 'screen', at_seconds: 80 })
     expect(out.corrections).toEqual([
       { target: 'ingredients[4].origin', before: 'caption_auto', after: 'screen', origin: 'screen', at_seconds: 80, method: 'rule' },
+      { target: 'ingredients[4].at_seconds', before: '70', after: '80', origin: 'screen', at_seconds: 80, method: 'rule' },
     ])
   })
 
@@ -149,7 +153,7 @@ describe('checkRecipe', () => {
     r.ingredients[3] = { name: '양파', amount: 1, unit: '개', origin: 'asr', at_seconds: 40 }
     const out = run(r)
     expect(out.recipe.ingredients[3]).toMatchObject({ origin: 'caption_auto', at_seconds: 40 })
-    expect(out.corrections.map((c) => c.target)).toEqual(['ingredients[3].origin'])
+    expect(out.corrections.map((c) => c.target)).toEqual(['ingredients[3].origin']) // 시각은 그대로라 하나
   })
 
   it('덧붙임(editor) 출처의 숫자도 근거에서 찾아 출처를 고침', () => {
@@ -157,6 +161,7 @@ describe('checkRecipe', () => {
     r.ingredients[2] = { name: '설탕', amount: 2, unit: '큰술', origin: 'editor' }
     const out = run(r)
     expect(out.recipe.ingredients[2]).toMatchObject({ amount: 2, origin: 'description' })
+    expect(out.corrections.map((c) => [c.target, c.before, c.after])).toEqual([['ingredients[2].origin', 'editor', 'description']])
   })
 
   it('어디에도 없는 숫자 → amount null, amount_text는 남기고 확인 필요 "출처에서 숫자를 찾지 못함"', () => {
@@ -280,7 +285,9 @@ describe('checkRecipe', () => {
     ])
     expect(out.corrections.map((c) => [c.target, c.before, c.after])).toEqual([
       ['glossary[1].origin', 'caption_auto', 'editor'],
+      ['glossary[1].at_seconds', '120', null],
       ['glossary[3].origin', 'screen', 'editor'],
+      ['glossary[3].at_seconds', '200', null],
     ])
     expect(out.reviews).toEqual([])
   })
@@ -348,18 +355,42 @@ describe('checkRecipe', () => {
     expect(run(far).recipe.steps[0]!.timer_seconds).toBeNull()
   })
 
-  it('정리할 때 켠 needs_review는 확인 필요 항목으로, 확인 필요 항목이 가리키는 재료·단계는 needs_review로', () => {
+  it('정리할 때 켠 needs_review는 확인 필요 항목으로, 확인 필요 항목이 가리키는 재료·단계·원리는 needs_review로', () => {
     const r = recipe()
     r.ingredients[3]!.needs_review = true
     r.steps[0]!.needs_review = true
-    r.review_items = [{ target: 'ingredients[2].amount', reason: '설명란과 말이 다름', candidates: [] }]
+    r.principles = [
+      { title: '단맛 비율', body: '단맛은 1 : 0.8쯤.', origin: 'caption_auto', video_start_seconds: 120, needs_review: true },
+      { title: '센 불', body: '물기를 날린다.', origin: 'caption_auto', video_start_seconds: 120 },
+    ]
+    r.review_items = [
+      { target: 'ingredients[2].amount', reason: '설명란과 말이 다름', candidates: [] },
+      { target: 'principles[1]', reason: '설명란과 말이 다름', candidates: [] },
+    ]
     const out = run(r)
     expect(out.recipe.ingredients[2]!.needs_review).toBe(true)
+    expect(out.recipe.principles![1]!.needs_review).toBe(true)
     expect(out.reviews).toEqual([
       { target: 'ingredients[3]', reason: REASONS.flagged, candidates: [] },
       { target: 'steps[0]', reason: REASONS.flagged, candidates: [] },
+      { target: 'principles[0]', reason: REASONS.flagged, candidates: [] },
     ])
-    expect(out.recipe.review_items).toHaveLength(3)
+    expect(out.recipe.review_items).toHaveLength(5)
+  })
+
+  it('사람이 고친 값(출처 user)의 분량·인분·타이머는 근거에 없어도 찾지도 고치지도 지우지도 않음', () => {
+    const r = recipe()
+    r.ingredients[2] = { name: '설탕', amount: 7, unit: '큰술', origin: 'user' }
+    r.ingredients[3] = { name: '양파', amount: 3, unit: '개', origin: 'user', at_seconds: 999 }
+    r.servings = { value: 4, origin: 'user' }
+    r.steps[1] = { ...r.steps[1]!, origin: 'user', timer_seconds: 600 }
+    const out = run(r)
+    expect(out.recipe.ingredients[2]).toEqual({ name: '설탕', amount: 7, unit: '큰술', origin: 'user' })
+    expect(out.recipe.ingredients[3]).toEqual({ name: '양파', amount: 3, unit: '개', origin: 'user', at_seconds: 999 })
+    expect(out.recipe.servings).toEqual({ value: 4, origin: 'user' })
+    expect(out.recipe.steps[1]!.timer_seconds).toBe(600)
+    expect(out.corrections).toEqual([])
+    expect(out.reviews).toEqual([])
   })
 
   it('정리 결과에 이미 있던 고친 곳(자막 낱말)은 남기고 뒤에 더함', () => {
@@ -367,8 +398,8 @@ describe('checkRecipe', () => {
     r.corrections = [{ target: '자막', before: '물려', after: '물엿', origin: 'caption_auto', at_seconds: null, method: 'rule' }]
     r.ingredients[1] = { name: '간장', amount: 3, unit: '큰술', origin: 'caption_auto', at_seconds: 60 }
     const out = run(r)
-    expect(out.recipe.corrections!.map((c) => c.target)).toEqual(['자막', 'ingredients[1].origin'])
-    expect(out.corrections).toHaveLength(1)
+    expect(out.recipe.corrections!.map((c) => c.target)).toEqual(['자막', 'ingredients[1].origin', 'ingredients[1].at_seconds'])
+    expect(out.corrections).toHaveLength(2)
   })
 
   it('자막이 없는 영상: 말 출처 숫자는 설명란·화면에서 찾고, 없으면 지움', () => {

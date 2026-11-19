@@ -1,6 +1,8 @@
 // V1 기계 검사(설계 "검증" V1). 정리 결과의 숫자(분량·인분·시간)가 근거에 글자로 있는지 보고, 규칙으로 고칠 수 있는 것은
 // 고치고(고친 곳, method 'rule'), 판단이 안 서는 것은 확인 필요로 남긴다. 모델에게 숫자를 다시 만들게 하지 않는다.
 // 순수 함수. 고친 곳·확인 필요에는 근거 원문(자막·화면 글자·설명란 문장)을 넣지 않고 값·출처·시각만 둔다(P-06).
+// 출처가 user(사람이 앱에서 고친 값)인 분량·인분·타이머는 무엇보다 앞서므로 찾지도, 고치지도, 지우지도 않는다.
+// 출처를 바꿀 때는 출처와 시각을 따로 남겨(origin, at_seconds) 나중에 둘 다 되돌릴 수 있게 한다.
 //
 // 넘겨주는 꼴: 돌려주는 recipe의 corrections·review_items에는 받은 것 뒤에 새로 만든 것을 이미 붙였다(각 40개까지).
 // corrections·reviews는 이번에 새로 만든 것만이다(요약과 시험용). 다음 단계는 이것을 recipe에 다시 붙이지 않는다.
@@ -226,7 +228,7 @@ export function checkRecipe(r: RecipeV2, e: Evidence): { recipe: RecipeV2; corre
 
   // 4. 분량 숫자는 근거에 글자로 있어야 한다. 단 출처에 없고 다른 출처에 있으면 출처·시각을 고치고, 어디에도 없으면 숫자만 지운다.
   ingredients.forEach((g, i) => {
-    if (g.amount === null) return
+    if (g.amount === null || g.origin === 'user') return
     const amount = g.amount
     const found = locateAmount(g, amount, s)
     if (found === null) {
@@ -239,8 +241,8 @@ export function checkRecipe(r: RecipeV2, e: Evidence): { recipe: RecipeV2; corre
     if (found.origin !== g.origin) {
       corrections.push(fix(`ingredients[${i}].origin`, g.origin, found.origin, found.origin, found.at))
       g.origin = found.origin
-      g.at_seconds = found.at
-    } else if (found.at !== (g.at_seconds ?? null)) {
+    }
+    if (found.at !== (g.at_seconds ?? null)) {
       corrections.push(fix(`ingredients[${i}].at_seconds`, num(g.at_seconds), num(found.at), found.origin, found.at))
       g.at_seconds = found.at
     }
@@ -248,7 +250,7 @@ export function checkRecipe(r: RecipeV2, e: Evidence): { recipe: RecipeV2; corre
   if (duration > 0) {
     ingredients.forEach((g, i) => {
       if (g.at_seconds == null || g.at_seconds <= duration) return
-      if (g.amount !== null && TIMED.includes(g.origin)) return // 말·화면 숫자에는 시각이 있어야 한다(계약)
+      if (g.origin === 'user' || (g.amount !== null && TIMED.includes(g.origin))) return // 말·화면 숫자에는 시각이 있어야 한다(계약)
       corrections.push(fix(`ingredients[${i}].at_seconds`, num(g.at_seconds), null))
       g.at_seconds = null
     })
@@ -256,7 +258,7 @@ export function checkRecipe(r: RecipeV2, e: Evidence): { recipe: RecipeV2; corre
 
   // 5. 인분도 같은 검사(인분은 시각이 없어 출처 전체에서 찾는다)
   const sv = recipe.servings
-  if (sv.value !== null) {
+  if (sv.value !== null && sv.origin !== 'user') {
     const found = locateServings(sv.value, sv.origin, s)
     if (found === null) {
       corrections.push(fix('servings.value', num(sv.value), null))
@@ -271,7 +273,7 @@ export function checkRecipe(r: RecipeV2, e: Evidence): { recipe: RecipeV2; corre
 
   // 6. 시간: 덧붙인 단계에는 타이머를 두지 않고(DB 제약), 나머지는 그 단계 동안의 근거에서 찾는다("3분" = 180초)
   steps.forEach((st, i) => {
-    if (st.timer_seconds == null) return
+    if (st.timer_seconds == null || st.origin === 'user') return
     const before = num(st.timer_seconds)
     if (st.origin === 'editor') {
       corrections.push(fix(`steps[${i}].timer_seconds`, before, null))
@@ -318,25 +320,25 @@ export function checkRecipe(r: RecipeV2, e: Evidence): { recipe: RecipeV2; corre
       return
     }
     corrections.push(fix(`glossary[${i}].origin`, item.origin, 'editor'))
+    if (item.at_seconds !== null) corrections.push(fix(`glossary[${i}].at_seconds`, num(item.at_seconds), null))
     item.origin = 'editor'
     item.at_seconds = null
   })
 
-  // 10. 확인 필요와 needs_review를 맞춘다: 항목이 가리키는 재료·단계는 needs_review, needs_review인데 항목이 없으면 항목을 더한다
+  // 10. 확인 필요와 needs_review를 맞춘다(재료·단계·원리 모두): 항목이 가리키는 곳은 needs_review, needs_review인데 항목이 없으면 항목을 더한다
   const existing = recipe.review_items ?? []
+  const flaggable: Record<string, { needs_review?: boolean }[]> = { ingredients, steps, principles: recipe.principles ?? [] }
   for (const item of [...existing, ...reviews]) {
-    const m = /^(ingredients|steps)\[(\d+)\]/.exec(item.target)
-    if (!m) continue
-    const x = m[1] === 'ingredients' ? ingredients[Number(m[2])] : steps[Number(m[2])]
+    const m = /^(ingredients|steps|principles)\[(\d+)\]/.exec(item.target)
+    const x = m ? flaggable[m[1]!]?.[Number(m[2])] : undefined
     if (x) x.needs_review = true
   }
   const hasItem = (prefix: string) => [...existing, ...reviews].some((item) => covers(item.target, prefix))
-  ingredients.forEach((g, i) => {
-    if (g.needs_review && !hasItem(`ingredients[${i}]`)) reviews.push({ target: `ingredients[${i}]`, reason: REASONS.flagged, candidates: [] })
-  })
-  steps.forEach((st, i) => {
-    if (st.needs_review && !hasItem(`steps[${i}]`)) reviews.push({ target: `steps[${i}]`, reason: REASONS.flagged, candidates: [] })
-  })
+  for (const [name, list] of Object.entries(flaggable)) {
+    list.forEach((x, i) => {
+      if (x.needs_review && !hasItem(`${name}[${i}]`)) reviews.push({ target: `${name}[${i}]`, reason: REASONS.flagged, candidates: [] })
+    })
+  }
 
   // 11. 받은 것 뒤에 붙인다(계약: 각 40개까지). 확인 필요가 넘치면 마지막 칸에 남은 수를 적는다.
   if (recipe.corrections !== undefined || corrections.length > 0) {
