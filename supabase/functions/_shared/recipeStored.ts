@@ -1,6 +1,7 @@
 // 저장된 레시피(DB 줄)를 계약 v2 꼴로 되돌리고, 보관 대상(exports)을 고른다. 순수 함수(환경변수·Deno 없음).
 import type { Difficulty, RecipeV2 } from './recipeContract.ts'
 
+/** updated_at은 처리기가 보관을 마친 뒤 exported에 snapshot_updated_at으로 돌려줘야 한다(그 사이 고친 레시피가 다시 대상이 되게) */
 export type StoredRecipe = RecipeV2 & {
   id: string
   difficulty: Difficulty

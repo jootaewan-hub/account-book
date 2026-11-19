@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, it, vi } from 'vitest'
-import { DbError, STAGES, handle, type WorkerDeps } from '../../supabase/functions/recipe-worker/handle'
+import { DbError, STAGES, handle, statusForDbCode, type WorkerDeps } from '../../supabase/functions/recipe-worker/handle'
 import { pickExports, toStoredRecipe } from '../../supabase/functions/_shared/recipeStored'
 import { parseRecipe } from '../../supabase/functions/_shared/recipeContract'
 import { secretMatches } from '../../supabase/functions/_shared/secret'
@@ -20,7 +20,7 @@ const deps = () => ({
   importRecipe: vi.fn<WorkerDeps['importRecipe']>(async () => '00000000-0000-4000-8000-0000000000bb'),
   dictAdd: vi.fn(async () => {}),
   listExports: vi.fn<WorkerDeps['listExports']>(async () => []),
-  exported: vi.fn(async () => true),
+  exported: vi.fn<WorkerDeps['exported']>(async () => true),
   ping: vi.fn(async () => {}),
   dict: vi.fn(async () => [{ id: 'garlic', name: '마늘', aliases: ['다진 마늘'], category: '채소' }]),
 }) satisfies WorkerDeps
@@ -197,11 +197,20 @@ describe('recipe-worker 일', () => {
     expect((await call(d, { action: 'ping' })).status).toBe(400)
 
     const recipe_id = '00000000-0000-4000-8000-0000000000cc'
-    const ok = { action: 'exported', recipe_id, drive_doc_id: 'doc', drive_path: '레시피/한식', obsidian_path: '레시피/한식/a.md' }
+    const snap = '2026-11-22T01:00:00.123456+00:00'
+    const ok = { action: 'exported', snapshot_updated_at: snap, recipe_id, drive_doc_id: 'doc', drive_path: '레시피/한식', obsidian_path: '레시피/한식/a.md' }
     expect((await call(d, ok)).status).toBe(200)
-    expect(d.exported).toHaveBeenCalledWith({ recipe_id, drive_doc_id: 'doc', drive_path: '레시피/한식', obsidian_path: '레시피/한식/a.md' }, now)
-    // 지운 레시피는 처리기가 null을 보낸다
+    expect(d.exported).toHaveBeenCalledWith({
+      recipe_id, drive_doc_id: 'doc', drive_path: '레시피/한식', obsidian_path: '레시피/한식/a.md', exported_at: snap,
+    })
+    // 지운 레시피는 처리기가 null을 보내고, 보관 시각은 지금
+    d.exported.mockClear()
     expect((await call(d, { action: 'exported', recipe_id, drive_doc_id: null, drive_path: null, obsidian_path: null })).status).toBe(200)
+    expect(d.exported.mock.calls[0]?.[0]?.exported_at).toBe(now.toISOString())
+    // 사본 시각이 없거나 ISO가 아니면 400
+    expect((await call(d, { ...ok, snapshot_updated_at: undefined })).status).toBe(400)
+    expect((await call(d, { ...ok, snapshot_updated_at: 'yesterday' })).status).toBe(400)
+    expect((await call(d, { ...ok, snapshot_updated_at: '2026-11-22' })).status).toBe(400)
     expect((await call(d, { ...ok, drive_doc_id: 5 })).status).toBe(400)
     expect((await call(d, { ...ok, recipe_id: 'x' })).status).toBe(400)
     d.exported.mockResolvedValueOnce(false)
@@ -214,6 +223,23 @@ describe('recipe-worker 일', () => {
     const res = await call(d, { action: 'claim' })
     expect(res.status).toBe(500)
     expect(await res.text()).toBe('')
+  })
+})
+
+describe('DB 오류 구분', () => {
+  it('영구 거절만 409, 번호 없음·PGRST·일시 오류는 500', () => {
+    for (const c of ['22023', '23514', 'P0002', '55000']) expect(statusForDbCode(c)).toBe(409)
+    for (const c of ['', undefined, 'PGRST106', 'PGRST202', '40001', '40P01', '57014', '42501']) expect(statusForDbCode(c)).toBe(500)
+  })
+
+  it('submit: 인프라 오류는 409가 아니라 본문 없는 500', async () => {
+    const d = deps()
+    for (const code of ['', 'PGRST106', '40001']) {
+      d.importRecipe.mockRejectedValueOnce(new DbError(code))
+      const res = await call(d, { action: 'submit', job, recipe: gold })
+      expect(res.status).toBe(500)
+      expect(await res.text()).toBe('')
+    }
   })
 })
 
@@ -275,6 +301,9 @@ describe('저장된 레시피 되돌리기와 보관 대상 고르기', () => {
       exp('fresh', '2026-11-22T01:00:00Z'), exp('stale', '2026-11-22T01:00:00Z'),
       exp('gone', '2026-11-20T00:00:00Z', 'doc', null), exp('cleaned', '2026-11-20T00:00:00Z', null, null),
     ]
+    // 보관하는 사이 고친 레시피: 사본 시각(exported_at)이 고치기 전이라 계속 대상으로 남는다
+    expect(pickExports([{ id: 'edited', updated_at: '2026-11-22T01:00:05Z' }], [], [exp('edited', '2026-11-22T01:00:00Z')]).fill).toEqual(['edited'])
+    expect(pickExports([{ id: 'edited', updated_at: '2026-11-22T01:00:05Z' }], [], [exp('edited', '2026-11-22T01:00:05Z')]).fill).toEqual([])
     expect(pickExports(saved, archived, rows)).toEqual({ fill: ['stale', 'new'], trash: ['gone'] })
     const many = Array.from({ length: 12 }, (_, i) => ({ id: `s${i}`, updated_at: `2026-11-22T00:${String(i).padStart(2, '0')}:00Z` }))
     const picked = pickExports(many, archived, rows)

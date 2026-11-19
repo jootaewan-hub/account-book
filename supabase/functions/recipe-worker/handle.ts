@@ -17,9 +17,19 @@ export class DbError extends Error {
   }
 }
 
+/**
+ * DB 오류 번호 → 응답 상태. 일 자체가 거절된 영구 오류만 409(SQLSTATE 22·23 계열, 일이 없음 P0002, 처리 중 아님 55000).
+ * 번호가 없거나(네트워크·게이트웨이) PGRST*(설정), 40001·40P01·57014 같은 일시 오류는 처리기가 다시 시도할 수 있게 500.
+ */
+export function statusForDbCode(code: string | undefined): 409 | 500 {
+  if (!code || code.startsWith('PGRST')) return 500
+  return code.startsWith('22') || code.startsWith('23') || code === 'P0002' || code === '55000' ? 409 : 500
+}
+
 export interface DictEntry { id: string; name: string; aliases: string[]; category: string; broader?: string | null }
 export interface ClaimedJob { id: string; source_key: string }
-export interface ExportedInput { recipe_id: string; drive_doc_id: string | null; drive_path: string | null; obsidian_path: string | null }
+/** exported_at: 지운 보고는 지금, 그 밖에는 처리기가 받은 사본의 updated_at 그대로(만드는 사이 고친 것이 다시 보관 대상으로 남게) */
+export interface ExportedInput { recipe_id: string; drive_doc_id: string | null; drive_path: string | null; obsidian_path: string | null; exported_at: string }
 
 export interface WorkerDeps {
   /** 비어 있으면 모든 요청을 401로 거절한다 */
@@ -34,7 +44,7 @@ export interface WorkerDeps {
   dictAdd: (entries: DictEntry[]) => Promise<void>
   listExports: () => Promise<ExportItem[]>
   /** 그 레시피가 없으면 false */
-  exported: (input: ExportedInput, now: Date) => Promise<boolean>
+  exported: (input: ExportedInput) => Promise<boolean>
   ping: (version: string, now: Date) => Promise<void>
   dict: () => Promise<{ id: string; name: string; aliases: string[]; category: string }[]>
 }
@@ -44,6 +54,7 @@ const json = (body: unknown, status = 200) => Response.json(body, { status, head
 const bad = (error: string) => json({ error }, 400)
 
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+const isoDateTime = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,9})?(Z|[+-]\d{2}:\d{2})$/
 const sourceKey = /^youtube:([A-Za-z0-9_-]{11})$/
 
 type Body = Record<string, unknown>
@@ -128,7 +139,7 @@ export async function handle(req: Request, deps: WorkerDeps): Promise<Response> 
           if (Array.isArray(body.dict) && body.dict.length > 0) await deps.dictAdd(body.dict)
           return json({ recipe_id: await deps.importRecipe(body.job, parsed.value, level, basis) })
         } catch (e) {
-          if (e instanceof DbError) return json({ error: '레시피를 등록하지 못했어요.', code: e.code }, 409)
+          if (e instanceof DbError && statusForDbCode(e.code) === 409) return json({ error: '레시피를 등록하지 못했어요.', code: e.code }, 409)
           throw e
         }
       }
@@ -152,9 +163,14 @@ export async function handle(req: Request, deps: WorkerDeps): Promise<Response> 
         if (!nullableText(body.drive_doc_id, 200) || !nullableText(body.drive_path, 500) || !nullableText(body.obsidian_path, 500)) {
           return bad('보관 경로가 올바르지 않아요.')
         }
+        const trash = body.drive_doc_id === null && body.drive_path === null && body.obsidian_path === null
+        if (!trash && (typeof body.snapshot_updated_at !== 'string' || !isoDateTime.test(body.snapshot_updated_at) || !Number.isFinite(Date.parse(body.snapshot_updated_at)))) {
+          return bad('snapshot_updated_at이 필요해요.')
+        }
         const found = await deps.exported({
           recipe_id: body.recipe_id, drive_doc_id: body.drive_doc_id, drive_path: body.drive_path, obsidian_path: body.obsidian_path,
-        }, now)
+          exported_at: trash ? now.toISOString() : (body.snapshot_updated_at as string),
+        })
         return found ? json({ ok: true }) : json({ error: '레시피를 찾을 수 없어요.' }, 404)
       }
       case 'ping': {
