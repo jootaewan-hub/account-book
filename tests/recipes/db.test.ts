@@ -147,7 +147,7 @@ describe('다른 가구와 로그인 안 한 사람', () => {
     for (const t of ['recipes', 'ingredients', 'steps', 'inbox', 'exports', 'worker_status']) {
       expect(await codeOf(as(null, `select * from recipe.${t}`)), t).toBe('42501')
     }
-    expect(await codeOf(as(null, `insert into recipe.inbox (household_id, url, source_key) values ($1, 'https://youtu.be/x', 'youtube:x')`, [hhAB]))).toBe('42501')
+    expect(await codeOf(as(null, `insert into recipe.inbox (household_id, url, source_key) values ($1, 'https://youtu.be/x__________', 'youtube:x__________')`, [hhAB]))).toBe('42501')
   })
 })
 
@@ -161,12 +161,12 @@ describe('대기함 담기', () => {
     )
     expect(row).toEqual({ added_by: A, state: 'waiting', attempts: 0 })
     expect(await as(B, `select source_key from recipe.inbox`)).toEqual([{ source_key: 'youtube:AkX6uA4BaDs' }])
-    expect(await codeOf(as(A, `insert into recipe.inbox (household_id, url, source_key, added_by) values ($1, 'https://youtu.be/a1', 'youtube:a1', $2)`, [hhAB, B]))).toBe('42501')
-    expect(await codeOf(as(C, `insert into recipe.inbox (household_id, url, source_key) values ($1, 'https://youtu.be/a2', 'youtube:a2')`, [hhAB]))).toBe('42501')
+    expect(await codeOf(as(A, `insert into recipe.inbox (household_id, url, source_key, added_by) values ($1, 'https://youtu.be/a1_________', 'youtube:a1_________', $2)`, [hhAB, B]))).toBe('42501')
+    expect(await codeOf(as(C, `insert into recipe.inbox (household_id, url, source_key) values ($1, 'https://youtu.be/a2_________', 'youtube:a2_________')`, [hhAB]))).toBe('42501')
   })
   it('상태·시도 횟수·만든 레시피는 넣을 때 정할 수 없다', async () => {
     const ins = (col: string, val: unknown) =>
-      as(A, `insert into recipe.inbox (household_id, url, source_key, ${col}) values ($1, 'https://youtu.be/b1', 'youtube:b1', $2)`, [hhAB, val])
+      as(A, `insert into recipe.inbox (household_id, url, source_key, ${col}) values ($1, 'https://youtu.be/b1_________', 'youtube:b1_________', $2)`, [hhAB, val])
     expect(await codeOf(ins('state', 'processing'))).toBe('42501')
     expect(await codeOf(ins('attempts', 99))).toBe('42501')
     expect(await codeOf(ins('fail_reason', 'x'))).toBe('42501')
@@ -184,12 +184,44 @@ describe('대기함 담기', () => {
     await admin(`update recipe.inbox set state = 'done' where household_id = $1`, [hhAB])
     await ins(B, hhAB)
   })
-  it('주소는 https, 출처 열쇠는 계약 꼴이어야 한다', async () => {
-    expect(await codeOf(as(A, `insert into recipe.inbox (household_id, url, source_key) values ($1, 'http://youtu.be/x1', 'youtube:x1')`, [hhAB]))).toBe('23514')
-    expect(await codeOf(as(A, `insert into recipe.inbox (household_id, url, source_key) values ($1, 'https://youtu.be/x1', 'x1')`, [hhAB]))).toBe('23514')
+  it('주소는 https 유튜브만, 출처 열쇠는 youtube:영상 id 11자, 그 id가 주소에 있어야 한다(23514)', async () => {
+    const ins = (url: string, key: string) =>
+      as(A, `insert into recipe.inbox (household_id, url, source_key) values ($1, $2, $3) returning id`, [hhAB, url, key])
+    const K = 'youtube:AkX6uA4BaDs'
+    for (const [url, key] of [
+      ['https://youtu.be/AkX6uA4BaDs', 'web:x'],
+      ['https://youtu.be/AkX6uA4BaDs', 'youtube:short'],
+      ['https://192.168.0.10/x', K],
+      ['https://192.168.0.10/AkX6uA4BaDs', K],
+      ['https://evil.com/watch?v=AkX6uA4BaDs', K],
+      ['https://youtube.com.evil.com/watch?v=AkX6uA4BaDs', K],
+      ['https://youtu.be.evil.com/AkX6uA4BaDs', K],
+      ['https://youtu.be/BkX6uA4BaDs', K],
+      ['https://youtu.be/AkX6uA4BaDs' + 'x'.repeat(480), K],
+    ]) expect(await codeOf(ins(url, key)), `${url} ${key}`).toBe('23514')
+    for (const url of ['https://youtu.be/AkX6uA4BaDs', 'https://www.youtube.com/watch?v=AkX6uA4BaDs', 'https://m.youtube.com/watch?v=AkX6uA4BaDs',
+      'https://music.youtube.com/watch?v=AkX6uA4BaDs', 'https://youtube.com/shorts/AkX6uA4BaDs']) {
+      expect(await ins(url, K), url).toHaveLength(1)
+      await admin(`delete from recipe.inbox`)
+    }
+  })
+  it('레시피의 출처 열쇠와 출처 주소도 유튜브만(23514)', async () => {
+    const ins = (key: string, url: string | null) =>
+      admin(`insert into recipe.recipes (household_id, title, source_kind, source_key, source_url, cuisine)
+        values ($1, 't', 'youtube', $2, $3, '한식') returning id`, [hhAB, key, url])
+    expect(await codeOf(ins('web:x', null))).toBe('23514')
+    expect(await codeOf(ins('youtube:short', null))).toBe('23514')
+    expect(await codeOf(ins('youtube:AkX6uA4BaDs', 'https://evil.com/watch?v=AkX6uA4BaDs'))).toBe('23514')
+    expect(await codeOf(ins('youtube:AkX6uA4BaDs', 'https://192.168.0.10/x'))).toBe('23514')
+    expect(await ins('youtube:AkX6uA4BaDs', 'https://www.youtube.com/watch?v=AkX6uA4BaDs')).toHaveLength(1)
+    expect(await ins('youtube:shorts00001', null)).toHaveLength(1)
+  })
+  it('http 주소와 꼴이 틀린 출처 열쇠는 거절', async () => {
+    expect(await codeOf(as(A, `insert into recipe.inbox (household_id, url, source_key) values ($1, 'http://youtu.be/x1_________', 'youtube:x1_________')`, [hhAB]))).toBe('23514')
+    expect(await codeOf(as(A, `insert into recipe.inbox (household_id, url, source_key) values ($1, 'https://youtu.be/x1_________', 'x1')`, [hhAB]))).toBe('23514')
   })
   it('앱 사용자는 대기 줄의 상태를 바꿀 수 없고, 지울 수는 있다', async () => {
-    const j = await seedJob(hhAB, A, 'youtube:c1', T0)
+    const j = await seedJob(hhAB, A, 'youtube:c1_________', T0)
     expect(await codeOf(as(A, `update recipe.inbox set state = 'done' where id = $1`, [j]))).toBe('42501')
     expect(await codeOf(as(A, `update recipe.inbox set attempts = 0, retry_at = null where id = $1`, [j]))).toBe('42501')
     expect(await as(B, `delete from recipe.inbox where id = $1 returning id`, [j])).toEqual([{ id: j }])
@@ -198,7 +230,7 @@ describe('대기함 담기', () => {
 
 describe('일 받기 (서비스 롤만)', () => {
   it('앱 사용자는 처리기 함수를 부를 수 없다(42501)', async () => {
-    const j = await seedJob(hhAB, A, 'youtube:d1', T0)
+    const j = await seedJob(hhAB, A, 'youtube:d1_________', T0)
     expect(await codeOf(as(A, `select * from recipe.claim_job(now())`))).toBe('42501')
     expect(await codeOf(as(A, `select recipe.job_progress($1, '저장 중', now())`, [j]))).toBe('42501')
     expect(await codeOf(as(A, `select recipe.job_release($1, now())`, [j]))).toBe('42501')
@@ -207,8 +239,8 @@ describe('일 받기 (서비스 롤만)', () => {
     expect((await job(j)).state).toBe('waiting')
   })
   it('가장 오래된 대기 줄 하나를 processing으로 바꾸고 attempts를 1 올린다', async () => {
-    const late = await seedJob(hhAB, A, 'youtube:e2', at(-1))
-    const early = await seedJob(hhC, C, 'youtube:e1', at(-5))
+    const late = await seedJob(hhAB, A, 'youtube:e2_________', at(-1))
+    const early = await seedJob(hhC, C, 'youtube:e1_________', at(-5))
     const [first] = await claim(T0)
     expect(first).toEqual({ id: early, state: 'processing', attempts: 1 })
     const j = await job(early)
@@ -219,7 +251,7 @@ describe('일 받기 (서비스 롤만)', () => {
     expect(await claim(T0)).toEqual([])
   })
   it('진행 알림이 3분 넘게 끊긴 processing 줄은 다시 내준다', async () => {
-    const j = await seedJob(hhAB, A, 'youtube:f1', at(-10))
+    const j = await seedJob(hhAB, A, 'youtube:f1_________', at(-10))
     expect((await claim(T0)).map((r) => r.id)).toEqual([j])
     expect(await claim(at(2))).toEqual([])
     expect(await svc(`select recipe.job_progress($1, '자막 받는 중', $2) as ok`, [j, at(2)])).toEqual([{ ok: true }])
@@ -230,9 +262,9 @@ describe('일 받기 (서비스 롤만)', () => {
     expect((await job(j)).stage).toBeNull()
   })
   it('attempts = 3인 줄은 내주지 않고 failed로 바꾼다', async () => {
-    const stale = await seedJob(hhAB, A, 'youtube:g1', at(-30), { state: 'processing', attempts: 3, claimed_at: at(-20), heartbeat_at: at(-10) })
-    const waiting = await seedJob(hhAB, A, 'youtube:g2', at(-30), { attempts: 3 })
-    const busy = await seedJob(hhAB, A, 'youtube:g3', at(-30), { state: 'processing', attempts: 3, claimed_at: at(-1), heartbeat_at: at(-1) })
+    const stale = await seedJob(hhAB, A, 'youtube:g1_________', at(-30), { state: 'processing', attempts: 3, claimed_at: at(-20), heartbeat_at: at(-10) })
+    const waiting = await seedJob(hhAB, A, 'youtube:g2_________', at(-30), { attempts: 3 })
+    const busy = await seedJob(hhAB, A, 'youtube:g3_________', at(-30), { state: 'processing', attempts: 3, claimed_at: at(-1), heartbeat_at: at(-1) })
     expect(await claim(T0)).toEqual([])
     for (const id of [stale, waiting]) {
       const r = await job(id)
@@ -242,7 +274,7 @@ describe('일 받기 (서비스 롤만)', () => {
     expect((await job(busy)).state).toBe('processing') // 아직 진행 알림이 오는 줄은 그대로
   })
   it('세 번 끊기면 네 번째에는 failed', async () => {
-    const j = await seedJob(hhAB, A, 'youtube:h1', at(-1))
+    const j = await seedJob(hhAB, A, 'youtube:h1_________', at(-1))
     expect((await claim(at(0))).map((r) => r.attempts)).toEqual([1])
     expect((await claim(at(4))).map((r) => r.attempts)).toEqual([2])
     expect((await claim(at(8))).map((r) => r.attempts)).toEqual([3])
@@ -250,7 +282,7 @@ describe('일 받기 (서비스 롤만)', () => {
     expect((await job(j)).state).toBe('failed')
   })
   it('job_release는 waiting·retry_at = t로 돌리고 attempts를 1 줄인다(0 밑으로는 안 감)', async () => {
-    const j = await seedJob(hhAB, A, 'youtube:i1', at(-1))
+    const j = await seedJob(hhAB, A, 'youtube:i1_________', at(-1))
     await claim(T0)
     expect(await svc(`select recipe.job_release($1, $2) as ok`, [j, at(30)])).toEqual([{ ok: true }])
     const r = await job(j)
@@ -263,7 +295,7 @@ describe('일 받기 (서비스 롤만)', () => {
     expect((await job(j)).state).toBe('done')
   })
   it('retry_at이 미래인 줄은 내주지 않고, 그 시각이 되면 내준다', async () => {
-    const j = await seedJob(hhAB, A, 'youtube:j1', at(-10))
+    const j = await seedJob(hhAB, A, 'youtube:j1_________', at(-10))
     await claim(T0)
     await svc(`select recipe.job_release($1, $2)`, [j, at(30)])
     expect(await claim(at(29))).toEqual([])
@@ -271,18 +303,18 @@ describe('일 받기 (서비스 롤만)', () => {
     expect((await job(j)).retry_at).toBeNull()
   })
   it('진행 단계는 정한 일곱 글만 받는다', async () => {
-    const j = await seedJob(hhAB, A, 'youtube:k1', at(-1))
+    const j = await seedJob(hhAB, A, 'youtube:k1_________', at(-1))
     await claim(T0)
     for (const s of STAGES) expect(await svc(`select recipe.job_progress($1, $2, $3) as ok`, [j, s, T0]), s).toEqual([{ ok: true }])
     expect(await codeOf(svc(`select recipe.job_progress($1, '분석 중', $2)`, [j, T0]))).toBe('23514')
   })
   it('job_progress는 처리 중인 줄에만 먹는다', async () => {
-    const j = await seedJob(hhAB, A, 'youtube:k2', at(-1))
+    const j = await seedJob(hhAB, A, 'youtube:k2_________', at(-1))
     expect(await svc(`select recipe.job_progress($1, '저장 중', $2) as ok`, [j, T0])).toEqual([{ ok: false }])
     expect((await job(j)).stage).toBeNull()
   })
   it('job_fail은 failed와 까닭(200자까지)을 남긴다', async () => {
-    const j = await seedJob(hhAB, A, 'youtube:l1', at(-1))
+    const j = await seedJob(hhAB, A, 'youtube:l1_________', at(-1))
     await claim(T0)
     await svc(`select recipe.job_progress($1, '자막 받는 중', $2)`, [j, T0])
     expect(await svc(`select recipe.job_fail($1, $2) as ok`, [j, '가'.repeat(300)])).toEqual([{ ok: true }])
@@ -310,7 +342,7 @@ describe('일 받기 (서비스 롤만)', () => {
 
 describe('다시 하기 (구성원)', () => {
   it('구성원은 실패한 일을 다시 대기로 돌리고, 그 뒤 claim_job이 내준다', async () => {
-    const j = await seedJob(hhAB, A, 'youtube:m1', at(-1))
+    const j = await seedJob(hhAB, A, 'youtube:m1_________', at(-1))
     await claim(T0)
     await svc(`select recipe.job_fail($1, '영상이 너무 길어요')`, [j])
     expect(await as(B, `select recipe.retry_job($1) as ok`, [j])).toEqual([{ ok: true }])
@@ -319,20 +351,20 @@ describe('다시 하기 (구성원)', () => {
     expect(await claim(at(1))).toEqual([{ id: j, state: 'processing', attempts: 1 }])
   })
   it('미래로 미룬 대기 줄도 바로 다시 할 수 있다', async () => {
-    const j = await seedJob(hhAB, A, 'youtube:m2', at(-1), { retry_at: new Date(Date.now() + 3_600_000).toISOString(), attempts: 1 })
+    const j = await seedJob(hhAB, A, 'youtube:m2_________', at(-1), { retry_at: new Date(Date.now() + 3_600_000).toISOString(), attempts: 1 })
     expect(await as(A, `select recipe.retry_job($1) as ok`, [j])).toEqual([{ ok: true }])
     expect(await job(j)).toMatchObject({ state: 'waiting', attempts: 0, retry_at: null })
   })
   it('다른 가구 사용자는 다시 할 수 없다', async () => {
-    const j = await seedJob(hhAB, A, 'youtube:m3', at(-1), { state: 'failed', fail_reason: 'x' })
+    const j = await seedJob(hhAB, A, 'youtube:m3_________', at(-1), { state: 'failed', fail_reason: 'x' })
     expect(await codeOf(as(C, `select recipe.retry_job($1)`, [j]))).toBe('P0002')
     expect(await codeOf(as(D, `select recipe.retry_job($1)`, [j]))).toBe('P0002')
     expect(await codeOf(as(null, `select recipe.retry_job($1)`, [j]))).toBe('42501')
     expect((await job(j)).state).toBe('failed')
   })
   it('처리 중이거나 끝난 일은 건드리지 않는다', async () => {
-    const p = await seedJob(hhAB, A, 'youtube:m4', at(-1), { state: 'processing', attempts: 1, claimed_at: T0, heartbeat_at: T0 })
-    const d = await seedJob(hhAB, A, 'youtube:m5', at(-1), { state: 'done' })
+    const p = await seedJob(hhAB, A, 'youtube:m4_________', at(-1), { state: 'processing', attempts: 1, claimed_at: T0, heartbeat_at: T0 })
+    const d = await seedJob(hhAB, A, 'youtube:m5_________', at(-1), { state: 'done' })
     expect(await as(A, `select recipe.retry_job($1) as ok`, [p])).toEqual([{ ok: false }])
     expect(await as(A, `select recipe.retry_job($1) as ok`, [d])).toEqual([{ ok: false }])
     expect((await job(p)).state).toBe('processing')
@@ -351,7 +383,7 @@ describe('레시피 칸과 권한', () => {
     // 넣을 때도 센다
     const [{ review_count }] = await admin<{ review_count: number }>(
       `insert into recipe.recipes (household_id, title, source_kind, source_key, cuisine, review_items)
-       values ($1, 't', 'youtube', 'youtube:n2', '기타', $2) returning review_count`,
+       values ($1, 't', 'youtube', 'youtube:n2_________', '기타', $2) returning review_count`,
       [hhAB, JSON.stringify([item, item, item])],
     )
     expect(review_count).toBe(3)
@@ -412,20 +444,32 @@ describe('레시피 칸과 권한', () => {
   })
   it('앱이 고치는 칸만 고칠 수 있고, 레시피를 넣거나 지우지는 못한다', async () => {
     const r = await seedRecipe(hhAB, A)
-    await as(A, `update recipe.recipes set status = 'saved', title = '바싹 제육', servings_suggested = 2, cuisine = '한식',
-      mains = '{돼지고기}', main_details = '{돼지 앞다리살}', methods = '{볶음}', occasions = '{반찬}', difficulty = '보통',
-      measuring_tool = '계량스푼', glossary = '[]', corrections = '[]', review_items = '[]', memo = '맛있음', rating = 5,
-      favorite = true, updated_at = now() where id = $1`, [r])
-    for (const col of [`household_id = '${hhC}'`, `source_key = 'youtube:zz'`, `source_url = 'https://x.y'`, `extraction = '{}'`,
-      `added_by = '${B}'`, `added_at = now()`, `review_count = 0`, `summary = 'x'`, `servings = 2`, `difficulty_basis = '{}'`]) {
+    await as(A, `update recipe.recipes set status = 'saved', title = '바싹 제육', summary = '센 불 제육', servings = null,
+      servings_origin = null, servings_basis = '돼지고기 500g', servings_suggested = 2, cuisine = '한식',
+      mains = '{돼지고기}', main_details = '{돼지 앞다리살}', methods = '{볶음}', occasions = '{반찬}', principles = '[]',
+      conflicts = '[]', difficulty = '보통', difficulty_basis = '{"required": 14, "steps": 12, "heavy": false}',
+      measuring_tool = '계량스푼', measuring_tool_basis = '[]', glossary = '[]', corrections = '[]', review_items = '[]',
+      memo = '맛있음', rating = 5, favorite = true, updated_at = now() where id = $1`, [r])
+    for (const col of [`household_id = '${hhC}'`, `source_key = 'youtube:zz_________'`, `source_url = 'https://youtu.be/zz_________'`,
+      `source_kind = 'web'`, `source_title = 'x'`, `channel = 'x'`, `extraction = '{}'`, `added_by = '${B}'`, `added_at = now()`,
+      `review_count = 0`]) {
       expect(await codeOf(as(A, `update recipe.recipes set ${col} where id = $1`, [r])), col).toBe('42501')
     }
-    expect(await codeOf(as(A, `insert into recipe.recipes (household_id, title, source_kind, source_key, cuisine) values ($1, 'x', 'manual', 'manual:1', '기타')`, [hhAB]))).toBe('42501')
+    expect(await codeOf(as(A, `insert into recipe.recipes (household_id, title, source_kind, source_key, cuisine) values ($1, 'x', 'manual', 'youtube:manual1____', '기타')`, [hhAB]))).toBe('42501')
     expect(await codeOf(as(A, `delete from recipe.recipes where id = $1`, [r]))).toBe('42501')
+  })
+  it('구성원은 인분·인분 출처·다른 곳을 고치고, 다른 가구는 0줄', async () => {
+    const r = await seedRecipe(hhAB, A)
+    const conflicts = [{ about: '고춧가루', chosen: '2큰술', chosen_origin: 'user', other: '1큰술', other_origin: 'description' }]
+    expect(await as(C, `update recipe.recipes set servings = 2, servings_origin = 'user', conflicts = $2 where id = $1 returning id`, [r, JSON.stringify(conflicts)])).toEqual([])
+    expect(await as(B, `update recipe.recipes set servings = 2, servings_origin = 'user', servings_basis = '영상 0:30', conflicts = $2
+      where id = $1 returning servings::float as servings, servings_origin, conflicts`, [r, JSON.stringify(conflicts)]))
+      .toEqual([{ servings: 2, servings_origin: 'user', conflicts }])
+    expect(await as(A, `select servings::float as servings from recipe.recipes`)).toEqual([{ servings: 2 }])
   })
   it('재료·단계는 내용 칸을 고치고 넣고 지우지만, 소속은 못 바꾼다', async () => {
     const r = await seedRecipe(hhAB, A)
-    const other = await seedRecipe(hhAB, A, 'youtube:other1')
+    const other = await seedRecipe(hhAB, A, 'youtube:other1_____')
     await as(B, `update recipe.ingredients set position = 2, section = '양념', name = '앞다리살', amount = 600, unit = 'g', amount_text = '600g',
       note = '한 근', optional = false, origin = 'user', at_seconds = null, suggested_amount = null, suggested_unit = null,
       ingredient_key = 'pork_shoulder', needs_review = true where recipe_id = $1`, [r])
@@ -461,7 +505,7 @@ describe('updated_at', () => {
   })
   it('재료·단계를 넣고 고치고 지우면 그 레시피의 updated_at이 바뀐다', async () => {
     const r = await seedRecipe(hhAB, A)
-    const other = await seedRecipe(hhAB, A, 'youtube:other2')
+    const other = await seedRecipe(hhAB, A, 'youtube:other2_____')
     const steps: Array<[string, string]> = [
       ['재료 고치기', `update recipe.ingredients set name = '앞다리살' where recipe_id = $1`],
       ['재료 넣기', `insert into recipe.ingredients (recipe_id, household_id, position, name, origin) values ($1, '${hhAB}', 5, '깻잎', 'user')`],
@@ -504,12 +548,12 @@ describe('처리기 상태와 보관 기록', () => {
     expect(await codeOf(as(A, `update recipe.exports set drive_doc_id = 'x'`))).toBe('42501')
     expect(await codeOf(as(A, `delete from recipe.exports`))).toBe('42501')
     // 다른 가구의 레시피를 가리킬 수 없다
-    const rc = await seedRecipe(hhC, C, 'youtube:cc1')
+    const rc = await seedRecipe(hhC, C, 'youtube:cc1________')
     expect(await codeOf(svc(`insert into recipe.exports (recipe_id, household_id, exported_at) values ($1, $2, now())`, [rc, hhAB]))).toBe('23503')
   })
   it('대기 줄의 recipe_id는 같은 가구의 레시피만', async () => {
-    const rc = await seedRecipe(hhC, C, 'youtube:cc2')
-    const j = await seedJob(hhAB, A, 'youtube:cc2', T0)
+    const rc = await seedRecipe(hhC, C, 'youtube:cc2________')
+    const j = await seedJob(hhAB, A, 'youtube:cc2________', T0)
     expect(await codeOf(svc(`update recipe.inbox set recipe_id = $2 where id = $1`, [j, rc]))).toBe('23503')
   })
   it('inbox·recipes·worker_status가 실시간 publication에 들어 있다', async () => {
@@ -525,10 +569,10 @@ describe('가계부 삭제를 막지 않는다', () => {
   it('구성원을 지우면 담은 레시피·대기 줄은 남고 이름만 빠지며, 가구를 지우면 모두 지워진다', async () => {
     const [{ id: hh }] = await admin<{ id: string }>(`insert into public.households default values returning id`)
     await admin(`insert into public.members (household_id, user_id, display_name, role) values ($1, $2, 'D', 'owner')`, [hh, D])
-    const r = await seedRecipe(hh, D, 'youtube:dd1')
+    const r = await seedRecipe(hh, D, 'youtube:dd1________')
     await svc(`insert into recipe.exports (recipe_id, household_id, drive_doc_id) values ($1, $2, 'doc1')`, [r, hh])
-    await seedJob(hh, D, 'youtube:dd1', at(-2), { state: 'done', recipe_id: r })
-    await seedJob(hh, D, 'youtube:dd2', at(-1))
+    await seedJob(hh, D, 'youtube:dd1________', at(-2), { state: 'done', recipe_id: r })
+    await seedJob(hh, D, 'youtube:dd2________', at(-1))
 
     await admin(`delete from public.members where household_id = $1 and user_id = $2`, [hh, D])
     expect(await admin(`select added_by from recipe.recipes where household_id = $1`, [hh])).toEqual([{ added_by: null }])
@@ -540,8 +584,8 @@ describe('가계부 삭제를 막지 않는다', () => {
     for (const t of TABLES) expect(await admin(`select 1 from recipe.${t} where household_id = $1`, [hh]), t).toEqual([])
   })
   it('레시피를 지우면 그 레시피를 만든 대기 줄은 남고 recipe_id만 빠진다', async () => {
-    const r = await seedRecipe(hhAB, A, 'youtube:dd3')
-    const j = await seedJob(hhAB, A, 'youtube:dd3', T0, { state: 'done', recipe_id: r })
+    const r = await seedRecipe(hhAB, A, 'youtube:dd3________')
+    const j = await seedJob(hhAB, A, 'youtube:dd3________', T0, { state: 'done', recipe_id: r })
     await admin(`delete from recipe.recipes where id = $1`, [r])
     expect(await admin(`select state, recipe_id from recipe.inbox where id = $1`, [j])).toEqual([{ state: 'done', recipe_id: null }])
   })

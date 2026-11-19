@@ -21,8 +21,9 @@ create table recipe.recipes (
   summary text check (char_length(summary) <= 200),
   source_kind text not null check (source_kind in
     ('youtube', 'youtube_shorts', 'instagram', 'web', 'photo', 'text', 'manual')),
-  source_key text not null check (char_length(source_key) between 3 and 200 and source_key ~ '^[a-z_]+:.+$'),
-  source_url text check (source_url ~ '^https://'),
+  -- 첫 판은 유튜브만(영상 id 11자). 인스타 따위는 뒤 마이그레이션이 꼴을 넓힌다.
+  source_key text not null check (source_key ~ '^youtube:[A-Za-z0-9_-]{11}$'),
+  source_url text check (source_url ~ '^https://(www\.|m\.|music\.)?youtube\.com/' or source_url ~ '^https://youtu\.be/'),
   source_title text check (char_length(source_title) <= 200),
   channel text check (char_length(channel) <= 80),
   published_on date,
@@ -129,8 +130,10 @@ create table recipe.steps (
 create table recipe.inbox (
   id uuid primary key default gen_random_uuid(),
   household_id uuid not null references public.households (id) on delete cascade,
-  url text not null check (url ~ '^https://' and char_length(url) <= 500),
-  source_key text not null check (char_length(source_key) between 3 and 200 and source_key ~ '^[a-z_]+:.+$'),
+  -- 처리기가 아무 곳에나 가게 하지 못하도록 주소는 https 유튜브만, 출처 열쇠의 영상 id가 주소 안에 있어야 한다
+  url text not null check (char_length(url) <= 500
+    and (url ~ '^https://(www\.|m\.|music\.)?youtube\.com/' or url ~ '^https://youtu\.be/')),
+  source_key text not null check (source_key ~ '^youtube:[A-Za-z0-9_-]{11}$'),
   state text not null default 'waiting' check (state in ('waiting', 'processing', 'done', 'failed')),
   -- 화면에 그대로 보이는 진행 글. 이 일곱 말만 쓴다(화면에 "AI"·"분석 중"을 쓰지 않는다).
   stage text check (stage in ('영상 정보 받는 중', '자막 받는 중', '말 받아쓰는 중', '화면 글자 읽는 중',
@@ -143,6 +146,7 @@ create table recipe.inbox (
   recipe_id uuid,
   added_by uuid default auth.uid(),
   added_at timestamptz not null default now(),
+  check (position(substr(source_key, 9) in url) > 0),
   foreign key (recipe_id, household_id) references recipe.recipes (id, household_id) on delete set null (recipe_id),
   foreign key (household_id, added_by) references public.members (household_id, user_id) on delete set null (added_by)
 );
@@ -373,9 +377,11 @@ create policy exports_select on recipe.exports for select to authenticated
 revoke all on recipe.recipes, recipe.ingredients, recipe.steps, recipe.inbox, recipe.worker_status, recipe.exports
   from public, anon, authenticated;
 grant select on recipe.recipes to authenticated;
-grant update (status, title, servings_suggested, cuisine, mains, main_details, methods, occasions, difficulty,
-              measuring_tool, glossary, corrections, review_items, memo, rating, favorite, updated_at)
-  on recipe.recipes to authenticated;  -- household_id, source_*, servings, extraction, review_count, added_*는 바꿀 수 없다
+grant update (status, title, summary, servings, servings_origin, servings_basis, servings_suggested, cuisine,
+              mains, main_details, methods, occasions, principles, conflicts, difficulty, difficulty_basis,
+              measuring_tool, measuring_tool_basis, glossary, corrections, review_items, memo, rating, favorite,
+              updated_at)
+  on recipe.recipes to authenticated;  -- household_id, source_*, extraction, review_count, added_*는 바꿀 수 없다
 grant select, insert, delete on recipe.ingredients, recipe.steps to authenticated;
 grant update (position, section, name, amount, unit, amount_text, note, optional, origin, at_seconds,
               suggested_amount, suggested_unit, ingredient_key, needs_review)
