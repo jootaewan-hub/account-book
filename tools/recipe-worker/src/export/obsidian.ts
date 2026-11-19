@@ -8,7 +8,7 @@ const MAX_NAME = 80
 
 /** 점·공백뿐인 이름은 "레시피"로, 제어문자는 공백으로 바꾼다 */
 function safeName(s: string): string {
-  const t = s.replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim()
+  const t = s.replace(/[/:\\?*"<>|]/g, '·').replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim()
   return /^[.\s]*$/.test(t) ? '레시피' : t
 }
 
@@ -70,6 +70,7 @@ async function pruneEmpty(vault: string, dir: string): Promise<void> {
 const rel = (vault: string, full: string): string => relative(resolve(vault), full).split(sep).join('/')
 
 export async function writeObsidian(vaultDir: string, r: StoredRecipe, prevPath: string | null): Promise<string> {
+  const prev = prevPath ? inside(vaultDir, prevPath) : null
   const dirs = folderPath(r).map(safeName)
   const name = safeName(fileTitle(r)).slice(0, MAX_NAME).trim()
   let target = inside(vaultDir, join(...dirs, `${name}.md`))
@@ -90,8 +91,7 @@ export async function writeObsidian(vaultDir: string, r: StoredRecipe, prevPath:
 
   await atomicWrite(target, renderMarkdown(r))
 
-  if (prevPath && resolve(inside(vaultDir, prevPath)) !== target) {
-    const prev = inside(vaultDir, prevPath)
+  if (prev && prev !== target) {
     if ((await exists(prev)) && (await recipeIdOf(prev)) === r.id) {
       await unlink(prev)
       await pruneEmpty(vaultDir, dirname(prev))

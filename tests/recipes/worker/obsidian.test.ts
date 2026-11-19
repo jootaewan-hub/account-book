@@ -52,6 +52,19 @@ describe('renderMarkdown', () => {
     expect(rice).toContain('· 밥숟가락 기준')
     expect(rice).not.toContain('(30ml)')
   })
+  it('인분은 출처 값만, 덧붙인 인분은 따로 적는다', () => {
+    const a = renderMarkdown(stored())
+    expect(a).toContain('인분: null')
+    expect(a).toContain('인분덧붙임: 2')
+    const b = renderMarkdown(stored({ servings: { value: 3, origin: 'description' } }))
+    expect(b).toContain('인분: 3\n')
+    expect(b).toContain('인분덧붙임: null')
+  })
+  it('링크 글자의 대괄호로 링크를 만들 수 없다', () => {
+    const t = renderMarkdown(stored({ source: { ...stored().source, title: 'a](http://x) b [c' } }))
+    expect(t).not.toContain('a](http://x)')
+    expect(t).toContain('a\\](http://x) b \\[c')
+  })
   it('제목에 콜론·줄바꿈·---가 있어도 YAML 블록이 깨지지 않는다', () => {
     const t = renderMarkdown(stored({ title: 'a: b\n---\nc', source: { ...stored().source, channel: 'x: "y"\n---' } }))
     const parts = t.split('\n---\n')
@@ -110,6 +123,16 @@ describe('writeObsidian / trashObsidian', () => {
     expect(p).toBe(REL.replace('.md', ' · AkX6u.md'))
     expect(await writeObsidian(vault, stored(), REL)).toBe(REL)
     expect(await readFile(join(vault, REL), 'utf8')).toContain('"rec-1"')
+  })
+  it('나쁜 옛 경로면 아무것도 쓰기 전에 던진다', async () => {
+    await expect(writeObsidian(vault, stored(), '../밖.md')).rejects.toThrow()
+    expect(await readdir(vault)).toEqual([])
+  })
+  it('분류 낱말에 /가 있어도 폴더가 늘지 않는다', async () => {
+    const r = stored()
+    const p = await writeObsidian(vault, { ...r, tags: { ...r.tags, mains: ['a/b' as never] } }, null)
+    expect(p.split('/').length).toBe(6)
+    expect(p).toContain('/a·b/')
   })
   it('보관함 밖을 가리키는 옛 경로는 거부한다', async () => {
     await expect(writeObsidian(vault, stored(), '../밖.md')).rejects.toThrow()

@@ -193,7 +193,8 @@ export function frontmatter(r: StoredRecipe): string {
     `난이도: ${yamlStr(r.difficulty)}`,
     `난이도근거: ${b ? JSON.stringify({ 필수재료: b.required, 단계: b.steps, 손이많이감: b.heavy }) : 'null'}`,
     `상황: ${yamlList(r.tags.occasions)}`,
-    `인분: ${r.servings.value ?? r.servings.suggested ?? 'null'}`,
+    `인분: ${r.servings.value ?? 'null'}`,
+    `인분덧붙임: ${r.servings.value == null ? (r.servings.suggested ?? 'null') : 'null'}`,
     `출처: ${yamlStr(r.source.url ?? '')}`,
     `채널: ${yamlStr(r.source.channel ?? '')}`,
     `저장한날: ${yamlStr(r.saved_at.slice(0, 10))}`,
@@ -202,13 +203,14 @@ export function frontmatter(r: StoredRecipe): string {
   return `---\n${lines.join('\n')}\n---\n`
 }
 
-const mdInline = (parts: Inline[]): string => parts.map((p) => (typeof p === 'string' ? p : `[${p.text}](${p.href})`)).join('')
+const mdEsc = (s: string): string => s.replace(/[\\[\]]/g, '\\$&')
+const mdInline = (parts: Inline[]): string => parts.map((p) => (typeof p === 'string' ? mdEsc(p) : `[${mdEsc(p.text)}](${p.href})`)).join('')
 
 export function renderMarkdown(r: StoredRecipe): string {
   const out: string[] = [frontmatter(r)]
   for (const b of buildBlocks(r)) {
-    if (b.kind === 'h1') out.push(`# ${b.text}\n`)
-    else if (b.kind === 'h2') out.push(`## ${b.text}\n`)
+    if (b.kind === 'h1') out.push(`# ${mdEsc(b.text)}\n`)
+    else if (b.kind === 'h2') out.push(`## ${mdEsc(b.text)}\n`)
     else if (b.kind === 'quote') out.push(`> ${mdInline(b.parts)}\n`)
     else if (b.kind === 'p') out.push(`${mdInline(b.parts)}\n`)
     else out.push(b.items.map((it, i) => `${b.kind === 'ol' ? `${i + 1}.` : '-'} ${mdInline(it)}`).join('\n') + '\n')
