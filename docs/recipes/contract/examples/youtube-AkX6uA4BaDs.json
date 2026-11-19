@@ -1,5 +1,5 @@
 {
-  "contract_version": "1",
+  "contract_version": "2",
   "source": {
     "kind": "youtube",
     "key": "youtube:AkX6uA4BaDs",
@@ -7,72 +7,520 @@
     "title": "제육볶음에 공식이 있다고? 한식 일타강사의 기사식당 제육볶음 레시피 #키친보스",
     "channel": "셰프호윤 Chef Hoyoon",
     "published_on": "2025-06-03",
-    "duration_seconds": 780
+    "duration_seconds": 793
   },
   "title": "기사식당 바싹 제육볶음",
   "summary": "고기를 양념 없이 먼저 볶아 물기를 뺀 뒤 양념을 넣고, 강불로 수분을 날린 다음 중불에서 바싹 익힌다. 기름은 두르지 않는다.",
-  "servings": { "value": null, "origin": null, "basis": "돼지고기 500g (600g 한 근도 같은 양념)", "suggested": 2 },
-  "tags": { "cuisine": "한식", "mains": ["돼지고기"], "methods": ["볶음"], "occasions": ["한그릇", "반찬", "술안주"] },
+  "servings": {
+    "value": null,
+    "origin": null,
+    "basis": "돼지고기 500g (600g 한 근도 같은 양념)",
+    "suggested": 2
+  },
+  "tags": {
+    "cuisine": "한식",
+    "mains": [
+      "돼지고기"
+    ],
+    "main_details": [
+      "돼지 앞다리살"
+    ],
+    "methods": [
+      "볶음"
+    ],
+    "occasions": [
+      "한그릇",
+      "반찬",
+      "술안주"
+    ]
+  },
   "ingredients": [
-    { "section": "고기", "name": "돼지 앞다리살", "amount": 500, "unit": "g", "amount_text": null, "note": "약 3mm 두께. 뒷다리살도 가능", "optional": false, "origin": "description" },
-    { "section": "양념장", "name": "설탕", "amount": 2, "unit": "큰술", "amount_text": null, "note": "물엿·황설탕·흑설탕을 쓰면 깎아서 계량하거나 1큰술만. 슴슴하게는 1큰술 줄이기", "optional": false, "origin": "description" },
-    { "section": "양념장", "name": "올리고당", "amount": 1, "unit": "큰술", "amount_text": null, "note": "물엿을 쓰면 설탕을 줄인다", "optional": false, "origin": "description" },
-    { "section": "양념장", "name": "미림", "amount": 3, "unit": "큰술", "amount_text": null, "note": null, "optional": false, "origin": "description" },
-    { "section": "양념장", "name": "간장", "amount": 3, "unit": "큰술", "amount_text": null, "note": null, "optional": false, "origin": "description" },
-    { "section": "양념장", "name": "고춧가루", "amount": 2, "unit": "큰술", "amount_text": null, "note": null, "optional": false, "origin": "description" },
-    { "section": "양념장", "name": "고추장", "amount": 1, "unit": "큰술", "amount_text": null, "note": "살짝 볼록하게(영상 말)", "optional": false, "origin": "description" },
-    { "section": "양념장", "name": "다진 마늘", "amount": 2, "unit": "큰술", "amount_text": null, "note": "살짝 넉넉히(영상 말)", "optional": false, "origin": "description" },
-    { "section": "양념장", "name": "굴소스", "amount": 1, "unit": "큰술", "amount_text": null, "note": "없어도 된다(영상 말)", "optional": true, "origin": "description" },
-    { "section": "양념장", "name": "후추", "amount": null, "unit": null, "amount_text": "약간", "note": "넉넉히 넣으면 좋다(영상 말)", "optional": false, "origin": "description" },
-    { "section": "양념장", "name": "카레가루", "amount": 1, "unit": "작은술", "amount_text": null, "note": "깎아서", "optional": false, "origin": "description" },
-    { "section": "채소", "name": "양파", "amount": 0.5, "unit": "개", "amount_text": null, "note": "약간 두껍게 썬다", "optional": false, "origin": "description" },
-    { "section": "채소", "name": "대파", "amount": 1, "unit": "대", "amount_text": null, "note": "세로로 가른 뒤 사각으로 썬다. 굵은 부분과 나머지를 나눠 둔다", "optional": false, "origin": "description" },
-    { "section": "마무리", "name": "깻잎", "amount": null, "unit": null, "amount_text": "약간", "note": "볶을 것과 채 썰어 올릴 것으로 나눈다", "optional": false, "origin": "description", "suggested_amount": 8, "suggested_unit": "장" },
-    { "section": "마무리", "name": "참기름", "amount": null, "unit": null, "amount_text": "약간", "note": null, "optional": false, "origin": "description", "suggested_amount": 1, "suggested_unit": "작은술" },
-    { "section": "마무리", "name": "통깨", "amount": null, "unit": null, "amount_text": null, "note": "영상 재료 소개에서만 들리고 설명란에는 없다", "optional": true, "origin": "caption_auto", "needs_review": true },
-    { "section": "필요할 때", "name": "미림(추가분)", "amount": null, "unit": null, "amount_text": "약간", "note": "고기가 팬에 붙을 때만. 청주로 바꿔도 된다", "optional": true, "origin": "description" }
+    {
+      "section": "고기",
+      "name": "돼지 앞다리살",
+      "amount": 500,
+      "unit": "g",
+      "amount_text": null,
+      "note": "약 3mm 두께. 뒷다리살도 가능",
+      "optional": false,
+      "origin": "description"
+    },
+    {
+      "section": "양념장",
+      "name": "설탕",
+      "amount": 2,
+      "unit": "큰술",
+      "amount_text": null,
+      "note": "물엿·황설탕·흑설탕을 쓰면 깎아서 계량하거나 1큰술만. 슴슴하게는 1큰술 줄이기",
+      "optional": false,
+      "origin": "description"
+    },
+    {
+      "section": "양념장",
+      "name": "올리고당",
+      "amount": 1,
+      "unit": "큰술",
+      "amount_text": null,
+      "note": "물엿을 쓰면 설탕을 줄인다",
+      "optional": false,
+      "origin": "description"
+    },
+    {
+      "section": "양념장",
+      "name": "미림",
+      "amount": 3,
+      "unit": "큰술",
+      "amount_text": null,
+      "note": null,
+      "optional": false,
+      "origin": "description"
+    },
+    {
+      "section": "양념장",
+      "name": "간장",
+      "amount": 3,
+      "unit": "큰술",
+      "amount_text": null,
+      "note": null,
+      "optional": false,
+      "origin": "description"
+    },
+    {
+      "section": "양념장",
+      "name": "고춧가루",
+      "amount": 2,
+      "unit": "큰술",
+      "amount_text": null,
+      "note": null,
+      "optional": false,
+      "origin": "description"
+    },
+    {
+      "section": "양념장",
+      "name": "고추장",
+      "amount": 1,
+      "unit": "큰술",
+      "amount_text": null,
+      "note": "살짝 볼록하게(영상 말)",
+      "optional": false,
+      "origin": "description"
+    },
+    {
+      "section": "양념장",
+      "name": "다진 마늘",
+      "amount": 2,
+      "unit": "큰술",
+      "amount_text": null,
+      "note": "살짝 넉넉히(영상 말)",
+      "optional": false,
+      "origin": "description"
+    },
+    {
+      "section": "양념장",
+      "name": "굴소스",
+      "amount": 1,
+      "unit": "큰술",
+      "amount_text": null,
+      "note": "없어도 된다(영상 말)",
+      "optional": true,
+      "origin": "description"
+    },
+    {
+      "section": "양념장",
+      "name": "후추",
+      "amount": null,
+      "unit": null,
+      "amount_text": "약간",
+      "note": "넉넉히 넣으면 좋다(영상 말)",
+      "optional": false,
+      "origin": "description"
+    },
+    {
+      "section": "양념장",
+      "name": "카레가루",
+      "amount": 1,
+      "unit": "작은술",
+      "amount_text": null,
+      "note": "깎아서",
+      "optional": false,
+      "origin": "description"
+    },
+    {
+      "section": "채소",
+      "name": "양파",
+      "amount": 0.5,
+      "unit": "개",
+      "amount_text": null,
+      "note": "약간 두껍게 썬다",
+      "optional": false,
+      "origin": "description"
+    },
+    {
+      "section": "채소",
+      "name": "대파",
+      "amount": 1,
+      "unit": "대",
+      "amount_text": null,
+      "note": "세로로 가른 뒤 사각으로 썬다. 굵은 부분과 나머지를 나눠 둔다",
+      "optional": false,
+      "origin": "description"
+    },
+    {
+      "section": "마무리",
+      "name": "깻잎",
+      "amount": null,
+      "unit": null,
+      "amount_text": "약간",
+      "note": "볶을 것과 채 썰어 올릴 것으로 나눈다",
+      "optional": false,
+      "origin": "description",
+      "suggested_amount": 8,
+      "suggested_unit": "장"
+    },
+    {
+      "section": "마무리",
+      "name": "참기름",
+      "amount": null,
+      "unit": null,
+      "amount_text": "약간",
+      "note": null,
+      "optional": false,
+      "origin": "description",
+      "suggested_amount": 1,
+      "suggested_unit": "작은술"
+    },
+    {
+      "section": "마무리",
+      "name": "통깨",
+      "amount": null,
+      "unit": null,
+      "amount_text": null,
+      "note": "영상 재료 소개에서만 들리고 설명란에는 없다",
+      "optional": true,
+      "origin": "caption_auto",
+      "needs_review": true,
+      "at_seconds": 54
+    },
+    {
+      "section": "필요할 때",
+      "name": "미림(추가분)",
+      "amount": null,
+      "unit": null,
+      "amount_text": "약간",
+      "note": "고기가 팬에 붙을 때만. 청주로 바꿔도 된다",
+      "optional": true,
+      "origin": "description"
+    }
   ],
+  "measuring_tool": "확인 못 함",
+  "measuring_tool_basis": [],
   "steps": [
-    { "title": "고기 손질", "body": "앞다리살을 3mm쯤으로 썰고, 물에 담그지 말고 핏물만 닦아 낸다. 밑간은 하지 않는다.", "heat": null, "cue": null, "video_start_seconds": 192, "uses": [{ "name": "돼지 앞다리살", "portion": "전부" }], "origin": "description" },
-    { "title": "양념장 섞기", "body": "설탕과 올리고당을 먼저 넣고 미림, 간장, 고춧가루, 고추장, 다진 마늘, 굴소스, 후추, 카레가루를 넣어 섞는다.", "heat": null, "cue": null, "video_start_seconds": 245, "uses": [{ "name": "설탕" }, { "name": "올리고당" }, { "name": "미림" }, { "name": "간장" }, { "name": "고춧가루" }, { "name": "고추장" }, { "name": "다진 마늘" }, { "name": "굴소스" }, { "name": "후추" }, { "name": "카레가루" }], "origin": "description" },
-    { "title": "고기만 먼저 볶기", "body": "기름을 두르지 않은 팬에 고기만 넣고 볶는다. 앞다리살에서 기름이 나온다.", "heat": "약불", "cue": null, "video_start_seconds": 334, "origin": "description" },
-    { "title": "채소 썰기", "body": "고기를 볶는 동안 양파는 약간 두껍게, 대파는 세로로 가른 뒤 사각으로 썬다.", "heat": null, "cue": null, "video_start_seconds": 354, "origin": "description" },
-    { "title": "붙으면 미림", "body": "고기가 팬에 달라붙으면 미림이나 청주를 조금 넣어 수분과 함께 익힌다.", "heat": null, "cue": "코팅이 약한 팬에서 고기가 붙을 때", "cue_origin": "caption_auto", "video_start_seconds": 398, "uses": [{ "name": "미림(추가분)", "portion": "약간" }], "origin": "description" },
-    { "title": "양파와 대파 절반", "body": "양파와 대파의 굵은 부분을 넣는다. 양파를 양념에 미리 버무리지 않는다.", "heat": "강불", "cue": "고기가 수분을 뱉고 익었을 때", "cue_origin": "caption_auto", "video_start_seconds": 413, "uses": [{ "name": "양파", "portion": "전부" }, { "name": "대파", "portion": "굵은 부분(절반)" }], "origin": "description" },
-    { "title": "양념장 넣기", "body": "양념장을 넣는다.", "heat": "강불", "cue": "양파 숨이 살짝 죽었지만 아직 아삭할 때", "cue_origin": "description", "video_start_seconds": 461, "origin": "description" },
-    { "title": "수분 날리기", "body": "강불에서 저어 가며 수분을 날린다. 타려고 하면 중불로 줄인다.", "heat": "강불", "cue": null, "video_start_seconds": 487, "origin": "description" },
-    { "title": "바싹 익히기", "body": "중불로 바꿔 고기를 바싹하게 익힌다.", "heat": "중불", "cue": "수분이 거의 날아갔을 때", "cue_origin": "caption_auto", "video_start_seconds": 509, "origin": "description" },
-    { "title": "대파와 깻잎", "body": "남겨 둔 대파와 깻잎을 넣고 섞는다.", "heat": "중불", "cue": "양념이 팬 바닥에 달라붙으려 할 때", "cue_origin": "description", "video_start_seconds": 540, "uses": [{ "name": "대파", "portion": "나머지" }, { "name": "깻잎", "portion": "볶을 것" }], "origin": "description" },
-    { "title": "불 끄기", "body": "불을 끄고 접시에 담는다.", "heat": null, "cue": "파가 익어 겹이 분리될 때. 팬 바닥 한쪽이 타기 직전처럼 눌어붙고 기름이 넉넉히 나온다", "cue_origin": "caption_auto", "video_start_seconds": 556, "origin": "description" },
-    { "title": "담기", "body": "채 썬 깻잎을 올리고 참기름을 조금 뿌린다.", "heat": null, "cue": null, "video_start_seconds": 608, "uses": [{ "name": "깻잎", "portion": "채 썬 것" }, { "name": "참기름" }], "origin": "description" }
+    {
+      "title": "고기 손질",
+      "body": "앞다리살을 3mm쯤으로 썰고, 물에 담그지 말고 핏물만 닦아 낸다. 밑간은 하지 않는다.",
+      "heat": null,
+      "cue": null,
+      "video_start_seconds": 192,
+      "uses": [
+        {
+          "name": "돼지 앞다리살",
+          "portion": "전부"
+        }
+      ],
+      "origin": "description"
+    },
+    {
+      "title": "양념장 섞기",
+      "body": "설탕과 올리고당을 먼저 넣고 미림, 간장, 고춧가루, 고추장, 다진 마늘, 굴소스, 후추, 카레가루를 넣어 섞는다.",
+      "heat": null,
+      "cue": null,
+      "video_start_seconds": 245,
+      "uses": [
+        {
+          "name": "설탕"
+        },
+        {
+          "name": "올리고당"
+        },
+        {
+          "name": "미림"
+        },
+        {
+          "name": "간장"
+        },
+        {
+          "name": "고춧가루"
+        },
+        {
+          "name": "고추장"
+        },
+        {
+          "name": "다진 마늘"
+        },
+        {
+          "name": "굴소스"
+        },
+        {
+          "name": "후추"
+        },
+        {
+          "name": "카레가루"
+        }
+      ],
+      "origin": "description"
+    },
+    {
+      "title": "고기만 먼저 볶기",
+      "body": "기름을 두르지 않은 팬에 고기만 넣고 볶는다. 앞다리살에서 기름이 나온다.",
+      "heat": "약불",
+      "cue": null,
+      "video_start_seconds": 334,
+      "origin": "description"
+    },
+    {
+      "title": "채소 썰기",
+      "body": "고기를 볶는 동안 양파는 약간 두껍게, 대파는 세로로 가른 뒤 사각으로 썬다.",
+      "heat": null,
+      "cue": null,
+      "video_start_seconds": 354,
+      "origin": "description"
+    },
+    {
+      "title": "붙으면 미림",
+      "body": "고기가 팬에 달라붙으면 미림이나 청주를 조금 넣어 수분과 함께 익힌다.",
+      "heat": null,
+      "cue": "코팅이 약한 팬에서 고기가 붙을 때",
+      "cue_origin": "caption_auto",
+      "video_start_seconds": 398,
+      "uses": [
+        {
+          "name": "미림(추가분)",
+          "portion": "약간"
+        }
+      ],
+      "origin": "description"
+    },
+    {
+      "title": "양파와 대파 절반",
+      "body": "양파와 대파의 굵은 부분을 넣는다. 양파를 양념에 미리 버무리지 않는다.",
+      "heat": "강불",
+      "cue": "고기가 수분을 뱉고 익었을 때",
+      "cue_origin": "caption_auto",
+      "video_start_seconds": 413,
+      "uses": [
+        {
+          "name": "양파",
+          "portion": "전부"
+        },
+        {
+          "name": "대파",
+          "portion": "굵은 부분(절반)"
+        }
+      ],
+      "origin": "description"
+    },
+    {
+      "title": "양념장 넣기",
+      "body": "양념장을 넣는다.",
+      "heat": "강불",
+      "cue": "양파 숨이 살짝 죽었지만 아직 아삭할 때",
+      "cue_origin": "description",
+      "video_start_seconds": 461,
+      "origin": "description"
+    },
+    {
+      "title": "수분 날리기",
+      "body": "강불에서 저어 가며 수분을 날린다. 타려고 하면 중불로 줄인다.",
+      "heat": "강불",
+      "cue": null,
+      "video_start_seconds": 487,
+      "origin": "description"
+    },
+    {
+      "title": "바싹 익히기",
+      "body": "중불로 바꿔 고기를 바싹하게 익힌다.",
+      "heat": "중불",
+      "cue": "수분이 거의 날아갔을 때",
+      "cue_origin": "caption_auto",
+      "video_start_seconds": 509,
+      "origin": "description"
+    },
+    {
+      "title": "대파와 깻잎",
+      "body": "남겨 둔 대파와 깻잎을 넣고 섞는다.",
+      "heat": "중불",
+      "cue": "양념이 팬 바닥에 달라붙으려 할 때",
+      "cue_origin": "description",
+      "video_start_seconds": 540,
+      "uses": [
+        {
+          "name": "대파",
+          "portion": "나머지"
+        },
+        {
+          "name": "깻잎",
+          "portion": "볶을 것"
+        }
+      ],
+      "origin": "description"
+    },
+    {
+      "title": "불 끄기",
+      "body": "불을 끄고 접시에 담는다.",
+      "heat": null,
+      "cue": "파가 익어 겹이 분리될 때. 팬 바닥 한쪽이 타기 직전처럼 눌어붙고 기름이 넉넉히 나온다",
+      "cue_origin": "caption_auto",
+      "video_start_seconds": 556,
+      "origin": "description"
+    },
+    {
+      "title": "담기",
+      "body": "채 썬 깻잎을 올리고 참기름을 조금 뿌린다.",
+      "heat": null,
+      "cue": null,
+      "video_start_seconds": 608,
+      "uses": [
+        {
+          "name": "깻잎",
+          "portion": "채 썬 것"
+        },
+        {
+          "name": "참기름"
+        }
+      ],
+      "origin": "description"
+    }
   ],
   "principles": [
-    { "title": "고춧가루 : 고추장 = 2 : 1", "body": "볶음은 물기가 적어야 해서 수분이 많은 고추장보다 고춧가루를 두 배 쓴다.", "origin": "caption_auto", "video_start_seconds": 70 },
-    { "title": "다진 마늘 : 굴소스 = 2~3 : 1", "body": "굴소스는 없어도 되는 재료라 마늘을 더 많이 쓴다.", "origin": "caption_auto", "video_start_seconds": 83 },
-    { "title": "미림 : 간장 = 1 : 1", "body": "액체는 날아가므로 고춧가루보다 조금 많이, 서로 같은 양으로 넣는다.", "origin": "caption_auto", "video_start_seconds": 95 },
-    { "title": "단맛은 설탕으로", "body": "물엿은 수분이 많아 볶음에는 설탕이 낫다.", "origin": "caption_auto", "video_start_seconds": 109 },
-    { "title": "단맛 총량 1 : 0.8", "body": "식당은 1 : 1에 가깝고 집밥은 1 : 0.8을 권한다. 무엇에 대한 비율인지는 자동 자막으로 분명하지 않다.", "origin": "caption_auto", "video_start_seconds": 133, "needs_review": true }
+    {
+      "title": "고춧가루 : 고추장 = 2 : 1",
+      "body": "볶음은 물기가 적어야 해서 수분이 많은 고추장보다 고춧가루를 두 배 쓴다.",
+      "origin": "caption_auto",
+      "video_start_seconds": 70
+    },
+    {
+      "title": "다진 마늘 : 굴소스 = 2~3 : 1",
+      "body": "굴소스는 없어도 되는 재료라 마늘을 더 많이 쓴다.",
+      "origin": "caption_auto",
+      "video_start_seconds": 83
+    },
+    {
+      "title": "미림 : 간장 = 1 : 1",
+      "body": "액체는 날아가므로 고춧가루보다 조금 많이, 서로 같은 양으로 넣는다.",
+      "origin": "caption_auto",
+      "video_start_seconds": 95
+    },
+    {
+      "title": "단맛은 설탕으로",
+      "body": "물엿은 수분이 많아 볶음에는 설탕이 낫다.",
+      "origin": "caption_auto",
+      "video_start_seconds": 109
+    },
+    {
+      "title": "단맛 총량 1 : 0.8",
+      "body": "식당은 1 : 1에 가깝고 집밥은 1 : 0.8을 권한다. 무엇에 대한 비율인지는 자동 자막으로 분명하지 않다.",
+      "origin": "caption_auto",
+      "video_start_seconds": 133,
+      "needs_review": true
+    }
   ],
   "conflicts": [
-    { "about": "고기를 볶는 불 세기", "chosen": "약불로 먼저 볶는다", "chosen_origin": "description", "other": "중불로 두었다가 강불로 올린다", "other_origin": "caption_auto", "video_start_seconds": 379 },
-    { "about": "양념장을 넣는 양", "chosen": "양념장을 넣는다", "chosen_origin": "description", "other": "절반쯤 먼저 넣고 본다", "other_origin": "caption_auto", "video_start_seconds": 470 },
-    { "about": "통깨", "chosen": "재료 목록에 없다", "chosen_origin": "description", "other": "재료 소개에서 깨로 들리는 말이 있다", "other_origin": "caption_auto", "video_start_seconds": 54, "note": "자동 자막이 흐려 확실하지 않다" }
+    {
+      "about": "고기를 볶는 불 세기",
+      "chosen": "약불로 먼저 볶는다",
+      "chosen_origin": "description",
+      "other": "중불로 두었다가 강불로 올린다",
+      "other_origin": "caption_auto",
+      "video_start_seconds": 379
+    },
+    {
+      "about": "양념장을 넣는 양",
+      "chosen": "양념장을 넣는다",
+      "chosen_origin": "description",
+      "other": "절반쯤 먼저 넣고 본다",
+      "other_origin": "caption_auto",
+      "video_start_seconds": 470
+    },
+    {
+      "about": "통깨",
+      "chosen": "재료 목록에 없다",
+      "chosen_origin": "description",
+      "other": "재료 소개에서 깨로 들리는 말이 있다",
+      "other_origin": "caption_auto",
+      "video_start_seconds": 54,
+      "note": "자동 자막이 흐려 확실하지 않다"
+    }
   ],
+  "glossary": [],
+  "corrections": [
+    {
+      "target": "자막",
+      "before": "물려",
+      "after": "물엿",
+      "origin": "caption_auto",
+      "at_seconds": null,
+      "method": "rule"
+    },
+    {
+      "target": "자막",
+      "before": "개입",
+      "after": "깻잎",
+      "origin": "caption_auto",
+      "at_seconds": null,
+      "method": "rule"
+    },
+    {
+      "target": "자막",
+      "before": "마술",
+      "after": "맛술(미림)",
+      "origin": "caption_auto",
+      "at_seconds": null,
+      "method": "rule"
+    },
+    {
+      "target": "자막",
+      "before": "불스",
+      "after": "굴소스",
+      "origin": "caption_auto",
+      "at_seconds": null,
+      "method": "rule"
+    },
+    {
+      "target": "자막",
+      "before": "카레카루",
+      "after": "카레가루",
+      "origin": "caption_auto",
+      "at_seconds": null,
+      "method": "rule"
+    },
+    {
+      "target": "자막",
+      "before": "제국볶음",
+      "after": "제육볶음",
+      "origin": "caption_auto",
+      "at_seconds": null,
+      "method": "rule"
+    }
+  ],
+  "review_items": [],
   "extraction": {
-    "levels": ["L0", "L1"],
+    "levels": [
+      "L0",
+      "L1"
+    ],
     "transcript_kind": "caption_auto",
-    "tools": ["claude.ai 내장 브라우저(설명란, 스크립트 패널)"],
+    "tools": [
+      "claude.ai 내장 브라우저(설명란, 스크립트 패널)"
+    ],
     "extracted_by": "claude.ai",
     "extracted_at": "2026-11-18T11:10:00+09:00",
-    "corrections": [
-      { "heard": "물려", "fixed": "물엿", "basis": "description" },
-      { "heard": "개입", "fixed": "깻잎", "basis": "description" },
-      { "heard": "마술", "fixed": "맛술(미림)", "basis": "description" },
-      { "heard": "불스", "fixed": "굴소스", "basis": "description" },
-      { "heard": "카레카루", "fixed": "카레가루", "basis": "description" },
-      { "heard": "제국볶음", "fixed": "제육볶음", "basis": "context" }
+    "gaps": [
+      "인분 표기 없음",
+      "후추·깻잎·참기름은 설명란과 말 모두 '약간'"
     ],
-    "gaps": ["인분 표기 없음", "후추·깻잎·참기름은 설명란과 말 모두 '약간'"],
-    "not_checked": ["화면 자막(프레임)", "음성 직접 받아쓰기"]
+    "not_checked": [
+      "화면 자막(프레임)",
+      "음성 직접 받아쓰기"
+    ]
   }
 }

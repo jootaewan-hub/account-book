@@ -1,176 +1,1021 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/jootaewan-hub/account-book/docs/recipes/contract/recipe.schema.json",
-  "title": "레시피 등록 계약 v1",
-  "description": "수집 스킬(Claude Code, claude.ai)이 만들고 recipe.import_recipe()가 받는 JSON. 규칙은 docs/recipes/extraction-rules.md.",
   "type": "object",
-  "additionalProperties": false,
-  "required": ["contract_version", "source", "title", "servings", "tags", "ingredients", "steps", "extraction"],
   "properties": {
-    "contract_version": { "const": "1" },
+    "contract_version": {
+      "type": "string",
+      "const": "2"
+    },
     "source": {
       "type": "object",
-      "additionalProperties": false,
-      "required": ["kind", "key"],
       "properties": {
-        "kind": { "enum": ["youtube", "youtube_shorts", "instagram", "web", "photo", "text", "manual"] },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "youtube",
+            "youtube_shorts",
+            "instagram",
+            "web",
+            "photo",
+            "text",
+            "manual"
+          ]
+        },
         "key": {
-          "description": "가구 안에서 같은 출처를 한 번만 등록하기 위한 열쇠. 예: youtube:AkX6uA4BaDs, instagram:DAbCdEf, web:<주소 해시>, manual:<uuid>",
-          "type": "string", "minLength": 3, "maxLength": 200, "pattern": "^[a-z_]+:.+$"
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 200,
+          "pattern": "^[a-z_]+:.+$"
         },
-        "url": { "type": ["string", "null"], "pattern": "^https://" },
-        "title": { "type": ["string", "null"], "maxLength": 200 },
-        "channel": { "type": ["string", "null"], "maxLength": 80 },
-        "published_on": { "type": ["string", "null"], "format": "date" },
-        "duration_seconds": { "type": ["integer", "null"], "minimum": 1 }
-      }
-    },
-    "title": { "type": "string", "minLength": 1, "maxLength": 80 },
-    "summary": { "description": "이 요리법의 핵심을 우리 말로 한두 문장. 원문을 옮겨 적지 않는다.", "type": ["string", "null"], "maxLength": 200 },
-    "servings": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["value", "origin"],
-      "properties": {
-        "value": { "description": "출처에 인분이 있을 때만. 없으면 null.", "type": ["number", "null"], "exclusiveMinimum": 0 },
-        "origin": { "anyOf": [{ "$ref": "#/$defs/origin" }, { "type": "null" }] },
-        "basis": { "description": "분량의 기준. 예: 돼지고기 500g", "type": ["string", "null"], "maxLength": 80 },
-        "suggested": { "description": "출처에 없을 때 우리가 덧붙인 인분(화면에 '덧붙임'으로 표시)", "type": ["number", "null"], "exclusiveMinimum": 0 }
-      },
-      "if": { "properties": { "value": { "type": "number" } } },
-      "then": { "properties": { "origin": { "$ref": "#/$defs/sourceOrigin" } } },
-      "else": { "properties": { "origin": { "type": "null" } } }
-    },
-    "tags": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["cuisine", "mains", "methods", "occasions"],
-      "properties": {
-        "cuisine": { "enum": ["한식", "일식", "중식", "태국", "베트남", "인도네시아", "인도", "이탈리안", "프렌치", "스페인", "지중해", "영국", "미국", "멕시칸", "중동", "기타", null] },
-        "mains": { "type": "array", "uniqueItems": true, "maxItems": 3, "items": { "enum": ["돼지고기", "소고기", "닭고기", "기타 육류", "해산물", "달걀", "두부·콩", "채소", "버섯", "면", "밥·곡물", "빵·밀가루", "유제품", "기타"] } },
-        "methods": { "type": "array", "uniqueItems": true, "maxItems": 3, "items": { "enum": ["볶음", "구이", "조림", "찜", "국·탕", "찌개·전골", "튀김", "무침", "부침·전", "비빔", "샐러드", "오븐", "끓이기", "기타"] } },
-        "occasions": { "type": "array", "uniqueItems": true, "maxItems": 4, "items": { "enum": ["반찬", "한그릇", "국물", "술안주", "손님상", "도시락", "간식·디저트", "아침", "소스·양념"] } }
-      }
-    },
-    "ingredients": {
-      "type": "array", "minItems": 1, "maxItems": 80,
-      "items": { "$ref": "#/$defs/ingredient" }
-    },
-    "steps": {
-      "type": "array", "minItems": 1, "maxItems": 40,
-      "items": { "$ref": "#/$defs/step" }
-    },
-    "principles": {
-      "description": "비율·원리처럼 재료나 단계에 들어가지 않는 설명",
-      "type": "array", "maxItems": 12,
-      "items": {
-        "type": "object", "additionalProperties": false,
-        "required": ["title", "body", "origin"],
-        "properties": {
-          "title": { "type": "string", "minLength": 1, "maxLength": 40 },
-          "body": { "type": "string", "minLength": 1, "maxLength": 300 },
-          "origin": { "$ref": "#/$defs/origin" },
-          "video_start_seconds": { "type": ["integer", "null"], "minimum": 0 },
-          "needs_review": { "type": "boolean", "default": false }
-        }
-      }
-    },
-    "conflicts": {
-      "description": "출처끼리 다른 곳. 조용히 하나를 고르지 않고 둘 다 남긴다.",
-      "type": "array", "maxItems": 20,
-      "items": {
-        "type": "object", "additionalProperties": false,
-        "required": ["about", "chosen", "chosen_origin", "other", "other_origin"],
-        "properties": {
-          "about": { "type": "string", "minLength": 1, "maxLength": 60 },
-          "chosen": { "type": "string", "minLength": 1, "maxLength": 200 },
-          "chosen_origin": { "$ref": "#/$defs/origin" },
-          "other": { "type": "string", "minLength": 1, "maxLength": 200 },
-          "other_origin": { "$ref": "#/$defs/origin" },
-          "video_start_seconds": { "type": ["integer", "null"], "minimum": 0 },
-          "note": { "type": ["string", "null"], "maxLength": 200 }
-        }
-      }
-    },
-    "extraction": {
-      "type": "object", "additionalProperties": false,
-      "required": ["levels", "transcript_kind", "tools", "extracted_by", "extracted_at"],
-      "properties": {
-        "levels": { "description": "실제로 쓴 수집 단계(ingest-sources.md)", "type": "array", "minItems": 1, "uniqueItems": true, "items": { "enum": ["L0", "L1", "L2", "L3", "L4"] } },
-        "transcript_kind": { "enum": ["caption_manual", "caption_auto", "asr", "none"] },
-        "tools": { "type": "array", "items": { "type": "string", "maxLength": 80 }, "maxItems": 12 },
-        "extracted_by": { "description": "어디서 누가. 예: Claude Code recipe-ingest 0.1 / claude.ai", "type": "string", "maxLength": 80 },
-        "extracted_at": { "type": "string", "format": "date-time" },
-        "corrections": {
-          "description": "받아쓰기 오류를 바로잡은 낱말(원문 자막을 저장하지 않으므로 이것만 남긴다)",
-          "type": "array", "maxItems": 40,
-          "items": {
-            "type": "object", "additionalProperties": false, "required": ["heard", "fixed", "basis"],
-            "properties": { "heard": { "type": "string", "maxLength": 30 }, "fixed": { "type": "string", "maxLength": 30 }, "basis": { "enum": ["description", "context", "screen", "dictionary"] } }
-          }
+        "url": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^https:\\/\\/"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
-        "gaps": { "description": "출처에서 끝내 못 찾은 것", "type": "array", "maxItems": 20, "items": { "type": "string", "maxLength": 120 } },
-        "not_checked": { "description": "보지 않은 출처(예: 화면 자막)", "type": "array", "maxItems": 10, "items": { "type": "string", "maxLength": 80 } }
-      }
-    }
-  },
-  "$defs": {
-    "origin": {
-      "description": "description=작성자가 쓴 글(유튜브 설명란·인스타 본문·고정 댓글), caption_manual=작성자가 올린 자막, caption_auto=자동 생성 자막, asr=우리가 한 받아쓰기, screen=영상 화면의 글자·장면, page=웹 페이지 본문, secondary=남이 정리한 2차 자료, user=가구 구성원이 직접 고친 값, editor=수집 과정에서 덧붙인 것",
-      "enum": ["description", "caption_manual", "caption_auto", "asr", "screen", "page", "secondary", "user", "editor"]
-    },
-    "sourceOrigin": {
-      "description": "숫자(분량·인분·시간)의 출처가 될 수 있는 것. secondary와 editor는 숫자의 출처가 아니다.",
-      "enum": ["description", "caption_manual", "caption_auto", "asr", "screen", "page", "user"]
-    },
-    "ingredient": {
-      "type": "object", "additionalProperties": false,
-      "required": ["name", "amount", "unit", "origin"],
-      "properties": {
-        "section": { "description": "묶음. 예: 고기, 양념장, 채소, 마무리, 필요할 때", "type": ["string", "null"], "maxLength": 20 },
-        "name": { "type": "string", "minLength": 1, "maxLength": 60 },
-        "amount": { "description": "출처에 있는 숫자만. 없으면 null.", "type": ["number", "null"], "exclusiveMinimum": 0 },
-        "unit": { "description": "g, kg, ml, L, 큰술, 작은술, 컵, 개, 대, 장, 쪽, 줌, 꼬집 …", "type": ["string", "null"], "maxLength": 12 },
-        "amount_text": { "description": "숫자가 아닌 분량 표현 그대로. 예: 약간, 적당량", "type": ["string", "null"], "maxLength": 20 },
-        "note": { "type": ["string", "null"], "maxLength": 160 },
-        "optional": { "type": "boolean", "default": false },
-        "origin": { "$ref": "#/$defs/origin" },
-        "suggested_amount": { "description": "출처에 숫자가 없을 때 덧붙인 값(화면에 '덧붙임')", "type": ["number", "null"], "exclusiveMinimum": 0 },
-        "suggested_unit": { "type": ["string", "null"], "maxLength": 12 },
-        "ingredient_key": { "description": "재료 표준 사전의 id(recipe.ingredient_dict). 못 맞추면 null.", "type": ["string", "null"], "pattern": "^[a-z0-9_]{1,60}$" },
-        "needs_review": { "type": "boolean", "default": false }
+        "title": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 200
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "channel": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 80
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "published_on": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "duration_seconds": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
       },
-      "allOf": [
+      "required": [
+        "kind",
+        "key"
+      ],
+      "additionalProperties": false
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 80
+    },
+    "summary": {
+      "anyOf": [
         {
-          "$comment": "숫자 분량이 있으면 출처는 숫자의 출처가 될 수 있는 것이어야 한다.",
-          "if": { "properties": { "amount": { "type": "number" } } },
-          "then": { "properties": { "origin": { "$ref": "#/$defs/sourceOrigin" } } }
+          "type": "string",
+          "maxLength": 200
+        },
+        {
+          "type": "null"
         }
       ]
     },
-    "step": {
-      "type": "object", "additionalProperties": false,
-      "required": ["title", "body", "origin"],
+    "servings": {
+      "type": "object",
       "properties": {
-        "title": { "type": "string", "minLength": 1, "maxLength": 30 },
-        "body": { "description": "우리 말로 다시 쓴 할 일. 원문을 옮겨 적지 않는다.", "type": "string", "minLength": 1, "maxLength": 400 },
-        "heat": { "description": "예: 약불, 중불, 강불, 약불 → 중불", "type": ["string", "null"], "maxLength": 30 },
-        "cue": { "description": "다음으로 넘어가는 신호(출처에 있는 것)", "type": ["string", "null"], "maxLength": 200 },
-        "cue_origin": { "anyOf": [{ "$ref": "#/$defs/origin" }, { "type": "null" }] },
-        "editor_tip": { "description": "출처에 없는데 우리가 덧붙인 판단 기준. 화면에서 따로 보인다.", "type": ["string", "null"], "maxLength": 200 },
-        "timer_seconds": { "description": "출처에 시간이 있을 때만", "type": ["integer", "null"], "minimum": 1 },
-        "video_start_seconds": { "description": "이 단계가 영상에서 시작하는 때", "type": ["integer", "null"], "minimum": 0 },
-        "uses": {
-          "description": "이 단계에서 넣는 재료(재료 이름은 ingredients의 name과 같아야 한다)",
-          "type": "array", "maxItems": 20,
+        "value": {
+          "anyOf": [
+            {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "origin": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "description",
+                "caption_manual",
+                "caption_auto",
+                "asr",
+                "screen",
+                "user"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "basis": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 80
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "suggested": {
+          "anyOf": [
+            {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "value",
+        "origin"
+      ],
+      "additionalProperties": false
+    },
+    "tags": {
+      "type": "object",
+      "properties": {
+        "cuisine": {
+          "type": "string",
+          "enum": [
+            "한식",
+            "양식",
+            "일식",
+            "중식",
+            "기타"
+          ]
+        },
+        "mains": {
+          "maxItems": 3,
+          "type": "array",
           "items": {
-            "type": "object", "additionalProperties": false, "required": ["name"],
-            "properties": { "name": { "type": "string", "maxLength": 60 }, "portion": { "description": "예: 절반, 굵은 부분, 전부", "type": ["string", "null"], "maxLength": 30 } }
+            "type": "string",
+            "enum": [
+              "돼지고기",
+              "소고기",
+              "닭고기",
+              "기타 육류",
+              "해산물",
+              "달걀",
+              "두부·콩",
+              "채소",
+              "버섯",
+              "면",
+              "밥·곡물",
+              "빵·밀가루",
+              "유제품",
+              "기타"
+            ]
           }
         },
-        "origin": { "$ref": "#/$defs/origin" },
-        "needs_review": { "type": "boolean", "default": false }
+        "main_details": {
+          "minItems": 1,
+          "maxItems": 3,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 60
+          }
+        },
+        "methods": {
+          "maxItems": 3,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "볶음",
+              "구이",
+              "조림",
+              "찜",
+              "국·탕",
+              "찌개·전골",
+              "튀김",
+              "무침",
+              "부침·전",
+              "비빔",
+              "샐러드",
+              "오븐",
+              "끓이기",
+              "기타"
+            ]
+          }
+        },
+        "occasions": {
+          "maxItems": 4,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "반찬",
+              "한그릇",
+              "국물",
+              "술안주",
+              "손님상",
+              "도시락",
+              "간식·디저트",
+              "아침",
+              "소스·양념"
+            ]
+          }
+        },
+        "difficulty": {
+          "type": "string",
+          "enum": [
+            "쉬움",
+            "보통",
+            "어려움"
+          ]
+        }
+      },
+      "required": [
+        "cuisine",
+        "mains",
+        "main_details",
+        "methods",
+        "occasions"
+      ],
+      "additionalProperties": false
+    },
+    "ingredients": {
+      "minItems": 1,
+      "maxItems": 80,
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "section": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 20
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 60
+          },
+          "amount": {
+            "anyOf": [
+              {
+                "type": "number",
+                "exclusiveMinimum": 0
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "unit": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 12
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "amount_text": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 20
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 160
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "optional": {
+            "type": "boolean"
+          },
+          "origin": {
+            "type": "string",
+            "enum": [
+              "description",
+              "caption_manual",
+              "caption_auto",
+              "asr",
+              "screen",
+              "user",
+              "editor"
+            ]
+          },
+          "at_seconds": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "suggested_amount": {
+            "anyOf": [
+              {
+                "type": "number",
+                "exclusiveMinimum": 0
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "suggested_unit": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 12
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "ingredient_key": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[a-z0-9_]{1,60}$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "needs_review": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "name",
+          "amount",
+          "unit",
+          "origin"
+        ],
+        "additionalProperties": false
       }
+    },
+    "measuring_tool": {
+      "type": "string",
+      "enum": [
+        "계량스푼",
+        "밥숟가락",
+        "섞어 씀",
+        "확인 못 함"
+      ]
+    },
+    "measuring_tool_basis": {
+      "maxItems": 10,
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "origin": {
+            "type": "string",
+            "enum": [
+              "description",
+              "caption_manual",
+              "caption_auto",
+              "asr",
+              "screen",
+              "user",
+              "editor"
+            ]
+          },
+          "at_seconds": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "origin",
+          "at_seconds"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "steps": {
+      "minItems": 1,
+      "maxItems": 40,
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 30
+          },
+          "body": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 400
+          },
+          "heat": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 30
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "cue": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "cue_origin": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "description",
+                  "caption_manual",
+                  "caption_auto",
+                  "asr",
+                  "screen",
+                  "user",
+                  "editor"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "editor_tip": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "timer_seconds": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "video_start_seconds": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "uses": {
+            "maxItems": 20,
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "maxLength": 60
+                },
+                "portion": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "maxLength": 30
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "name"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "origin": {
+            "type": "string",
+            "enum": [
+              "description",
+              "caption_manual",
+              "caption_auto",
+              "asr",
+              "screen",
+              "user",
+              "editor"
+            ]
+          },
+          "needs_review": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "title",
+          "body",
+          "origin"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "principles": {
+      "maxItems": 12,
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 40
+          },
+          "body": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 300
+          },
+          "origin": {
+            "type": "string",
+            "enum": [
+              "description",
+              "caption_manual",
+              "caption_auto",
+              "asr",
+              "screen",
+              "user",
+              "editor"
+            ]
+          },
+          "video_start_seconds": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "needs_review": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "title",
+          "body",
+          "origin"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "conflicts": {
+      "maxItems": 20,
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "about": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 60
+          },
+          "chosen": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "chosen_origin": {
+            "type": "string",
+            "enum": [
+              "description",
+              "caption_manual",
+              "caption_auto",
+              "asr",
+              "screen",
+              "user",
+              "editor"
+            ]
+          },
+          "other": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "other_origin": {
+            "type": "string",
+            "enum": [
+              "description",
+              "caption_manual",
+              "caption_auto",
+              "asr",
+              "screen",
+              "user",
+              "editor"
+            ]
+          },
+          "video_start_seconds": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "about",
+          "chosen",
+          "chosen_origin",
+          "other",
+          "other_origin"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "glossary": {
+      "maxItems": 10,
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "term": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 30
+          },
+          "body": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "origin": {
+            "type": "string",
+            "enum": [
+              "description",
+              "caption_manual",
+              "caption_auto",
+              "asr",
+              "screen",
+              "user",
+              "editor"
+            ]
+          },
+          "at_seconds": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "term",
+          "body",
+          "origin",
+          "at_seconds"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "corrections": {
+      "maxItems": 40,
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "target": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+          },
+          "before": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 80
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "after": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 80
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "origin": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "description",
+                  "caption_manual",
+                  "caption_auto",
+                  "asr",
+                  "screen",
+                  "user",
+                  "editor"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "at_seconds": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "method": {
+            "type": "string",
+            "enum": [
+              "rule",
+              "compare"
+            ]
+          }
+        },
+        "required": [
+          "target",
+          "before",
+          "after",
+          "origin",
+          "at_seconds",
+          "method"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "review_items": {
+      "maxItems": 40,
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "target": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "candidates": {
+            "maxItems": 6,
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "value": {
+                  "type": "string",
+                  "maxLength": 80
+                },
+                "origin": {
+                  "type": "string",
+                  "enum": [
+                    "description",
+                    "caption_manual",
+                    "caption_auto",
+                    "asr",
+                    "screen",
+                    "user",
+                    "editor"
+                  ]
+                },
+                "at_seconds": {
+                  "anyOf": [
+                    {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "value",
+                "origin",
+                "at_seconds"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "target",
+          "reason",
+          "candidates"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "extraction": {
+      "type": "object",
+      "properties": {
+        "levels": {
+          "minItems": 1,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "L0",
+              "L1",
+              "L2",
+              "L3",
+              "L4"
+            ]
+          }
+        },
+        "transcript_kind": {
+          "type": "string",
+          "enum": [
+            "caption_manual",
+            "caption_auto",
+            "asr",
+            "none"
+          ]
+        },
+        "tools": {
+          "maxItems": 12,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 80
+          }
+        },
+        "extracted_by": {
+          "type": "string",
+          "maxLength": 80
+        },
+        "extracted_at": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+        },
+        "gaps": {
+          "maxItems": 20,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 120
+          }
+        },
+        "not_checked": {
+          "maxItems": 10,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 80
+          }
+        }
+      },
+      "required": [
+        "levels",
+        "transcript_kind",
+        "tools",
+        "extracted_by",
+        "extracted_at"
+      ],
+      "additionalProperties": false
     }
-  }
+  },
+  "required": [
+    "contract_version",
+    "source",
+    "title",
+    "servings",
+    "tags",
+    "ingredients",
+    "steps",
+    "extraction"
+  ],
+  "additionalProperties": false
 }
