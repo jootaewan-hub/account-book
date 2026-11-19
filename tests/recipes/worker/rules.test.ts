@@ -426,6 +426,22 @@ describe('checkRecipe', () => {
     expect(run(right, e).recipe.ingredients.slice(6).map((g) => g.amount)).toEqual([3, 2])
   })
 
+  it('함께 묶인 이름에 수가 없으면("소금·후추 약간") 같은 줄 다른 재료의 숫자로 근거를 삼지 않음', () => {
+    const e = evidence({ meta: { ...evidence().meta, description: '소금·후추 약간, 설탕 2T' } })
+    const r = recipe()
+    r.servings = { value: null, origin: null }
+    r.ingredients = [
+      { name: '소금', amount: 2, unit: '큰술', origin: 'description' },
+      { name: '후추', amount: 2, unit: '큰술', origin: 'description' },
+      { name: '설탕', amount: 2, unit: '큰술', origin: 'description' },
+    ]
+    r.tags.main_details = ['설탕']
+    r.steps = [{ title: '섞기', body: '섞는다.', uses: [{ name: '소금' }, { name: '후추' }, { name: '설탕' }], origin: 'description' }]
+    const out = run(r, e)
+    expect(out.recipe.ingredients.map((g) => g.amount)).toEqual([null, null, 2])
+    expect(out.reviews.map((x) => x.target)).toEqual(['ingredients[0].amount', 'ingredients[1].amount'])
+  })
+
   it('다시 돌려도 같은 고친 곳·확인 필요가 또 생기지 않음', () => {
     const r = recipe()
     r.ingredients.push(

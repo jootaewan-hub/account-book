@@ -254,21 +254,30 @@ export function containsTerm(text: string, term: string): boolean {
   return stem.length >= 2 && stem !== t && k.includes(stem)
 }
 
-// 한 줄 안에서 재료 하나의 몫을 가르는 표시(괄호 안은 가르지 않는다). 분수는 이미 소수로 바뀌어 있다.
-const CLAUSE = /[,，;|·•/]/
+// 한 줄을 덩이로 가르는 표시(괄호 안은 가르지 않는다). "·"·"/"는 가르지 않고 이름을 함께 묶는 표시로 본다(아래 JOIN).
+const CLAUSE = /[,，;|•]/
+// 덩이 안에서 이름을 함께 묶는 표시("소금·후추 약간", "다리/가슴"). 분수는 이미 소수로 바뀌어 있다.
+const JOIN = /[·/]/
 
-function splitClauses(line: string): string[] {
-  const out: string[] = []
+/** 괄호 밖에서 sep에 맞는 글자의 자리 */
+function outsideParens(line: string, sep: RegExp): number[] {
+  const out: number[] = []
   let depth = 0
-  let from = 0
   for (let i = 0; i < line.length; i++) {
     const c = line[i]!
     if (c === '(' || c === '[') depth++
     else if ((c === ')' || c === ']') && depth > 0) depth--
-    else if (depth === 0 && CLAUSE.test(c)) {
-      out.push(line.slice(from, i))
-      from = i + 1
-    }
+    else if (depth === 0 && sep.test(c)) out.push(i)
+  }
+  return out
+}
+
+function splitClauses(line: string): string[] {
+  const out: string[] = []
+  let from = 0
+  for (const i of outsideParens(line, CLAUSE)) {
+    out.push(line.slice(from, i))
+    from = i + 1
   }
   out.push(line.slice(from))
   return out
@@ -278,25 +287,42 @@ function splitClauses(line: string): string[] {
 const NOT_AMOUNT = new Set(['인분', '시간', '분', '초'])
 const amountsIn = (normalized: string) => quantities(normalized).filter((q) => q.unit === null || !NOT_AMOUNT.has(q.unit))
 
-// 이름 뒤에 이것만 남으면 "이름뿐인 덩이"다("간장, 설탕 각 2큰술"의 간장)
-const NAME_ONLY_REST = /^(?:은|는|을|를|이|가|도|와|과|랑|이랑|하고|각|각각|모두|씩|다|등)?요?$/
-const PUNCT = /[\s\-–—•·*:：()[\]{}【】<>「」『』"'.!?…]/g
+// 이름 사이·뒤에 이것만 있으면 건너뛴다: 묶는 말(과·와·및·그리고·랑·하고), 조사 하나, 각·모두·씩("간장·설탕 각 2큰술")
+const SKIP = /^(?:과|와|및|그리고|랑|이랑|하고|은|는|을|를|이|가|도|각|각각|모두|씩|다|등)?요?$/
+const PUNCT = /[\s\-–—•·*:：()[\]{}【】<>「」『』"'.!?…/]/g
 
 /**
- * 한 덩이 안에서 이 재료의 몫: 이름이 나온 자리부터 다음에 나오는 다른 재료 이름 앞까지("간장 3큰술 설탕 2큰술"의 간장 → "간장 3큰술 ").
+ * 한 덩이 안에서 이 재료의 분량 글. 이름 뒤에서 앞으로 가며 묶는 말과 묶인 다른 이름("소금·후추", "소금과 후추")은 건너뛰고,
+ * 처음 나오는 다른 글이 묶음 전체의 분량 글이다. 거기서 멈춘다(다음 재료 이름 앞까지, "간장 3큰술 설탕 2큰술"의 간장 → "3큰술").
+ * 분량 글에 수가 없으면("약간") 이 재료의 수는 없다. 덩이 끝까지 건너뛸 것만 있으면 이름뿐인 덩이(nameOnly)다.
  * 다른 재료 이름 안에 든 이름("국간장"의 간장)은 이 재료가 아니다.
  */
-function segments(clause: string, ours: string[], theirs: string[]): string[] {
+function clauseAmounts(clause: string, ours: string[], theirs: string[]): { found: Quantity[]; nameOnly: boolean } {
   const their = nameHits(clause, theirs)
   const mine = nameHits(clause, ours).filter((o) => !their.some((t) => t.start <= o.start && t.end >= o.end && t.end - t.start > o.end - o.start))
-  const cuts = their.filter((t) => !mine.some((o) => t.start < o.end && o.start < t.end)).map((t) => t.start)
-  return mine.map((o) => clause.slice(o.start, Math.min(clause.length, ...cuts.filter((c) => c >= o.end))))
-}
-
-const nameOnly = (segment: string, ours: string[]) => {
-  const hit = nameHits(segment, ours)[0]
-  if (!hit) return false
-  return NAME_ONLY_REST.test(segment.slice(hit.end).replace(PUNCT, ''))
+  const names = their.filter((t) => !mine.some((o) => t.start < o.end && o.start < t.end))
+  const joins = outsideParens(clause, JOIN)
+  const found: Quantity[] = []
+  let nameOnly = false
+  for (const o of mine) {
+    let pos = o.end
+    for (;;) {
+      const nextName = names.find((t) => t.start >= pos)
+      const nextJoin = joins.find((j) => j >= pos)
+      const stop = Math.min(nextName?.start ?? Infinity, nextJoin ?? Infinity, clause.length)
+      const piece = clause.slice(pos, stop)
+      if (!SKIP.test(piece.replace(PUNCT, ''))) {
+        found.push(...amountsIn(piece))
+        break
+      }
+      if (stop === clause.length) {
+        nameOnly = true
+        break
+      }
+      pos = nextName !== undefined && nextName.start === stop ? nextName.end : stop + 1
+    }
+  }
+  return { found, nameOnly }
 }
 
 function otherVariants(name: string, others: readonly string[]): string[] {
@@ -310,9 +336,9 @@ function otherVariants(name: string, others: readonly string[]): string[] {
 }
 
 /**
- * 재료 이름 가까이의 분량 수. 이름이 든 줄마다, 이름이 든 덩이(쉼표 등으로 가른 몫)에서 이 재료의 몫(다음 재료 이름 앞까지)의 수.
- * 몫에 수가 없고 그 몫이 이름뿐이면("간장, 설탕 각 2큰술"의 간장) 그 줄의 수를 본다. "소금 약간, 설탕 1작은술"의 소금은 수가 없다.
- * others는 같은 레시피의 다른 재료 이름(몫을 자르는 데 쓴다). 시간·인분 수는 뺀다.
+ * 재료 이름 가까이의 분량 수. 이름이 든 줄마다, 이름이 든 덩이(쉼표 등으로 가른 몫)에서 이 재료(와 함께 묶인 이름들)의 분량 글의 수.
+ * 덩이가 이름뿐이면("간장, 설탕 각 2큰술"의 간장) 그 줄의 수를 본다. "소금 약간, 설탕 1작은술"·"소금·후추 약간, 설탕 2T"의 소금은 수가 없다.
+ * others는 같은 레시피의 다른 재료 이름(몫을 자르고 묶음을 알아보는 데 쓴다). 시간·인분 수는 뺀다.
  */
 export function nearbyQuantities(text: string, name: string, others: readonly string[] = []): Quantity[] {
   const ours = nameVariants(name)
@@ -324,10 +350,10 @@ export function nearbyQuantities(text: string, name: string, others: readonly st
     if (!hasVariant(line, ours)) continue
     let clauses = splitClauses(line).filter((c) => hasVariant(c, ours))
     if (clauses.length === 0) clauses = [line] // 이름이 가르는 표시에 걸친 때
-    const parts = clauses.flatMap((c) => segments(c, ours, theirs))
-    const near = parts.flatMap((p) => amountsIn(p))
+    const parts = clauses.map((c) => clauseAmounts(c, ours, theirs))
+    const near = parts.flatMap((p) => p.found)
     if (near.length > 0) out.push(...near)
-    else if (parts.some((p) => nameOnly(p, ours))) out.push(...amountsIn(line))
+    else if (parts.some((p) => p.nameOnly)) out.push(...amountsIn(line))
   }
   return out
 }

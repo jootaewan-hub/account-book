@@ -169,6 +169,32 @@ describe('findAmount: 같은 레시피의 다른 재료 이름에서 몫을 자�
   })
 })
 
+describe('findAmount: 함께 묶인 이름(·, 과/와, 및, 그리고, /)은 묶음 뒤의 분량 글만 봄', () => {
+  const cases: [string, string, boolean][] = [
+    ['소금·후추 약간, 설탕 2T', '소금', false],
+    ['소금·후추 약간, 설탕 2T', '후추', false],
+    ['소금·후추 약간, 설탕 2T', '설탕', true],
+    ['소금과 후추 약간, 설탕 2큰술', '소금', false],
+    ['소금과 후추 약간, 설탕 2큰술', '후추', false],
+    ['소금과 후추 약간, 설탕 2큰술', '설탕', true],
+    ['소금 및 후추 약간씩, 설탕 2큰술', '소금', false],
+    ['간장, 설탕 각 2큰술', '간장', true],
+    ['간장, 설탕 각 2큰술', '설탕', true],
+    ['간장·설탕 각 2큰술', '간장', true],
+    ['간장·설탕 각 2큰술', '설탕', true],
+    ['간장 그리고 설탕 2큰술씩', '간장', true],
+    ['간장 2큰술 / 설탕 3큰술', '간장', true],
+    ['간장 3큰술 / 설탕 2큰술', '간장', false],
+  ]
+  const names = ['소금', '후추', '설탕', '간장']
+  it.each(cases)('%j · %s 2큰술 → %s (다른 재료 이름 없이)', (text, name, want) => {
+    expect(findAmount(text, name, 2, '큰술')).toBe(want)
+  })
+  it.each(cases)('%j · %s 2큰술 → %s (다른 재료 이름과 함께)', (text, name, want) => {
+    expect(findAmount(text, name, 2, '큰술', names.filter((n) => n !== name))).toBe(want)
+  })
+})
+
 describe('hasDuration', () => {
   it.each<[string, number]>([
     ['센 불에서 3분 정도 볶아요', 180],
