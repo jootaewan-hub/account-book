@@ -41,12 +41,17 @@ const TIMEOUT_MS = 30_000
 export function createApi(endpoint: string, secret: string, fetchImpl: typeof fetch = fetch): WorkerApi {
   async function post(body: Record<string, unknown>): Promise<Response> {
     try {
-      return await fetchImpl(endpoint, {
+      const res = await fetchImpl(endpoint, {
         method: 'POST',
         headers: { 'content-type': 'application/json', 'x-recipe-worker-secret': secret },
         body: JSON.stringify(body),
         signal: AbortSignal.timeout(TIMEOUT_MS),
+        // 3xx가 비밀 머리글을 다른 곳으로 실어 가지 못하게 한다
+        redirect: 'error',
       })
+      // 3xx는 따라가지 않는다(fetch가 던지지만, 대리 구현이 돌려줘도 같은 취급)
+      if (res.status >= 300 && res.status < 400) throw new Error('redirect')
+      return res
     } catch {
       throw new ApiError(0, '서버에 닿지 못했어요')
     }

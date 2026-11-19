@@ -11,7 +11,7 @@ import type { RecipeV2 } from '../../../tools/recipe-worker/src/types'
 const job = { id: '00000000-0000-4000-8000-0000000000aa', url: 'https://www.youtube.com/watch?v=AkX6uA4BaDs', source_key: 'youtube:AkX6uA4BaDs' }
 const recipe = { title: '시험' } as unknown as RecipeV2
 const cfg: WorkerConfig = {
-  endpoint: 'https://example.com/fn', secretFile: '/x/secret', cacheDir: '/x/cache', claudePath: '/x/claude', ytDlpPath: '/x/yt',
+  endpoint: 'https://example.com/fn', secretFile: '/x/secret', cacheDir: '/x/cache', claudePath: '/x/claude', ytDlpPath: '/x/yt', ytDlpExtraArgs: [], brewPath: '/x/brew',
   ffmpegPath: '/x/ff', whisperCliPath: '/x/w', whisperModel: '/x/m', ocrPath: '/x/ocr',
   onHours: [['08:30', '18:20'], ['20:00', '06:30']], dailyLimit: 15, obsidianDir: null, driveTokenFile: null,
 }
@@ -265,6 +265,22 @@ describe('createApi', () => {
     expect(e).toBeInstanceOf(ApiError)
     expect((e as ApiError).status).toBe(0)
     expect((e as ApiError).message).not.toContain('s3cret')
+  })
+
+  it('모든 호출에 redirect: error, 3xx 답은 네트워크 실패와 같고 비밀이 글에 없다', async () => {
+    const f = vi.fn(async (_u: string, init: RequestInit) => {
+      expect(init.redirect).toBe('error')
+      return new Response(null, { status: 302, headers: { location: 'https://evil.example/x' } })
+    })
+    const api = createApi('https://e/fn', 's3cret', f as unknown as typeof fetch)
+    const e = await api.claim().catch((x: unknown) => x)
+    expect(e).toBeInstanceOf(ApiError)
+    expect((e as ApiError).status).toBe(0)
+    expect((e as ApiError).message).not.toContain('s3cret')
+    expect((e as ApiError).message).not.toContain('evil')
+    const e2 = await api.exported({ recipe_id: 'r', drive_doc_id: null, drive_path: null, obsidian_path: null, snapshot_updated_at: null }).catch((x: unknown) => x)
+    expect((e2 as ApiError).status).toBe(0)
+    expect(f).toHaveBeenCalledTimes(2)
   })
 
   it('submit: 200은 recipeId, 409·422는 결과 값, 500은 던진다', async () => {

@@ -18,6 +18,9 @@ const ConfigSchema = z.object({
   cacheDir: z.string().min(1).default('~/Library/Caches/recipe-worker'),
   claudePath: z.string().min(1).default('~/.local/bin/claude'),
   ytDlpPath: z.string().min(1).default('/opt/homebrew/bin/yt-dlp'),
+  // 설치된 yt-dlp가 더 필요로 하는 인자(예: JS 실행기). 설치 뒤 yt-dlp --help로 확인해 채운다.
+  ytDlpExtraArgs: z.array(z.string()).default([]),
+  brewPath: z.string().min(1).default('/opt/homebrew/bin/brew'),
   ffmpegPath: z.string().min(1).default('/opt/homebrew/bin/ffmpeg'),
   whisperCliPath: z.string().min(1).default('/opt/homebrew/bin/whisper-cli'),
   whisperModel: z.string().min(1).default('~/.config/recipe-worker/models/ggml-large-v3-turbo.bin'),
@@ -34,6 +37,8 @@ export type WorkerConfig = {
   cacheDir: string
   claudePath: string
   ytDlpPath: string
+  ytDlpExtraArgs: string[]
+  brewPath: string
   ffmpegPath: string
   whisperCliPath: string
   whisperModel: string
@@ -70,6 +75,7 @@ export function loadConfig(path: string = DEFAULT_CONFIG_PATH): WorkerConfig {
     cacheDir: expandHome(c.cacheDir),
     claudePath: expandHome(c.claudePath),
     ytDlpPath: expandHome(c.ytDlpPath),
+    brewPath: expandHome(c.brewPath),
     ffmpegPath: expandHome(c.ffmpegPath),
     whisperCliPath: expandHome(c.whisperCliPath),
     whisperModel: expandHome(c.whisperModel),
