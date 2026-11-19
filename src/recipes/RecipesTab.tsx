@@ -1,10 +1,12 @@
 // 가계부 안의 레시피 탭. 로그인·가구 확인은 가계부(App.tsx)가 한다. 장보기 탭처럼 바깥 상자 .recipes 안에서만 꾸민다.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { normalizeRecipeUrl } from '../../supabase/functions/_shared/recipeSource'
+import type { StoredRecipe } from '../../supabase/functions/_shared/recipeStored'
 import { sb } from '../lib/supabase'
 import { AddBar } from './components/AddBar'
 import { JobList } from './components/JobList'
 import { RecipeBook } from './components/RecipeBook'
+import { RecipeDetail } from './components/RecipeDetail'
 import { createRecipeStore, type CookableRow, type InboxJob, type RecipeStore, type RecipeSummary, type WorkerStatus } from './lib/store'
 import './recipes.css'
 
@@ -34,6 +36,8 @@ export function RecipesTab({ householdId, userId, store: injected }: { household
   const [notice, setNotice] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [openId, setOpenId] = useState<string | null>(null)
+  // 모자란 재료를 장보기에 담는 창(Task 21)이 이 값을 읽는다
+  const [, setMissingFor] = useState<StoredRecipe | null>(null)
   const [pending, setPending] = useState<string | null>(readAddParam)
   const [now, setNow] = useState(() => Date.now())
   const seq = useRef(0)
@@ -111,11 +115,7 @@ export function RecipesTab({ householdId, userId, store: injected }: { household
         </section>
       )}
       {opened ? (
-        // 상세 화면은 다음 작업(Task 19)에서 채운다. 지금은 열린 레시피의 이름만 보인다.
-        <section className="rcp-open" aria-label="레시피 상세">
-          <button className="rcp-btn-text" type="button" onClick={() => setOpenId(null)}>목록으로</button>
-          <h2 className="rcp-h2">{opened.title}</h2>
-        </section>
+        <RecipeDetail key={opened.id} store={store} recipeId={opened.id} title={opened.title} onBack={() => { setOpenId(null); void load() }} onMissing={setMissingFor} />
       ) : (
         <>
           <AddBar busy={busy} onSubmit={add} />

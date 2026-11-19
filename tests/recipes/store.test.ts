@@ -270,3 +270,36 @@ describe('덧붙인 값 비우기(DB check 제약)', () => {
     expect(updates(f, 'recipe.ingredients')[0].payload).toEqual({ amount: null })
   })
 })
+
+describe('상세 읽기와 재료·단계 고치기', () => {
+  const seed = () => ({
+    'recipe.recipes': [{ id: 'r1', household_id: H, status: 'saved', title: '제육', cuisine: '한식', mains: ['돼지고기'], main_details: ['앞다리살'], methods: ['볶음'], occasions: [], favorite: false, added_at: 'a', updated_at: 'u', source_kind: 'youtube', source_key: 'youtube:AkX6uA4BaDs', servings: null, servings_suggested: 2 }],
+    'recipe.ingredients': [
+      { id: 'i0', household_id: H, recipe_id: 'r1', position: 2, name: '설탕', amount: 2, unit: '큰술', origin: 'asr', at_seconds: 242, ingredient_key: 'sugar', needs_review: true },
+      { id: 'i1', household_id: H, recipe_id: 'r1', position: 1, name: '앞다리살', amount: 500, unit: 'g', origin: 'description' },
+    ],
+    'recipe.steps': [{ id: 's0', household_id: H, recipe_id: 'r1', position: 1, title: '손질', body: '썰기', origin: 'description' }],
+  })
+  it('getRecipe는 레시피·재료·단계를 순서대로 모으고 가구 밖이면 null', async () => {
+    const { store } = mk(seed())
+    const r = await store.getRecipe('r1')
+    expect(r?.ingredients.map((g) => g.name)).toEqual(['앞다리살', '설탕'])
+    expect(r?.servings.suggested).toBe(2)
+    expect(await store.getRecipe('nope')).toBeNull()
+  })
+  it('editIngredient는 값을 고치고 출처를 user로, 영상 시각·확인 표시·사전 연결을 비운다', async () => {
+    const { f, store } = mk(seed())
+    await store.editIngredient('r1', 1, { name: '백설탕', amount: 3 })
+    expect(f.tables['recipe.ingredients'].find((g) => g.id === 'i0')).toMatchObject({ name: '백설탕', amount: 3, origin: 'user', at_seconds: null, needs_review: false, ingredient_key: null })
+    expect(f.tables['recipe.ingredients'].find((g) => g.id === 'i1')).toMatchObject({ name: '앞다리살', origin: 'description' })
+    await expect(store.editIngredient('r1', 1, { name: ' ' })).rejects.toThrow('재료 이름')
+    await expect(store.editIngredient('r1', 1, { amount: -1 })).rejects.toThrow('분량')
+    await expect(store.editIngredient('r1', 9, { note: 'x' })).rejects.toThrow('이미 바뀌었어요')
+  })
+  it('editStep은 글을 고치고 출처를 user로 둔다', async () => {
+    const { f, store } = mk(seed())
+    await store.editStep('r1', 0, { body: ' 얇게 썰기 ' })
+    expect(f.tables['recipe.steps'][0]).toMatchObject({ body: '얇게 썰기', origin: 'user' })
+    await expect(store.editStep('r1', 0, { title: '' })).rejects.toThrow('단계 이름')
+  })
+})

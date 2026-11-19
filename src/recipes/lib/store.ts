@@ -35,6 +35,11 @@ export type RecipePatch = Partial<{
 }>
 const PATCH_KEYS = ['title', 'summary', 'memo', 'rating', 'favorite', 'cuisine', 'mains', 'main_details', 'methods', 'occasions', 'difficulty'] as const
 
+/** 재료 한 줄에서 고칠 수 있는 칸. 고치면 출처는 user가 된다 */
+export type IngredientPatch = Partial<{ name: string; amount: number | null; unit: string | null; amount_text: string | null; note: string | null }>
+/** 단계 한 줄에서 고칠 수 있는 칸 */
+export type StepPatch = Partial<{ title: string; body: string }>
+
 export interface RecipeStore {
   listRecipes(): Promise<RecipeSummary[]>
   getRecipe(id: string): Promise<StoredRecipe | null>
@@ -51,6 +56,9 @@ export interface RecipeStore {
   resolveReview(recipeId: string, index: number, choice: ReviewChoice): Promise<void>
   revertCorrection(recipeId: string, index: number): Promise<void>
   update(recipeId: string, patch: RecipePatch): Promise<void>
+  /** index는 재료 목록 안의 순서(0부터). 값을 고친 줄의 출처는 user, 영상 시각은 비운다 */
+  editIngredient(recipeId: string, index: number, patch: IngredientPatch): Promise<void>
+  editStep(recipeId: string, index: number, patch: StepPatch): Promise<void>
   archive(recipeId: string): Promise<void>
   setPantry(key: string, state: PantryState | null): Promise<void>
   addMissingToGrocery(recipe: { ingredients: readonly { name: string; ingredient_key?: string | null }[] }, keys: string[]): Promise<number>
@@ -141,6 +149,7 @@ export function createRecipeStore(client: SupabaseClient, householdId: string, u
         checked(await r().from(kind).update(patch).eq('household_id', householdId).eq('id', row.id).select('id'))
       }
     }
+    if (!Object.keys(recipePatch).length) return // 재료·단계만 고칠 때는 DB 트리거가 레시피의 updated_at을 바꾼다
     const done = checked(await recipes().update(recipePatch).eq('household_id', householdId).eq('id', recipeId).select('id')) as { id: string }[] | null
     if (!done?.length) throw new Error(GONE)
   }
@@ -296,6 +305,49 @@ export function createRecipeStore(client: SupabaseClient, householdId: string, u
       }
       if (!Object.keys(clean).length) return
       await applyEdits(recipeId, new Edits(), clean)
+    },
+
+    async editIngredient(recipeId, index, patch) {
+      const edits = new Edits()
+      const t: Target = { kind: 'ingredients', index, field: '' }
+      const text = (v: string | null | undefined, max: number, label: string) => {
+        const x = typeof v === 'string' ? v.trim() : ''
+        if (x.length > max) throw new Error(`${label}은 ${max}자 안에서 적어 주세요.`)
+        return x || null
+      }
+      if ('name' in patch) {
+        const name = text(patch.name, 60, '재료 이름')
+        if (!name) throw new Error('재료 이름을 적어 주세요.')
+        edits.set(t, 'name', name)
+        edits.set(t, 'ingredient_key', null) // 이름을 바꾸면 사전과의 연결은 끊는다(가진 재료로 세지 않음)
+      }
+      if ('amount' in patch) {
+        if (patch.amount !== null && patch.amount !== undefined && !(Number.isFinite(patch.amount) && patch.amount > 0)) throw new Error('분량은 0보다 큰 숫자예요.')
+        edits.set(t, 'amount', patch.amount ?? null)
+      }
+      if ('unit' in patch) edits.set(t, 'unit', text(patch.unit, 12, '단위'))
+      if ('amount_text' in patch) edits.set(t, 'amount_text', text(patch.amount_text, 20, '분량 글'))
+      if ('note' in patch) edits.set(t, 'note', text(patch.note, 160, '메모'))
+      if (!edits.rows.size) return
+      edits.set(t, 'origin', 'user'); edits.set(t, 'at_seconds', null); edits.set(t, 'needs_review', false)
+      await applyEdits(recipeId, edits, {})
+    },
+    async editStep(recipeId, index, patch) {
+      const edits = new Edits()
+      const t: Target = { kind: 'steps', index, field: '' }
+      if ('title' in patch) {
+        const title = (patch.title ?? '').trim()
+        if (!title || title.length > 30) throw new Error('단계 이름을 30자 안에서 적어 주세요.')
+        edits.set(t, 'title', title)
+      }
+      if ('body' in patch) {
+        const body = (patch.body ?? '').trim()
+        if (!body || body.length > 400) throw new Error('단계 내용을 400자 안에서 적어 주세요.')
+        edits.set(t, 'body', body)
+      }
+      if (!edits.rows.size) return
+      edits.set(t, 'origin', 'user'); edits.set(t, 'needs_review', false)
+      await applyEdits(recipeId, edits, {})
     },
 
     async archive(recipeId) {

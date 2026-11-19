@@ -42,7 +42,7 @@
   align-self: flex-start; min-height: 44px; min-width: 44px; padding: 0 8px; border: 0; background: transparent;
   color: var(--ink-2); font-size: 15px; font-weight: 600; border-radius: var(--r-btn);
 }
-.recipes .rcp-input:focus-visible, .recipes .rcp-select:focus-visible, .recipes .rcp-btn:focus-visible, .recipes .rcp-btn-text:focus-visible,
+.recipes .rcp-input:focus-visible, .recipes .rcp-select:focus-visible, .recipes .rcp-sheet:focus-visible, .recipes .rcp-btn:focus-visible, .recipes .rcp-btn-text:focus-visible,
 .recipes .rcp-chip:focus-visible, .recipes .rcp-row:focus-visible, .recipes .rcp-code:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
 
 /* 담기 */
@@ -82,7 +82,76 @@
 .recipes .rcp-flag { background: var(--clay-soft); color: var(--clay); }
 .recipes .rcp-open { display: flex; flex-direction: column; gap: 8px; }
 
+/* 상세 */
+.recipes .rcp-detail { display: flex; flex-direction: column; gap: 16px; }
+.recipes .rcp-block { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; padding: 16px; border-radius: var(--r-md); background: var(--oat); }
+.recipes .rcp-block > * { max-width: 100%; }
+.recipes .rcp-h3 { margin: 0; font-size: 15px; font-weight: 700; line-height: 1.4; }
+.recipes .rcp-summary { font-size: 15px; color: var(--ink-2); }
+.recipes .rcp-memo { font-size: 15px; }
+.recipes .rcp-link { color: var(--ink); text-decoration: underline; text-underline-offset: 2px; font-weight: 600; }
+.recipes .rcp-link:focus-visible, .recipes .rcp-term:focus-visible, .recipes .rcp-have:focus-visible, .recipes .rcp-chip-wide:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+.recipes .rcp-origin { font-size: 13px; color: var(--ink-2); }
+.recipes a.rcp-origin { color: var(--ink-2); font-weight: 600; }
+.recipes .rcp-edit-mark { display: inline-block; padding: 0 6px; border-radius: var(--r-tag); background: var(--clay-soft); color: var(--clay); font-size: 12px; font-weight: 600; line-height: 20px; }
+.recipes .rcp-edit { font-size: 14px; color: var(--clay); }
+.recipes .rcp-servings { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; width: 100%; }
+.recipes .rcp-chip-n { padding: 0; min-width: 44px; justify-content: center; }
+.recipes .rcp-chip-wide { align-self: flex-start; }
+.recipes .rcp-ings { display: flex; flex-direction: column; width: 100%; }
+.recipes .rcp-ing { padding: 8px 0; border-top: 1px solid var(--line); }
+.recipes .rcp-ing:first-child { border-top: 0; }
+.recipes .rcp-sect { padding-bottom: 4px; font-size: 13px; font-weight: 700; color: var(--ink-2); }
+.recipes .rcp-ing-main { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; }
+.recipes .rcp-ing-name { font-size: 16px; font-weight: 600; overflow-wrap: anywhere; }
+.recipes .rcp-ing-amt { font-size: 15px; text-align: right; overflow-wrap: anywhere; }
+.recipes .rcp-have {
+  min-height: 44px; min-width: 44px; margin-left: 8px; padding: 0 12px; border: 1px solid var(--field-border); border-radius: var(--r-chip);
+  background: var(--canvas); color: var(--ink); font-size: 14px; font-weight: 500; vertical-align: middle;
+}
+.recipes .rcp-have[aria-pressed="true"] { background: var(--primary); color: var(--on-primary); border-color: var(--primary); font-weight: 700; }
+.recipes .rcp-have:disabled { opacity: 0.7; }
+.recipes .rcp-steps, .recipes .rcp-plain { display: flex; flex-direction: column; gap: 12px; width: 100%; margin: 0; padding: 0; list-style: none; }
+.recipes .rcp-step { display: flex; flex-direction: column; gap: 4px; padding-top: 12px; border-top: 1px solid var(--line); }
+.recipes .rcp-step:first-child { padding-top: 0; border-top: 0; }
+.recipes .rcp-plain li { display: flex; flex-direction: column; gap: 2px; }
+.recipes .rcp-fix { flex-direction: row !important; align-items: center; justify-content: space-between; gap: 8px; }
+.recipes .rcp-actions { display: flex; gap: 8px; }
+.recipes .rcp-btn-warn { color: var(--danger); }
+.recipes .rcp-btn-danger { background: var(--danger); color: var(--canvas); border: 0; }
+.recipes .rcp-btn-danger:disabled { opacity: 0.5; }
+/* 용어 풀이 */
+.recipes .rcp-term-wrap { position: relative; }
+.recipes .rcp-term {
+  display: inline; padding: 0; border: 0; background: transparent; color: inherit; font: inherit; cursor: pointer;
+  text-decoration: underline dotted; text-underline-offset: 3px; text-decoration-thickness: 2px;
+}
+.recipes .rcp-pop {
+  display: flex; flex-direction: column; gap: 4px; margin: 4px 0; padding: 12px; border: 1px solid var(--line); border-radius: var(--r-sm);
+  background: var(--canvas); color: var(--ink); font-size: 14px; font-weight: 400; line-height: 1.5;
+}
+.recipes .rcp-pop-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+/* 시트와 창 */
+.recipes .rcp-sheet-layer { position: fixed; inset: 0; z-index: 30; display: flex; align-items: flex-end; justify-content: center; }
+.recipes .rcp-sheet-layer.rcp-center { align-items: center; padding: 0 20px; }
+.recipes .rcp-backdrop { position: absolute; inset: 0; background: var(--scrim); }
+.recipes .rcp-sheet {
+  position: relative; display: flex; flex-direction: column; width: 100%; max-width: 560px; max-height: 92dvh; border-radius: 16px 16px 0 0; background: var(--canvas); color: var(--ink);
+}
+.recipes .rcp-sheet-head { display: flex; align-items: center; justify-content: space-between; padding: 12px 12px 0 20px; }
+.recipes .rcp-sheet-body { display: flex; flex-direction: column; gap: 16px; padding: 12px 20px; overflow-y: auto; overscroll-behavior: contain; }
+.recipes .rcp-sheet-foot { display: flex; flex-direction: column; gap: 8px; padding: 12px 20px calc(12px + env(safe-area-inset-bottom)); border-top: 1px solid var(--line); }
+.recipes .rcp-dialog { position: relative; display: flex; flex-direction: column; gap: 12px; width: 100%; max-width: 400px; padding: 20px; border-radius: 16px; background: var(--canvas); color: var(--ink); }
+.recipes .rcp-field { display: flex; flex-direction: column; gap: 8px; margin: 0; padding: 0; border: 0; min-width: 0; }
+.recipes .rcp-label { padding: 0; font-size: 14px; font-weight: 600; }
+.recipes .rcp-textarea { min-height: 88px; padding: 10px 12px; line-height: 1.5; resize: vertical; font-family: inherit; }
+.recipes .rcp-edit-row { display: flex; flex-direction: column; gap: 8px; padding-top: 12px; border-top: 1px solid var(--line); }
+.recipes .rcp-edit-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+
 @media (min-width: 720px) {
+  .recipes .rcp-servings { grid-template-columns: repeat(8, minmax(0, 1fr)); }
+  .recipes .rcp-sheet-layer { align-items: center; }
+  .recipes .rcp-sheet { border-radius: 16px; }
   .recipes .rcp-filters { grid-template-columns: repeat(5, minmax(0, 1fr)); }
 }
 @media (prefers-reduced-motion: reduce) {
