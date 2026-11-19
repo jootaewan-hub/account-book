@@ -124,6 +124,23 @@ describe('확인 화면', () => {
     fireEvent.click(done)
     expect(onDone).toHaveBeenCalled()
   })
+  it('계량 도구 항목은 네 가지를 버튼으로 고르고, 고르면 상세가 ml를 보인다', async () => {
+    const r = stored()
+    r.measuring_tool = '확인 못 함'
+    r.review_items = [{ target: 'measuring_tool', reason: '스푼인지 숟가락인지 몰라요', candidates: [] }]
+    const store = detailStore(r)
+    store.resolveReview = vi.fn(async () => { r.measuring_tool = '계량스푼'; r.review_items = [] })
+    render(<RecipeDetail store={store as unknown as RecipeStore} recipeId="r1" initialMode="review" onBack={() => {}} />)
+    const group = await screen.findByRole('group', { name: '계량 도구 고르기' })
+    expect(within(group).getAllByRole('button').map((b) => b.textContent)).toEqual(['계량스푼', '밥숟가락', '섞어 씀', '확인 못 함'])
+    expect(screen.queryByRole('button', { name: '확인함' })).toBeNull()
+    fireEvent.click(within(group).getByRole('button', { name: '계량스푼' }))
+    expect(store.resolveReview).toHaveBeenCalledWith('r1', 0, { value: '계량스푼', origin: 'user', at_seconds: null })
+    fireEvent.click(await screen.findByRole('button', { name: '확인을 마침' }))
+    await screen.findByRole('group', { name: '인분 고르기' })
+    expect(screen.getByText('계량 도구 계량스푼')).toBeTruthy()
+    expect(document.body.textContent).toContain('30ml')
+  })
   it('저장소가 던지면 알리고 넘어가지 않는다', async () => {
     const store = { resolveReview: vi.fn(async () => { throw new Error('이미 처리된 확인 항목이에요.') }) }
     showReview(store as never)

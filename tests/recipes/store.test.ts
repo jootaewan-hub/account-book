@@ -185,6 +185,17 @@ describe('확인 항목: 인분 비우기', () => {
   })
 })
 
+describe('확인 항목: 계량 도구', () => {
+  it('고른 도구를 쓰고 user 근거를 덧붙이며 항목을 지워 saved로 둔다', async () => {
+    const { f, store } = mk({ 'recipe.recipes': [{ id: 'r1', household_id: H, status: 'review', measuring_tool: '확인 못 함', measuring_tool_basis: [{ origin: 'asr', at_seconds: 3 }],
+      review_items: [{ target: 'measuring_tool', reason: '스푼', candidates: [] }] }] })
+    await expect(store.resolveReview('r1', 0, { value: '국자', origin: 'user', at_seconds: null })).rejects.toThrow()
+    await store.resolveReview('r1', 0, { value: '계량스푼', origin: 'user', at_seconds: null })
+    expect(f.tables['recipe.recipes'][0]).toMatchObject({ measuring_tool: '계량스푼', status: 'saved', review_items: [],
+      measuring_tool_basis: [{ origin: 'asr', at_seconds: 3 }, { origin: 'user', at_seconds: null }] })
+  })
+})
+
 describe('가진 재료', () => {
   it('없으면 넣고 있으면 상태만 고치며 null이면 지운다', async () => {
     const { f, store } = mk()

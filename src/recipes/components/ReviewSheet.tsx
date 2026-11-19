@@ -2,7 +2,7 @@
 // 후보 하나를 고르거나 직접 고친다. 엇갈림 같은 항목은 양쪽을 보이고 "확인함"만 둔다.
 // 영상에서 온 글은 모두 글자로만 그린다(HTML로 읽지 않는다).
 import { useEffect, useRef, useState } from 'react'
-import type { Origin, ReviewItem } from '../../../supabase/functions/_shared/recipeContract'
+import { MEASURING_TOOLS, type Origin, type ReviewItem } from '../../../supabase/functions/_shared/recipeContract'
 import type { StoredRecipe } from '../../../supabase/functions/_shared/recipeStored'
 import { clock, originLabel, videoAt } from '../lib/display'
 import { parseTarget, type RecipeStore } from '../lib/store'
@@ -149,6 +149,7 @@ export function ReviewSheet({ recipe, store, onDone, onChanged }: {
     )
   }
 
+  const tool = item.target === 'measuring_tool'
   const conflict = t?.kind === 'conflicts' ? recipe.conflicts?.[t.index] : undefined
   const current = canEdit ? currentOf(t, recipe) : null
   return (
@@ -159,6 +160,7 @@ export function ReviewSheet({ recipe, store, onDone, onChanged }: {
       </div>
       <h2 className="rcp-h2" ref={head} tabIndex={-1}>{labelOf(item, recipe)}</h2>
       <p className="rcp-review-reason">{item.reason}</p>
+      {tool && <p className="rcp-meta">지금 값: <b>{recipe.measuring_tool ?? '없음'}</b></p>}
       {canEdit && <p className="rcp-meta">지금 값: <b>{current ?? '없음'}</b></p>}
       {conflict && (
         <div className="rcp-block">
@@ -191,11 +193,18 @@ export function ReviewSheet({ recipe, store, onDone, onChanged }: {
           </div>
         </div>
       )}
+      {tool && (
+        <div className="rcp-chips" role="group" aria-label="계량 도구 고르기">
+          {MEASURING_TOOLS.map((m) => (
+            <button key={m} type="button" className="rcp-chip" disabled={busy} onClick={() => void resolve({ value: m, origin: 'user', at_seconds: null })}>{m}</button>
+          ))}
+        </div>
+      )}
       {error && <p className="rcp-bad" role="alert">{error}</p>}
       <div className="rcp-actions rcp-review-foot">
         {canEdit
           ? !typing && <button type="button" className="rcp-btn rcp-btn-quiet" onClick={() => { setTyping(true); setDraft(''); setError(null) }}>직접 고치기</button>
-          : <button type="button" className="rcp-btn rcp-btn-primary" disabled={busy} onClick={() => void resolve({ value: '', origin: 'user', at_seconds: null })}>확인함</button>}
+          : !tool && <button type="button" className="rcp-btn rcp-btn-primary" disabled={busy} onClick={() => void resolve({ value: '', origin: 'user', at_seconds: null })}>확인함</button>}
         <button type="button" className="rcp-btn rcp-btn-quiet" onClick={later}>나중에</button>
       </div>
     </section>

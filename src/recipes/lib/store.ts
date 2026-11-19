@@ -2,7 +2,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { readAllPages } from '../../../supabase/functions/_shared/pagination'
 import { normalizeRecipeUrl } from '../../../supabase/functions/_shared/recipeSource'
-import type { Correction, Origin, ReviewItem } from '../../../supabase/functions/_shared/recipeContract'
+import { MEASURING_TOOLS, type Correction, type Origin, type ReviewItem } from '../../../supabase/functions/_shared/recipeContract'
 import { toStoredRecipe, type StoredRecipe } from '../../../supabase/functions/_shared/recipeStored'
 import { groceryCategoryFor, nameKey, type PantryEntry } from './groceryLink'
 
@@ -231,7 +231,7 @@ export function createRecipeStore(client: SupabaseClient, householdId: string, u
     },
 
     async resolveReview(recipeId, index, choice) {
-      const row = await recipeRow(recipeId, 'status,review_items')
+      const row = await recipeRow(recipeId, 'status,review_items,measuring_tool_basis')
       const items = (row.review_items ?? []) as ReviewItem[]
       const item = items[index]
       if (!item) throw new Error('이미 처리된 확인 항목이에요.')
@@ -258,6 +258,12 @@ export function createRecipeStore(client: SupabaseClient, householdId: string, u
         if (!stillFlagged && (t.kind === 'ingredients' || t.kind === 'steps')) edits.set(t, 'needs_review', false)
       }
       const patch: RowPatch = { ...edits.recipe, review_items: rest }
+      if (item.target === 'measuring_tool') {
+        // 계량 도구는 사람이 네 가지 중에서 고른다. 고른 근거는 user로 덧붙인다
+        if (!(MEASURING_TOOLS as readonly string[]).includes(choice.value)) throw new Error('계량 도구를 목록에서 골라 주세요.')
+        patch.measuring_tool = choice.value
+        patch.measuring_tool_basis = [...((row.measuring_tool_basis ?? []) as unknown[]), { origin: 'user', at_seconds: null }]
+      }
       if (edits.glossary.size) {
         const cur = ((await recipeRow(recipeId, 'glossary')).glossary ?? []) as RowPatch[]
         patch.glossary = cur.map((x, i) => (edits.glossary.has(i) ? { ...x, ...edits.glossary.get(i) } : x))
