@@ -22,8 +22,8 @@ export type LoopDeps = {
   now: () => Date
   doneToday: () => number
   cfg: WorkerConfig
-  /** 일을 하나 끝낼 때마다 부른다(하루 세기용) */
-  onDone?: () => void
+  /** 일을 하나 맡을 때마다 부른다(하루 세기용). 한도는 Claude 사용량을 막는 것이라 성공·실패·돌려놓음 모두 센다 */
+  onClaimed?: () => void
   /** 일정한 간격으로 fn을 부르고, 멈추는 함수를 돌려준다. 시험에서 가짜로 바꾼다 */
   every?: (ms: number, fn: () => void) => () => void
   /** 처리 시작·끝(밤새 깨어 있기용) */
@@ -65,7 +65,7 @@ export function isOnHours(now: Date, onHours: [string, string][]): boolean {
   })
 }
 
-/** 오늘(서울 날짜) 끝낸 일 수. 메모리에만 두고 서울 자정에 0으로 돌아간다 */
+/** 오늘(서울 날짜) 맡은 일 수. 메모리에만 두고 서울 자정에 0으로 돌아간다 */
 export function createDailyCounter(now: () => Date): { doneToday: () => number; increment: () => void } {
   let day = seoulDate(now())
   let n = 0
@@ -85,6 +85,7 @@ export async function runOnce(deps: LoopDeps): Promise<RunResult> {
   if (deps.doneToday() >= cfg.dailyLimit) return 'limited'
   const job = await api.claim()
   if (!job) return 'idle'
+  deps.onClaimed?.()
 
   deps.onBusy?.(true)
   let lastStage = FIRST_STAGE
@@ -115,10 +116,7 @@ export async function runOnce(deps: LoopDeps): Promise<RunResult> {
     if (gone) return 'failed'
 
     const res = await api.submit(job.id, produced.recipe, produced.dict)
-    if (res.ok) {
-      deps.onDone?.()
-      return 'done'
-    }
+    if (res.ok) return 'done'
     await api.fail(job.id, res.status === 422 ? '레시피 정리 결과가 형식에 맞지 않아요' : '레시피를 등록하지 못했어요')
     return 'failed'
   } catch {

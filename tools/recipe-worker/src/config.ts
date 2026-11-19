@@ -8,7 +8,12 @@ export const DEFAULT_CONFIG_PATH = '~/.config/recipe-worker/config.json'
 const hhmm = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'HH:MM 꼴이어야 해요')
 
 const ConfigSchema = z.object({
-  endpoint: z.string().url(),
+  endpoint: z.string().url().refine((u) => {
+    let parsed: URL
+    try { parsed = new URL(u) } catch { return false }
+    const { protocol, hostname } = parsed
+    return protocol === 'https:' || (protocol === 'http:' && (hostname === 'localhost' || hostname === '127.0.0.1'))
+  }, 'https 주소여야 해요(비밀이 평문으로 가지 않게)'),
   secretFile: z.string().min(1).default('~/.config/recipe-worker/secret'),
   cacheDir: z.string().min(1).default('~/Library/Caches/recipe-worker'),
   claudePath: z.string().min(1).default('~/.local/bin/claude'),

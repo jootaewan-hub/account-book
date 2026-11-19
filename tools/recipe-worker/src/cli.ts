@@ -77,7 +77,7 @@ export async function run(configPath: string = DEFAULT_CONFIG_PATH, spawn: Spawn
     cfg,
     now,
     doneToday: counter.doneToday,
-    onDone: counter.increment,
+    onClaimed: counter.increment,
     onBusy: (b) => caffeine.busy(b),
     // 뒤 작업에서 처리 단계(영상 받기~저장)를 여기에 붙인다
     process: async () => {

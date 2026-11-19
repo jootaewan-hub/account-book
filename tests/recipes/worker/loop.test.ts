@@ -55,14 +55,12 @@ describe('runOnce', () => {
     expect(api.submit).not.toHaveBeenCalled()
   })
 
-  it('처리 성공이면 submit 한 번, done, 하루 수를 올린다', async () => {
+  it('처리 성공이면 submit 한 번, done', async () => {
     const api = mkApi()
-    const onDone = vi.fn()
-    const dict = [{ id: 'x', name: '엑스', aliases: [], category: '채소', origin: 'added' as const }]
-    expect(await runOnce(mkDeps(api, { onDone, process: async () => ({ recipe, dict }) }))).toBe('done')
+        const dict = [{ id: 'x', name: '엑스', aliases: [], category: '채소', origin: 'added' as const }]
+    expect(await runOnce(mkDeps(api, { process: async () => ({ recipe, dict }) }))).toBe('done')
     expect(api.submit).toHaveBeenCalledTimes(1)
     expect(api.submit).toHaveBeenCalledWith(job.id, recipe, dict)
-    expect(onDone).toHaveBeenCalledTimes(1)
   })
 
   it('처리 단계 알림은 바로 progress로 가고, 처리 중에는 30초마다 마지막 단계를 다시 알린다', async () => {
@@ -177,6 +175,31 @@ describe('runOnce', () => {
   })
 })
 
+describe('하루 한도는 맡은 일을 모두 센다', () => {
+  it('성공 12 + 실패 3 = 15면 다음은 claim 없이 limited', async () => {
+    const counter = createDailyCounter(() => at('10:00'))
+    const results: string[] = []
+    for (let i = 0; i < 15; i++) {
+      const api = mkApi(i < 12 ? {} : { submit: vi.fn(async () => ({ ok: false as const, status: 409 as const, errors: [] })) })
+      results.push(await runOnce(mkDeps(api, { doneToday: counter.doneToday, onClaimed: counter.increment })))
+    }
+    expect(results.filter((r) => r === 'done')).toHaveLength(12)
+    expect(counter.doneToday()).toBe(15)
+    const api = mkApi()
+    expect(await runOnce(mkDeps(api, { doneToday: counter.doneToday, onClaimed: counter.increment }))).toBe('limited')
+    expect(api.claim).not.toHaveBeenCalled()
+  })
+
+  it('돌려놓은(released) 일과 abandon도 센다, 일이 없으면 세지 않는다', async () => {
+    const counter = createDailyCounter(() => at('10:00'))
+    const d = (api: WorkerApi, process?: LoopDeps['process']) => mkDeps(api, { doneToday: counter.doneToday, onClaimed: counter.increment, ...(process ? { process } : {}) })
+    await runOnce(d(mkApi(), async () => { throw new RateLimited(new Date()) }))
+    await runOnce(d(mkApi(), async () => { throw new Error('x') }))
+    await runOnce(d(mkApi({ claim: vi.fn(async () => null) })))
+    expect(counter.doneToday()).toBe(2)
+  })
+})
+
 describe('createDailyCounter', () => {
   it('서울 자정에 0으로 돌아간다', () => {
     let t = new Date('2026-11-22T14:50:00Z') // 서울 23:50
@@ -268,6 +291,17 @@ describe('설정과 비밀 파일', () => {
     expect(c.onHours).toEqual([['08:30', '18:20'], ['20:00', '06:30']])
     expect(c.secretFile.startsWith('~')).toBe(false)
     expect(c.obsidianDir).toBeNull()
+  })
+
+  it('endpoint는 https만(http는 localhost·127.0.0.1만)', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'rw-'))
+    const p = join(dir, 'config.json')
+    const load = (endpoint: string) => { writeFileSync(p, JSON.stringify({ endpoint })); return loadConfig(p) }
+    expect(() => load('http://example.com/fn')).toThrow(/endpoint/)
+    expect(load('https://example.com/fn').endpoint).toBe('https://example.com/fn')
+    expect(load('http://localhost:54321/fn').endpoint).toContain('localhost')
+    expect(load('http://127.0.0.1:54321/fn').endpoint).toContain('127.0.0.1')
+    expect(() => load('http://localhost.evil.com/fn')).toThrow(/endpoint/)
   })
 
   it('loadConfig는 잘못된 값의 위치만 말한다', () => {
