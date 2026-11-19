@@ -205,6 +205,8 @@
 
 ## 열린 문제
 
+- (2026-11-20 00:1x KST 관찰) `tests/grocery/store.test.ts`의 "데모 저장소: 후보·검색 상태·오늘 가격·상세를 돌려준다"가 `TypeError: Cannot read properties of undefined (reading 'source')`로 실패한다. origin/main `731b5c9`에서도 똑같이 실패한다(레시피 브랜치가 만든 것이 아님). 2026-11-19 22시쯤의 전체 실행에서는 통과했으므로 날짜에 따라 달라지는 것으로 보인다(추측입니다: 데모 시드의 '오늘' 가격이 날짜가 바뀌면 비는 경우). 원인은 확인 필요.
+
 - (2026-10-28, D-035 알아보기 탭) 날씨는 활용신청 뒤 운영 호출로 확인했다(예보 값이 따로 받은 같은 발표와 같음, `data-sources.md` 10절). 미세먼지 값만 다른 경로와 아직 견주지 못했다(중계 서버 429).
 - ~~(2026-10-28, D-035) `explore-weather`·`explore-price`가 공개 anon 키(JWT)로도 불렸다(14:56 실제로 200).~~ v2.14.1에서 고침: 두 함수가 `_shared/edge.ts` `isSignedIn`(getClaims로 role authenticated·sub 확인)으로 로그인 사용자만 받는다(`docs/HANDOFF.md` 5절 32).
 - (2026-10-24, D-026 운영 반영) `grocery.clear_item_auto`(마이그레이션 `20261103010000_grocery_clear_item_auto.sql`)가 공유 DB에 없다. Supabase MCP의 `apply_migration`·`execute_sql`이 `delete`가 든 문장마다
