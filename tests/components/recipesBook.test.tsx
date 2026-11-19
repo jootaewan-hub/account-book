@@ -160,6 +160,18 @@ describe('처리 줄', () => {
   })
 })
 
+describe('실패한 일 다시 하기', () => {
+  it('그 사이 레시피북에 들어온 글이면 그 레시피를 연다', async () => {
+    const store = fake({ recipes: [recipe({ id: 'r9', title: '이미 있는 레시피' })], jobs: [job({ id: 'jf', state: 'failed', fail_reason: '자막과 음성을 받지 못했어요' })] })
+    await open(store)
+    store.retry.mockResolvedValueOnce({ kind: 'exists_recipe', id: 'r9' } as never)
+    fireEvent.click(screen.getByRole('button', { name: '다시 하기' }))
+    await act(async () => {})
+    expect(store.retry).toHaveBeenCalledWith('jf')
+    expect(screen.getByRole('region', { name: '레시피 상세' }).textContent).toContain('이미 있는 레시피')
+  })
+})
+
 describe('거르기와 찾기', () => {
   const recipes = [
     recipe({ id: 'a', title: '기사식당 제육볶음', favorite: true }),

@@ -76,11 +76,11 @@ function check(t: Parsed, raw: string): Check {
   const f = t.field
   if (f === 'amount' || f === 'suggested_amount') {
     // "2", "1/2", "2큰술"처럼 단위를 붙여 적어도 된다(단위를 적으면 그 단위로 바꾼다)
-    const p = parseAmountValue(text.replace(',', '.'))
+    const p = parseAmountValue(text)
     return p ? { ok: true, value: formatAmountValue(p.amount, p.unit) } : { ok: false, error: '0보다 큰 숫자로 적어 주세요(단위를 붙여도 돼요)' }
   }
   if (f === 'value') {
-    const n = parseServingsValue(text.replace(',', '.'))
+    const n = parseServingsValue(text)
     return n !== null ? { ok: true, value: String(n) } : { ok: false, error: '0보다 큰 숫자로 적어 주세요' }
   }
   if (f === 'timer_seconds') {

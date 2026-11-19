@@ -274,7 +274,11 @@ describe('createClaudeRun', () => {
   it('환경에 USER·LOGNAME이 없으면 채워 넘긴다(없으면 구독 로그인을 못 찾는다)', async () => {
     expect(claudeEnv({ HOME: '/Users/x', PATH: '/usr/bin' }, () => 'x')).toEqual({ HOME: '/Users/x', PATH: '/usr/bin', USER: 'x', LOGNAME: 'x' })
     const full = { HOME: '/Users/x', USER: 'y', LOGNAME: 'y' }
-    expect(claudeEnv(full, () => 'x')).toBe(full)
+    expect(claudeEnv(full, () => 'x')).toEqual(full)
+    // 셸의 키·토큰·주소는 구독 로그인을 바꾸지 못하게 뺀다(원래 환경은 건드리지 않는다)
+    const shell = { ...full, ANTHROPIC_API_KEY: 'k', ANTHROPIC_AUTH_TOKEN: 't', ANTHROPIC_BASE_URL: 'https://x.invalid', KEEP: '1' }
+    expect(claudeEnv(shell, () => 'x')).toEqual({ ...full, KEEP: '1' })
+    expect(shell.ANTHROPIC_API_KEY).toBe('k')
     const f = fakeExec(JSON.stringify({ is_error: false, result: 'x' }))
     await createClaudeRun(cfg, f.exec)('p', { jobDir: '/x/job' })
     const env = (f.raw.mock.calls[0]![2] as { env: Record<string, string> }).env
@@ -338,6 +342,9 @@ describe('긴 영상의 화면 글자·장면 고르기(R2)', () => {
     expect(p).toContain('[19:')
     expect(p).toContain('고르게 골라 보여 준다(수·단위가 보이는 줄 먼저)')
     expect(p).toContain('장면 그림 80장 중')
+    // 장면은 점수 묶음 안에서만 고르게 고른다: 영상 전체에 고르게 골랐다고 적지 않는다
+    expect(p).toContain('같은 묶음 안에서만 영상 전체에 고르게')
+    expect(p).not.toContain('영상 전체에 고르게 골라 보여 준다(글자·재료')
     expect(p).not.toContain('자에서 잘렸다. 뒤쪽은 보지 못했다') // 화면 글자를 앞에서 자르지 않는다
   })
 

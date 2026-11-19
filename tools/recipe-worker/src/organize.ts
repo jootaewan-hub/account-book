@@ -128,7 +128,7 @@ export function screenTextNote(s: ReturnType<typeof sampleScreenText>, max: numb
 export function framesNote(e: Evidence, shown: number): string | null {
   const total = e.framesTotal ?? e.frames.length
   if (total <= shown) return null
-  return `장면 그림 ${total}장 중 ${shown}장을 영상 전체에 고르게 골라 보여 준다(글자·재료가 보이는 장 먼저). 고르지 않은 장은 보지 못했다.`
+  return `장면 그림 ${total}장 중 ${shown}장을 골라 보여 준다(글자·재료가 보이는 장을 먼저 고르고, 같은 묶음 안에서만 영상 전체에 고르게). 고르지 않은 장은 보지 못했다.`
 }
 
 const KIND_LABEL = { caption_manual: '올린 자막(caption_manual)', caption_auto: '자동 자막(caption_auto)', asr: '우리가 한 받아쓰기(asr)' } as const

@@ -516,7 +516,7 @@ describe('정리가 낸 후보·다른 곳은 근거에서 찾은 것만(I6)', (
     expect(run(r).recipe.review_items![0]).toEqual({ target: 'ingredients[2].amount', reason: '흐리게 들림', candidates: [] })
   })
 
-  it('다른 곳: 두 쪽 다 있으면 두고, 한쪽만 있으면 다른 쪽은 덧붙임, 둘 다 없으면 빼고 번호를 맞춘다', () => {
+  it('다른 곳: 두 쪽 다 있으면 두고, 한쪽만 있으면 글인 다른 쪽은 덧붙임(숫자면 충돌째 뺀다), 둘 다 없으면 빼고 번호를 맞춘다', () => {
     const r = recipe()
     r.conflicts = [
       { about: '간장', chosen: '3큰술', chosen_origin: 'description', other: '1큰술', other_origin: 'screen', video_start_seconds: 80 },
@@ -530,12 +530,24 @@ describe('정리가 낸 후보·다른 곳은 근거에서 찾은 것만(I6)', (
     ]
     const out = run(r)
     expect(out.recipe.conflicts).toEqual([
-      // 화면 80초에는 고춧가루 1큰술뿐이라 간장 1큰술의 근거가 아니다
-      { about: '간장', chosen: '3큰술', chosen_origin: 'description', other: '1큰술', other_origin: 'editor', video_start_seconds: null },
+      // 화면 80초에는 고춧가루 1큰술뿐이라 간장 1큰술의 근거가 아니다 → 숫자 말이라 충돌째 뺀다
       { about: '불 세기', chosen: '센 불', chosen_origin: 'caption_auto', other: '약불', other_origin: 'editor', video_start_seconds: 120 },
       { about: '간장', chosen: '3큰술', chosen_origin: 'description', other: '센 불', other_origin: 'caption_auto', video_start_seconds: 121 },
     ])
-    expect(out.recipe.review_items!.slice(0, 1).map((x) => x.target)).toEqual(['conflicts[2]'])
+    // 뺀 충돌을 가리키던 conflicts[2]는 사라지고, conflicts[3]은 새 번호 conflicts[1]이 된다
+    expect(out.recipe.review_items!.filter((x) => x.target.startsWith('conflicts')).map((x) => x.target)).toEqual(['conflicts[1]'])
+  })
+
+  it('근거 없는 숫자 말은 충돌 쪽으로도 확인 후보로도 남지 않는다(editor 숫자 없음)', () => {
+    const r = recipe()
+    r.conflicts = [{ about: '간장', chosen: '3큰술', chosen_origin: 'description', other: '1큰술', other_origin: 'screen', video_start_seconds: 80 }]
+    r.review_items = [{ target: 'conflicts[0]', reason: '출처끼리 값이 달라 확인 필요', candidates: [{ value: '1큰술', origin: 'editor', at_seconds: null }] }]
+    const out = run(r)
+    expect(out.recipe.conflicts).toEqual([])
+    expect(JSON.stringify(out.recipe.review_items ?? [])).not.toContain('1큰술')
+    for (const c of out.recipe.conflicts ?? []) {
+      for (const [v, o] of [[c.chosen, c.chosen_origin], [c.other, c.other_origin]] as const) expect(/\d/.test(v) && o === 'editor').toBe(false)
+    }
   })
 })
 

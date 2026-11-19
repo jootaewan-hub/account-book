@@ -119,19 +119,25 @@ describe('processJob', () => {
     ])
   })
 
-  it('정리가 낸 다른 곳의 한쪽이 근거에 없으면 그쪽은 덧붙임(출처 이름·시각 없음)', async () => {
-    const conflicts = [{ about: '소금', chosen: '1작은술', chosen_origin: 'description', other: '2작은술', other_origin: 'caption_auto', video_start_seconds: 65 }]
-    const out = await processJob(job, deps(fakeRun({ organize: recipe({ conflicts }), second: '{"ingredients":[]}' })))
-    expect(out.recipe.conflicts).toEqual([{ ...conflicts[0], other_origin: 'editor', video_start_seconds: null }])
+  it('정리가 낸 다른 곳의 한쪽이 근거에 없으면: 글이면 그쪽은 덧붙임(출처 이름·시각 없음), 숫자면 충돌째 뺀다', async () => {
+    const text = [{ about: '소금', chosen: '시험소금', chosen_origin: 'description', other: '시험배추', other_origin: 'caption_auto', video_start_seconds: 65 }]
+    const out = await processJob(job, deps(fakeRun({ organize: recipe({ conflicts: text }), second: '{"ingredients":[]}' })))
+    expect(out.recipe.conflicts).toEqual([{ ...text[0], other_origin: 'editor', video_start_seconds: null }])
     expect(out.recipe.review_items![0]!.candidates).toEqual([
-      { value: '1작은술', origin: 'description', at_seconds: null }, { value: '2작은술', origin: 'editor', at_seconds: null },
+      { value: '시험소금', origin: 'description', at_seconds: null }, { value: '시험배추', origin: 'editor', at_seconds: null },
     ])
+    const num = [{ about: '소금', chosen: '1작은술', chosen_origin: 'description', other: '2작은술', other_origin: 'caption_auto', video_start_seconds: 65 }]
+    const out2 = await processJob(job, deps(fakeRun({ organize: recipe({ conflicts: num }), second: '{"ingredients":[]}' })))
+    expect(out2.recipe.conflicts).toEqual([])
+    expect(JSON.stringify(out2.recipe.review_items ?? [])).not.toContain('editor')
   })
 
   it('같은 확인 필요가 이미 있으면 conflicts에서 또 만들지 않는다', async () => {
-    const conflicts = [{ about: '소금', chosen: '1작은술', chosen_origin: 'description', other: '2작은술', other_origin: 'caption_auto' }]
+    const conflicts = [{ about: '소금', chosen: '1작은술', chosen_origin: 'description', other: '2작은술', other_origin: 'caption_auto', video_start_seconds: 65 }]
     const prior = [{ target: 'conflicts[0]', reason: '출처끼리 값이 달라 확인 필요', candidates: [] }]
-    const out = await processJob(job, deps(fakeRun({ organize: recipe({ conflicts, review_items: prior }), second: '{"ingredients":[]}' })))
+    const d = deps(fakeRun({ organize: recipe({ conflicts, review_items: prior }), second: '{"ingredients":[]}' }))
+    d.collect = vi.fn(async () => { const e = evidence(); e.transcript!.segments[1]!.text = '시험소금 2작은술 넣어요'; return e })
+    const out = await processJob(job, d)
     expect(out.recipe.review_items).toHaveLength(1)
   })
 

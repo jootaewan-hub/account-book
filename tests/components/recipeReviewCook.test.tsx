@@ -90,6 +90,14 @@ describe('확인 화면', () => {
     await screen.findByText('2 / 3')
     expect(store.resolveReview).toHaveBeenCalledWith('r1', 0, { value: '0.5컵', origin: 'user', at_seconds: null })
   })
+  it('직접 고치기에 천 단위 쉼표("1,000g")는 1000 g으로 저장한다(1로 바뀌지 않는다)', async () => {
+    const { store } = showReview()
+    fireEvent.click(screen.getByRole('button', { name: '직접 고치기' }))
+    fireEvent.change(screen.getByLabelText('직접 입력'), { target: { value: '1,000g' } })
+    fireEvent.click(screen.getByRole('button', { name: '이 값으로 저장' }))
+    await screen.findByText('2 / 3')
+    expect(store.resolveReview).toHaveBeenCalledWith('r1', 0, { value: '1000g', origin: 'user', at_seconds: null })
+  })
   it('"이 값"은 그 후보로 resolveReview를 부르고 다음 항목으로 넘어간다', async () => {
     const { store } = showReview()
     fireEvent.click(screen.getAllByRole('button', { name: /^이 값/ })[1])

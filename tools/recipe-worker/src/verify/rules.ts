@@ -217,6 +217,9 @@ function groundCandidate(c: Candidate, field: Field, s: Sources): Candidate | nu
   return value === null ? null : { value: value.slice(0, 80), origin: w.origin, at_seconds: w.at }
 }
 
+/** 숫자가 든 말인가. 숫자는 덧붙임(editor) 출처로 낼 수 없다 */
+const hasNumber = (t: string) => /\d/.test(t) || parseAmountValue(t) !== null
+
 type Conflict = NonNullable<RecipeV2['conflicts']>[number]
 
 /** 다른 곳 한 쪽이 그 출처 근거에 있는지. 있으면 근거 쪽 출처·시각 */
@@ -234,8 +237,8 @@ function groundSide(text: string, origin: Origin, at: number | null, about: stri
 }
 
 /**
- * 모델이 낸 다른 곳을 근거와 맞춘다. 두 쪽 다 못 찾으면 그 다른 곳을 뺀다. 한쪽만 찾으면 다른 쪽을 덧붙임(editor)으로 바꿔
- * 출처 이름이 보이지 않게 하고, 영상 시각은 찾은 쪽 것만 둔다. 돌려주는 map은 옛 번호 → 새 번호(뺀 것은 없음).
+ * 모델이 낸 다른 곳을 근거와 맞춘다. 두 쪽 다 못 찾으면 그 다른 곳을 뺀다. 한쪽만 찾으면 다른 쪽이 글이면 덧붙임(editor)으로 바꿔
+ * 출처 이름이 보이지 않게 하고(숫자면 충돌째 뺀다), 영상 시각은 찾은 쪽 것만 둔다. 돌려주는 map은 옛 번호 → 새 번호(뺀 것은 없음).
  */
 function groundConflicts(list: Conflict[], ingredients: Ingredient[], s: Sources): { kept: Conflict[]; map: Map<number, number> } {
   const kept: Conflict[] = []
@@ -246,6 +249,8 @@ function groundConflicts(list: Conflict[], ingredients: Ingredient[], s: Sources
     const chosen = groundSide(c.chosen, c.chosen_origin, timeOf(c.chosen_origin), c.about, ingredients, s)
     const other = groundSide(c.other, c.other_origin, timeOf(c.other_origin), c.about, ingredients, s)
     if (!chosen && !other) return
+    // 근거 없는 쪽이 숫자 말이면 덧붙임으로 바꿔 화면에 내지 않는다. 충돌째 뺀다(글 쪽만 덧붙임으로 남긴다)
+    if ((!chosen && hasNumber(c.chosen)) || (!other && hasNumber(c.other))) return
     const time = [chosen, other].map((x) => x?.at ?? null).find((t) => t !== null) ?? null
     map.set(i, kept.length)
     kept.push({

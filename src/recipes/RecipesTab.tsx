@@ -82,6 +82,7 @@ export function RecipesTab({ householdId, userId, store: injected }: { household
     setNotice(null)
     try {
       const out = await store.retry(job.id)
+      if (typeof out === 'object') { setOpenReview(false); setOpenId(out.id); void load(); return }
       setNotice(out === 'exists_job' ? '이미 담겨 있어요' : null)
       void load()
     } catch (e) { setNotice(e instanceof Error ? e.message : '다시 하지 못했어요') }

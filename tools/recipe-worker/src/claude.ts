@@ -124,12 +124,16 @@ function rateLimited(text: string, now: Date): RateLimited {
 
 /**
  * 처리기의 환경에 USER·LOGNAME이 없으면 채운다. 없으면 CLI가 키체인의 구독 로그인을 찾지 못해 "로그인 안 됨"으로 끝난다
- * (2026-11-19에 HOME·PATH만 준 환경에서 loggedIn false를 확인했다). 그 밖의 값은 그대로 넘긴다.
+ * (2026-11-19에 HOME·PATH만 준 환경에서 loggedIn false를 확인했다). ANTHROPIC_API_KEY·ANTHROPIC_AUTH_TOKEN·ANTHROPIC_BASE_URL은 뺀다(인증·요금이 구독에서 벗어나지 않게). 그 밖의 값은 그대로 넘긴다.
  */
 export function claudeEnv(base: NodeJS.ProcessEnv = process.env, user: () => string = () => userInfo().username): NodeJS.ProcessEnv {
-  if (base.USER && base.LOGNAME) return base
-  const name = base.USER ?? base.LOGNAME ?? user()
-  return { ...base, USER: base.USER ?? name, LOGNAME: base.LOGNAME ?? name }
+  const env: NodeJS.ProcessEnv = { ...base }
+  // 셸에 남은 키·주소가 구독 로그인 대신 API 요금이나 다른 주소로 가지 않게 뺀다
+  for (const k of ['ANTHROPIC_API_KEY', 'ANTHROPIC_AUTH_TOKEN', 'ANTHROPIC_BASE_URL']) delete env[k]
+  const name = env.USER ?? env.LOGNAME ?? user()
+  env.USER = env.USER ?? name
+  env.LOGNAME = env.LOGNAME ?? name
+  return env
 }
 
 export function createClaudeRun(cfg: WorkerConfig, exec: ExecLike = execFile as unknown as ExecLike, now: () => Date = () => new Date()): ClaudeRun {

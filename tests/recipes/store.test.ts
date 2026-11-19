@@ -47,6 +47,18 @@ describe('주소 담기', () => {
     a.f.setRpc('retry_job', { data: false, error: null })
     expect(await a.store.retry('j1')).toBe('unchanged')
   })
+  it('다시 하기: 같은 글이 이미 레시피북에 있으면 다시 돌리지 않고 그 레시피를 알려 준다(보관한 것은 아님)', async () => {
+    const seed = (status: string) => ({
+      'recipe.inbox': [{ id: 'j1', household_id: H, source_key: 'youtube:AkX6uA4BaDs', state: 'failed' }],
+      'recipe.recipes': [{ id: 'r1', household_id: H, source_key: 'youtube:AkX6uA4BaDs', status }],
+    })
+    const a = mk(seed('saved'))
+    expect(await a.store.retry('j1')).toEqual({ kind: 'exists_recipe', id: 'r1' })
+    expect(a.f.rpcs).toEqual([])
+    const b = mk(seed('archived'))
+    expect(await b.store.retry('j1')).toBe('retried')
+    expect(b.f.rpcs).toEqual([{ name: 'retry_job', args: { p_job: 'j1' } }])
+  })
 })
 
 describe('만들 수 있는 것', () => {
@@ -118,10 +130,10 @@ describe('고친 곳 되돌리기(사람의 고름: 출처 user, 영상 시각 �
     expect((f.tables['recipe.recipes'][0].corrections as unknown[]).length).toBe(4)
     expect(f.tables['recipe.ingredients'][1]).toMatchObject({ origin: 'user', at_seconds: null })
   })
-  it("'null' before는 null로. 단계 타이머·인분·용어 풀이도 되돌리면 출처는 user", async () => {
+  it("'null' before는 null로. 단계 타이머(단계 출처는 그대로)·인분·용어 풀이도 되돌리면 출처는 user", async () => {
     const { f, store } = recipeWithCorrections()
     await store.revertCorrection('r1', 3)
-    expect(f.tables['recipe.steps'][0]).toMatchObject({ timer_seconds: null, origin: 'user' })
+    expect(f.tables['recipe.steps'][0]).toMatchObject({ timer_seconds: null, origin: 'asr' }) // 타이머만 되돌린다. 단계 출처는 그대로
     await store.revertCorrection('r1', 3) // 지운 줄 다음 순번이 당겨져 인분 고침이 된다
     expect(f.tables['recipe.recipes'][0]).toMatchObject({ servings: 4, servings_origin: 'user' })
     await store.revertCorrection('r1', 3) // 용어 풀이 출처 고침
@@ -160,6 +172,31 @@ describe('고친 곳 되돌리기(사람의 고름: 출처 user, 영상 시각 �
     const other = seed('컵')
     await other.store.revertCorrection('r1', 0)
     expect(other.f.tables['recipe.ingredients'][0]).toMatchObject({ amount: 1, unit: '큰술', origin: 'user', at_seconds: null })
+  })
+  it('단위가 통째로 붙어 적힌 값("1봉지(100g)", "1개(중)")도 되돌린다: 단위는 줄 그대로, 수만 읽는다', async () => {
+    for (const unit of ['봉지(100g)', '개(중)', '컵(200ml)']) {
+      const { f, store } = mk({
+        'recipe.recipes': [{ id: 'r1', household_id: H, status: 'saved', glossary: [], review_items: [],
+          corrections: [{ target: 'ingredients[0].amount', before: `1${unit}`, after: '2', origin: 'screen', at_seconds: 120, method: 'rule' }] }],
+        'recipe.ingredients': [{ id: 'g1', household_id: H, recipe_id: 'r1', position: 1, name: '감자', amount: 2, unit, origin: 'screen', at_seconds: 120 }],
+      })
+      await store.revertCorrection('r1', 0)
+      expect(f.tables['recipe.ingredients'][0], unit).toMatchObject({ amount: 1, unit, origin: 'user', at_seconds: null })
+    }
+  })
+  it('타이머 되돌리기는 타이머만 바꾸고 단계 출처는 건드리지 않는다. 덧붙임 단계에는 타이머를 둘 수 없어 되돌리지 않는다', async () => {
+    const seed = (origin: string) => mk({
+      'recipe.recipes': [{ id: 'r1', household_id: H, status: 'saved', glossary: [], review_items: [],
+        corrections: [{ target: 'steps[0].timer_seconds', before: '180', after: null, origin: null, at_seconds: null, method: 'rule' }] }],
+      'recipe.steps': [{ id: 's0', household_id: H, recipe_id: 'r1', position: 1, title: '뜸', body: '뜸 들인다', timer_seconds: null, origin }],
+    })
+    const ok = seed('screen')
+    await ok.store.revertCorrection('r1', 0)
+    expect(ok.f.tables['recipe.steps'][0]).toMatchObject({ timer_seconds: 180, origin: 'screen' })
+    const ed = seed('editor')
+    await expect(ed.store.revertCorrection('r1', 0)).rejects.toThrow('되돌릴 수 없어요')
+    expect(ed.f.tables['recipe.steps'][0]).toMatchObject({ timer_seconds: null, origin: 'editor' })
+    expect((ed.f.tables['recipe.recipes'][0].corrections as unknown[]).length).toBe(1)
   })
   it('숫자 분량 옆의 덧붙인 분량, 영상 밖 시각 고침은 되돌리지 않는다', async () => {
     const { store } = mk({

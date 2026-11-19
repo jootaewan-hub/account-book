@@ -9,7 +9,8 @@ import type { ExportIssue } from '../../../supabase/functions/_shared/recipeWork
 import { groceryCategoryFor, nameKey, type PantryEntry } from './groceryLink'
 
 export type AddUrlResult = { kind: 'added' | 'exists_recipe' | 'exists_job' | 'invalid'; id?: string }
-export type RetryResult = 'retried' | 'exists_job' | 'unchanged'
+/** exists_recipe: 그 사이 같은 글이 레시피북에 들어와 있어 다시 돌리지 않았다(그 레시피를 연다) */
+export type RetryResult = 'retried' | 'exists_job' | 'unchanged' | { kind: 'exists_recipe'; id: string }
 export type ReviewChoice = { value: string; origin: Origin; at_seconds: number | null }
 export type PantryState = 'have' | 'always'
 export type PantrySource = 'manual' | 'grocery'
@@ -130,7 +131,12 @@ function setValue(edits: Edits, t: Exclude<Target, { kind: 'conflicts' }>, field
   }
   if (field === 'amount' || field === 'suggested_amount') {
     if (blank(raw)) { edits.set(t, field, null); return }
-    const p = parseAmountValue(raw!)
+    let p = parseAmountValue(raw!)
+    if (!p && rowUnit && raw!.endsWith(rowUnit)) {
+      // "1봉지(100g)"처럼 줄의 단위가 통째로 붙은 값(formatAmountValue가 쓴 꼴)은 단위를 떼고 수만 읽고 줄 단위는 그대로 둔다
+      const n = parseAmountValue(raw!.slice(0, raw!.length - rowUnit.length))
+      if (n && n.unit === null) p = { amount: n.amount, unit: rowUnit }
+    }
     if (!p) throw new Error(UNREADABLE)
     edits.set(t, field, p.amount)
     const unitField = field === 'amount' ? 'unit' : 'suggested_unit'
@@ -318,6 +324,14 @@ export function createRecipeStore(client: SupabaseClient, householdId: string, u
       return { kind: 'added', id: (data as { id: string } | null)?.id }
     },
     async retry(jobId) {
+      // 그 사이 같은 글이 레시피로 들어와 있으면 다시 돌리지 않고 그 레시피를 연다(addUrl과 같다)
+      const job = checked(await r().from('inbox').select('source_key').eq('household_id', householdId).eq('id', jobId)) as { source_key: string }[]
+      const key = job[0]?.source_key
+      if (key) {
+        const found = checked(await recipes().select('id,status').eq('household_id', householdId).eq('source_key', key)) as { id: string; status: string }[]
+        const live = found.find((x) => x.status !== 'archived')
+        if (live) return { kind: 'exists_recipe', id: live.id }
+      }
       const { data, error } = await r().rpc('retry_job', { p_job: jobId })
       if (error) {
         if (error.code === '23505') return 'exists_job'
@@ -382,7 +396,12 @@ export function createRecipeStore(client: SupabaseClient, householdId: string, u
         setValue(edits, ti, ti.field, ci.before, await unitFor(recipeId, ti, ti.field))
         valueTargets.add(ci.target)
       }
-      markUser(edits, t, t.field)
+      if (t.kind === 'steps' && t.field === 'timer_seconds') {
+        // 타이머만 되돌린다. 단계 자체의 출처는 건드리지 않는다(모델의 덧붙임 단계 글이 "직접 고침"이 되지 않게).
+        // 덧붙임 단계에는 타이머를 둘 수 없다(DB 제약)
+        const st = checked(await r().from('steps').select('position,origin').eq('household_id', householdId).eq('recipe_id', recipeId).order('position', { ascending: true })) as unknown as { origin: string }[]
+        if (st[t.index]?.origin === 'editor') throw new Error('덧붙인 단계에는 타이머를 둘 수 없어서 되돌릴 수 없어요.')
+      } else markUser(edits, t, t.field)
       const patch: RowPatch = { ...edits.recipe, corrections: list.filter((_, i) => !group.has(i)) }
       // 되돌린 값을 가리키던 확인 항목("출처에서 숫자를 찾지 못함" 따위)은 사람이 정했으니 지우고, 그 줄에 남은 것이 없으면 표시도 끈다
       const items = (cur.review_items ?? []) as ReviewItem[]
