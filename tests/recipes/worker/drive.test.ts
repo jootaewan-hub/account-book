@@ -26,7 +26,7 @@ type Call = { method: string; url: string; body: string; auth: string | null }
 type FakeFile = { id: string; name: string; mime: string; parents: string[]; trashed: boolean; content: string }
 
 /** 가짜 구글. 실제 네트워크는 쓰지 않는다 */
-function fakeGoogle(opts: { sheets403?: boolean; refreshStatus?: number; reject401Once?: boolean } = {}) {
+function fakeGoogle(opts: { sheets403?: boolean; refreshStatus?: number; reject401Once?: boolean; uploadStatus?: number; deleteStatus?: number } = {}) {
   const files: FakeFile[] = []
   const calls: Call[] = []
   const sheetValues: string[][] = []
@@ -71,6 +71,7 @@ function fakeGoogle(opts: { sheets403?: boolean; refreshStatus?: number; reject4
       return res(404)
     }
     if (u.pathname.startsWith('/upload/drive/v3/files')) {
+      if (opts.uploadStatus) return res(opts.uploadStatus, { error: 'x' })
       const { meta, content } = parseMulti(body)
       const id = u.pathname.split('/')[5]
       if (method === 'POST') {
@@ -107,6 +108,11 @@ function fakeGoogle(opts: { sheets403?: boolean; refreshStatus?: number; reject4
       const f = files.find((x) => x.id === one[1])
       if (!f) return res(404)
       if (method === 'GET') return res(200, { parents: f.parents })
+      if (method === 'DELETE') {
+        if (opts.deleteStatus) return res(opts.deleteStatus, { error: 'x' })
+        files.splice(files.indexOf(f), 1)
+        return new Response(null, { status: 204 })
+      }
       if (method === 'PATCH') { if (JSON.parse(body).trashed) f.trashed = true; return res(200, { id: f.id }) }
     }
     return res(404)
@@ -135,6 +141,29 @@ describe('검색어 이스케이프', () => {
     await mk(g).ensureFolder([`엄마's \\ 레시피`])
     const q = new URL(g.calls.find((c) => c.method === 'GET' && c.url.includes('/drive/v3/files?'))!.url).searchParams.get('q')!
     expect(q).toContain(String.raw`name = '엄마\'s \\ 레시피'`)
+  })
+})
+
+describe('Drive.probe(설치 점검)', () => {
+  it('시험 파일을 만들고 DELETE로 지운다(휴지통에 남기지 않는다)', async () => {
+    const g = fakeGoogle()
+    await mk(g).probe()
+    expect(g.files.filter((f) => f.mime !== 'application/vnd.google-apps.folder')).toEqual([])
+    expect(g.calls.some((c) => c.method === 'DELETE' && /\/drive\/v3\/files\/f\d+$/.test(c.url))).toBe(true)
+    expect(g.calls.some((c) => c.method === 'PATCH')).toBe(false)
+  })
+  it('만들었는데 지우지 못하면 실패로 알리고 시험 파일 이름을 적는다', async () => {
+    const g = fakeGoogle({ deleteStatus: 500 })
+    const e = await mk(g).probe().then(() => null, (x: unknown) => x as Error)
+    expect(e).toBeInstanceOf(Error)
+    expect(e!.message).toContain('지우지 못했어요')
+    expect(e!.message).toContain('점검용 시험 파일')
+    expect(e!.message).toContain('500')
+    expect(g.files.some((f) => f.name === '점검용 시험 파일')).toBe(true)
+  })
+  it('403이면 실패로 올라온다', async () => {
+    const g = fakeGoogle({ uploadStatus: 403 })
+    await expect(mk(g).probe()).rejects.toThrow('403')
   })
 })
 

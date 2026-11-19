@@ -1,6 +1,6 @@
 // 옵시디언 보관함에 레시피 글을 쓰고, 분류가 바뀌면 옮기고, 지우면 .trash/로 보낸다. 쓰기는 모두 임시 파일 → 이름 바꾸기.
 import { randomBytes } from 'node:crypto'
-import { mkdir, readFile, rename, rmdir, stat, unlink, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, realpath, rename, rmdir, stat, unlink, writeFile } from 'node:fs/promises'
 import { basename, dirname, join, relative, resolve, sep } from 'node:path'
 import { fileTitle, folderPath, renderMarkdown, videoId, type StoredRecipe } from './render.ts'
 
@@ -113,4 +113,15 @@ export async function trashObsidian(vaultDir: string, relPath: string): Promise<
   for (let n = 2; await exists(to); n++) to = join(trash, `${stem} ${n}${ext}`)
   await rename(from, to)
   await pruneEmpty(vaultDir, dirname(from))
+}
+
+/**
+ * 설치 점검용: 보관함 맨 위에 시험 파일을 (임시 파일 → 이름 바꾸기로) 쓰고 지운다.
+ * 보관함 경로는 실제 경로로 풀어 그 안에만 쓴다. 쓰다 실패하면 임시 파일은 atomicWrite가 지운다.
+ */
+export async function probeObsidian(vaultDir: string, now: () => number = Date.now): Promise<void> {
+  const real = await realpath(vaultDir)
+  const file = inside(real, `.recipe-worker-점검-${now()}.tmp`)
+  await atomicWrite(file, 'ok')
+  await unlink(file)
 }

@@ -1,11 +1,11 @@
-import { mkdtemp, readFile, readdir, rm, stat } from 'node:fs/promises'
+import { chmod, mkdir, mkdtemp, readFile, readdir, rm, stat, symlink } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { difficulty } from '../../../supabase/functions/_shared/recipeClassify'
 import type { RecipeV2 } from '../../../supabase/functions/_shared/recipeContract'
 import type { StoredRecipe } from '../../../supabase/functions/_shared/recipeStored'
-import { trashObsidian, writeObsidian } from '../../../tools/recipe-worker/src/export/obsidian'
+import { probeObsidian, trashObsidian, writeObsidian } from '../../../tools/recipe-worker/src/export/obsidian'
 import { mdLink, renderHtml, renderMarkdown, watchUrl } from '../../../tools/recipe-worker/src/export/render'
 import gold from '../../../docs/recipes/contract/examples/youtube-AkX6uA4BaDs.json'
 
@@ -163,5 +163,49 @@ describe('writeObsidian / trashObsidian', () => {
     expect((await readdir(join(vault, '.trash'))).length).toBe(2)
     await expect(trashObsidian(vault, '../x.md')).rejects.toThrow()
     await trashObsidian(vault, '레시피/없음.md')
+  })
+})
+
+describe('probeObsidian', () => {
+  it('보관함에 시험 파일을 쓰고 지우며 흔적이 없다', async () => {
+    const d = await mkdtemp(join(tmpdir(), 'probe-'))
+    try {
+      await probeObsidian(d, () => 42)
+      expect(await readdir(d)).toEqual([])
+    } finally {
+      await rm(d, { recursive: true, force: true })
+    }
+  })
+  it('없는 폴더면 실패한다(폴더를 새로 만들지 않는다)', async () => {
+    const d = await mkdtemp(join(tmpdir(), 'probe-'))
+    try {
+      await expect(probeObsidian(join(d, 'nope'))).rejects.toThrow()
+      expect(await readdir(d)).toEqual([])
+    } finally {
+      await rm(d, { recursive: true, force: true })
+    }
+  })
+  it('바로 가기(심볼릭 링크)여도 실제 폴더 안에만 쓰고 임시 파일을 남기지 않는다', async () => {
+    const d = await mkdtemp(join(tmpdir(), 'probe-'))
+    try {
+      await mkdir(join(d, 'real'))
+      await symlink(join(d, 'real'), join(d, 'link'))
+      await probeObsidian(join(d, 'link'))
+      expect(await readdir(join(d, 'real'))).toEqual([])
+    } finally {
+      await rm(d, { recursive: true, force: true })
+    }
+  })
+  it('쓸 수 없는 폴더면 실패하고 임시 파일을 남기지 않는다', async () => {
+    const d = await mkdtemp(join(tmpdir(), 'probe-'))
+    try {
+      await chmod(d, 0o500)
+      await expect(probeObsidian(d)).rejects.toThrow()
+      await chmod(d, 0o700)
+      expect(await readdir(d)).toEqual([])
+    } finally {
+      await chmod(d, 0o700).catch(() => {})
+      await rm(d, { recursive: true, force: true })
+    }
   })
 })

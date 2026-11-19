@@ -1,7 +1,15 @@
+import { homedir } from 'node:os'
 import { describe, expect, it, vi } from 'vitest'
 import type { WorkerConfig } from '../../../tools/recipe-worker/src/config'
 import { doctor, type DoctorDeps } from '../../../tools/recipe-worker/src/doctor'
-import { renderPlist } from '../../../tools/recipe-worker/src/launchd'
+import { BASE_PATH, renderPlist, servicePathDirs } from '../../../tools/recipe-worker/src/launchd'
+
+describe('servicePathDirs', () => {
+  it('plist PATH와 같은 목록을 쓴다', () => {
+    expect(servicePathDirs(['/x'])).toEqual([...BASE_PATH, '/x'])
+    expect(renderPlist({ label: 'a', node: '/n', script: '/s', logDir: '/l', extraPath: ['/x'] })).toContain(`<string>${servicePathDirs(['/x']).join(':')}</string>`)
+  })
+})
 
 describe('renderPlist', () => {
   const base = { label: 'local.recipe-worker', node: '/opt/homebrew/bin/node', script: '/Users/x/Library/Application Support/recipe-worker/tools/recipe-worker/src/cli.ts', logDir: '/Users/x/Library/Logs/recipe-worker' }
@@ -61,7 +69,7 @@ const cfg: WorkerConfig = {
 const EXEC = 0o100755
 const SECRET = 'SECRET-VALUE-XYZ'
 
-function mkDeps(over: { files?: Record<string, number>; ping?: DoctorDeps['ping']; write?: DoctorDeps['writeFile']; probe?: () => Promise<void> } = {}) {
+function mkDeps(over: { files?: Record<string, number>; ping?: DoctorDeps['ping']; vault?: DoctorDeps['probeVault']; probe?: () => Promise<void> } = {}) {
   const files: Record<string, number> = {
     [cfg.ytDlpPath]: EXEC, '/opt/homebrew/bin/deno': EXEC, [cfg.ffmpegPath]: EXEC, [cfg.whisperCliPath]: EXEC,
     [cfg.whisperModel]: 0o100644, [cfg.ocrPath]: EXEC, [cfg.claudePath]: EXEC,
@@ -72,8 +80,7 @@ function mkDeps(over: { files?: Record<string, number>; ping?: DoctorDeps['ping'
   const deps = {
     stat: (p: string) => (p in files ? { mode: files[p] } : null),
     readText: () => SECRET,
-    writeFile: vi.fn<DoctorDeps['writeFile']>(over.write ?? (async () => {})),
-    unlink: vi.fn<DoctorDeps['unlink']>(async () => {}),
+    probeVault: vi.fn<DoctorDeps['probeVault']>(over.vault ?? (async () => {})),
     ping: vi.fn<DoctorDeps['ping']>(over.ping ?? (async () => {})),
     drive: () => ({ probe }),
     now: () => 1_700_000_000_000,
@@ -92,10 +99,8 @@ describe('doctor', () => {
     const r = await doctor(cfg, deps)
     expect(r.filter((c) => !c.ok)).toEqual([])
     expect(deps.ping).toHaveBeenCalledWith(cfg.endpoint, SECRET)
-    expect(deps.writeFile).toHaveBeenCalledTimes(1)
-    expect(deps.unlink).toHaveBeenCalledTimes(1)
-    expect(deps.unlink.mock.calls[0][0]).toBe(deps.writeFile.mock.calls[0][0])
-    expect(deps.writeFile.mock.calls[0][0].startsWith('/h/vault/')).toBe(true)
+    expect(deps.probeVault).toHaveBeenCalledTimes(1)
+    expect(deps.probeVault.mock.calls[0][0]).toBe('/h/vault')
     expect(probe).toHaveBeenCalledTimes(1)
   })
   it('비밀 파일이 644면 "권한이 너무 열려 있어요"로 잡는다', async () => {
@@ -118,6 +123,20 @@ describe('doctor', () => {
     expect(c.ok).toBe(false)
     expect(c.detail).toContain('실행')
   })
+  it('deno가 서비스 PATH 밖(~/.deno/bin)에만 있으면 실패이고 어디 있는지 알려 준다', async () => {
+    const { deps } = mkDeps()
+    const off = `${homedir()}/.deno/bin/deno`
+    const r = await doctor(cfg, { ...deps, stat: (p: string) => (p === off ? { mode: EXEC } : p.endsWith('/deno') ? null : deps.stat(p)) })
+    const c = find(r, 'deno')
+    expect(c.ok).toBe(false)
+    expect(c.detail).toContain(off)
+    expect(c.detail).toContain('PATH')
+  })
+  it('deno가 claude가 있는 폴더(plist PATH에 더해지는 곳)에 있으면 통과다', async () => {
+    const { deps } = mkDeps()
+    const r = await doctor(cfg, { ...deps, stat: (p: string) => (p === '/opt/homebrew/bin/deno' ? null : p === '/h/.local/bin/deno' ? { mode: EXEC } : deps.stat(p)) })
+    expect(find(r, 'deno')).toMatchObject({ ok: true, detail: '/h/.local/bin/deno' })
+  })
   it('deno가 어디에도 없으면 실패다', async () => {
     const { deps } = mkDeps()
     const r = await doctor(cfg, { ...deps, stat: (p: string) => (p.endsWith('/deno') ? null : deps.stat(p)) })
@@ -139,13 +158,13 @@ describe('doctor', () => {
     const { deps } = mkDeps()
     const c = find(await doctor({ ...cfg, obsidianDir: null }, deps), '옵시디언')
     expect(c).toMatchObject({ ok: false, detail: '옵시디언 폴더를 정하지 않았어요' })
-    expect(deps.writeFile).not.toHaveBeenCalled()
+    expect(deps.probeVault).not.toHaveBeenCalled()
   })
   it('옵시디언 폴더에 쓰지 못하면 실패다', async () => {
-    const { deps } = mkDeps({ write: async () => { throw new Error('EPERM') } })
+    const { deps } = mkDeps({ vault: async () => { throw new Error('EPERM') } })
     const c = find(await doctor(cfg, deps), '옵시디언')
     expect(c.ok).toBe(false)
-    expect(deps.unlink).not.toHaveBeenCalled()
+    expect(c.detail).toContain('EPERM')
   })
   it('드라이브 토큰 파일을 정하지 않았거나 파일이 없으면 연결 전이라고 한다', async () => {
     const a = mkDeps()

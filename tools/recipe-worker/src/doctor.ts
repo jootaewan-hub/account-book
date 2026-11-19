@@ -1,20 +1,21 @@
 // 설치 점검: 필요한 프로그램·파일이 있는지, 서버와 이어지는지, 비밀 파일 권한, 옵시디언·드라이브에 쓸 수 있는지.
 // 비밀 값은 어떤 결과 글에도 넣지 않는다. 파일·네트워크는 deps로 바꿔 끼운다(시험은 가짜로).
 import { readFileSync, statSync } from 'node:fs'
-import { unlink, writeFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import { createApi } from './api.ts'
 import type { WorkerConfig } from './config.ts'
 import { createDrive } from './export/drive.ts'
+import { probeObsidian } from './export/obsidian.ts'
+import { servicePathDirs } from './launchd.ts'
 
 export type Check = { name: string; ok: boolean; detail: string }
 
 export type DoctorDeps = {
   stat: (path: string) => { mode: number } | null
   readText: (path: string) => string
-  writeFile: (path: string, text: string) => Promise<void>
-  unlink: (path: string) => Promise<void>
+  /** 보관함에 시험 파일을 쓰고 지운다 */
+  probeVault: (dir: string, now: () => number) => Promise<void>
   ping: (endpoint: string, secret: string) => Promise<void>
   drive: (cfg: WorkerConfig) => { probe: () => Promise<void> }
   now: () => number
@@ -38,8 +39,7 @@ export const realDeps: DoctorDeps = {
     }
   },
   readText: (p) => readFileSync(p, 'utf8'),
-  writeFile: (p, t) => writeFile(p, t, { encoding: 'utf8', flag: 'wx' }),
-  unlink: (p) => unlink(p),
+  probeVault: (dir, now) => probeObsidian(dir, now),
   ping: (endpoint, secret) => createApi(endpoint, secret).ping(packageVersion()),
   drive: (cfg) => createDrive(cfg.driveTokenFile ?? '', fetch, { cacheDir: cfg.cacheDir }),
   now: Date.now,
@@ -48,9 +48,10 @@ export const realDeps: DoctorDeps = {
 const isFile = (m: number) => (m & 0o170000) === 0o100000
 const isExec = (m: number) => isFile(m) && (m & 0o111) !== 0
 
-function denoCandidates(): string[] {
-  return ['/opt/homebrew/bin/deno', '/usr/local/bin/deno', join(homedir(), '.deno/bin/deno')]
-}
+/** 서비스(launchd)의 PATH와 같은 폴더 목록. plist는 claude가 있는 폴더를 더한다 */
+const servicePath = (cfg: WorkerConfig): string[] => servicePathDirs([dirname(cfg.claudePath)])
+/** PATH에는 없지만 deno를 흔히 두는 곳(찾았을 때 알려 주기만 한다) */
+const OFF_PATH_DENO = [join(homedir(), '.deno/bin/deno')]
 
 /** 비밀 값이 글에 새지 않게 오류 글에서 지운다 */
 function clean(e: unknown, secret: string | null): string {
@@ -70,12 +71,18 @@ export async function doctor(cfg: WorkerConfig, deps: DoctorDeps = realDeps): Pr
     else add(name, true, path)
   }
   program('yt-dlp', cfg.ytDlpPath)
-  const deno = denoCandidates().find((p) => {
-    const s = deps.stat(p)
-    return s !== null && isExec(s.mode)
-  })
-  if (deno) add('deno', true, deno)
-  else add('deno', false, `없어요(yt-dlp가 필요로 해요). 찾아본 곳: ${denoCandidates().join(', ')}`)
+  const denoOk = (p: string) => {
+    const st = deps.stat(p)
+    return st !== null && isExec(st.mode)
+  }
+  const dirs = servicePath(cfg)
+  const denoOnPath = dirs.map((d) => join(d, 'deno')).find(denoOk)
+  if (denoOnPath) add('deno', true, denoOnPath)
+  else {
+    const off = OFF_PATH_DENO.find(denoOk)
+    if (off) add('deno', false, `${off} 에 있지만 서비스의 PATH(${dirs.join(':')})에는 없어서 yt-dlp가 못 찾아요. 심볼릭 링크를 PATH 안(예: /opt/homebrew/bin)에 두거나 설치 위치를 옮겨 주세요`)
+    else add('deno', false, `없어요(yt-dlp가 필요로 해요). 서비스의 PATH에서 찾아본 폴더: ${dirs.join(', ')}`)
+  }
   program('ffmpeg', cfg.ffmpegPath)
   program('whisper-cli', cfg.whisperCliPath)
   const model = deps.stat(cfg.whisperModel)
@@ -111,17 +118,11 @@ export async function doctor(cfg: WorkerConfig, deps: DoctorDeps = realDeps): Pr
 
   if (!cfg.obsidianDir) add('옵시디언 폴더', false, '옵시디언 폴더를 정하지 않았어요')
   else {
-    const file = join(cfg.obsidianDir, `.recipe-worker-점검-${deps.now()}.tmp`)
     try {
-      await deps.writeFile(file, 'ok')
-      try {
-        await deps.unlink(file)
-        add('옵시디언 폴더', true, '시험 파일을 쓰고 지웠어요')
-      } catch (e) {
-        add('옵시디언 폴더', false, `시험 파일을 썼지만 지우지 못했어요: ${clean(e, null)}`)
-      }
+      await deps.probeVault(cfg.obsidianDir, deps.now)
+      add('옵시디언 폴더', true, '시험 파일을 쓰고 지웠어요')
     } catch (e) {
-      add('옵시디언 폴더', false, `쓰지 못했어요: ${clean(e, null)}`)
+      add('옵시디언 폴더', false, `쓰거나 지우지 못했어요: ${clean(e, null)}`)
     }
   }
 
@@ -129,7 +130,7 @@ export async function doctor(cfg: WorkerConfig, deps: DoctorDeps = realDeps): Pr
   else {
     try {
       await deps.drive(cfg).probe()
-      add('구글 드라이브', true, '시험 파일을 만들고 휴지통으로 보냈어요')
+      add('구글 드라이브', true, '시험 파일을 만들고 지웠어요')
     } catch (e) {
       add('구글 드라이브', false, clean(e, null))
     }

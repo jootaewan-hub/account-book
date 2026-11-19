@@ -14,6 +14,7 @@ const SHEETS = 'https://sheets.googleapis.com/v4/spreadsheets'
 const FOLDER_MIME = 'application/vnd.google-apps.folder'
 const DOC_MIME = 'application/vnd.google-apps.document'
 const SHEET_MIME = 'application/vnd.google-apps.spreadsheet'
+const PROBE_NAME = '점검용 시험 파일'
 const LIST_NAME = '레시피 목록'
 const CSV_NAME = `${LIST_NAME}.csv`
 const ROOT_FOLDER = '레시피'
@@ -38,7 +39,7 @@ export type Drive = {
   trash(id: string): Promise<void>
   upsertListRow(r: StoredRecipe, docId?: string | null): Promise<void>
   removeListRow(recipeId: string): Promise<void>
-  /** 앱 폴더에 아주 작은 시험 파일을 만들고 휴지통으로 보낸다(설치 점검용). 막히면 던진다 */
+  /** 앱 폴더에 아주 작은 시험 파일을 만들고 지운다(설치 점검용). 막히거나 지우지 못하면 던진다 */
   probe(): Promise<void>
 }
 
@@ -250,9 +251,18 @@ export function createDrive(tokenFile: string, fetchImpl: typeof fetch = fetch, 
 
   async function probe(): Promise<void> {
     const folderId = await ensureFolder([ROOT_FOLDER])
-    const m = multipart({ name: '.점검용 시험 파일', parents: [folderId] }, 'ok', 'text/plain')
+    const m = multipart({ name: PROBE_NAME, parents: [folderId] }, 'ok', 'text/plain')
     const created = await json<{ id: string }>(await call(`${UPLOAD}?uploadType=multipart`, { method: 'POST', ...m }))
-    await trash(created.id)
+    // 이 앱이 방금 만든 빈 시험 파일이다. 휴지통에 흔적이 남지 않게 아예 지운다(404는 이미 없는 것)
+    let status: number | null = null
+    try {
+      const res = await call(`${FILES}/${encodeURIComponent(created.id)}`, { method: 'DELETE' })
+      if (res.ok || res.status === 404) return
+      status = res.status
+    } catch {
+      // 아래에서 알린다
+    }
+    throw new Error(`시험 파일을 만들었지만 지우지 못했어요${status ? `(${status})` : ''}. 드라이브 '${ROOT_FOLDER}' 폴더의 '${PROBE_NAME}'을 직접 지워 주세요`)
   }
 
   return {

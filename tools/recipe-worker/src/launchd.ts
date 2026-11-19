@@ -1,5 +1,11 @@
 // launchd 사용자 에이전트 plist를 글로 만든다. 경로는 모두 절대 경로, 셸 별칭은 쓰지 않는다.
-const BASE_PATH = ['/opt/homebrew/bin', '/usr/local/bin', '/usr/bin', '/bin']
+/** 서비스(launchd)가 쓰는 PATH의 기본 폴더. 점검도 같은 목록으로 찾는다 */
+export const BASE_PATH = ['/opt/homebrew/bin', '/usr/local/bin', '/usr/bin', '/bin']
+
+/** plist의 PATH 값이 되는 폴더 목록(기본 + 더한 폴더) */
+export function servicePathDirs(extraPath: string[] = []): string[] {
+  return [...BASE_PATH, ...extraPath]
+}
 
 export type PlistOptions = {
   label: string
@@ -23,7 +29,7 @@ export function renderPlist(o: PlistOptions): string {
   const node = absolute('node', o.node)
   const script = absolute('script', o.script)
   const logDir = absolute('logDir', o.logDir).replace(/\/+$/, '')
-  const path = [...BASE_PATH, ...(o.extraPath ?? []).map((p) => absolute('PATH', p))].join(':')
+  const path = servicePathDirs((o.extraPath ?? []).map((p) => absolute('PATH', p))).join(':')
   return `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">

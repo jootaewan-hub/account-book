@@ -44,12 +44,40 @@ fi
 SWIFTC=/usr/bin/swiftc
 [ -x "$SWIFTC" ] || { echo "swiftc 를 찾을 수 없어요(xcode-select --install)" >&2; exit 1; }
 
-mkdir -p "$HOME_DIR" "$AGENTS_DIR" "$LOG_DIR" "$CONFIG_DIR/bin" "$CONFIG_DIR/models"
+# 지우기 전에 경로가 안전한지 본다(비었거나, /, $HOME, 절대 경로가 아니면 지우지 않는다)
+safe_rm() {
+  local p="$1"
+  case "$p" in
+    ''|'/'|"$HOME"|"$HOME/") echo "지우면 안 되는 경로예요: '$p'" >&2; exit 1 ;;
+    /*) ;;
+    *) echo "절대 경로가 아니에요: '$p'" >&2; exit 1 ;;
+  esac
+  rm -rf -- "$p"
+}
+case "$HOME_DIR" in
+  ''|'/'|"$HOME"|"$HOME/") echo "설치 폴더가 올바르지 않아요: '$HOME_DIR'" >&2; exit 1 ;;
+  /*) ;;
+  *) echo "설치 폴더는 절대 경로여야 해요: '$HOME_DIR'" >&2; exit 1 ;;
+esac
+HOME_DIR="${HOME_DIR%/}"
+
+mkdir -p "$(dirname "$HOME_DIR")" "$AGENTS_DIR" "$LOG_DIR" "$CONFIG_DIR/bin" "$CONFIG_DIR/models"
 chmod 700 "$CONFIG_DIR"
 
+# 새 사본은 설치 폴더와 같은 곳(같은 파일 시스템)의 임시 폴더에서 끝까지 만들고, 마지막에 이름 바꾸기로 바꾼다.
+# 어느 단계든 실패하면 지금 쓰는 설치는 그대로 남는다.
+STAGE="$(mktemp -d "$(dirname "$HOME_DIR")/.recipe-worker-stage.XXXXXX")"
+OCR_NEW="$CONFIG_DIR/bin/.ocr.new.$$"
+PLIST_NEW=""
+cleanup() {
+  [ -n "${STAGE:-}" ] && safe_rm "$STAGE"
+  rm -f -- "$OCR_NEW"
+  [ -n "${PLIST_NEW:-}" ] && rm -f -- "$PLIST_NEW"
+  return 0
+}
+trap cleanup EXIT
+
 # 1. 그 커밋의 파일만 꺼낸다(작업 폴더의 파일은 쓰지 않는다)
-STAGE="$(mktemp -d "$HOME_DIR/.stage.XXXXXX")"
-trap 'rm -rf "$STAGE"' EXIT
 git -C "$REPO" archive "$COMMIT" -- tools/recipe-worker/package.json tools/recipe-worker/package-lock.json tools/recipe-worker/src 'supabase/functions/_shared/recipe*.ts' | tar -x -C "$STAGE"
 for f in tools/recipe-worker/package.json tools/recipe-worker/package-lock.json tools/recipe-worker/src/cli.ts; do
   [ -e "$STAGE/$f" ] || { echo "그 커밋에 $f 가 없어요" >&2; exit 1; }
@@ -57,16 +85,41 @@ done
 cp "$STAGE/tools/recipe-worker/package.json" "$STAGE/package.json"
 cp "$STAGE/tools/recipe-worker/package-lock.json" "$STAGE/package-lock.json"
 
-# 2. 이전 사본을 바꿔 놓는다(node_modules 는 그대로 두고 npm ci 가 맞춘다)
-rm -rf "$HOME_DIR/tools" "$HOME_DIR/supabase" "$HOME_DIR/package.json" "$HOME_DIR/package-lock.json"
-mv "$STAGE/tools" "$STAGE/supabase" "$STAGE/package.json" "$STAGE/package-lock.json" "$HOME_DIR/"
-printf '%s\n' "$COMMIT" > "$HOME_DIR/COMMIT"
+# 2. 의존성(배포용만). 두 폴더 모두 맨 위 node_modules 의 zod 를 쓴다
+(cd "$STAGE" && npm ci --omit=dev --no-audit --no-fund)
 
-# 3. 의존성(배포용만). 두 폴더 모두 맨 위 node_modules 의 zod 를 쓴다
-(cd "$HOME_DIR" && npm ci --omit=dev --no-audit --no-fund)
+# 3. 화면 글자 읽는 도구(설정 폴더 안에 임시 이름으로 만들어 둔다)
+"$SWIFTC" -O -o "$OCR_NEW" "$STAGE/tools/recipe-worker/src/collect/ocr.swift"
 
-# 4. 화면 글자 읽는 도구
-"$SWIFTC" -O -o "$CONFIG_DIR/bin/ocr" "$HOME_DIR/tools/recipe-worker/src/collect/ocr.swift"
+# 4. plist (claude 가 있는 폴더를 PATH 에 더한다). 새 사본의 launchd.ts 로 만든다
+CLAUDE_DIR="$HOME/.local/bin"
+if CLAUDE_BIN="$(command -v claude 2>/dev/null)"; then CLAUDE_DIR="$(dirname "$CLAUDE_BIN")"; fi
+PLIST="$AGENTS_DIR/$LABEL.plist"
+PLIST_NEW="$PLIST.tmp.$$"
+LAUNCHD_MODULE="file://$STAGE/tools/recipe-worker/src/launchd.ts" LABEL="$LABEL" NODE="$NODE" SCRIPT="$HOME_DIR/tools/recipe-worker/src/cli.ts" LOGDIR="$LOG_DIR" CLAUDE_DIR="$CLAUDE_DIR" \
+  "$NODE" --input-type=module -e "
+const { renderPlist } = await import(process.env.LAUNCHD_MODULE)
+const e = process.env
+process.stdout.write(renderPlist({ label: e.LABEL, node: e.NODE, script: e.SCRIPT, logDir: e.LOGDIR, extraPath: [e.CLAUDE_DIR] }))
+" > "$PLIST_NEW"
+chmod 644 "$PLIST_NEW"
+if command -v plutil >/dev/null 2>&1; then plutil -lint "$PLIST_NEW" >/dev/null; fi
+
+# 5. 다 만들었다. 맨 마지막에 커밋 이름을 적고 이름 바꾸기 두 번으로 바꾼다
+printf '%s\n' "$COMMIT" > "$STAGE/COMMIT"
+OLD="$HOME_DIR.old"
+safe_rm "$OLD"
+if [ -e "$HOME_DIR" ]; then mv -- "$HOME_DIR" "$OLD"; fi
+if ! mv -- "$STAGE" "$HOME_DIR"; then
+  echo "새 사본으로 바꾸지 못해 이전 설치를 되돌려요" >&2
+  if [ -e "$OLD" ]; then mv -- "$OLD" "$HOME_DIR"; fi
+  exit 1
+fi
+STAGE=""
+safe_rm "$OLD"
+mv -f -- "$OCR_NEW" "$CONFIG_DIR/bin/ocr"
+mv -f -- "$PLIST_NEW" "$PLIST"
+PLIST_NEW=""
 
 # 5. 설정 견본(값 없음). 설정 파일은 없을 때만 견본에서 만든다. 비밀 파일은 만들지 않는다
 cat > "$CONFIG_DIR/config.example.json" <<'JSON'
@@ -93,20 +146,6 @@ if [ ! -e "$CONFIG_DIR/config.json" ]; then
 else
   CONFIG_NEW=0
 fi
-
-# 6. plist (claude 가 있는 폴더를 PATH 에 더한다)
-CLAUDE_DIR="$HOME/.local/bin"
-if CLAUDE_BIN="$(command -v claude 2>/dev/null)"; then CLAUDE_DIR="$(dirname "$CLAUDE_BIN")"; fi
-PLIST="$AGENTS_DIR/$LABEL.plist"
-LAUNCHD_MODULE="file://$HOME_DIR/tools/recipe-worker/src/launchd.ts" LABEL="$LABEL" NODE="$NODE" SCRIPT="$HOME_DIR/tools/recipe-worker/src/cli.ts" LOGDIR="$LOG_DIR" CLAUDE_DIR="$CLAUDE_DIR" \
-  "$NODE" --input-type=module -e "
-const { renderPlist } = await import(process.env.LAUNCHD_MODULE)
-const e = process.env
-process.stdout.write(renderPlist({ label: e.LABEL, node: e.NODE, script: e.SCRIPT, logDir: e.LOGDIR, extraPath: [e.CLAUDE_DIR] }))
-" > "$PLIST.tmp"
-mv "$PLIST.tmp" "$PLIST"
-chmod 644 "$PLIST"
-if command -v plutil >/dev/null 2>&1; then plutil -lint "$PLIST" >/dev/null; fi
 
 echo "설치했어요: $COMMIT"
 echo "  설치 폴더: $HOME_DIR"
