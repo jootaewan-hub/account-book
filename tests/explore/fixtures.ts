@@ -42,7 +42,7 @@ export const NOT_REGISTERED = JSON.stringify({
 
 export const NEARBY = JSON.stringify({
   response: { header: { resultCode: '00', resultMsg: 'NORMAL_CODE' }, body: { totalCount: 2, items: [
-    { stationName: '정자동', addr: '경기 성남시 분당구 정자일로 80', tm: 1.4 },
+    { stationName: '예시동', addr: '경기 성남시 분당구 예시로 1', tm: 1.4 },
     { stationName: '수내동', addr: '경기 성남시 분당구 수내로', tm: 2.9 },
   ], pageNo: 1, numOfRows: 10 } },
 })

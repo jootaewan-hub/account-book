@@ -78,14 +78,14 @@ describe('explore-weather: 응답', () => {
     })
     expect(body.air).toEqual({
       status: 'ok',
-      station: { name: '정자동', addr: '경기 성남시 분당구 정자일로 80', distanceKm: 1.4 },
+      station: { name: '예시동', addr: '경기 성남시 분당구 예시로 1', distanceKm: 1.4 },
       measuredAt: '2026-10-28T11:00:00+09:00',
       pm10: { value: 35, grade: '보통' },
       pm25: { value: 18, grade: '보통' },
     })
     expect(urls.find((u) => u.includes('getVilageFcst'))).toContain('base_date=20261028&base_time=0200&nx=62&ny=124')
     expect(urls.find((u) => u.includes('getUltraSrtNcst'))).toContain('base_time=1000')
-    expect(urls.find((u) => u.includes('getMsrstnAcctoRltmMesureDnsty'))).toContain(`stationName=${encodeURIComponent('정자동')}`)
+    expect(urls.find((u) => u.includes('getMsrstnAcctoRltmMesureDnsty'))).toContain(`stationName=${encodeURIComponent('예시동')}`)
     // 응답에 키를 싣지 않는다
     expect(JSON.stringify(body)).not.toContain('serviceKey')
   })

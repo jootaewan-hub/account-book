@@ -49,7 +49,7 @@ describe('좌표 찾기 (geocodePlace)', () => {
 
   it('주소 다듬기·같은 시·구·한국 범위', () => {
     expect(trimAddress('서울 용산구 한강대로40길 14 1층 104호')).toBe('서울 용산구 한강대로40길 14')
-    expect(trimAddress('경기 성남시 분당구 정자일로 80')).toBe('경기 성남시 분당구 정자일로 80')
+    expect(trimAddress('경기 성남시 분당구 예시로 1')).toBe('경기 성남시 분당구 예시로 1')
     expect(trimAddress('서울 중구 소공동 1')).toBe('서울 중구 소공동 1')
     expect(sameArea('서울특별시 중구 을지로 30', '서울 중구 남대문로 81')).toBe(true)
     expect(sameArea('서울 중구 을지로 30', '서울 송파구 올림픽로 240')).toBe(false)
