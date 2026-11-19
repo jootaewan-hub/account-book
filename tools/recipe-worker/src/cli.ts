@@ -1,10 +1,15 @@
 // 사용법: node src/cli.ts run [설정 파일]
+//        node src/cli.ts dry-run <주소> --out <파일> [--no-description] [--config <설정 파일>]
 import { spawn as nodeSpawn, type ChildProcess } from 'node:child_process'
-import { readFileSync, statSync } from 'node:fs'
-import { pathToFileURL } from 'node:url'
+import { mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
+import { dirname, resolve, sep } from 'node:path'
+import { fileURLToPath, pathToFileURL } from 'node:url'
+import { normalizeRecipeUrl } from '../../../supabase/functions/_shared/recipeSource.ts'
 import { createApi } from './api.ts'
-import { DEFAULT_CONFIG_PATH, loadConfig } from './config.ts'
+import { createClaudeRun, type ClaudeRun } from './claude.ts'
+import { DEFAULT_CONFIG_PATH, loadConfig, type WorkerConfig } from './config.ts'
 import { createDailyCounter, isOnHours, startLoop, type LoopDeps } from './loop.ts'
+import { cleanCache, processJob, processJobDetailed, type CollectFn } from './pipeline.ts'
 
 const PING_MS = 5 * 60_000
 
@@ -71,6 +76,7 @@ export async function run(configPath: string = DEFAULT_CONFIG_PATH, spawn: Spawn
   const counter = createDailyCounter(() => new Date())
   const caffeine = createCaffeinate(spawn, process.pid)
   const now = () => new Date()
+  const claudeRun = createClaudeRun(cfg)
 
   const deps: LoopDeps = {
     api,
@@ -79,9 +85,9 @@ export async function run(configPath: string = DEFAULT_CONFIG_PATH, spawn: Spawn
     doneToday: counter.doneToday,
     onClaimed: counter.increment,
     onBusy: (b) => caffeine.busy(b),
-    // 뒤 작업에서 처리 단계(영상 받기~저장)를 여기에 붙인다
-    process: async () => {
-      throw new Error('처리 단계가 아직 없어요')
+    process: async (job, onStage) => {
+      const dict = await api.dict() // 일마다 한 번
+      return processJob(job, { cfg, run: claudeRun, dict, onStage, now })
     },
   }
 
@@ -92,11 +98,15 @@ export async function run(configPath: string = DEFAULT_CONFIG_PATH, spawn: Spawn
   syncCaffeine()
   const pingTimer = setInterval(ping, PING_MS)
   const caffeineTimer = setInterval(syncCaffeine, 60_000)
+  const clean = () => { cleanCache(cfg.cacheDir, now()).catch(() => {}) }
+  clean()
+  const cleanTimer = setInterval(clean, 24 * 60 * 60_000)
   const loop = startLoop(deps)
 
   const shutdown = async () => {
     clearInterval(pingTimer)
     clearInterval(caffeineTimer)
+    clearInterval(cleanTimer)
     await loop.stop()
     caffeine.stop()
     process.exit(0)
@@ -106,16 +116,57 @@ export async function run(configPath: string = DEFAULT_CONFIG_PATH, spawn: Spawn
   console.error('레시피 처리기를 시작했어요')
 }
 
+export type DryRunDeps = { cfg: WorkerConfig; run: ClaudeRun; collect?: CollectFn; now?: () => Date }
+
+const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../..')
+
+/** 저장소 안에는 .recipe-cache/ 밑에만 쓴다(저장소는 공개다). 저장소 밖은 어디든 된다 */
+export function checkOutPath(out: string): string {
+  const abs = resolve(out)
+  const inRepo = abs === REPO_ROOT || abs.startsWith(REPO_ROOT + sep)
+  if (inRepo && !abs.startsWith(resolve(REPO_ROOT, '.recipe-cache') + sep)) throw new Error('저장소 안에서는 .recipe-cache/ 밑에만 쓸 수 있어요')
+  return abs
+}
+
+/** 서버 없이 영상 하나를 끝까지 돌려 결과와 요약을 파일에 쓴다 */
+export async function dryRun(url: string, out: string, opts: { noDescription?: boolean }, deps: DryRunDeps): Promise<void> {
+  const norm = normalizeRecipeUrl(url)
+  if (!norm) throw new Error('유튜브 영상 주소가 아니에요')
+  const file = checkOutPath(out)
+  const started = Date.now()
+  const id = `dry-${norm.key.slice('youtube:'.length)}`
+  const r = await processJobDetailed(
+    { id, url: norm.url },
+    { cfg: deps.cfg, run: deps.run, dict: [], onStage: async (s) => { console.error(s) }, collect: deps.collect, now: deps.now, noDescription: opts.noDescription },
+  )
+  const summary = { seconds: Math.round((Date.now() - started) / 1000), ...r.stats }
+  mkdirSync(dirname(file), { recursive: true })
+  writeFileSync(file, JSON.stringify({ recipe: r.recipe, dict: r.dict, summary }, null, 2))
+}
+
 const isMain = process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href
 if (isMain) {
-  const [cmd, path] = process.argv.slice(2)
-  if (cmd === 'run') {
+  const [cmd, path, ...rest] = process.argv.slice(2)
+  if (cmd === 'dry-run') {
+    const outAt = rest.indexOf('--out')
+    const cfgAt = rest.indexOf('--config')
+    const out = outAt >= 0 ? rest[outAt + 1] : undefined
+    if (!path || !out) {
+      console.error('사용법: node src/cli.ts dry-run <주소> --out <파일> [--no-description] [--config <설정 파일>]')
+      process.exit(2)
+    }
+    const cfg = loadConfig(cfgAt >= 0 ? rest[cfgAt + 1] : DEFAULT_CONFIG_PATH)
+    dryRun(path, out, { noDescription: rest.includes('--no-description') }, { cfg, run: createClaudeRun(cfg) }).catch((e: unknown) => {
+      console.error(e instanceof Error ? e.message : '끝내지 못했어요')
+      process.exit(1)
+    })
+  } else if (cmd === 'run') {
     run(path).catch((e: unknown) => {
       console.error(e instanceof Error ? e.message : '시작하지 못했어요')
       process.exit(1)
     })
   } else {
-    console.error('사용법: node src/cli.ts run [설정 파일]')
+    console.error('사용법: node src/cli.ts run [설정 파일] | dry-run <주소> --out <파일> [--no-description]')
     process.exit(2)
   }
 }

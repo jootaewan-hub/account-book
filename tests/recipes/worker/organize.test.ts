@@ -83,6 +83,24 @@ describe('buildOrganizePrompt', () => {
   })
 })
 
+describe('프롬프트 채우기와 영상 id', () => {
+  it('사전 항목에 {{EVIDENCE}}가 있어도 다시 펼치지 않는다', () => {
+    const p = buildOrganizePrompt(evidence(), [{ id: 'trap', name: '{{EVIDENCE}}', aliases: ['{{NOTES}}'] }])
+    expect(p.split('"screen_text"').length - 1).toBe(1)
+    expect(p).toContain('{{EVIDENCE}}')
+  })
+
+  it('영상 id가 11자 영숫자·_-가 아니면 영상을 받지 못한 것으로 본다', async () => {
+    for (const id of ['short', 'AAAAAAAAAAAA', 'AAAAA AAAAA', 'AAAAAAAAAA\n']) {
+      expect(() => buildOrganizePrompt(evidence({ id }), [])).toThrow('영상을 받지 못했어요')
+    }
+    const run = vi.fn(async () => '{}')
+    await expect(organize(evidence({ id: '../../etc/pw' }), run, [], { jobDir: '/x/job' })).rejects.toThrow('영상을 받지 못했어요')
+    expect(run).not.toHaveBeenCalled()
+    expect(() => buildOrganizePrompt(evidence({ id: 'a-_Z0123456' }), [])).not.toThrow()
+  })
+})
+
 describe('extractJsonObject', () => {
   it('울타리와 앞뒤 글 속에서 첫 객체를 꺼낸다', () => {
     expect(extractJsonObject('설명입니다\n```json\n{"a":{"b":"}"},"c":1}\n```\n끝')).toEqual({ a: { b: '}' }, c: 1 })
