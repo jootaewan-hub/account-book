@@ -850,6 +850,8 @@ describe('내역과 품목을 함께 저장', () => {
       values ($1, 'expense', '2026-11-07', 4000, '마트', 'shared') returning id`, [hhA])
     const [opened] = await as<{ updated_at: string }>(A, `
       update public.transactions set receipt_path = $1 || '/r1' where id = $2 returning updated_at::text`, [hhA, tx.id])
+    // PGlite의 now()는 밀리초까지만 잰다. 두 수정이 같은 밀리초에 끝나면 updated_at이 같아 충돌을 잴 수 없으므로 조금 기다린다.
+    await new Promise((r) => setTimeout(r, 5))
     const [cleared] = await as<{ id: string; updated_at: string }>(A, `
       update public.transactions set receipt_path = null where receipt_path = $1 || '/r1' returning id, updated_at::text`, [hhA])
     expect(cleared.id).toBe(tx.id)
