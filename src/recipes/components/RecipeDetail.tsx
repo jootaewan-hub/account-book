@@ -183,7 +183,7 @@ export function RecipeDetail({ store, recipeId, title, onBack, onMissing, initia
                       {key && (
                         <button type="button" className="rcp-have" aria-pressed={state !== undefined} disabled={state === 'always'}
                           aria-label={`${g.name} 있음`} onClick={() => void run(() => store.setPantry(key, state ? null : 'have'))}>
-                          {state === 'always' ? '항상 있음' : '있음'}
+                          <span className="rcp-have-box" aria-hidden="true" />{state === 'always' ? '항상 있음' : '있음'}
                         </button>
                       )}
                     </p>

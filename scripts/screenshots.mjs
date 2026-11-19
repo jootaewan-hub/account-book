@@ -875,7 +875,9 @@ try {
           if (r.width === 0 || cs.visibility === 'hidden' || el.closest('.sr-only')) continue
           // 장보기 규칙(44px)은 장보기 화면 안에서만 잰다. 가계부 화면은 가계부 DESIGN.md 기준이라 여기서 재지 않는다
           if (!el.closest('.grocery, .recipes')) continue
-          const ext = el.hasAttribute('data-touch-extend') ? getComputedStyle(el, '::before') : null
+          // 레시피 탭의 링크는 ::after(absolute, 음수 inset)로 누르는 자리를 넓힌다
+          const after = el.closest('.recipes') ? getComputedStyle(el, '::after') : null
+          const ext = el.hasAttribute('data-touch-extend') ? getComputedStyle(el, '::before') : after && after.position === 'absolute' && parseFloat(after.top) < 0 ? after : null
           const extH = ext ? -parseFloat(ext.top) - parseFloat(ext.bottom) : 0
           const extW = ext ? -parseFloat(ext.left) - parseFloat(ext.right) : 0
           if (r.height + extH < 44 || r.width + extW < 44) out.push(`작은 터치 대상 ${Math.round(r.width)}x${Math.round(r.height)} "${(el.textContent || el.getAttribute('aria-label') || '').trim().slice(0, 20)}"`)

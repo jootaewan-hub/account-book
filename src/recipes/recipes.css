@@ -106,11 +106,17 @@
 .recipes .rcp-ing-name { font-size: 16px; font-weight: 600; overflow-wrap: anywhere; }
 .recipes .rcp-ing-amt { font-size: 15px; text-align: right; overflow-wrap: anywhere; }
 .recipes .rcp-have {
-  min-height: 44px; min-width: 44px; margin-left: 8px; padding: 0 12px; border: 1px solid var(--field-border); border-radius: var(--r-chip);
+  display: inline-flex; align-items: center; gap: 8px; min-height: 44px; min-width: 44px; margin-left: 8px; padding: 0 14px 0 10px; border: 1px solid var(--field-border); border-radius: var(--r-chip);
   background: var(--canvas); color: var(--ink); font-size: 14px; font-weight: 500; vertical-align: middle;
 }
-.recipes .rcp-have[aria-pressed="true"] { background: var(--primary); color: var(--on-primary); border-color: var(--primary); font-weight: 700; }
-.recipes .rcp-have:disabled { opacity: 0.7; }
+/* 상태는 앞의 네모 칸이 말한다: 빈 칸 = 없음, 체크한 칸 = 있음. 글자는 그대로 "있음" */
+.recipes .rcp-have-box { position: relative; flex: none; width: 20px; height: 20px; border: 2px solid var(--ink-2); border-radius: 4px; background: var(--canvas); }
+.recipes .rcp-have[aria-pressed="true"] { border-color: var(--ink); font-weight: 700; }
+.recipes .rcp-have[aria-pressed="true"] .rcp-have-box { border-color: var(--primary); background: var(--primary); }
+.recipes .rcp-have[aria-pressed="true"] .rcp-have-box::after {
+  content: ""; position: absolute; left: 5px; top: 1px; width: 5px; height: 10px; border: solid var(--on-primary); border-width: 0 2px 2px 0; transform: rotate(45deg);
+}
+.recipes .rcp-have:disabled { opacity: 1; cursor: default; }
 .recipes .rcp-steps, .recipes .rcp-plain { display: flex; flex-direction: column; gap: 12px; width: 100%; margin: 0; padding: 0; list-style: none; }
 .recipes .rcp-step { display: flex; flex-direction: column; gap: 4px; padding-top: 12px; border-top: 1px solid var(--line); }
 .recipes .rcp-step:first-child { padding-top: 0; border-top: 0; }
@@ -229,3 +235,7 @@
 /* 한 줄을 차지하는 "영상 4:05" 링크: 글자 높이는 그대로 두고 누르는 자리만 44px로 넓힌다 */
 .recipes .rcp-step a.rcp-link, .recipes .rcp-cand a.rcp-origin { position: relative; }
 .recipes .rcp-step a.rcp-link::after, .recipes .rcp-cand a.rcp-origin::after { content: ""; position: absolute; inset: -14px -8px; }
+
+/* 출처 영상 제목 링크: 한 줄을 차지하는 링크라 누르는 자리를 44px로 넓힌다(글 높이는 그대로) */
+.recipes .rcp-block > .rcp-meta > a.rcp-link { position: relative; }
+.recipes .rcp-block > .rcp-meta > a.rcp-link::after { content: ""; position: absolute; inset: -14px -4px; }
