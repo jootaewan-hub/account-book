@@ -108,11 +108,22 @@ describe('processJob', () => {
 
   it('설명란과 말이 다른 곳(conflicts)은 값을 두고 확인 필요에도 센다', async () => {
     const conflicts = [{ about: '소금', chosen: '1작은술', chosen_origin: 'description', other: '2작은술', other_origin: 'caption_auto', video_start_seconds: 65 }]
-    const out = await processJob(job, deps(fakeRun({ organize: recipe({ conflicts }), second: '{"ingredients":[]}' })))
+    const d = deps(fakeRun({ organize: recipe({ conflicts }), second: '{"ingredients":[]}' }))
+    d.collect = vi.fn(async () => { const e = evidence(); e.transcript!.segments[1]!.text = '시험소금 2작은술 넣어요'; return e })
+    const out = await processJob(job, d)
     expect(out.recipe.ingredients[1]).toMatchObject({ amount: 1, unit: '작은술' })
     expect(out.recipe.conflicts).toHaveLength(1)
     expect(out.recipe.review_items).toEqual([
       { target: 'conflicts[0]', reason: expect.any(String), candidates: [{ value: '1작은술', origin: 'description', at_seconds: null }, { value: '2작은술', origin: 'caption_auto', at_seconds: 65 }] },
+    ])
+  })
+
+  it('정리가 낸 다른 곳의 한쪽이 근거에 없으면 그쪽은 덧붙임(출처 이름·시각 없음)', async () => {
+    const conflicts = [{ about: '소금', chosen: '1작은술', chosen_origin: 'description', other: '2작은술', other_origin: 'caption_auto', video_start_seconds: 65 }]
+    const out = await processJob(job, deps(fakeRun({ organize: recipe({ conflicts }), second: '{"ingredients":[]}' })))
+    expect(out.recipe.conflicts).toEqual([{ ...conflicts[0], other_origin: 'editor', video_start_seconds: null }])
+    expect(out.recipe.review_items![0]!.candidates).toEqual([
+      { value: '1작은술', origin: 'description', at_seconds: null }, { value: '2작은술', origin: 'editor', at_seconds: null },
     ])
   })
 

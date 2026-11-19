@@ -172,7 +172,7 @@ describe('checkRecipe', () => {
     expect(out.recipe.ingredients[6]).toMatchObject({ name: '참깨', amount: null, unit: '큰술', amount_text: '듬뿍', needs_review: true })
     expect(out.reviews).toEqual([{ target: 'ingredients[6].amount', reason: '출처에서 숫자를 찾지 못함', candidates: [] }])
     expect(out.corrections).toEqual([
-      { target: 'ingredients[6].amount', before: '2', after: null, origin: null, at_seconds: null, method: 'rule' },
+      { target: 'ingredients[6].amount', before: '2큰술', after: null, origin: null, at_seconds: null, method: 'rule' },
     ])
     expect(out.recipe.review_items).toEqual(out.reviews)
   })
@@ -257,7 +257,10 @@ describe('checkRecipe', () => {
     known.ingredients.push({ name: '참기름', amount: 1, unit: '스푼', origin: 'caption_auto', at_seconds: 60 })
     known.steps[1]!.uses!.push({ name: '참기름' })
     known.measuring_tool = '밥숟가락'
-    expect(run(known).reviews).toEqual([])
+    known.measuring_tool_basis = [{ origin: 'caption_auto', at_seconds: 60 }]
+    const spoken = evidence()
+    spoken.transcript!.segments.push({ start: 62, text: '밥숟가락으로 재요' })
+    expect(run(known, spoken).reviews).toEqual([])
 
     const text = recipe()
     text.ingredients[5] = { name: '소금', amount: null, unit: null, amount_text: '한 숟가락', origin: 'description' }
@@ -312,7 +315,7 @@ describe('checkRecipe', () => {
     expect(a.reviews).toEqual([
       { target: 'servings.value', reason: '출처에서 숫자를 찾지 못함', candidates: [{ value: '2인분', origin: 'description', at_seconds: null }] },
     ])
-    expect(a.corrections).toEqual([{ target: 'servings.value', before: '4', after: null, origin: null, at_seconds: null, method: 'rule' }])
+    expect(a.corrections).toEqual([{ target: 'servings.value', before: '4인분', after: null, origin: null, at_seconds: null, method: 'rule' }])
 
     const moved = recipe()
     moved.servings = { value: 2, origin: 'caption_auto' }
@@ -325,7 +328,7 @@ describe('checkRecipe', () => {
     both.servings = { value: 2, origin: 'description', suggested: 3 }
     const c = run(both)
     expect(c.recipe.servings).toEqual({ value: 2, origin: 'description', suggested: null })
-    expect(c.corrections).toEqual([{ target: 'servings.suggested', before: '3', after: null, origin: null, at_seconds: null, method: 'rule' }])
+    expect(c.corrections).toEqual([{ target: 'servings.suggested', before: '3인분', after: null, origin: null, at_seconds: null, method: 'rule' }])
   })
 
   it('시간도 같은 검사: 덧붙인 단계의 타이머는 지우고, 근거에 없는 시간은 지우고 확인 필요, "30초"는 30', () => {
@@ -481,5 +484,129 @@ describe('checkRecipe', () => {
     expect(out.recipe.review_items).toHaveLength(40)
     expect(out.recipe.review_items!.at(-1)!.reason).toContain('6곳')
     expect(out.recipe.corrections).toHaveLength(40)
+  })
+})
+
+describe('정리가 낸 후보·다른 곳은 근거에서 찾은 것만(I6)', () => {
+  it('후보는 그 출처의 그 시각 근처에 글자로 있을 때만 남고, 출처·시각은 근거 쪽으로 쓴다', () => {
+    const r = recipe()
+    r.ingredients[1]!.needs_review = true
+    r.steps[1]!.needs_review = true
+    r.review_items = [
+      {
+        target: 'ingredients[1].amount', reason: '흐리게 들림', candidates: [
+          { value: '3큰술', origin: 'description', at_seconds: null }, // 설명란에 있다
+          { value: '5큰술', origin: 'description', at_seconds: null }, // 없다 → 버린다
+          { value: '3큰술', origin: 'asr', at_seconds: 95 }, // 그 시각 말에 없다 → 버린다
+          { value: '3큰술', origin: 'editor', at_seconds: null }, // 숫자는 덧붙임일 수 없다 → 버린다
+        ],
+      },
+      { target: 'steps[1].timer_seconds', reason: '흐리게 들림', candidates: [{ value: '3분', origin: 'asr', at_seconds: 121 }] },
+    ]
+    const out = run(r)
+    expect(out.recipe.review_items![0]!.candidates).toEqual([{ value: '3큰술', origin: 'description', at_seconds: null }])
+    // 받아쓰기(asr)라 했지만 근거는 자동 자막이다. 값은 같은 꼴(초)로 다시 쓴다
+    expect(out.recipe.review_items![1]!.candidates).toEqual([{ value: '180', origin: 'caption_auto', at_seconds: 121 }])
+  })
+
+  it('남은 후보가 없으면 항목의 글은 두고 후보만 비운다', () => {
+    const r = recipe()
+    r.ingredients[2]!.needs_review = true
+    r.review_items = [{ target: 'ingredients[2].amount', reason: '흐리게 들림', candidates: [{ value: '9큰술', origin: 'screen', at_seconds: 80 }] }]
+    expect(run(r).recipe.review_items![0]).toEqual({ target: 'ingredients[2].amount', reason: '흐리게 들림', candidates: [] })
+  })
+
+  it('다른 곳: 두 쪽 다 있으면 두고, 한쪽만 있으면 다른 쪽은 덧붙임, 둘 다 없으면 빼고 번호를 맞춘다', () => {
+    const r = recipe()
+    r.conflicts = [
+      { about: '간장', chosen: '3큰술', chosen_origin: 'description', other: '1큰술', other_origin: 'screen', video_start_seconds: 80 },
+      { about: '불 세기', chosen: '센 불', chosen_origin: 'caption_auto', other: '약불', other_origin: 'description', video_start_seconds: 120 },
+      { about: '설탕', chosen: '9큰술', chosen_origin: 'description', other: '7큰술', other_origin: 'asr', video_start_seconds: 10 },
+      { about: '간장', chosen: '3큰술', chosen_origin: 'description', other: '센 불', other_origin: 'asr', video_start_seconds: 121 },
+    ]
+    r.review_items = [
+      { target: 'conflicts[2]', reason: '출처끼리 값이 달라 확인 필요', candidates: [] },
+      { target: 'conflicts[3]', reason: '출처끼리 값이 달라 확인 필요', candidates: [] },
+    ]
+    const out = run(r)
+    expect(out.recipe.conflicts).toEqual([
+      // 화면 80초에는 고춧가루 1큰술뿐이라 간장 1큰술의 근거가 아니다
+      { about: '간장', chosen: '3큰술', chosen_origin: 'description', other: '1큰술', other_origin: 'editor', video_start_seconds: null },
+      { about: '불 세기', chosen: '센 불', chosen_origin: 'caption_auto', other: '약불', other_origin: 'editor', video_start_seconds: 120 },
+      { about: '간장', chosen: '3큰술', chosen_origin: 'description', other: '센 불', other_origin: 'caption_auto', video_start_seconds: 121 },
+    ])
+    expect(out.recipe.review_items!.slice(0, 1).map((x) => x.target)).toEqual(['conflicts[2]'])
+  })
+})
+
+describe('단위 없는 분량(R3)', () => {
+  // 설명란을 숨긴 실행에서 본 꼴: 화면 글자에 수만 있고 단위가 없다. 근거는 만든 자료다.
+  function unitless(description = ''): { r: RecipeV2; e: Evidence } {
+    const e = evidence({ ocr: [{ t: 30, text: '알룰로스 3' }, { t: 50, text: '계란 1' }] })
+    e.meta.description = description
+    const r = recipe()
+    r.servings = { value: null, origin: null }
+    r.tags.main_details = ['계란']
+    r.ingredients = [
+      { name: '알룰로스', amount: 3, unit: null, origin: 'screen', at_seconds: 30 },
+      { name: '계란', amount: 1, unit: null, origin: 'screen', at_seconds: 50 },
+    ]
+    r.steps = [{ title: '섞기', body: '알룰로스와 계란을 섞는다.', origin: 'screen', video_start_seconds: 30, uses: [{ name: '알룰로스' }, { name: '계란' }] }]
+    return { r, e }
+  }
+
+  it('세는 재료가 아니면 숫자는 두고 확인 필요 "단위를 읽지 못했어요", 세는 재료(계란)는 그대로', () => {
+    const { r, e } = unitless()
+    const out = run(r, e)
+    expect(out.recipe.ingredients[0]).toMatchObject({ amount: 3, unit: null, needs_review: true })
+    expect(out.recipe.ingredients[1]!.needs_review).toBeFalsy()
+    expect(out.reviews).toEqual([{ target: 'ingredients[0].amount', reason: '단위를 읽지 못했어요', candidates: [] }])
+  })
+
+  it('같은 수에 단위가 붙은 분량이 근거에 있으면 후보로 준다', () => {
+    const { r, e } = unitless('알룰로스 3스푼')
+    const out = run(r, e)
+    expect(out.reviews).toContainEqual({ target: 'ingredients[0].amount', reason: '단위를 읽지 못했어요', candidates: [{ value: '3스푼', origin: 'description', at_seconds: null }] })
+  })
+
+  it('사람이 고친 줄은 건너뛴다', () => {
+    const { r, e } = unitless()
+    r.ingredients[0] = { ...r.ingredients[0]!, origin: 'user', at_seconds: null }
+    expect(run(r, e).reviews).toEqual([])
+  })
+})
+
+describe('계량 도구는 근거 글에 그 말이 있어야 한다(M9)', () => {
+  it('도구의 말이 근거에 없으면 확인 못 함으로 바꾸고 고친 곳에 남긴다', () => {
+    const r = recipe()
+    r.measuring_tool = '밥숟가락'
+    r.measuring_tool_basis = [{ origin: 'screen', at_seconds: 80 }]
+    const out = run(r)
+    expect(out.recipe.measuring_tool).toBe('확인 못 함')
+    expect(out.recipe.measuring_tool_basis).toEqual([])
+    expect(out.corrections).toContainEqual({ target: 'measuring_tool', before: '밥숟가락', after: '확인 못 함', origin: null, at_seconds: null, method: 'rule' })
+  })
+
+  it('근거로 단 시각 근처에 그 말이 있으면 두고, 근거는 찾은 것만 남긴다', () => {
+    const e = evidence()
+    e.transcript!.segments.push({ start: 62, text: '계량스푼으로 재요' })
+    const r = recipe()
+    r.measuring_tool = '계량스푼'
+    r.measuring_tool_basis = [{ origin: 'asr', at_seconds: 60 }, { origin: 'screen', at_seconds: 200 }]
+    const out = run(r, e)
+    expect(out.recipe.measuring_tool).toBe('계량스푼')
+    expect(out.recipe.measuring_tool_basis).toEqual([{ origin: 'caption_auto', at_seconds: 60 }])
+  })
+
+  it('설명란의 말도 근거다. 섞어 씀은 두 도구의 말이 다 있어야 한다', () => {
+    const e = evidence()
+    e.meta.description += '\n밥숟가락 기준, 소금은 계량스푼'
+    const r = recipe()
+    r.measuring_tool = '섞어 씀'
+    r.measuring_tool_basis = [{ origin: 'description', at_seconds: null }]
+    expect(run(r, e).recipe.measuring_tool).toBe('섞어 씀')
+    const only = evidence()
+    only.meta.description += '\n밥숟가락 기준'
+    expect(run(r, only).recipe.measuring_tool).toBe('확인 못 함')
   })
 })

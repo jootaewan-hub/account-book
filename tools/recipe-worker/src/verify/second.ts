@@ -10,7 +10,8 @@ import { RateLimited } from '../loop.ts'
 import {
   DESCRIPTION_MAX, FRAMES_MAX, OCR_MAX, TRANSCRIPT_MAX, extractJsonObject, fence, fill, loadPrompt, mmss, oneLine, takeLines,
 } from '../organize.ts'
-import { amountMatches, canonUnit, fmt, hasQuantity, nearbyQuantities, sameName } from './grounding.ts'
+import { formatAmountValue } from '../../../../supabase/functions/_shared/recipeValue.ts'
+import { amountMatches, canonUnit, hasQuantity, nearbyQuantities, sameName } from './grounding.ts'
 
 export const STAGE_SECOND = '다시 읽어 맞춰 보는 중'
 export const DEFAULT_CAP = 8
@@ -42,7 +43,8 @@ const ReadItem = z.object({
 const ChoiceSchema = z.object({ choice: z.enum(['a', 'b', 'unknown']) })
 
 const clip = (s: string, n = 80) => (s.length > n ? s.slice(0, n - 1) + '…' : s)
-const valueText = (amount: number | null, unit: string | null) => (amount === null ? '' : `${fmt(amount)}${unit ?? ''}`)
+/** 후보·고친 곳의 값 글(같은 꼴은 _shared/recipeValue.ts) */
+const valueText = (amount: number | null, unit: string | null) => (amount === null ? '' : formatAmountValue(amount, unit))
 const sec = (v: number | null | undefined) => (v == null ? null : Math.max(0, Math.round(v)))
 
 function framesArg(frames: Evidence['frames']) {
