@@ -10,7 +10,7 @@
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "screens": "node scripts/screenshots.mjs",
-    "lint": "oxlint -c .oxlintrc.json src tests scripts supabase/functions vite.config.ts"
+    "lint": "oxlint -c .oxlintrc.json src tests scripts tools supabase/functions vite.config.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.117.3",
