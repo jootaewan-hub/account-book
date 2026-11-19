@@ -42,7 +42,7 @@ export interface WorkerDeps {
   /** 계약 검사를 마친 레시피를 넣는다. 거절되면 DbError를 던진다 */
   importRecipe: (job: string, recipe: RecipeV2, level: string, basis: { required: number; steps: number; heavy: boolean }) => Promise<string>
   dictAdd: (entries: DictEntry[]) => Promise<void>
-  listExports: () => Promise<ExportItem[]>
+  listExports: (opts: { skip: string[]; need: ('drive' | 'obsidian')[] }) => Promise<ExportItem[]>
   /** 그 레시피가 없으면 false */
   exported: (input: ExportedInput) => Promise<boolean>
   ping: (version: string, now: Date) => Promise<void>
@@ -156,8 +156,13 @@ export async function handle(req: Request, deps: WorkerDeps): Promise<Response> 
         await deps.fail(body.job, reason)
         return json({ ok: true })
       }
-      case 'exports':
-        return json({ items: await deps.listExports() })
+      case 'exports': {
+        const skip = body.skip ?? []
+        if (!Array.isArray(skip) || skip.length > 100 || !skip.every(isUuid)) return bad('skip이 올바르지 않아요.')
+        const need = body.need ?? []
+        if (!Array.isArray(need) || need.length > 2 || !need.every((n) => n === 'drive' || n === 'obsidian')) return bad('need가 올바르지 않아요.')
+        return json({ items: await deps.listExports({ skip: skip as string[], need: need as ('drive' | 'obsidian')[] }) })
+      }
       case 'exported': {
         if (!isUuid(body.recipe_id)) return bad('recipe_id가 필요해요.')
         if (!nullableText(body.drive_doc_id, 200) || !nullableText(body.drive_path, 500) || !nullableText(body.obsidian_path, 500)) {

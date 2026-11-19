@@ -30,7 +30,7 @@ export type WorkerApi = {
   submit(job: string, recipe: RecipeV2, dict: DictEntry[]): Promise<SubmitResult>
   fail(job: string, reason: string): Promise<void>
   release(job: string, retryAt: string): Promise<void>
-  exports(): Promise<ExportItem[]>
+  exports(opts?: { skip?: string[]; need?: ('drive' | 'obsidian')[] }): Promise<ExportItem[]>
   exported(input: ExportedInput): Promise<boolean>
   ping(version: string): Promise<void>
   dict(): Promise<{ id: string; name: string; aliases: string[]; category: string }[]>
@@ -98,8 +98,11 @@ export function createApi(endpoint: string, secret: string, fetchImpl: typeof fe
     async release(job, retryAt) {
       await call({ action: 'release', job, retry_at: retryAt })
     },
-    async exports() {
-      return (await call<{ items: ExportItem[] }>({ action: 'exports' })).items
+    async exports(opts = {}) {
+      const extra: Record<string, unknown> = {}
+      if (opts.skip && opts.skip.length > 0) extra.skip = opts.skip.slice(0, 100)
+      if (opts.need && opts.need.length > 0) extra.need = opts.need
+      return (await call<{ items: ExportItem[] }>({ action: 'exports', ...extra })).items
     },
     async exported(input) {
       const res = await post({ action: 'exported', ...input })

@@ -8,7 +8,7 @@ import type { ExportItem, StoredRecipe } from '../../../supabase/functions/_shar
 import type { WorkerApi } from '../../../tools/recipe-worker/src/api'
 import type { WorkerConfig } from '../../../tools/recipe-worker/src/config'
 import { DriveAuthError, DriveHttpError, type Drive } from '../../../tools/recipe-worker/src/export/drive'
-import { exportOnce } from '../../../tools/recipe-worker/src/export/loop'
+import { createBackoff, exportOnce } from '../../../tools/recipe-worker/src/export/loop'
 import { startLoop, type LoopDeps } from '../../../tools/recipe-worker/src/loop'
 import gold from '../../../docs/recipes/contract/examples/youtube-AkX6uA4BaDs.json'
 
@@ -118,6 +118,75 @@ describe('exportOnce', () => {
     const logs: string[] = []
     await exportOnce(api, drive, null, (m) => logs.push(m))
     expect(logs.join(' ')).not.toContain('REFRESH-TOKEN-SECRET')
+  })
+})
+
+describe('exportOnce 보완', () => {
+  it('need와 skip을 서버에 보낸다', async () => {
+    const api = mkApi([])
+    const b = createBackoff()
+    b.fail('x')
+    await exportOnce(api, mkDrive(), mkdtempSync(join(tmpdir(), 'vault-')), quiet, { backoff: b })
+    expect(api.exports).toHaveBeenCalledWith({ skip: ['x'], need: ['drive', 'obsidian'] })
+  })
+
+  it('물러서기: 5분, 두 배씩, 6시간까지, 성공하면 지운다', () => {
+    let t = 0
+    const b = createBackoff(() => t)
+    b.fail('a')
+    expect(b.skipped()).toEqual(['a'])
+    t = 5 * 60_000 + 1
+    expect(b.skipped()).toEqual([])
+    b.fail('a') // 두 번째: 10분
+    t += 9 * 60_000
+    expect(b.skipped()).toEqual(['a'])
+    t += 2 * 60_000
+    expect(b.skipped()).toEqual([])
+    for (let i = 0; i < 12; i++) b.fail('a')
+    t += 6 * 60 * 60_000 + 1
+    expect(b.skipped()).toEqual([])
+    b.fail('a')
+    b.ok('a')
+    expect(b.skipped()).toEqual([])
+  })
+
+  it('계속 실패하는 건은 물러서 있는 동안 skip으로 빠져 새 건에 닿는다', async () => {
+    const failing = Array.from({ length: 3 }, (_, i) => item(`bad${i}`))
+    const drive = mkDrive({ upsertDoc: vi.fn(async (r: StoredRecipe) => { if (r.id.startsWith('bad')) throw new DriveHttpError(500); return { id: 'd', path: 'p' } }) })
+    const b = createBackoff()
+    const api = { exports: vi.fn<WorkerApi['exports']>(async (o) => [...failing, item('new')].filter((x) => !o?.skip?.includes(x.recipe_id))), exported: vi.fn<WorkerApi['exported']>(async () => true) }
+    expect(await exportOnce(api, drive, null, quiet, { backoff: b })).toBe(1) // new도 같은 번에 닿지만
+    expect(api.exports.mock.calls[1]).toBeUndefined()
+    await exportOnce(api, drive, null, quiet, { backoff: b })
+    expect(api.exports.mock.calls[1][0]?.skip?.sort()).toEqual(['bad0', 'bad1', 'bad2'])
+  })
+
+  it('드라이브가 설정됐는데 쓸 수 없으면(토큰 파일 없음) 옵시디언만 쓰고 알리지 않는다', async () => {
+    const vault = mkdtempSync(join(tmpdir(), 'vault-'))
+    const api = mkApi([item('a')])
+    expect(await exportOnce(api, null, vault, quiet, { driveConfigured: true })).toBe(0)
+    expect(api.exported).not.toHaveBeenCalled()
+    expect(api.exports).toHaveBeenCalledWith({ skip: [], need: ['drive', 'obsidian'] })
+    expect(existsSync(join(vault, '레시피'))).toBe(true)
+  })
+
+  it('지움: 쓸 수 없는 자리에 이전 값이 있으면 알리지 않는다', async () => {
+    const vault = mkdtempSync(join(tmpdir(), 'vault-'))
+    const t = (prev: ExportItem['prev']) => item('a', { recipe: null, trash: true, prev })
+    // 드라이브 못 씀(설정됨, drive null)
+    let api = mkApi([t({ drive_doc_id: 'D', drive_path: 'x', obsidian_path: null })])
+    expect(await exportOnce(api, null, vault, quiet, { driveConfigured: true })).toBe(0)
+    expect(api.exported).not.toHaveBeenCalled()
+    // 연결 오류
+    api = mkApi([t({ drive_doc_id: 'D', drive_path: 'x', obsidian_path: null })])
+    const drive = mkDrive({ trash: vi.fn(async () => { throw new DriveAuthError() }) })
+    expect(await exportOnce(api, drive, vault, quiet)).toBe(0)
+    // 옵시디언이 설정 안 됐는데 이전 경로가 있다
+    api = mkApi([t({ drive_doc_id: null, drive_path: null, obsidian_path: 'a.md' })])
+    expect(await exportOnce(api, mkDrive(), null, quiet)).toBe(0)
+    // 값이 없는 자리는 안 쓰는 자리여도 알린다
+    api = mkApi([t({ drive_doc_id: null, drive_path: null, obsidian_path: 'a.md' })])
+    expect(await exportOnce(api, null, vault, quiet, { driveConfigured: true })).toBe(1)
   })
 })
 

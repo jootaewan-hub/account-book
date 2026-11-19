@@ -187,6 +187,32 @@ describe('recipe-worker 일', () => {
     expect((await call(d, { action: 'fail', job, reason: 'a'.repeat(200) })).status).toBe(200)
   })
 
+  it('exports: skip(최대 100개 uuid)·need를 검사해 넘긴다', async () => {
+    const d = deps()
+    const u = '00000000-0000-4000-8000-0000000000dd'
+    expect((await call(d, { action: 'exports', skip: [u], need: ['drive', 'obsidian'] })).status).toBe(200)
+    expect(d.listExports).toHaveBeenLastCalledWith({ skip: [u], need: ['drive', 'obsidian'] })
+    expect((await call(d, { action: 'exports' })).status).toBe(200)
+    expect(d.listExports).toHaveBeenLastCalledWith({ skip: [], need: [] })
+    expect((await call(d, { action: 'exports', skip: Array(100).fill(u) })).status).toBe(200)
+    for (const body of [{ skip: Array(101).fill(u) }, { skip: ['x'] }, { skip: 'a' }, { need: ['sheet'] }, { need: 'drive' }, { need: ['drive', 'obsidian', 'drive'] }]) {
+      expect((await call(d, { action: 'exports', ...body })).status).toBe(400)
+    }
+  })
+
+  it('pickExports: skip은 saved·archived 모두 빼고, need는 비어 있는 칸이 있는 보관 건을 더 고른다', () => {
+    const row = (id: string, doc: string | null, obs: string | null) => ({ recipe_id: id, drive_doc_id: doc, drive_path: null, obsidian_path: obs, exported_at: '2026-11-22T01:00:00Z' })
+    const saved = ['a', 'b', 'c'].map((id) => ({ id, updated_at: '2026-11-22T00:00:00Z' }))
+    const rows = [row('a', null, 'o'), row('b', 'd', null), row('c', 'd', 'o'), row('gone', 'd', null)]
+    const archived = [{ id: 'gone' }]
+    expect(pickExports(saved, archived, rows, 10).fill).toEqual([])
+    expect(pickExports(saved, archived, rows, 10, { need: ['drive'] }).fill).toEqual(['a'])
+    expect(pickExports(saved, archived, rows, 10, { need: ['obsidian'] }).fill).toEqual(['b'])
+    expect(pickExports(saved, archived, rows, 10, { need: ['drive', 'obsidian'] }).fill).toEqual(['a', 'b'])
+    expect(pickExports(saved, archived, rows, 10, { need: ['drive', 'obsidian'], skip: ['a'] }).fill).toEqual(['b'])
+    expect(pickExports(saved, archived, rows, 10, { skip: ['gone'] }).trash).toEqual([])
+  })
+
   it('exports·dict·ping·exported', async () => {
     const d = deps()
     d.listExports.mockResolvedValueOnce([{ recipe_id: 'r', recipe: null, prev: null, trash: true }])

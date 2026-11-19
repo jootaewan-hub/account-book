@@ -10,7 +10,7 @@ import { createApi } from './api.ts'
 import { createClaudeRun, type ClaudeRun } from './claude.ts'
 import { DEFAULT_CONFIG_PATH, loadConfig, type WorkerConfig } from './config.ts'
 import { createDrive, type Drive } from './export/drive.ts'
-import { exportOnce } from './export/loop.ts'
+import { createBackoff, exportOnce } from './export/loop.ts'
 import { googleAuth } from './export/google.ts'
 import { createDailyCounter, isOnHours, startLoop, type LoopDeps } from './loop.ts'
 import { cleanCache, processJob, processJobDetailed, type CollectFn } from './pipeline.ts'
@@ -90,6 +90,7 @@ export async function run(configPath: string = DEFAULT_CONFIG_PATH, spawn: Spawn
     return drive
   }
 
+  const backoff = createBackoff()
   const deps: LoopDeps = {
     api,
     cfg,
@@ -97,7 +98,7 @@ export async function run(configPath: string = DEFAULT_CONFIG_PATH, spawn: Spawn
     doneToday: counter.doneToday,
     onClaimed: counter.increment,
     onBusy: (b) => caffeine.busy(b),
-    exportPass: () => exportOnce(api, getDrive(), cfg.obsidianDir),
+    exportPass: () => exportOnce(api, getDrive(), cfg.obsidianDir, undefined, { driveConfigured: !!cfg.driveTokenFile, backoff }),
     process: async (job, onStage) => {
       const dict = await api.dict() // 일마다 한 번
       return processJob(job, { cfg, run: claudeRun, dict, onStage, now })

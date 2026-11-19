@@ -177,7 +177,7 @@ export function createTokenSource(tokenFile: string, clientFile: string, fetchIm
     } catch {
       throw new Error('구글에 닿지 못했어요')
     }
-    if (res.status >= 400 && res.status < 500) throw new DriveAuthError() // invalid_grant 등
+    if (res.status === 400 || res.status === 401) throw new DriveAuthError() // invalid_grant 등. 408·429 같은 일시 오류는 아래에서 보통 오류로
     if (!res.ok) throw new Error(`구글이 토큰 갱신에 ${res.status}로 답했어요`)
     const j = (await res.json().catch(() => ({}))) as { access_token?: unknown; expires_in?: unknown }
     if (typeof j.access_token !== 'string' || !j.access_token) throw new DriveAuthError()

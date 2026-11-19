@@ -64,13 +64,13 @@ Deno.serve((req) => handle(req, {
     const { error } = await db.rpc('dict_add', { p_entries: entries })
     check(error)
   },
-  listExports: async () => {
+  listExports: async (opts) => {
     const [saved, archived, expRows] = await Promise.all([
       all<{ id: string; updated_at: string }>('recipes', 'id, updated_at', ['id'], (q) => q.eq('status', 'saved')),
       all<{ id: string }>('recipes', 'id', ['id'], (q) => q.eq('status', 'archived')),
       all<ExportRow>('exports', 'recipe_id, drive_doc_id, drive_path, obsidian_path, exported_at', ['recipe_id']),
     ])
-    const { fill, trash } = pickExports(saved, archived, expRows, 10)
+    const { fill, trash } = pickExports(saved, archived, expRows, 10, opts)
     const items: ExportItem[] = []
     if (fill.length > 0) {
       const [recipes, ingredients, steps] = await Promise.all([

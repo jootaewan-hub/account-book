@@ -242,6 +242,18 @@ describe('createDrive', () => {
     expect(all).not.toContain(SECRET_CLIENT)
   })
 
+  it('토큰 갱신이 408·429·500이면 일시 오류이지 DriveAuthError가 아니다', async () => {
+    for (const status of [408, 429, 500]) {
+      const g = fakeGoogle({ refreshStatus: status })
+      const err = await mk(g).ensureFolder(['레시피']).catch((e: unknown) => e)
+      expect(err).toBeInstanceOf(Error)
+      expect(err).not.toBeInstanceOf(DriveAuthError)
+      expect((err as Error).message).not.toContain('다시 해야 해요')
+    }
+    const g = fakeGoogle({ refreshStatus: 401 })
+    expect(await mk(g).ensureFolder(['레시피']).catch((e: unknown) => e)).toBeInstanceOf(DriveAuthError)
+  })
+
   it('토큰 파일이 없으면 DriveAuthError', async () => {
     const g = fakeGoogle()
     const d = createDrive(join(dir, 'none.json'), g.fetchImpl, { clientFile, cacheDir: join(dir, 'cache') })

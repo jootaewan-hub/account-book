@@ -87,17 +87,24 @@ export function pickExports(
   archived: { id: string }[],
   exportRows: ExportRow[],
   limit = 10,
+  opts: { skip?: readonly string[]; need?: readonly ('drive' | 'obsidian')[] } = {},
 ): { fill: string[]; trash: string[] } {
   const by = new Map(exportRows.map((e) => [e.recipe_id, e]))
+  const skip = new Set(opts.skip ?? [])
+  const need = opts.need ?? []
   const fill = saved
     .filter((s) => {
+      if (skip.has(s.id)) return false
       const e = by.get(s.id)
-      return !e || Date.parse(s.updated_at) > Date.parse(e.exported_at)
+      if (!e || Date.parse(s.updated_at) > Date.parse(e.exported_at)) return true
+      // 설정된 보관 자리 중 아직 채우지 못한 칸이 있으면(예: 나중에 구글을 연결) 다시 대상이다
+      return (need.includes('drive') && e.drive_doc_id === null) || (need.includes('obsidian') && e.obsidian_path === null)
     })
     .sort((a, b) => Date.parse(a.updated_at) - Date.parse(b.updated_at))
     .map((s) => s.id)
   const trash = archived
     .filter((a) => {
+      if (skip.has(a.id)) return false
       const e = by.get(a.id)
       return !!e && (e.drive_doc_id !== null || e.obsidian_path !== null)
     })
