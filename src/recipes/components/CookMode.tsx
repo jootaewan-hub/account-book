@@ -19,12 +19,16 @@ function useWakeLock() {
     if (!api || typeof api.request !== 'function') return
     let alive = true
     let held: Sentinel | null = null
+    let latest = 0
     const drop = () => { const s = held; held = null; if (s) void Promise.resolve(s.release()).catch(() => {}) }
     const take = async () => {
       drop() // 숨겨졌다 돌아오면 브라우저가 이미 놓았을 수 있다. 새로 받는다
+      const mine = ++latest
       try {
         const s = await api.request('screen')
-        if (!alive) { void Promise.resolve(s.release()).catch(() => {}); return }
+        // 요청이 겹쳤으면 마지막 것만 남기고 나머지는 바로 놓는다
+        if (!alive || mine !== latest) { void Promise.resolve(s.release()).catch(() => {}); return }
+        drop()
         held = s
       } catch { /* 배터리 절약 등으로 거절돼도 요리는 계속한다 */ }
     }
@@ -79,7 +83,7 @@ export function CookMode({ recipe, servings, pantry, store, onExit, onPantryChan
   const [error, setError] = useState<string | null>(null)
   const root = useRef<HTMLDivElement>(null)
   const head = useRef<HTMLHeadingElement>(null)
-  useFocusTrap(root, true, { initialFocus: head })
+  useFocusTrap(root, true, { initialFocus: head, onEscape: onExit })
   useScrollLock(true)
   useWakeLock()
   // 단계가 바뀔 때마다 제목으로 포커스를 옮긴다

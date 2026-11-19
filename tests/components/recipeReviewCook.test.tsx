@@ -278,6 +278,12 @@ describe('요리 화면: 끝', () => {
     expect((await screen.findByRole('alert')).textContent).toContain('저장하지 못했어요')
     expect(screen.getByRole('button', { name: /간장 끄기/ })).toBeTruthy()
   })
+  it('Esc는 onExit', () => {
+    const onExit = vi.fn()
+    showCook({ onExit })
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(onExit).toHaveBeenCalledTimes(1)
+  })
   it('마지막 단계의 "요리 끝"과 위쪽 "나가기"는 onExit', () => {
     const onExit = vi.fn()
     showCook({ onExit })
@@ -310,6 +316,21 @@ describe('요리 화면: 화면 켜 두기', () => {
     expect(release).toHaveBeenCalledTimes(2)
     await act(async () => { document.dispatchEvent(new Event('visibilitychange')) })
     expect(request).toHaveBeenCalledTimes(2)
+  })
+  it('보임 신호가 연달아 두 번 와도 받은 잠금을 모두 놓는다', async () => {
+    const releases: ReturnType<typeof vi.fn>[] = []
+    const pending: ((v: { release: () => Promise<void> }) => void)[] = []
+    const request = vi.fn(() => new Promise<{ release: () => Promise<void> }>((res) => { pending.push(res) }))
+    Object.defineProperty(navigator, 'wakeLock', { value: { request }, configurable: true })
+    Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true })
+    const view = render(<CookMode recipe={stored()} servings={2} pantry={pantry} store={{} as RecipeStore} onExit={() => {}} />)
+    await act(async () => { document.dispatchEvent(new Event('visibilitychange')); document.dispatchEvent(new Event('visibilitychange')) })
+    expect(request).toHaveBeenCalledTimes(3)
+    await act(async () => { pending.forEach((res) => { const release = vi.fn(async () => {}); releases.push(release); res({ release }) }) })
+    view.unmount()
+    await act(async () => {})
+    expect(releases).toHaveLength(3)
+    releases.forEach((r) => expect(r).toHaveBeenCalledTimes(1))
   })
   it('API가 없으면 오류 없이 넘어간다', async () => {
     showCook()
