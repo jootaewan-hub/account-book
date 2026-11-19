@@ -194,6 +194,8 @@ describe('recipe-worker 일', () => {
     expect(d.listExports).toHaveBeenLastCalledWith({ skip: [u], need: ['drive', 'obsidian'] })
     expect((await call(d, { action: 'exports' })).status).toBe(200)
     expect(d.listExports).toHaveBeenLastCalledWith({ skip: [], need: [] })
+    await call(d, { action: 'exports', need: ['drive', 'drive'] })
+    expect(d.listExports).toHaveBeenLastCalledWith({ skip: [], need: ['drive'] })
     expect((await call(d, { action: 'exports', skip: Array(100).fill(u) })).status).toBe(200)
     for (const body of [{ skip: Array(101).fill(u) }, { skip: ['x'] }, { skip: 'a' }, { need: ['sheet'] }, { need: 'drive' }, { need: ['drive', 'obsidian', 'drive'] }]) {
       expect((await call(d, { action: 'exports', ...body })).status).toBe(400)

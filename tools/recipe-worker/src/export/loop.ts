@@ -6,18 +6,27 @@ import { trashObsidian, writeObsidian } from './obsidian.ts'
 const FIRST_MS = 5 * 60_000
 const MAX_MS = 6 * 60 * 60_000
 
-/** 건별 실패 뒤 물러서기: 5분, 두 배씩, 최대 6시간. 성공하면 지운다. 메모리에만 둔다 */
+const BLOCK_MS = 30 * 60_000
+
+/**
+ * 건별 실패 뒤 물러서기: 5분, 두 배씩, 최대 6시간. 성공하면 지운다. 메모리에만 둔다.
+ * block은 따로다: 설정된 보관 자리(구글)를 쓸 수 없어 못 알린 건을 30분 고정으로 비켜 두어 다른 건이 앞으로 나오게 한다(두 배로 늘지 않는다).
+ */
 export function createBackoff(now: () => number = Date.now) {
   const m = new Map<string, { fails: number; until: number }>()
+  const blocked = new Map<string, number>()
   return {
+    block(id: string) { blocked.set(id, now() + BLOCK_MS) },
     fail(id: string) {
       const fails = (m.get(id)?.fails ?? 0) + 1
       m.set(id, { fails, until: now() + Math.min(FIRST_MS * 2 ** (fails - 1), MAX_MS) })
     },
-    ok(id: string) { m.delete(id) },
+    ok(id: string) { m.delete(id); blocked.delete(id) },
     skipped(): string[] {
       const t = now()
-      return [...m].filter(([, v]) => v.until > t).map(([id]) => id).slice(0, 100)
+      const ids = new Set([...m].filter(([, v]) => v.until > t).map(([id]) => id))
+      for (const [id, until] of blocked) if (until > t) ids.add(id)
+      return [...ids].slice(0, 100)
     },
   }
 }
@@ -54,7 +63,7 @@ export async function exportOnce(
   for (const item of items) {
     const id = item.recipe_id
     const prev = item.prev
-    let blocked = false // 연결 문제로 못 한 일(건 탓이 아니라 물러서기를 걸지 않는다)
+    let blocked = false // 연결 문제로 못 한 일(건 탓이 아니라 실패 물러서기 대신 30분 비켜 두기)
     try {
       const driveUp = !!drive && !driveDown
       if (item.trash) {
@@ -71,7 +80,8 @@ export async function exportOnce(
           if (driveConfigured) blocked = true
         }
         if (!handled) {
-          if (!blocked) backoff?.fail(id)
+          if (blocked) backoff?.block(id)
+          else backoff?.fail(id)
           continue
         }
         await api.exported({ recipe_id: id, drive_doc_id: null, drive_path: null, obsidian_path: null, snapshot_updated_at: null })
@@ -86,7 +96,7 @@ export async function exportOnce(
       let docId = prev?.drive_doc_id ?? null
       let docPath = prev?.drive_path ?? null
       if (driveConfigured) {
-        if (!driveUp) { blocked = true; continue } // 구글을 쓸 수 없다: 알리지 않고 다음에 다시
+        if (!driveUp) { backoff?.block(id); continue } // 구글을 쓸 수 없다: 알리지 않고 다음에 다시
         const doc = await drive.upsertDoc(r, prev?.drive_doc_id ? { id: prev.drive_doc_id, path: prev.drive_path } : null)
         docId = doc.id
         docPath = doc.path
@@ -103,7 +113,8 @@ export async function exportOnce(
       } else {
         log('사본 하나를 보관하지 못했어요. 다음에 다시 해요')
       }
-      if (!blocked) backoff?.fail(id)
+      if (blocked) backoff?.block(id)
+      else backoff?.fail(id)
     }
   }
   return reported

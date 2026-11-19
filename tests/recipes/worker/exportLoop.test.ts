@@ -170,6 +170,34 @@ describe('exportOnce 보완', () => {
     expect(existsSync(join(vault, '레시피'))).toBe(true)
   })
 
+  it('드라이브가 끊겨도(설정됨) 대기 15건은 옵시디언에 모두 써지고, 30분 뒤 드라이브가 돌아오면 모두 보고된다', async () => {
+    const vault = mkdtempSync(join(tmpdir(), 'vault-'))
+    const all = Array.from({ length: 15 }, (_, i) => item(`r${String(i).padStart(2, '0')}`))
+    const done = new Set<string>()
+    // 서버처럼: skip을 빼고, 보고되지 않은 것 중 앞에서 10건
+    const api = {
+      exports: vi.fn<WorkerApi['exports']>(async (o) => all.filter((x) => !done.has(x.recipe_id) && !o?.skip?.includes(x.recipe_id)).slice(0, 10)),
+      exported: vi.fn<WorkerApi['exported']>(async (i) => { done.add(i.recipe_id); return true }),
+    }
+    let t = 0
+    const b = createBackoff(() => t)
+    expect(await exportOnce(api, null, vault, quiet, { driveConfigured: true, backoff: b })).toBe(0)
+    t += 60_000
+    expect(await exportOnce(api, null, vault, quiet, { driveConfigured: true, backoff: b })).toBe(0)
+    t += 60_000
+    expect(api.exports.mock.calls[1][0]?.skip).toHaveLength(10)
+    const { readdirSync } = await import('node:fs')
+    const files = (d: string): string[] => readdirSync(d, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? files(join(d, e.name)) : [e.name]))
+    expect(files(vault).length).toBe(15) // 같은 제목이라도 레시피 id가 달라 15개가 따로 써진다
+    expect(api.exported).not.toHaveBeenCalled()
+    t += 31 * 60_000
+    const drive = mkDrive()
+    let total = 0
+    for (let i = 0; i < 3; i++) total += await exportOnce(api, drive, vault, quiet, { driveConfigured: true, backoff: b })
+    expect(total).toBe(15)
+    expect(done.size).toBe(15)
+  })
+
   it('지움: 쓸 수 없는 자리에 이전 값이 있으면 알리지 않는다', async () => {
     const vault = mkdtempSync(join(tmpdir(), 'vault-'))
     const t = (prev: ExportItem['prev']) => item('a', { recipe: null, trash: true, prev })
