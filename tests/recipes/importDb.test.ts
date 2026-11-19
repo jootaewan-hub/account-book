@@ -108,6 +108,9 @@ const withGold = (edit: (r: Json) => void): Json => {
   return r
 }
 
+/** 처음 담은 시각을 과거로 돌려 놓고, 다시 등록 뒤 남았는지·바뀌었는지 본다 */
+const OLD_ADDED_AT = '2026-01-01T00:00:00.000Z'
+
 const REVIEW_ITEM = {
   target: '통깨',
   reason: '재료 소개에서만 들리고 설명란에는 없다',
@@ -273,6 +276,7 @@ describe('다시 등록(같은 가구·같은 출처)', () => {
   it('같은 id에 내용을 바꾸고 메모·별점·즐겨찾기는 남긴다', async () => {
     const job1 = await seedJob(hhAB, A)
     const id = await importRecipe(job1, gold)
+    await admin(`update recipe.recipes set added_at = $2 where id = $1`, [id, OLD_ADDED_AT])
     const before = await recipeRow(id)
     // 앱에서 구성원이 남긴 것
     await as(B, `update recipe.recipes set memo = '우리 집은 설탕 1큰술', rating = 5, favorite = true where id = $1`, [id])
@@ -301,22 +305,43 @@ describe('다시 등록(같은 가구·같은 출처)', () => {
       memo: '우리 집은 설탕 1큰술',
       rating: 5,
       favorite: true,
-      // 처음 담은 사람과 시각은 그대로
+      // 보관한 레시피가 아니면 처음 담은 사람과 시각은 그대로
       added_by: A,
       added_at: before.added_at,
     })
+    expect((after.added_at as Date).toISOString()).toBe(OLD_ADDED_AT)
     expect(await count('ingredients', 'recipe_id = $1', [id])).toBe(2)
     expect(await count('steps', 'recipe_id = $1', [id])).toBe(1)
     expect(await jobRow(job2)).toMatchObject({ state: 'done', recipe_id: id })
     expect(await jobRow(job1)).toMatchObject({ state: 'done', recipe_id: id })
   })
 
-  it('보관(archived)한 레시피도 같은 id로 돌아온다', async () => {
-    const id = await importRecipe(await seedJob(hhAB, A), gold)
-    await as(A, `update recipe.recipes set status = 'archived', memo = '보관 전 메모' where id = $1`, [id])
+  it('확인 중(review)인 레시피도 처음 담은 사람과 시각을 남긴다', async () => {
+    const id = await importRecipe(await seedJob(hhAB, A), withGold((r) => { r.review_items = [REVIEW_ITEM] }))
+    await admin(`update recipe.recipes set added_at = $2 where id = $1`, [id, OLD_ADDED_AT])
     expect(await importRecipe(await seedJob(hhAB, B), gold)).toBe(id)
-    expect(await recipeRow(id)).toMatchObject({ status: 'saved', memo: '보관 전 메모' })
+    const after = await recipeRow(id)
+    expect(after).toMatchObject({ status: 'saved', added_by: A })
+    expect((after.added_at as Date).toISOString()).toBe(OLD_ADDED_AT)
+  })
+
+  it('보관(archived)한 레시피는 같은 id로 돌아오고, 새로 담은 사람·시각이 된다(목록에서 새것으로)', async () => {
+    const id = await importRecipe(await seedJob(hhAB, A), gold)
+    await as(A, `update recipe.recipes set status = 'archived', memo = '보관 전 메모', rating = 4, favorite = true where id = $1`, [id])
+    await admin(`update recipe.recipes set added_at = $2 where id = $1`, [id, OLD_ADDED_AT])
+    expect(await importRecipe(await seedJob(hhAB, B), gold)).toBe(id)
+    const after = await recipeRow(id)
+    expect(after).toMatchObject({ status: 'saved', memo: '보관 전 메모', rating: 4, favorite: true, added_by: B })
+    expect((after.added_at as Date).getTime()).toBeGreaterThan(Date.parse(OLD_ADDED_AT))
     expect(await count('ingredients', 'recipe_id = $1', [id])).toBe(17)
+  })
+
+  it('보관한 레시피를 가구에서 빠진 사람의 일로 다시 담으면 added_by는 비어 있다', async () => {
+    const id = await importRecipe(await seedJob(hhC, C), gold)
+    await admin(`update recipe.recipes set status = 'archived' where id = $1`, [id])
+    const job = await seedJob(hhC, null)
+    expect(await importRecipe(job, gold)).toBe(id)
+    expect(await recipeRow(id)).toMatchObject({ status: 'saved', added_by: null })
   })
 
   it('다른 가구의 같은 출처는 따로 등록된다', async () => {

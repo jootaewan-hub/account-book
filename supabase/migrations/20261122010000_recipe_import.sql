@@ -3,8 +3,9 @@
 --   - 가구·담은 사람·출처 열쇠·출처 주소는 대기 줄에서 가져온다(JSON의 값은 믿지 않는다). 출처 종류도 대기 줄의
 --     정규 주소에서 정한다(/shorts/면 youtube_shorts). JSON에 source.key가 있는데 대기 줄과 다르면 거절한다.
 --   - 서비스 롤(recipe-worker)만 부른다. 앱 사용자는 대기함에 담기만 한다.
---   - 같은 가구·같은 출처가 이미 있으면 상태(보관 포함)와 상관없이 같은 id에 내용을 바꾼다. 메모·별점·즐겨찾기와
---     처음 담은 사람·시각은 남기고, 재료·단계는 지우고 다시 넣는다. 보관한 영상을 다시 담으면 레시피북에 돌아온다.
+--   - 같은 가구·같은 출처가 이미 있으면 상태(보관 포함)와 상관없이 같은 id에 내용을 바꾼다. 메모·별점·즐겨찾기는
+--     남기고, 재료·단계는 지우고 다시 넣는다. 담은 사람·시각은 처음 값을 남기되, 보관했던 레시피면 새 일의 사람·지금으로
+--     바꾼다(보관한 영상을 다시 담으면 레시피북에 새로 담은 것으로 돌아온다).
 --   - review_items가 비면 saved, 아니면 review. review_count는 recipes_before_write 트리거가 센다.
 --   - 난이도와 그 근거는 recipe-worker가 계산해 따로 준다(p_difficulty, p_difficulty_basis). JSON의 tags.difficulty는 쓰지 않는다.
 --   - 끝나면 대기 줄을 done으로 바꾸고 만든 레시피를 적는다. 한 트랜잭션이라 중간에 거절되면 아무것도 바뀌지 않는다.
@@ -103,7 +104,7 @@ begin
     coalesce(nullif(p_recipe -> 'extraction', 'null'::jsonb), '{}'::jsonb),
     v_job.added_by  -- 비어 있어도 그대로(기본값 auth.uid()를 쓰지 않는다)
   )
-  -- 같은 가구·같은 출처: 같은 id에 바꾼다. memo, rating, favorite, added_by, added_at은 남긴다.
+  -- 같은 가구·같은 출처: 같은 id에 바꾼다. memo, rating, favorite은 남긴다.
   on conflict (household_id, source_key) do update set
     status = excluded.status,
     title = excluded.title,
@@ -132,7 +133,11 @@ begin
     glossary = excluded.glossary,
     corrections = excluded.corrections,
     review_items = excluded.review_items,
-    extraction = excluded.extraction
+    extraction = excluded.extraction,
+    -- 보관했던 레시피를 다시 담으면 새로 담은 것으로(목록에서 새것으로 보인다). 그 밖에는 처음 담은 사람·시각을 남긴다.
+    -- SET의 r.status는 바꾸기 전 값이다.
+    added_by = case when r.status = 'archived' then excluded.added_by else r.added_by end,
+    added_at = case when r.status = 'archived' then now() else r.added_at end
   returning r.id into v_id;
 
   -- 재료·단계는 통째로 바꾼다(자리 번호가 겹치지 않게 먼저 지운다)
