@@ -37,7 +37,7 @@ export type YtDlp = {
 export function createYtDlp(cfg: WorkerConfig, run: Runner, now: () => Date): YtDlp {
   const stateFile = join(cfg.cacheDir, '.yt-dlp-upgraded')
 
-  /** 오늘(서울) 아직 안 올렸으면 brew upgrade yt-dlp를 한 번 돌린다. 돌렸으면 true. 실패해도 오늘은 다시 안 한다. */
+  /** 오늘(서울) 아직 안 올렸으면 brew upgrade yt-dlp를 한 번 돌린다. 실패해도 오늘은 다시 안 한다. */
   async function upgradeIfDue(): Promise<boolean> {
     const today = seoulDay(now())
     let last = ''
@@ -52,10 +52,10 @@ export function createYtDlp(cfg: WorkerConfig, run: Runner, now: () => Date): Yt
   }
 
   const base = (url: string, rest: string[]) => [
-    '--ignore-config', '--use-extractors', 'youtube', '--no-playlist', ...cfg.ytDlpExtraArgs, ...rest, url,
+    '--ignore-config', '--use-extractors', 'youtube', '--no-playlist', '--ffmpeg-location', cfg.ffmpegPath, ...cfg.ytDlpExtraArgs, ...rest, '--', url,
   ]
 
-  /** 하루 첫 일 전 업그레이드, 실패하면 그날 아직 안 했을 때만 업그레이드 뒤 한 번 더. 까닭은 한국어로만 던진다. */
+  /** 하루 첫 yt-dlp 호출 전에 업그레이드(서울 날짜 하루 한 번). 까닭은 한국어로만 던진다. */
   async function ytdlp(args: string[], first: boolean): Promise<Buffer> {
     if (first) await upgradeIfDue()
     let failure: unknown
@@ -64,18 +64,7 @@ export function createYtDlp(cfg: WorkerConfig, run: Runner, now: () => Date): Yt
     } catch (e) {
       failure = e
     }
-    const reason = mapYtDlpError(errText(failure))
-    if (reason !== FAIL_GENERIC) throw new Error(reason)
-    if (await upgradeIfDue()) {
-      let again: unknown
-      try {
-        return (await run(cfg.ytDlpPath, args)).stdout
-      } catch (e) {
-        again = e
-      }
-      throw new Error(mapYtDlpError(errText(again)))
-    }
-    throw new Error(FAIL_GENERIC)
+    throw new Error(mapYtDlpError(errText(failure)))
   }
 
   const isKo = (k: string) => /^ko(?:-|$)/.test(k)

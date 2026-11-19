@@ -261,6 +261,8 @@ describe('collect', () => {
     for (const c of yt) {
       expect(c.args).toEqual(expect.arrayContaining(['--use-extractors', 'youtube', '--no-playlist', '--extra-x']))
       expect(c.args.some((a) => /cookie/i.test(a))).toBe(false)
+      expect(c.args[c.args.indexOf('--ffmpeg-location') + 1]).toBe(cfg.ffmpegPath)
+      expect(c.args[c.args.length - 2]).toBe('--')
       expect(URL_RE.test(c.args[c.args.length - 1]!)).toBe(true)
       expect(c.args[c.args.length - 1]).toBe('https://www.youtube.com/watch?v=AkX6uA4BaDs')
     }
@@ -357,13 +359,10 @@ describe('brew upgrade yt-dlp (서울 날짜 하루 한 번)', () => {
     expect(w.calls.filter((c) => c.file === cfg.brewPath).length).toBe(1)
   })
 
-  it('받기가 실패하면 그날 아직 안 했을 때만 한 번 올리고 다시 해 본다', async () => {
-    // 오늘 이미 올렸다고 적어 두면: 다시 안 함
-    mkdirSync(cfg.cacheDir, { recursive: true })
-    writeFileSync(join(cfg.cacheDir, '.yt-dlp-upgraded'), '2026-11-19\n')
+  it('받기가 실패해도 다시 올리거나 다시 받지 않는다', async () => {
     const w1 = fakeWorld({ ytFail: () => 'ERROR: boom' })
     await collect({ source_key: 'youtube:AkX6uA4BaDs' }, dir, cfg, async () => {}, { run: w1.run, now }).catch(() => {})
-    expect(w1.calls.filter((c) => c.file === cfg.brewPath).length).toBe(0)
+    expect(w1.calls.filter((c) => c.file === cfg.brewPath).length).toBe(1)
     expect(ytCalls(w1.calls, cfg.ytDlpPath).length).toBe(1)
   })
 })
