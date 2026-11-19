@@ -11,7 +11,8 @@
 
 - 읽을 곳: 설계 `docs/superpowers/specs/2026-11-19-recipes-design.md`, 계획 `docs/superpowers/plans/2026-11-19-recipes.md`, 지금 상태와 열린 문제 `docs/recipes/tracking/status.md`, 결정 `docs/grocery/tracking/decisions/index.md`의 D-056~D-063, 사용자가 정한 것 `docs/recipes/tracking/brainstorm.md`, 규칙 `CLAUDE.md`의 "레시피 부분".
 - 사용자 허락을 기다리는 일(같은 목록이 `status.md`에 있다):
-  - **Task 14, 실제 영상 확인:** yt-dlp·Deno 설치, whisper 한국어 모델(약 1.6GB) 받기, 구독 사용량 쓰기. 집·회사 인터넷에서 기준 영상으로 확인(A1~A4, A6). A1·A2가 안 되면 멈추고 묻는다.
+  - **Task 14, 실제 영상 확인:** 2026-11-19 저녁 집 인터넷에서 했다(A1 집·A3·A4 통과, 근거 없는 숫자 0, A2 헤드리스·그림 읽기 됨, A6 7일 만료 확인). 결과는 `docs/recipes/ingest-sources.md`의 "맥 처리기로 돌린 실제 영상". 남은 것: 회사 인터넷 A1(평일 낮), launchd로 도는 A2, 구독을 사람 없이 돌리는 이용 조건(확인 필요, 사용자 판단).
+  - **마지막 검토 고침(2026-11-19):** 확인 값 꼴 하나로(C1), 되돌리기는 출처 user(I1), 처리기 영구 실패(I3), `claude -p` 격리(I4, 실제 호출로 확인), 레시피북에 있는 레시피는 다시 등록하지 않음(I5, `RCP01`), 모델 후보·다른 곳 근거 확인(I6), 사본 상태를 앱에(I7), `cookable` 중복(I8), Task 14에서 나온 사용량 기록(R1)·긴 영상 고르게 보기(R2)·단위 없는 분량(R3)·계량 도구 근거(M9). 마이그레이션은 아직 적용 전이라 파일을 그 자리에서 고쳤다(새 칸: `inbox.dismissed_at`, `worker_status.export_issue`·`export_checked_at`, 새 함수 `dismiss_job`).
   - **Task 25, 한 번에 묻기:** 마이그레이션 넷(`20261122000000_recipe_init`, `20261122010000_recipe_import`, `20261122020000_recipe_pantry`, `20261122030000_recipe_rate`)을 MCP `apply_migration`으로 적용, `recipe-worker` 배포(커밋 고정 stub)와 서버 비밀 `RECIPE_WORKER_SECRET`, 대시보드 Exposed schemas에 `recipe` 더하기, 옵시디언 보관함 만들기, 구글 로그인, 처리기 설치(`~/Library/LaunchAgents`에 plist), main 병합과 버전 올리기(D-028).
   - **미룬 확인:** A2(launchd로 도는 처리기가 Claude를 부름)와 A5(iCloud 옵시디언·구글 드라이브 쓰기).
 - 이어서 할 때 알아 둘 것: 병합 전에 `git fetch`로 `origin/main`을 보고(Codex가 main에 직접 올린 변경이 있었다) 새 마이그레이션 이름이 가장 늦은 파일보다 뒤인지, 버전 번호는 그때의 main 기준인지 확인한다. 처리기 설치는 `tools/recipe-worker/install.sh <커밋>`이고 launchd를 부르는 것은 사용자가 따로 한다. 배포 뒤에는 이 문서에 함수 커밋 해시와 되돌리는 법을 적는다.

@@ -194,19 +194,21 @@ const reviewC = mini('Gul0Nodl3Kk', '들기름 막국수', { mains: ['면'], mai
     measuring_tool: '확인 못 함',
     conflicts: [{ about: '면 삶는 시간', chosen: '4분', chosen_origin: 'description', other: '5분', other_origin: 'caption_auto', video_start_seconds: 95, note: '면 굵기에 따라 달라요' }],
     review_items: [
-      { target: 'ingredients[1].amount', reason: '자동 자막이 "두 큰술"과 "세 큰술"로 엇갈려요', candidates: [{ value: '2', origin: 'caption_auto', at_seconds: 132 }, { value: '3', origin: 'asr', at_seconds: 210 }] },
+      { target: 'ingredients[1].amount', reason: '자동 자막이 "두 큰술"과 "세 큰술"로 엇갈려요', candidates: [{ value: '2큰술', origin: 'caption_auto', at_seconds: 132 }, { value: '3큰술', origin: 'asr', at_seconds: 210 }] },
       { target: 'measuring_tool', reason: '큰술이 계량스푼인지 밥숟가락인지 영상에서 알 수 없어요', candidates: [] },
       { target: 'conflicts[0]', reason: '설명란과 자막의 삶는 시간이 달라요', candidates: [] },
     ],
   })
-const review = recipeRows(reviewC, { id: R_REVIEW, status: 'review', added: ago(60 * 5), keys: { 메밀면: 'buckwheat_noodle', 들기름: 'perilla_oil', 간장: 'soy_sauce' }, extra: { difficulty: '쉬움' } })
+// 후보 값은 처리기가 쓰는 꼴(_shared/recipeValue.ts: "2큰술")이다
+const review = recipeRows(reviewC, { id: R_REVIEW, status: 'review', added: ago(60 * 5), keys: { 메밀면: 'buckwheat_noodle', 들기름: 'perilla_oil', 간장: 'soy_sauce' }, extra: { difficulty: '쉬움', difficulty_basis: { required: 4, steps: 2, heavy: false } } })
 
 const stewC = mini('Stw0Doenjang', '두부 듬뿍 된장찌개', { mains: ['두부·콩'], main_details: ['두부'], methods: ['찌개·전골'], occasions: ['국물'] },
   [gi('된장', 2, '큰술'), gi('두부', 1, '모'), gi('애호박', 0.5, '개')], [['끓이기', '물에 된장을 풀고 재료를 넣어 끓인다.']])
-const stew = recipeRows(stewC, { id: R_STEW, added: ago(60 * 24 * 9), keys: { 된장: 'doenjang', 두부: 'tofu', 애호박: 'zucchini' }, extra: { difficulty: '쉬움' } })
+const stew = recipeRows(stewC, { id: R_STEW, added: ago(60 * 24 * 9), keys: { 된장: 'doenjang', 두부: 'tofu', 애호박: 'zucchini' }, extra: { difficulty: '쉬움', difficulty_basis: { required: 3, steps: 1, heavy: false } } })
 
 const pastaC = mini('Pst0Cream3Mm', '버섯 크림 파스타', { cuisine: '양식', mains: ['면'], main_details: ['스파게티면'], methods: ['볶음'], occasions: ['손님상'] },
   [gi('스파게티면', 200, 'g'), gi('양송이버섯', 6, '개'), gi('생크림', 200, 'ml')], [['삶기', '면을 삶는다.'], ['소스', '버섯을 볶고 생크림을 넣는다.']])
+// 사람이 고른 난이도(셈한 근거 없음): 상세에 "난이도 보통 · 직접 고침"으로 보인다
 const pasta = recipeRows(pastaC, { id: R_PASTA, added: ago(60 * 24 * 20), keys: { 스파게티면: 'spaghetti', 양송이버섯: 'mushroom', 생크림: 'heavy_cream' }, extra: { difficulty: '보통', favorite: true } })
 
 const ALL_RECIPES = [gold, long, review, stew, pasta]
@@ -246,8 +248,9 @@ export const TABLES = {
   'recipe.ingredients': ALL_RECIPES.flatMap((r) => r.ingredients),
   'recipe.steps': ALL_RECIPES.flatMap((r) => r.steps),
   'recipe.inbox': RECIPE_INBOX,
-  // 처리기가 20분째 보이지 않는 모습: 12분 기다린 줄에 "맥이 켜지면 처리돼요"가 붙는다
-  'recipe.worker_status': [{ last_seen_at: ago(20), version: 'demo' }],
+  // 처리기가 20분째 보이지 않는 모습: 12분 기다린 줄에 "맥이 켜지면 처리돼요"가 붙는다(끊김 기준 12분).
+  // 사본을 쓰지 못한 모습도 함께: 처리 줄 아래에 "사본: 옵시디언 폴더에 쓰지 못했어요 (8분 전 확인)" 한 줄
+  'recipe.worker_status': [{ last_seen_at: ago(20), version: 'demo', export_issue: '옵시디언 폴더에 쓰지 못했어요', export_checked_at: ago(8) }],
   'recipe.pantry': RECIPE_PANTRY,
   'recipe.ingredient_dict': RECIPE_DICT,
   'recipe.rpc/cookable': ALL_RECIPES.map(cookRow),
@@ -467,7 +470,7 @@ export const EXPLORE_WEATHER = {
   },
   air: {
     status: 'ok',
-    station: { name: '정자동', addr: '경기 성남시 분당구 정자일로 80', distanceKm: 1.4 },
+    station: { name: '예시동', addr: '경기 성남시 분당구 예시로 1', distanceKm: 1.4 },
     measuredAt: kHour(hourAgo),
     pm10: { value: 35, grade: '보통' },
     pm25: { value: 12, grade: '좋음' },
