@@ -28,7 +28,7 @@ export function RecipesTab({ householdId, userId, store: injected }: { household
   const [recipes, setRecipes] = useState<RecipeSummary[]>([])
   const [jobs, setJobs] = useState<InboxJob[]>([])
   const [worker, setWorker] = useState<WorkerStatus | null>(null)
-  const [cookable, setCookable] = useState<CookableRow[]>([])
+  const [cookable, setCookable] = useState<CookableRow[] | null>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
@@ -41,7 +41,7 @@ export function RecipesTab({ householdId, userId, store: injected }: { household
   const load = useCallback(async () => {
     const mine = ++seq.current
     try {
-      const [r, j, w, c] = await Promise.all([store.listRecipes(), store.listInbox(), store.workerStatus(), store.cookable(2)])
+      const [r, j, w, c] = await Promise.all([store.listRecipes(), store.listInbox(), store.workerStatus(), store.cookable(2).catch(() => null)])
       if (mine !== seq.current) return
       setRecipes(r); setJobs(j); setWorker(w); setCookable(c); setError(null)
     } catch (e) {

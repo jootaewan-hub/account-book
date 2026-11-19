@@ -198,6 +198,19 @@ describe('거르기와 찾기', () => {
   })
 })
 
+describe('cookable을 못 읽을 때', () => {
+  it('레시피·처리 줄·담기 칸은 그대로 보이고 두 칩과 가진 재료 수만 빠진다', async () => {
+    const store = fake({ recipes: [recipe({ title: '두부조림' })], jobs: [job({ state: 'processing', stage: '저장 중' })] })
+    store.cookable.mockRejectedValue(new Error('schema'))
+    await open(store)
+    expect(screen.getByRole('button', { name: /두부조림/ }).textContent).not.toContain('가진 재료')
+    expect(screen.getByText('저장 중')).toBeTruthy()
+    expect(screen.queryByRole('alert')).toBeNull()
+    expect(screen.queryByRole('button', { name: '지금 만들 수 있음' })).toBeNull()
+    expect(screen.queryByRole('button', { name: '1~2개만 사면 됨' })).toBeNull()
+  })
+})
+
 describe('글과 탭', () => {
   it('화면 어디에도 AI·분석 글자가 없다', async () => {
     window.history.replaceState(null, '', '/?tab=recipes&add=' + encodeURIComponent('https://youtu.be/AkX6uA4BaDs'))

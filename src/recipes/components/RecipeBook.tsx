@@ -15,7 +15,7 @@ function Select({ label, value, options, onChange }: { label: string; value: str
 }
 
 export function RecipeBook({ recipes, cookable, loading, onOpen }: {
-  recipes: RecipeSummary[]; cookable: CookableRow[]; loading: boolean; onOpen: (id: string) => void
+  recipes: RecipeSummary[]; cookable: CookableRow[] | null; loading: boolean; onOpen: (id: string) => void
 }) {
   const [cuisine, setCuisine] = useState('')
   const [main, setMain] = useState('')
@@ -29,7 +29,7 @@ export function RecipeBook({ recipes, cookable, loading, onOpen }: {
 
   const live = useMemo(() => recipes.filter((r) => r.status !== 'archived'), [recipes])
   const reviewCount = live.filter((r) => r.status === 'review').length
-  const byId = useMemo(() => new Map(cookable.map((c) => [c.recipe_id, c])), [cookable])
+  const byId = useMemo(() => new Map((cookable ?? []).map((c) => [c.recipe_id, c])), [cookable])
   const q = query.trim().toLowerCase()
 
   const shown = live.filter((r) => {
@@ -40,7 +40,7 @@ export function RecipeBook({ recipes, cookable, loading, onOpen }: {
     if (occasion && !r.occasions.includes(occasion)) return false
     if (favorite && !r.favorite) return false
     if (review && r.status !== 'review') return false
-    if (pick) {
+    if (pick && cookable) {
       const c = byId.get(r.id)
       if (!c) return false
       const missing = c.need - c.have
@@ -62,8 +62,8 @@ export function RecipeBook({ recipes, cookable, loading, onOpen }: {
       </div>
       <div className="rcp-chips">
         <button className="rcp-chip" type="button" aria-pressed={favorite} onClick={() => setFavorite((x) => !x)}>즐겨찾기</button>
-        <button className="rcp-chip" type="button" aria-pressed={pick === 'now'} onClick={() => setPick(pick === 'now' ? '' : 'now')}>지금 만들 수 있음</button>
-        <button className="rcp-chip" type="button" aria-pressed={pick === 'few'} onClick={() => setPick(pick === 'few' ? '' : 'few')}>1~2개만 사면 됨</button>
+        {cookable && <button className="rcp-chip" type="button" aria-pressed={pick === 'now'} onClick={() => setPick(pick === 'now' ? '' : 'now')}>지금 만들 수 있음</button>}
+        {cookable && <button className="rcp-chip" type="button" aria-pressed={pick === 'few'} onClick={() => setPick(pick === 'few' ? '' : 'few')}>1~2개만 사면 됨</button>}
         {reviewCount > 0 && <button className="rcp-chip" type="button" aria-pressed={review} onClick={() => setReview((x) => !x)}>확인 필요 {reviewCount}</button>}
       </div>
       {loading && !live.length ? <p className="rcp-empty">레시피 불러오는 중</p>
