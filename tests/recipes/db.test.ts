@@ -505,6 +505,8 @@ describe('레시피 칸과 권한', () => {
   it('재료·단계는 내용 칸을 고치고 넣고 지우지만, 소속은 못 바꾼다', async () => {
     const r = await seedRecipe(hhAB, A)
     const other = await seedRecipe(hhAB, A, 'youtube:other1_____')
+    // ingredient_key는 사전(recipe.ingredient_dict)에 있는 열쇠여야 한다(20261122020000_recipe_pantry.sql)
+    await admin(`insert into recipe.ingredient_dict (id, name, category) values ('pork_shoulder', '앞다리살', '육류') on conflict do nothing`)
     await as(B, `update recipe.ingredients set position = 2, section = '양념', name = '앞다리살', amount = 600, unit = 'g', amount_text = '600g',
       note = '한 근', optional = false, origin = 'user', at_seconds = null, suggested_amount = null, suggested_unit = null,
       ingredient_key = 'pork_shoulder', needs_review = true where recipe_id = $1`, [r])
