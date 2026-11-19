@@ -12,7 +12,7 @@ type ExecLike = (
   args: string[],
   opts: { cwd: string; timeout: number; maxBuffer: number; encoding: 'utf8'; windowsHide: boolean },
   cb: ExecCb,
-) => { stdin: { end(data?: string): unknown } | null }
+) => { stdin: { on(ev: 'error', cb: () => void): unknown; end(data?: string): unknown } | null }
 
 const TIMEOUT_MS = 15 * 60_000
 const FALLBACK_WAIT_MS = 60 * 60_000
@@ -32,11 +32,15 @@ export function parseResetTime(text: string, now: Date): Date | null {
   return t
 }
 
+const MIN_WAIT_MS = 5 * 60_000
+const MAX_WAIT_MS = 24 * 60 * 60_000
+
 function rateLimited(text: string, now: Date): RateLimited {
   const at = parseResetTime(text, now)
-  // 시각이 있으면 1분 여유를 두고, 없으면 한 시간 뒤
-  const retry = at ? new Date(at.getTime() + 60_000) : new Date(now.getTime() + FALLBACK_WAIT_MS)
-  return new RateLimited(retry)
+  // 시각이 있으면 1분 여유를 두고, 없으면 한 시간 뒤. 어느 쪽이든 5분~24시간 안으로 가둔다(글에서 읽은 값을 그대로 믿지 않는다).
+  const want = at ? at.getTime() + 60_000 : now.getTime() + FALLBACK_WAIT_MS
+  const t = Math.min(Math.max(want, now.getTime() + MIN_WAIT_MS), now.getTime() + MAX_WAIT_MS)
+  return new RateLimited(new Date(t))
 }
 
 export function createClaudeRun(cfg: WorkerConfig, exec: ExecLike = execFile as unknown as ExecLike, now: () => Date = () => new Date()): ClaudeRun {
@@ -47,7 +51,12 @@ export function createClaudeRun(cfg: WorkerConfig, exec: ExecLike = execFile as 
         '--output-format',
         'json',
         '--allowedTools',
-        `Read(${jobDir}/**)`,
+        // 절대 경로는 `//`로 시작해야 프로젝트 기준 상대 경로로 읽히지 않는다. 실제 동작은 Task 14(A2)에서 확인한다.
+        `Read(//${jobDir.replace(/^\/+/, '')}/**)`,
+        // 허락 규칙은 자동 승인일 뿐이라, 쓸 수 있는 도구 자체를 Read 하나로 줄이고 MCP 서버도 끈다.
+        '--tools',
+        'Read',
+        '--strict-mcp-config',
         '--disallowedTools',
         'Bash',
         'Edit',
@@ -61,8 +70,7 @@ export function createClaudeRun(cfg: WorkerConfig, exec: ExecLike = execFile as 
         cfg.claudePath,
         args,
         { cwd: jobDir, timeout: TIMEOUT_MS, maxBuffer: 64 * 1024 * 1024, encoding: 'utf8', windowsHide: true },
-        (err, stdout) => {
-          // 사용량 제한은 종료 코드가 0이 아니어도 표준 출력에 JSON으로 온다. 먼저 그것을 본다.
+        (err, stdout, stderr) => {
           let parsed: { is_error?: unknown; result?: unknown } | null = null
           try {
             const j: unknown = JSON.parse(String(stdout))
@@ -71,15 +79,18 @@ export function createClaudeRun(cfg: WorkerConfig, exec: ExecLike = execFile as 
             parsed = null
           }
           const result = typeof parsed?.result === 'string' ? parsed.result : ''
-          if (parsed?.is_error === true || (parsed && result.length < 400 && LIMIT_WORDS.test(result))) {
-            if (LIMIT_WORDS.test(result)) return reject(rateLimited(result, now()))
-            return reject(new Error('Claude가 오류로 끝났어요'))
+          // 사용량 제한은 CLI가 오류라고 알릴 때(is_error 또는 비정상 종료)만, 그 오류 글에서 읽는다. 성공한 결과는 제어 신호로 보지 않는다.
+          const failed = parsed?.is_error === true || err !== null
+          if (failed) {
+            const text = result || String(stderr ?? '')
+            if (LIMIT_WORDS.test(text)) return reject(rateLimited(text, now()))
+            return reject(new Error(parsed?.is_error === true ? 'Claude가 오류로 끝났어요' : 'Claude 실행이 실패했어요'))
           }
-          if (err) return reject(new Error('Claude 실행이 실패했어요'))
           if (!parsed) return reject(new Error('Claude 결과를 읽을 수 없어요'))
           resolve(result)
         },
       )
+      child.stdin?.on('error', () => {}) // 일찍 끝난 프로그램에 쓰다 나는 EPIPE로 처리기가 죽지 않게. 실패는 위 콜백이 알린다.
       child.stdin?.end(prompt)
     })
 }
