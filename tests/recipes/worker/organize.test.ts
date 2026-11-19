@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from 'vitest'
-import { createClaudeRun, parseResetTime } from '../../../tools/recipe-worker/src/claude'
+import { claudeEnv, createClaudeRun, createUsageMeter, parseResetTime, usageLine } from '../../../tools/recipe-worker/src/claude'
 import type { WorkerConfig } from '../../../tools/recipe-worker/src/config'
-import type { Evidence } from '../../../tools/recipe-worker/src/evidence'
-import { buildOrganizePrompt, extractJsonObject, organize } from '../../../tools/recipe-worker/src/organize'
+import { evenly, selectFrames, type Evidence } from '../../../tools/recipe-worker/src/evidence'
+import { buildOrganizePrompt, extractJsonObject, organize, sampleScreenText, screenTextNote } from '../../../tools/recipe-worker/src/organize'
 import { RateLimited } from '../../../tools/recipe-worker/src/loop'
 
 const cfg = {
@@ -182,6 +182,15 @@ describe('createClaudeRun', () => {
     expect(args[args.indexOf('--tools') + 1]).toBe('Read')
     expect(args).toContain('--strict-mcp-config')
     expect(args).toEqual(expect.arrayContaining(['--disallowedTools', 'Bash', 'Edit', 'Write', 'WebFetch', 'WebSearch']))
+    // 사용자 설정·꾸밈을 물려받지 않고 세션을 남기지 않는다(I4)
+    for (const flag of ['--no-session-persistence', '--restricted', '--safe-mode', '--disable-slash-commands']) expect(args).toContain(flag)
+    expect(args[args.indexOf('--permission-mode') + 1]).toBe('dontAsk')
+    expect(args[args.indexOf('--permission-prompts') + 1]).toBe('none')
+    expect(JSON.parse(args[args.indexOf('--settings') + 1]!)).toEqual({ disableAllHooks: true })
+    // 구독 로그인을 쓰지 않는 --bare, 사용자 꾸밈을 켜는 값은 쓰지 않는다
+    for (const flag of ['--bare', '--dangerously-skip-permissions', '--allow-dangerously-skip-permissions', '--add-dir']) expect(args).not.toContain(flag)
+    expect(args).not.toContain('auto')
+    expect(args).not.toContain('bypassPermissions')
     expect(args.slice(args.indexOf('--model'), args.indexOf('--model') + 2)).toEqual(['--model', 'sonnet'])
     expect(args).not.toContain('프롬프트')
     expect(opts).toMatchObject({ cwd: '/x/job', timeout: 15 * 60_000 })
@@ -250,6 +259,37 @@ describe('createClaudeRun', () => {
     expect(e.retryAt.getTime()).toBe(now().getTime() + 60 * 60_000)
   })
 
+  it('사용량(usage·total_cost_usd·modelUsage)을 결과와 함께 알린다. 오류로 끝난 호출도', async () => {
+    const usage = { input_tokens: 12, output_tokens: 86, cache_creation_input_tokens: 16125, cache_read_input_tokens: 19163 }
+    const f = fakeExec(JSON.stringify({ is_error: false, result: '결과', total_cost_usd: 0.1346, usage, modelUsage: { 'claude-x-1': {} } }))
+    const seen: unknown[] = []
+    expect(await createClaudeRun(cfg, f.exec)('p', { jobDir: '/x/job', onUsage: (u) => seen.push(u) })).toBe('결과')
+    expect(seen).toEqual([{ cost_usd: 0.1346, ...usage, models: ['claude-x-1'] }])
+    const bad = fakeExec(JSON.stringify({ is_error: true, api_error_status: 404, result: 'There is an issue with the selected model', total_cost_usd: 0, usage: { input_tokens: 0 } }))
+    const seen2: unknown[] = []
+    await expect(createClaudeRun(cfg, bad.exec)('p', { jobDir: '/x/job', onUsage: (u) => seen2.push(u) })).rejects.toThrow('Claude가 오류로 끝났어요')
+    expect(seen2).toHaveLength(1)
+  })
+
+  it('환경에 USER·LOGNAME이 없으면 채워 넘긴다(없으면 구독 로그인을 못 찾는다)', async () => {
+    expect(claudeEnv({ HOME: '/Users/x', PATH: '/usr/bin' }, () => 'x')).toEqual({ HOME: '/Users/x', PATH: '/usr/bin', USER: 'x', LOGNAME: 'x' })
+    const full = { HOME: '/Users/x', USER: 'y', LOGNAME: 'y' }
+    expect(claudeEnv(full, () => 'x')).toBe(full)
+    const f = fakeExec(JSON.stringify({ is_error: false, result: 'x' }))
+    await createClaudeRun(cfg, f.exec)('p', { jobDir: '/x/job' })
+    const env = (f.raw.mock.calls[0]![2] as { env: Record<string, string> }).env
+    expect(env.USER).toBeTruthy()
+    expect(env.LOGNAME).toBeTruthy()
+  })
+
+  it('사용량 합과 기록 한 줄에는 수만 있다', () => {
+    const m = createUsageMeter()
+    m.add({ cost_usd: 0.1, input_tokens: 1, output_tokens: 2, cache_creation_input_tokens: 3, cache_read_input_tokens: 4, models: ['a'] })
+    m.add({ cost_usd: 0.02345, input_tokens: 10, output_tokens: 20, cache_creation_input_tokens: 30, cache_read_input_tokens: 40, models: ['a', 'b'] })
+    expect(m.total()).toEqual({ calls: 2, cost_usd: 0.1235, input_tokens: 11, output_tokens: 22, cache_creation_input_tokens: 33, cache_read_input_tokens: 44, models: ['a', 'b'] })
+    expect(usageLine(m.total())).toBe('Claude 2번 · 입력 11 · 캐시 생성 33 · 캐시 읽기 44 · 출력 22 토큰 · 정가 기준 $0.1235')
+  })
+
   it('제한이 아닌 오류는 그냥 오류(출력 글은 담지 않는다)', async () => {
     const f = fakeExec(JSON.stringify({ is_error: true, result: '비밀스러운 내용' }))
     const e = await createClaudeRun(cfg, f.exec)('p', { jobDir: '/x/job' }).catch((x) => x)
@@ -267,5 +307,47 @@ describe('parseResetTime', () => {
     expect(t.getTime()).toBeGreaterThan(now.getTime())
     expect(parseResetTime('limit|1800000000', now)?.getTime()).toBe(1800000000 * 1000)
     expect(parseResetTime('nothing', now)).toBeNull()
+  })
+})
+
+describe('긴 영상의 화면 글자·장면 고르기(R2)', () => {
+  // 20분 영상: 1초마다 한 줄, 50줄마다 분량 줄. 글은 만든 자료다.
+  const longOcr = Array.from({ length: 1200 }, (_, i) => ({ t: i, text: i % 50 === 0 ? `시험양념 ${(i % 7) + 1}큰술` : `화면 글자 ${i}번째 줄이에요` }))
+
+  it('화면 글자가 한도를 넘으면 영상 전체에서 고르게 고르고, 수·단위 줄을 먼저 다 넣는다', () => {
+    const s = sampleScreenText(longOcr, 3000)
+    expect(s.cut).toBe(true)
+    expect(s.total).toBe(1200)
+    expect(s.lines.join('\n').length).toBeLessThanOrEqual(3000)
+    const times = s.lines.map((l) => { const m = /^\[(\d+):(\d+)\]/.exec(l)!; return Number(m[1]) * 60 + Number(m[2]) })
+    expect(times).toEqual([...times].sort((a, b) => a - b)) // 시각 순
+    expect(Math.min(...times)).toBeLessThan(60) // 앞부분만이 아니라
+    expect(Math.max(...times)).toBeGreaterThan(1100) // 끝부분까지
+    for (let i = 0; i < 1200; i += 50) expect(times).toContain(i) // 분량 줄은 모두
+    expect(screenTextNote(s, 3000)).toBe(`화면 글자 1200줄이 3000자를 넘어, 영상 전체(00:00~19:59)에서 ${s.kept}줄을 고르게 골라 보여 준다(수·단위가 보이는 줄 먼저). 고르지 않은 줄은 보지 못했다.`)
+  })
+
+  it('한도 안이면 모두 두고 메모가 없다. 같은 글이 이어지면 하나만', () => {
+    const s = sampleScreenText([{ t: 1, text: '간장 2큰술' }, { t: 2, text: '간장 2큰술' }, { t: 3, text: '설탕 1큰술' }], 3000)
+    expect(s).toMatchObject({ cut: false, lines: ['[00:01] 간장 2큰술', '[00:03] 설탕 1큰술'] })
+    expect(screenTextNote(s, 3000)).toBeNull()
+  })
+
+  it('정리 프롬프트는 앞부분만 자르지 않고, 고른 방식을 잘린 자료 메모에 적는다', () => {
+    const p = buildOrganizePrompt(evidence({ duration: 1200 }, { ocr: longOcr, framesTotal: 80 }), [])
+    expect(p).toContain('[19:')
+    expect(p).toContain('고르게 골라 보여 준다(수·단위가 보이는 줄 먼저)')
+    expect(p).toContain('장면 그림 80장 중')
+    expect(p).not.toContain('자에서 잘렸다. 뒤쪽은 보지 못했다') // 화면 글자를 앞에서 자르지 않는다
+  })
+
+  it('장면은 묶음마다 영상 전체에 고르게 고른다(분량 글이 보이는 장이 많아도 앞부분에 몰리지 않는다)', () => {
+    const frames = Array.from({ length: 100 }, (_, i) => ({ t: i * 12, path: `/j/f${i}.jpg` }))
+    const ocr = frames.map((f) => ({ t: f.t, text: '시험양념 2큰술' }))
+    const picked = selectFrames(frames, ocr, ['시험양념'], 24)
+    expect(picked).toHaveLength(24)
+    expect(picked[0]!.t).toBeLessThan(60)
+    expect(picked[23]!.t).toBeGreaterThan(1100)
+    expect(evenly([1, 2, 3, 4, 5, 6, 7, 8, 9, 10], 3)).toEqual([2, 6, 9])
   })
 })

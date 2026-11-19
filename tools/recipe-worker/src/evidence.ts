@@ -17,6 +17,8 @@ export type Evidence = {
   transcript: { kind: 'caption_manual' | 'caption_auto' | 'asr'; segments: TranscriptSegment[] } | null
   ocr: OcrLine[]
   frames: Frame[]
+  /** 고르기 전 장면 수(frames는 그중 고른 것). 없으면 frames 수와 같다고 본다 */
+  framesTotal?: number
 }
 
 const isObj = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null
@@ -70,9 +72,20 @@ export function dedupe(thumbs: { t: number; pixels: Uint8Array }[], threshold = 
   return kept
 }
 
-const QTY = /\d+(?:[./]\d+)?\s*(?:kg|g|ml|l|cc|T|t|큰술|작은술|스푼|티스푼|컵|개|알|쪽|줄기|봉지|캔|모|마리|장|꼬집|대|인분|분|초)(?![A-Za-z])/i
+/** 숫자+단위로 보이는 글(분량·시간). 장면 고르기와 화면 글자 고르기가 먼저 볼 것을 정한다 */
+export const QTY = /\d+(?:[./]\d+)?\s*(?:kg|g|ml|l|cc|T|t|큰술|작은술|스푼|티스푼|컵|개|알|쪽|줄기|봉지|캔|모|마리|장|꼬집|대|인분|분|초)(?![A-Za-z])/i
 
-/** 숫자+단위 글자가 보이는 장, 재료 이름이 보이는 장을 먼저 고르고 남는 자리는 시간대에 고르게 채운다. 시각 순으로 돌려준다. */
+/** 목록에서 k개를 고르게(앞뒤 끝에 몰리지 않게) 고른다. 순서는 그대로 */
+export function evenly<T>(list: readonly T[], k: number): T[] {
+  if (k >= list.length) return [...list]
+  if (k <= 0) return []
+  return Array.from({ length: k }, (_, i) => list[Math.floor(((i + 0.5) * list.length) / k)]!)
+}
+
+/**
+ * 숫자+단위 글자와 재료 이름이 함께 보이는 장, 그다음 둘 중 하나가 보이는 장, 남는 자리는 다른 장으로 채운다.
+ * 묶음마다 영상 전체에 고르게 고른다(앞부분에 몰리지 않게). 시각 순으로 돌려준다.
+ */
 export function selectFrames(frames: Frame[], ocr: OcrLine[], names: string[], max = 24): Frame[] {
   if (frames.length <= max && ocr.length === 0) return [...frames]
   const textAt = new Map<number, string>()
@@ -83,12 +96,11 @@ export function selectFrames(frames: Frame[], ocr: OcrLine[], names: string[], m
     const score = (QTY.test(text) ? 1 : 0) + (usable.some((n) => text.includes(n)) ? 1 : 0)
     return { f, idx, score }
   })
-  const chosen = scored.filter((s) => s.score > 0).sort((a, b) => b.score - a.score || a.f.t - b.f.t).slice(0, max)
-  const room = max - chosen.length
-  if (room > 0) {
-    const rest = scored.filter((s) => s.score === 0)
-    const take = Math.min(room, rest.length)
-    for (let i = 0; i < take; i++) chosen.push(rest[Math.floor(((i + 0.5) * rest.length) / take)]!)
+  const chosen: typeof scored = []
+  for (const tier of [2, 1, 0]) {
+    const room = max - chosen.length
+    if (room <= 0) break
+    chosen.push(...evenly(scored.filter((s) => s.score === tier), room))
   }
   return chosen.sort((a, b) => a.idx - b.idx).map((s) => s.f)
 }

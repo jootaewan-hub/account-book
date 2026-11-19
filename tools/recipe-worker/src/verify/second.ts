@@ -8,8 +8,10 @@ import type { ClaudeRun } from '../claude.ts'
 import type { Evidence } from '../evidence.ts'
 import { RateLimited } from '../loop.ts'
 import {
-  DESCRIPTION_MAX, FRAMES_MAX, OCR_MAX, TRANSCRIPT_MAX, extractJsonObject, fence, fill, loadPrompt, mmss, oneLine, takeLines,
+  DESCRIPTION_MAX, FRAMES_MAX, OCR_MAX, TRANSCRIPT_MAX, extractJsonObject, fence, fill, framesNote, loadPrompt, mmss, oneLine,
+  sampleScreenText, screenTextNote, takeLines,
 } from '../organize.ts'
+import { evenly } from '../evidence.ts'
 import { formatAmountValue } from '../../../../supabase/functions/_shared/recipeValue.ts'
 import { amountMatches, canonUnit, hasQuantity, nearbyQuantities, sameName } from './grounding.ts'
 
@@ -61,17 +63,12 @@ export async function secondRead(e: Evidence, run: ClaudeRun, jobDir: string): P
   }
   const tr = takeLines((e.transcript?.segments ?? []).map((s) => `[${mmss(s.start)}] ${oneLine(s.text)}`), TRANSCRIPT_MAX)
   if (tr.cut) notes.push(`말(자막·받아쓰기)이 ${TRANSCRIPT_MAX}자에서 잘렸다. 뒤쪽은 보지 못했다.`)
-  const ocrLines: string[] = []
-  let prev = ''
-  for (const o of e.ocr) {
-    const text = oneLine(o.text)
-    if (!text || text === prev) continue
-    prev = text
-    ocrLines.push(`[${mmss(o.t)}] ${text}`)
-  }
-  const oc = takeLines(ocrLines, OCR_MAX)
-  if (oc.cut) notes.push(`화면 글자가 ${OCR_MAX}자에서 잘렸다. 뒤쪽은 보지 못했다.`)
-  const frames = e.frames.slice(0, FRAMES_MAX)
+  const oc = sampleScreenText(e.ocr, OCR_MAX)
+  const ocNote = screenTextNote(oc, OCR_MAX)
+  if (ocNote) notes.push(ocNote)
+  const frames = evenly(e.frames, FRAMES_MAX)
+  const frNote = framesNote(e, frames.length)
+  if (frNote) notes.push(frNote)
   if (!e.transcript) notes.push('자막도 받아쓰기도 없다. 말은 보지 못했다.')
 
   const evidence = fence({ description, transcript: tr.lines, screen_text: oc.lines, frames: framesArg(frames) }, 2)

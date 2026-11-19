@@ -1,6 +1,7 @@
 // 근거 모으기: 영상 정보 → 자막 → (한국어 자막이 없으면) 받아쓰기 → 장면·화면 글자.
 // 파일은 모두 넘겨받은 작업 폴더 안에만 만든다.
 import type { WorkerConfig } from '../config.ts'
+import { JobFailed } from '../errors.ts'
 import { ingredientNames, parseJson3, selectFrames, type Evidence } from '../evidence.ts'
 import { extractFrames } from './frames.ts'
 import { readScreenText } from './ocr.ts'
@@ -23,7 +24,7 @@ export async function collect(
 
   await onStage('영상 정보 받는 중')
   const { captions, ...meta } = await yt.meta(url)
-  if (meta.duration > MAX_SECONDS) throw new Error(FAIL_TOO_LONG)
+  if (meta.duration > MAX_SECONDS) throw new JobFailed(FAIL_TOO_LONG)
   const names = ingredientNames(meta.description)
 
   await onStage('자막 받는 중')
@@ -56,5 +57,5 @@ export async function collect(
   } catch {
     throw new Error(FAIL_GENERIC)
   }
-  return { meta, transcript, ocr, frames: selectFrames(all, ocr, names) }
+  return { meta, transcript, ocr, frames: selectFrames(all, ocr, names), framesTotal: all.length }
 }

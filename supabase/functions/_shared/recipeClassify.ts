@@ -14,8 +14,15 @@ export function difficulty(r: Pick<RecipeV2, 'ingredients' | 'steps' | 'tags'>):
   return { level, score, basis: { required, steps, heavy } }
 }
 
-export function folderPath(r: RecipeV2 & { difficulty: Difficulty }): string[] {
-  return ['레시피', r.tags.cuisine, r.tags.mains[0] ?? '기타', r.tags.methods[0] ?? '기타', r.difficulty]
+/** 사람이 난이도를 "정하지 않음"으로 둔 레시피의 보관 자리(폴더 이름·목록 칸) */
+export const DIFFICULTY_UNSET = '난이도 미정'
+
+export function difficultyLabel(d: Difficulty | null | undefined): string {
+  return d ?? DIFFICULTY_UNSET
+}
+
+export function folderPath(r: RecipeV2 & { difficulty: Difficulty | null }): string[] {
+  return ['레시피', r.tags.cuisine, r.tags.mains[0] ?? '기타', r.tags.methods[0] ?? '기타', difficultyLabel(r.difficulty)]
 }
 
 export function fileTitle(r: RecipeV2): string {

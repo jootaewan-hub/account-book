@@ -4,7 +4,8 @@ import type { Difficulty, RecipeV2 } from './recipeContract.ts'
 /** updated_at은 처리기가 보관을 마친 뒤 exported에 snapshot_updated_at으로 돌려줘야 한다(그 사이 고친 레시피가 다시 대상이 되게) */
 export type StoredRecipe = RecipeV2 & {
   id: string
-  difficulty: Difficulty
+  /** 사람이 "정하지 않음"으로 두면 null(보관 자리는 recipeClassify의 DIFFICULTY_UNSET) */
+  difficulty: Difficulty | null
   difficulty_basis: { required: number; steps: number; heavy: boolean } | null
   memo: string | null
   rating: number | null
@@ -64,7 +65,7 @@ export function toStoredRecipe(r: Row, ingredients: Row[], steps: Row[]): Stored
     review_items: r.review_items,
     extraction: r.extraction,
     id: r.id,
-    difficulty: r.difficulty,
+    difficulty: r.difficulty ?? null,
     difficulty_basis: r.difficulty_basis ?? null,
     memo: r.memo ?? null,
     rating: r.rating ?? null,

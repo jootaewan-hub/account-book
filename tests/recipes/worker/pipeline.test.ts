@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { checkOutPath, dryRun } from '../../../tools/recipe-worker/src/cli'
+import type { ClaudeRun } from '../../../tools/recipe-worker/src/claude'
 import type { WorkerConfig } from '../../../tools/recipe-worker/src/config'
 import type { Evidence } from '../../../tools/recipe-worker/src/evidence'
 import { RateLimited } from '../../../tools/recipe-worker/src/loop'
@@ -189,6 +190,23 @@ describe('dry-run', () => {
     expect(j.dict).toEqual([])
     expect(j.summary).toMatchObject({ numbers: { total: 2, grounded: 2, nulled: 0 }, reviews: 1, corrections: 0 })
     expect(typeof j.summary.seconds).toBe('number')
+  })
+
+  it('요약에 일 하나의 Claude 사용량 합(호출 수·토큰·정가 기준 금액)이 들어간다(R1)', async () => {
+    const inner = fakeRun()
+    const run = vi.fn(async (prompt: string, o: Parameters<ClaudeRun>[1]) => {
+      o.onUsage?.({ cost_usd: 0.01, input_tokens: 3, output_tokens: 100, cache_creation_input_tokens: 2000, cache_read_input_tokens: 5000, models: ['m1'] })
+      return inner(prompt, o)
+    })
+    const out = join(cacheDir, 'u.json')
+    await dryRun('youtu.be/AAAAAAAAAAA', out, {}, { cfg: cfgOf(), run, collect: vi.fn(async () => evidence()) })
+    const j = JSON.parse(readFileSync(out, 'utf8'))
+    const calls = run.mock.calls.length
+    expect(calls).toBeGreaterThanOrEqual(2)
+    expect(j.summary.usage).toEqual({
+      calls, cost_usd: 0.01 * calls, input_tokens: 3 * calls, output_tokens: 100 * calls,
+      cache_creation_input_tokens: 2000 * calls, cache_read_input_tokens: 5000 * calls, models: ['m1'],
+    })
   })
 
   it('--no-description은 설명란을 비우고 돌린다', async () => {

@@ -1,4 +1,4 @@
-import { chmod, mkdir, mkdtemp, readFile, readdir, rm, stat, symlink } from 'node:fs/promises'
+import { chmod, mkdir, mkdtemp, readFile, readdir, rm, stat, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
@@ -6,7 +6,7 @@ import { difficulty } from '../../../supabase/functions/_shared/recipeClassify'
 import type { RecipeV2 } from '../../../supabase/functions/_shared/recipeContract'
 import type { StoredRecipe } from '../../../supabase/functions/_shared/recipeStored'
 import { probeObsidian, trashObsidian, writeObsidian } from '../../../tools/recipe-worker/src/export/obsidian'
-import { mdLink, renderHtml, renderMarkdown, watchUrl } from '../../../tools/recipe-worker/src/export/render'
+import { folderPath, mdLink, renderHtml, renderMarkdown, watchUrl } from '../../../tools/recipe-worker/src/export/render'
 import gold from '../../../docs/recipes/contract/examples/youtube-AkX6uA4BaDs.json'
 
 function stored(over: Partial<StoredRecipe> = {}): StoredRecipe {
@@ -154,15 +154,24 @@ describe('writeObsidian / trashObsidian', () => {
   })
   it('trashObsidian은 .trash/로 옮기고 이름이 겹치면 번호를 붙인다', async () => {
     const p = await writeObsidian(vault, stored(), null)
-    await trashObsidian(vault, p)
+    await trashObsidian(vault, p, 'rec-1')
     const name = REL.split('/').pop() as string
     expect(await readdir(join(vault, '.trash'))).toEqual([name])
     await expect(stat(join(vault, p))).rejects.toThrow()
     const p2 = await writeObsidian(vault, stored(), null)
-    await trashObsidian(vault, p2)
+    await trashObsidian(vault, p2, 'rec-1')
     expect((await readdir(join(vault, '.trash'))).length).toBe(2)
-    await expect(trashObsidian(vault, '../x.md')).rejects.toThrow()
-    await trashObsidian(vault, '레시피/없음.md')
+    await expect(trashObsidian(vault, '../x.md', 'rec-1')).rejects.toThrow()
+    await trashObsidian(vault, '레시피/없음.md', 'rec-1')
+  })
+  it('trashObsidian은 그 레시피의 글(레시피id가 같은 파일)만 옮기고, 다른 노트는 그대로 둔다(M4)', async () => {
+    await mkdir(join(vault, '일기'), { recursive: true })
+    await writeFile(join(vault, '일기', '오늘.md'), '# 오늘\n내 노트')
+    await trashObsidian(vault, '일기/오늘.md', 'rec-1')
+    expect(await readFile(join(vault, '일기', '오늘.md'), 'utf8')).toBe('# 오늘\n내 노트')
+    const p = await writeObsidian(vault, stored(), null)
+    await trashObsidian(vault, p, 'rec-other')
+    expect(await stat(join(vault, p))).toBeTruthy()
   })
 })
 
@@ -207,5 +216,36 @@ describe('probeObsidian', () => {
       await chmod(d, 0o700).catch(() => {})
       await rm(d, { recursive: true, force: true })
     }
+  })
+})
+
+describe('난이도를 정하지 않은 레시피의 사본(I2)', () => {
+  let dir = ''
+  beforeEach(async () => { dir = await mkdtemp(join(tmpdir(), 'vault-null-')) })
+  afterEach(async () => { await rm(dir, { recursive: true, force: true }) })
+
+  it('보관 자리는 "난이도 미정" 폴더, 머리는 난이도 null, 쓰기는 실패하지 않는다', async () => {
+    const r = stored({ difficulty: null, difficulty_basis: null })
+    expect(folderPath(r).at(-1)).toBe('난이도 미정')
+    const p = await writeObsidian(dir, r, null)
+    expect(p.split('/')).toContain('난이도 미정')
+    const md = await readFile(join(dir, p), 'utf8')
+    expect(md).toMatch(/^난이도: null$/m)
+    expect(renderHtml(r)).toContain('<h1>')
+  })
+})
+
+describe('영상에서 온 글이 마크다운·HTML로 읽히지 않는다(M5)', () => {
+  it('< > & [ ]를 막아 쓴다(밖의 그림·틀을 불러오지 않게)', () => {
+    const r = stored()
+    r.summary = '<img src="https://evil.example/a.png"> & <iframe src="https://evil.example"></iframe> ![[x]] ![a](https://evil.example/b.png)'
+    const md = renderMarkdown(r)
+    const line = md.split('\n').find((l) => l.includes('evil.example'))!
+    expect(line).toContain('\\<img')
+    expect(line).toContain('\\<iframe')
+    expect(line).toContain('\\&')
+    expect(line).toContain('!\\[\\[x\\]\\]')
+    expect(line).not.toMatch(/(^|[^\\])<img/)
+    expect(line).not.toMatch(/(^|[^\\])!\[/)
   })
 })

@@ -190,7 +190,7 @@ export function frontmatter(r: StoredRecipe): string {
     `주재료: ${yamlList(r.tags.mains)}`,
     `세부재료: ${yamlList(r.tags.main_details)}`,
     `조리법: ${yamlList(r.tags.methods)}`,
-    `난이도: ${yamlStr(r.difficulty)}`,
+    `난이도: ${r.difficulty === null ? 'null' : yamlStr(r.difficulty)}`,
     `난이도근거: ${b ? JSON.stringify({ 필수재료: b.required, 단계: b.steps, 손이많이감: b.heavy }) : 'null'}`,
     `상황: ${yamlList(r.tags.occasions)}`,
     `인분: ${r.servings.value ?? 'null'}`,
@@ -203,7 +203,9 @@ export function frontmatter(r: StoredRecipe): string {
   return `---\n${lines.join('\n')}\n---\n`
 }
 
-const mdEsc = (s: string): string => s.replace(/[\\[\]]/g, '\\$&')
+// 영상에서 온 글이 마크다운·HTML로 읽히지 않게 한다. [ ]는 링크·그림 넣기(![..](..), ![[..]]), < >는 HTML 태그(<img src>, <iframe>)와
+// 자동 링크, &는 HTML 문자 참조다. 옵시디언은 글 속 HTML을 그려서, 막지 않으면 노트를 열 때 밖에서 그림을 불러올 수 있다.
+const mdEsc = (s: string): string => s.replace(/[\\[\]<>&]/g, '\\$&')
 /** 공백·<>·제어문자·괄호·백슬래시는 퍼센트 인코딩해 링크 주소 밖으로 나갈 수 없게 한다 */
 export const encodeHref = (h: string): string =>
   h.replace(/[\s<>()\\\u0000-\u001f\u007f]/g, (c) => `%${c.charCodeAt(0).toString(16).toUpperCase().padStart(2, '0')}`)

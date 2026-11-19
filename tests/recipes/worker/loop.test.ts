@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { ApiError, createApi, type WorkerApi } from '../../../tools/recipe-worker/src/api'
 import { createCaffeinate, readSecret } from '../../../tools/recipe-worker/src/cli'
 import { loadConfig, type WorkerConfig } from '../../../tools/recipe-worker/src/config'
+import { FAIL_TOO_LONG, FAIL_UNAVAILABLE, JobFailed } from '../../../tools/recipe-worker/src/errors'
 import { RateLimited, createDailyCounter, isOnHours, runOnce, startLoop, type LoopDeps } from '../../../tools/recipe-worker/src/loop'
 import type { RecipeV2 } from '../../../tools/recipe-worker/src/types'
 
@@ -133,11 +134,11 @@ describe('runOnce', () => {
 
   it('claim이 429면 일을 건드리지 않고 idle: fail·release 없음', async () => {
     const api = mkApi({ claim: vi.fn(async () => { throw new ApiError(429, 'x') }) })
-    const onClaimed = vi.fn()
-    expect(await runOnce(mkDeps(api, { onClaimed }))).toBe('idle')
+    const onCounted = vi.fn()
+    expect(await runOnce(mkDeps(api, { onCounted }))).toBe('idle')
     expect(api.fail).not.toHaveBeenCalled()
     expect(api.release).not.toHaveBeenCalled()
-    expect(onClaimed).not.toHaveBeenCalled()
+    expect(onCounted).not.toHaveBeenCalled()
   })
 
   it('claim이 429가 아닌 오류면 그대로 던진다', async () => {
@@ -145,11 +146,53 @@ describe('runOnce', () => {
     await expect(runOnce(mkDeps(api))).rejects.toBeInstanceOf(ApiError)
   })
 
-  it('submit이 끝내 429면 fail·release 없이 failed(임대 만료에 맡김)', async () => {
+  it('submit이 끝내 429면 끝낸 일을 버려 두지 않고 1분 뒤로 돌려놓는다(release, 시도 횟수를 쓰지 않음)', async () => {
     const api = mkApi({ submit: vi.fn(async () => { throw new ApiError(429, 'x') }) })
-    expect(await runOnce(mkDeps(api))).toBe('failed')
+    const onCounted = vi.fn()
+    expect(await runOnce(mkDeps(api, { onCounted }))).toBe('released')
+    expect(api.release).toHaveBeenCalledWith(job.id, new Date(at('10:00').getTime() + 60_000).toISOString())
     expect(api.fail).not.toHaveBeenCalled()
-    expect(api.release).not.toHaveBeenCalled()
+    expect(onCounted).not.toHaveBeenCalled()
+  })
+
+  it('submit이 409 recipe_exists면 "이미 레시피북에 있어요"로 fail', async () => {
+    const api = mkApi({ submit: vi.fn(async () => ({ ok: false as const, status: 409 as const, errors: [], code: 'recipe_exists' })) })
+    expect(await runOnce(mkDeps(api))).toBe('failed')
+    expect(api.fail).toHaveBeenCalledWith(job.id, '이미 레시피북에 있어요')
+    // 다른 409는 그대로 "등록하지 못했어요"
+    const other = mkApi({ submit: vi.fn(async () => ({ ok: false as const, status: 409 as const, errors: [], code: '23514' })) })
+    await runOnce(mkDeps(other))
+    expect(other.fail).toHaveBeenCalledWith(job.id, '레시피를 등록하지 못했어요')
+  })
+
+  it('다시 해도 같은 실패(JobFailed)는 정해 둔 까닭으로 바로 fail, release·submit 없음', async () => {
+    for (const reason of [FAIL_TOO_LONG, FAIL_UNAVAILABLE] as const) {
+      const api = mkApi()
+      expect(await runOnce(mkDeps(api, { process: async () => { throw new JobFailed(reason) } }))).toBe('failed')
+      expect(api.fail).toHaveBeenCalledWith(job.id, reason)
+      expect(api.release).not.toHaveBeenCalled()
+      expect(api.submit).not.toHaveBeenCalled()
+    }
+  })
+
+  it('일이 없어졌으면(progress false) JobFailed여도 fail을 부르지 않는다', async () => {
+    const api = mkApi({ progress: vi.fn(async () => false) })
+    const r = await runOnce(mkDeps(api, { process: async (_j, onStage) => { await onStage('자막 받는 중').catch(() => {}); throw new JobFailed(FAIL_TOO_LONG) } }))
+    expect(r).toBe('failed')
+    expect(api.fail).not.toHaveBeenCalled()
+  })
+
+  it('사용량 제한으로 돌려놓으면 retryAt까지 claim을 부르지 않고(paused), 그 뒤에는 다시 가져온다', async () => {
+    const state = { pausedUntil: 0 }
+    const retryAt = new Date(at('10:00').getTime() + 30 * 60_000)
+    const api = mkApi()
+    expect(await runOnce(mkDeps(api, { state, process: async () => { throw new RateLimited(retryAt) } }))).toBe('released')
+    expect(state.pausedUntil).toBe(retryAt.getTime())
+    const later = mkApi()
+    expect(await runOnce(mkDeps(later, { state, now: () => at('10:20') }))).toBe('paused')
+    expect(later.claim).not.toHaveBeenCalled()
+    expect(await runOnce(mkDeps(later, { state, now: () => at('10:31') }))).toBe('done')
+    expect(later.claim).toHaveBeenCalledTimes(1)
   })
 
   it('submit 500·네트워크 오류는 아무것도 더 부르지 않고(임대 만료에 맡김) failed', async () => {
@@ -196,26 +239,29 @@ describe('runOnce', () => {
   })
 })
 
-describe('하루 한도는 맡은 일을 모두 센다', () => {
+describe('하루 한도는 끝낸·실패한·버려 둔 일을 센다(돌려놓은 일은 세지 않는다)', () => {
   it('성공 12 + 실패 3 = 15면 다음은 claim 없이 limited', async () => {
     const counter = createDailyCounter(() => at('10:00'))
     const results: string[] = []
     for (let i = 0; i < 15; i++) {
       const api = mkApi(i < 12 ? {} : { submit: vi.fn(async () => ({ ok: false as const, status: 409 as const, errors: [] })) })
-      results.push(await runOnce(mkDeps(api, { doneToday: counter.doneToday, onClaimed: counter.increment })))
+      results.push(await runOnce(mkDeps(api, { doneToday: counter.doneToday, onCounted: counter.increment })))
     }
     expect(results.filter((r) => r === 'done')).toHaveLength(12)
     expect(counter.doneToday()).toBe(15)
     const api = mkApi()
-    expect(await runOnce(mkDeps(api, { doneToday: counter.doneToday, onClaimed: counter.increment }))).toBe('limited')
+    expect(await runOnce(mkDeps(api, { doneToday: counter.doneToday, onCounted: counter.increment }))).toBe('limited')
     expect(api.claim).not.toHaveBeenCalled()
   })
 
-  it('돌려놓은(released) 일과 abandon도 센다, 일이 없으면 세지 않는다', async () => {
+  it('돌려놓은(released) 일은 세지 않고, 버려 둔 일·영구 실패는 센다, 일이 없으면 세지 않는다', async () => {
     const counter = createDailyCounter(() => at('10:00'))
-    const d = (api: WorkerApi, process?: LoopDeps['process']) => mkDeps(api, { doneToday: counter.doneToday, onClaimed: counter.increment, ...(process ? { process } : {}) })
+    const d = (api: WorkerApi, process?: LoopDeps['process']) => mkDeps(api, { doneToday: counter.doneToday, onCounted: counter.increment, ...(process ? { process } : {}) })
     await runOnce(d(mkApi(), async () => { throw new RateLimited(new Date()) }))
+    await runOnce(d(mkApi({ submit: vi.fn(async () => { throw new ApiError(429, 'x') }) })))
+    expect(counter.doneToday()).toBe(0)
     await runOnce(d(mkApi(), async () => { throw new Error('x') }))
+    await runOnce(d(mkApi(), async () => { throw new JobFailed(FAIL_TOO_LONG) }))
     await runOnce(d(mkApi({ claim: vi.fn(async () => null) })))
     expect(counter.doneToday()).toBe(2)
   })
@@ -270,6 +316,18 @@ describe('createApi', () => {
     expect(url).toBe('https://e/fn')
     expect((init.headers as Record<string, string>)['x-recipe-worker-secret']).toBe('s3cret')
     expect(JSON.parse(init.body as string)).toEqual({ action: 'claim' })
+  })
+
+  it('ping은 사본 상태를 주면 정해 둔 칸으로 싣고, 안 주면(점검 명령) 싣지 않는다', async () => {
+    const f = vi.fn(async () => ok({ ok: true }))
+    const api = createApi('https://e/fn', 's', f as unknown as typeof fetch)
+    await api.ping('0.1.0', { issue: '옵시디언 폴더에 쓰지 못했어요', checkedAt: '2026-11-22T01:00:00.000Z' })
+    await api.ping('0.1.0')
+    const bodies = f.mock.calls.map((c) => JSON.parse((c as unknown as [string, RequestInit])[1].body as string))
+    expect(bodies).toEqual([
+      { action: 'ping', version: '0.1.0', export_issue: '옵시디언 폴더에 쓰지 못했어요', export_checked_at: '2026-11-22T01:00:00.000Z' },
+      { action: 'ping', version: '0.1.0' },
+    ])
   })
 
   it('non-2xx는 ApiError(status)이고 비밀이 글에 없다', async () => {
@@ -351,6 +409,9 @@ describe('createApi', () => {
     expect(await mk(ok({ recipe_id: 'r9' })).submit('j', recipe, [])).toEqual({ ok: true, recipeId: 'r9' })
     expect(await mk(ok({ errors: ['a'] }, 422)).submit('j', recipe, [])).toEqual({ ok: false, status: 422, errors: ['a'] })
     expect(await mk(ok({ error: 'x' }, 409)).submit('j', recipe, [])).toEqual({ ok: false, status: 409, errors: [] })
+    expect(await mk(ok({ error: 'x', code: 'recipe_exists' }, 409)).submit('j', recipe, [])).toEqual({ ok: false, status: 409, errors: [], code: 'recipe_exists' })
+    // 꼴이 이상한 code는 버린다
+    expect(await mk(ok({ error: 'x', code: 'drop table; --' }, 409)).submit('j', recipe, [])).toEqual({ ok: false, status: 409, errors: [] })
     await expect(mk(new Response(null, { status: 500 })).submit('j', recipe, [])).rejects.toMatchObject({ status: 500 })
   })
 

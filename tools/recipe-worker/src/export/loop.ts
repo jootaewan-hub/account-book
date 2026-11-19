@@ -1,7 +1,66 @@
 // 사본 고리: 서버가 알려 주는 보관 대상(최대 10건)을 드라이브·옵시디언에 쓰고 결과를 알린다.
-import type { WorkerApi } from '../api.ts'
+// 사본을 쓰지 못하면 그 까닭을 정해 둔 말 하나로 모아 ping으로 알린다(앱에 한 줄로 보인다). 오류 글·경로·토큰은 보내지 않는다.
+import { EXPORT_ISSUES, type ExportIssue } from '../../../../supabase/functions/_shared/recipeWorkerStatus.ts'
+import type { ExportHealth, WorkerApi } from '../api.ts'
 import { DriveAuthError, type Drive } from './drive.ts'
-import { trashObsidian, writeObsidian } from './obsidian.ts'
+import { probeObsidian, trashObsidian, writeObsidian } from './obsidian.ts'
+
+export const [ISSUE_DRIVE_AUTH, ISSUE_DRIVE_WRITE, ISSUE_OBSIDIAN] = EXPORT_ISSUES
+
+/** 사본 상태. 한 번 돌 때(쓰려던 것이 있을 때) 본 까닭 중 가장 무거운 것 하나, 다 되면 null */
+export function createExportHealth(now: () => Date = () => new Date()) {
+  let state: ExportHealth = { issue: null, checkedAt: null }
+  const order: readonly ExportIssue[] = [ISSUE_DRIVE_AUTH, ISSUE_OBSIDIAN, ISSUE_DRIVE_WRITE]
+  return {
+    /** 이번에 본 까닭들(없으면 괜찮음)을 남긴다 */
+    record(seen: Iterable<ExportIssue>) {
+      const set = new Set(seen)
+      state = { issue: order.find((x) => set.has(x)) ?? null, checkedAt: now().toISOString() }
+    },
+    get: (): ExportHealth => ({ ...state }),
+  }
+}
+export type ExportHealthTracker = ReturnType<typeof createExportHealth>
+
+/** 어느 보관 자리에서 난 오류인가 */
+class At extends Error {
+  where: 'obsidian' | 'drive'
+  inner: unknown
+  constructor(where: 'obsidian' | 'drive', inner: unknown) {
+    super(where)
+    this.where = where
+    this.inner = inner
+  }
+}
+const at = async <T>(where: 'obsidian' | 'drive', fn: () => Promise<T>): Promise<T> => {
+  try {
+    return await fn()
+  } catch (e) {
+    throw new At(where, e)
+  }
+}
+
+/**
+ * 처음 켤 때 두 보관 자리에 시험 파일을 쓰고 지운다(설계 A5). launchd로 돌 때 맥의 개인정보 보호가 막으면 여기서 드러난다.
+ * 드라이브는 토큰 파일이 있을 때만 시험한다(없으면 연결이 끊긴 것으로 본다).
+ */
+export async function probeExports(
+  health: ExportHealthTracker,
+  o: { obsidianDir: string | null; driveConfigured: boolean; drive: Pick<Drive, 'probe'> | null; probeVault?: (dir: string) => Promise<void> },
+): Promise<void> {
+  if (!o.obsidianDir && !o.driveConfigured) return
+  const seen: ExportIssue[] = []
+  if (o.obsidianDir) {
+    try { await (o.probeVault ?? probeObsidian)(o.obsidianDir) } catch { seen.push(ISSUE_OBSIDIAN) }
+  }
+  if (o.driveConfigured) {
+    if (!o.drive) seen.push(ISSUE_DRIVE_AUTH)
+    else {
+      try { await o.drive.probe() } catch (e) { seen.push(e instanceof DriveAuthError ? ISSUE_DRIVE_AUTH : ISSUE_DRIVE_WRITE) }
+    }
+  }
+  health.record(seen)
+}
 
 const FIRST_MS = 5 * 60_000
 const MAX_MS = 6 * 60 * 60_000
@@ -41,6 +100,8 @@ export type ExportOptions = {
   /** 드라이브가 설정돼 있는가(토큰 파일이 아직 없어 drive가 null이어도 true). 기본: drive가 있는가 */
   driveConfigured?: boolean
   backoff?: Backoff
+  /** 쓰려던 것이 있었으면 이번에 본 까닭을 남긴다 */
+  health?: ExportHealthTracker
 }
 
 /**
@@ -65,6 +126,7 @@ export async function exportOnce(
   const items = await api.exports({ skip: backoff?.skipped() ?? [], need })
   let reported = 0
   let driveDown = false
+  const seen = new Set<ExportIssue>()
   for (const item of items) {
     const id = item.recipe_id
     const prev = item.prev
@@ -74,15 +136,15 @@ export async function exportOnce(
       if (item.trash) {
         let handled = true
         if (prev?.obsidian_path) {
-          if (obsidianDir) await trashObsidian(obsidianDir, prev.obsidian_path)
+          if (obsidianDir) await at('obsidian', () => trashObsidian(obsidianDir, prev.obsidian_path!, id))
           else handled = false
         }
         if (driveUp) {
-          if (prev?.drive_doc_id) await drive.trash(prev.drive_doc_id)
-          await drive.removeListRow(id)
+          if (prev?.drive_doc_id) await at('drive', () => drive.trash(prev.drive_doc_id!))
+          await at('drive', () => drive.removeListRow(id))
         } else if (prev?.drive_doc_id) {
           handled = false
-          if (driveConfigured) blocked = true
+          if (driveConfigured) { blocked = true; seen.add(ISSUE_DRIVE_AUTH) }
         }
         if (!handled) {
           if (blocked) backoff?.block(id)
@@ -97,30 +159,35 @@ export async function exportOnce(
       const r = item.recipe
       if (!r) continue
       let obsidianPath = prev?.obsidian_path ?? null
-      if (obsidianDir) obsidianPath = await writeObsidian(obsidianDir, r, prev?.obsidian_path ?? null)
+      if (obsidianDir) obsidianPath = await at('obsidian', () => writeObsidian(obsidianDir, r, prev?.obsidian_path ?? null))
       let docId = prev?.drive_doc_id ?? null
       let docPath = prev?.drive_path ?? null
       if (driveConfigured) {
-        if (!driveUp) { backoff?.block(id); continue } // 구글을 쓸 수 없다: 알리지 않고 다음에 다시
-        const doc = await drive.upsertDoc(r, prev?.drive_doc_id ? { id: prev.drive_doc_id, path: prev.drive_path } : null)
+        if (!driveUp) { seen.add(ISSUE_DRIVE_AUTH); backoff?.block(id); continue } // 구글을 쓸 수 없다: 알리지 않고 다음에 다시
+        const doc = await at('drive', () => drive.upsertDoc(r, prev?.drive_doc_id ? { id: prev.drive_doc_id, path: prev.drive_path } : null))
         docId = doc.id
         docPath = doc.path
-        await drive.upsertListRow(r, doc.id)
+        await at('drive', () => drive.upsertListRow(r, doc.id))
       }
       await api.exported({ recipe_id: id, drive_doc_id: docId, drive_path: docPath, obsidian_path: obsidianPath, snapshot_updated_at: r.updated_at })
       backoff?.ok(id)
       reported++
-    } catch (e) {
+    } catch (caught) {
+      const e = caught instanceof At ? caught.inner : caught
       if (e instanceof DriveAuthError) {
         driveDown = true
         blocked = true
+        seen.add(ISSUE_DRIVE_AUTH)
         log(e.message)
       } else {
+        if (caught instanceof At) seen.add(caught.where === 'obsidian' ? ISSUE_OBSIDIAN : ISSUE_DRIVE_WRITE)
         log('사본 하나를 보관하지 못했어요. 다음에 다시 해요')
       }
       if (blocked) backoff?.block(id)
       else backoff?.fail(id)
     }
   }
+  // 쓰려던 것이 있었을 때만 상태를 바꾼다(아무것도 없던 때는 아는 것이 없다). 서버 보고(exported) 실패는 보관 자리 탓이 아니다.
+  if (items.length > 0) opts.health?.record(seen)
   return reported
 }

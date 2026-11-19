@@ -2,13 +2,13 @@
 import { mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import type { WorkerConfig } from '../config.ts'
+import { FAIL_AGE, FAIL_PRIVATE, FAIL_UNAVAILABLE, JobFailed } from '../errors.ts'
 import type { Evidence } from '../evidence.ts'
 import { errText, type Runner } from './run.ts'
 
+export { FAIL_AGE, FAIL_PRIVATE, FAIL_TOO_LONG, FAIL_UNAVAILABLE } from '../errors.ts'
+/** 받지 못한 까닭을 모를 때. 일시 오류로 보고 다시 해 본다(영구 실패는 JobFailed) */
 export const FAIL_GENERIC = '영상을 받지 못했어요'
-export const FAIL_PRIVATE = '비공개 영상이에요'
-export const FAIL_AGE = '연령 제한 영상이에요'
-export const FAIL_TOO_LONG = '영상이 너무 길어요(60분 넘음)'
 export const MAX_SECONDS = 3600
 
 export function youtubeUrl(sourceKey: string): string {
@@ -20,7 +20,18 @@ export function youtubeUrl(sourceKey: string): string {
 export function mapYtDlpError(text: string): string {
   if (/Private video/i.test(text)) return FAIL_PRIVATE
   if (/Sign in to confirm your age|age[- ]restricted/i.test(text)) return FAIL_AGE
+  // "잠시 뒤 다시"(유튜브가 잠깐 막음)는 다시 해 볼 일이다
+  if (/try again later/i.test(text)) return FAIL_GENERIC
+  if (/Video unavailable|This video is unavailable|This video has been removed|account associated with this video has been terminated|members-only content|not made this video available in your country/i.test(text)) {
+    return FAIL_UNAVAILABLE
+  }
   return FAIL_GENERIC
+}
+
+/** 비공개·연령 제한·볼 수 없는 영상은 다시 해도 같다(JobFailed). 그 밖은 일시 오류 */
+function ytdlpFailure(text: string): Error {
+  const reason = mapYtDlpError(text)
+  return reason === FAIL_PRIVATE || reason === FAIL_AGE || reason === FAIL_UNAVAILABLE ? new JobFailed(reason) : new Error(reason)
 }
 
 export type Meta = Evidence['meta'] & { captions: 'manual' | 'auto' | null }
@@ -64,7 +75,7 @@ export function createYtDlp(cfg: WorkerConfig, run: Runner, now: () => Date): Yt
     } catch (e) {
       failure = e
     }
-    throw new Error(mapYtDlpError(errText(failure)))
+    throw ytdlpFailure(errText(failure))
   }
 
   const isKo = (k: string) => /^ko(?:-|$)/.test(k)

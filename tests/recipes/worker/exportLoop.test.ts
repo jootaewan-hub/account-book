@@ -8,7 +8,7 @@ import type { ExportItem, StoredRecipe } from '../../../supabase/functions/_shar
 import type { WorkerApi } from '../../../tools/recipe-worker/src/api'
 import type { WorkerConfig } from '../../../tools/recipe-worker/src/config'
 import { DriveAuthError, DriveHttpError, type Drive } from '../../../tools/recipe-worker/src/export/drive'
-import { createBackoff, exportOnce } from '../../../tools/recipe-worker/src/export/loop'
+import { createBackoff, createExportHealth, exportOnce, probeExports } from '../../../tools/recipe-worker/src/export/loop'
 import { startLoop, type LoopDeps } from '../../../tools/recipe-worker/src/loop'
 import gold from '../../../docs/recipes/contract/examples/youtube-AkX6uA4BaDs.json'
 
@@ -293,5 +293,51 @@ describe('일 고리의 사본 고리', () => {
     } finally {
       vi.useRealTimers()
     }
+  })
+})
+
+describe('사본 상태(I7)', () => {
+  const T = new Date('2026-11-22T01:00:00.000Z')
+  const tracker = () => createExportHealth(() => T)
+
+  it('다 쓰면 괜찮음(null)과 확인 시각, 쓸 것이 없으면 바꾸지 않는다', async () => {
+    const h = tracker()
+    await exportOnce(mkApi([]), mkDrive(), null, quiet, { health: h })
+    expect(h.get()).toEqual({ issue: null, checkedAt: null })
+    await exportOnce(mkApi([item('a')]), mkDrive(), null, quiet, { health: h })
+    expect(h.get()).toEqual({ issue: null, checkedAt: T.toISOString() })
+  })
+
+  it('옵시디언에 쓰지 못하면 "옵시디언 폴더에 쓰지 못했어요"(오류 글·경로는 담지 않는다)', async () => {
+    const h = tracker()
+    const vault = join(mkdtempSync(join(tmpdir(), 'vault-')), 'file-not-dir')
+    await import('node:fs').then((fs) => fs.writeFileSync(vault, 'x')) // 폴더 자리에 파일이 있어 쓸 수 없다
+    await exportOnce(mkApi([item('a')]), null, vault, quiet, { health: h })
+    expect(h.get()).toEqual({ issue: '옵시디언 폴더에 쓰지 못했어요', checkedAt: T.toISOString() })
+  })
+
+  it('구글 연결이 끊기면 "구글 드라이브 연결이 끊겼어요", 그 밖의 드라이브 오류는 "구글 드라이브에 쓰지 못했어요"', async () => {
+    const auth = tracker()
+    await exportOnce(mkApi([item('a')]), mkDrive({ upsertDoc: vi.fn(async () => { throw new DriveAuthError() }) }), null, quiet, { health: auth })
+    expect(auth.get().issue).toBe('구글 드라이브 연결이 끊겼어요')
+    const write = tracker()
+    await exportOnce(mkApi([item('a')]), mkDrive({ upsertDoc: vi.fn(async () => { throw new DriveHttpError(500) }) }), null, quiet, { health: write })
+    expect(write.get().issue).toBe('구글 드라이브에 쓰지 못했어요')
+    const missing = tracker() // 드라이브를 정했지만 토큰 파일이 없다
+    await exportOnce(mkApi([item('a')]), null, null, quiet, { driveConfigured: true, health: missing })
+    expect(missing.get().issue).toBe('구글 드라이브 연결이 끊겼어요')
+  })
+
+  it('처음 켤 때 두 곳을 시험한다(A5): 실패하면 까닭, 되면 괜찮음', async () => {
+    const h = tracker()
+    await probeExports(h, { obsidianDir: '/x/vault', driveConfigured: true, drive: mkDrive(), probeVault: async () => { throw new Error("EPERM: operation not permitted, open '/x/vault/.p'") } })
+    expect(h.get()).toEqual({ issue: '옵시디언 폴더에 쓰지 못했어요', checkedAt: T.toISOString() })
+    await probeExports(h, { obsidianDir: '/x/vault', driveConfigured: true, drive: null, probeVault: async () => {} })
+    expect(h.get().issue).toBe('구글 드라이브 연결이 끊겼어요')
+    await probeExports(h, { obsidianDir: '/x/vault', driveConfigured: true, drive: mkDrive(), probeVault: async () => {} })
+    expect(h.get().issue).toBeNull()
+    const none = tracker()
+    await probeExports(none, { obsidianDir: null, driveConfigured: false, drive: null })
+    expect(none.get()).toEqual({ issue: null, checkedAt: null })
   })
 })

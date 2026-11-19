@@ -100,9 +100,11 @@ export async function writeObsidian(vaultDir: string, r: StoredRecipe, prevPath:
   return rel(vaultDir, target)
 }
 
-export async function trashObsidian(vaultDir: string, relPath: string): Promise<void> {
+/** 그 레시피의 글(머리의 레시피id가 같은 파일)만 .trash로 옮긴다. 그 자리에 다른 글이 있으면 건드리지 않는다 */
+export async function trashObsidian(vaultDir: string, relPath: string, recipeId: string): Promise<void> {
   const from = inside(vaultDir, relPath)
   if (!(await exists(from))) return
+  if ((await recipeIdOf(from)) !== recipeId) return
   const trash = inside(vaultDir, '.trash')
   await mkdir(trash, { recursive: true })
   const base = basename(from)

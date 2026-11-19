@@ -1,4 +1,5 @@
 // 서버 함수(recipe-worker)를 부르는 얇은 겹. 동작마다 메서드 하나. 비밀은 요청 머리글에만 쓰고 오류 글에는 넣지 않는다.
+import type { ExportIssue } from '../../../supabase/functions/_shared/recipeWorkerStatus.ts'
 import type { DictEntry, ExportItem, Job, RecipeV2 } from './types.ts'
 
 /** 서버가 2xx가 아닌 답을 했거나(status = HTTP 상태) 네트워크가 끊겼다(status = 0) */
@@ -11,9 +12,13 @@ export class ApiError extends Error {
   }
 }
 
+/** 409의 code: 서버가 정해 둔 낱말(recipe_exists) 또는 SQLSTATE. 없으면 undefined */
 export type SubmitResult =
   | { ok: true; recipeId: string }
-  | { ok: false; status: 409 | 422; errors: string[] }
+  | { ok: false; status: 409 | 422; errors: string[]; code?: string }
+
+/** 사본 상태(ping에 싣는다). issue는 정해 둔 까닭 하나 또는 null, checkedAt은 마지막으로 써 보거나 시험한 시각(ISO) */
+export type ExportHealth = { issue: ExportIssue | null; checkedAt: string | null }
 
 export type ExportedInput = {
   recipe_id: string
@@ -32,7 +37,8 @@ export type WorkerApi = {
   release(job: string, retryAt: string): Promise<void>
   exports(opts?: { skip?: string[]; need?: ('drive' | 'obsidian')[] }): Promise<ExportItem[]>
   exported(input: ExportedInput): Promise<boolean>
-  ping(version: string): Promise<void>
+  /** health를 주면 사본 상태도 알린다(점검 명령은 주지 않아 상태를 건드리지 않는다) */
+  ping(version: string, health?: ExportHealth): Promise<void>
   dict(): Promise<{ id: string; name: string; aliases: string[]; category: string }[]>
 }
 
@@ -108,11 +114,13 @@ export function createApi(
       }
       if (res.status === 409 || res.status === 422) {
         let errors: string[] = []
+        let code: string | undefined
         try {
-          const j = (await res.json()) as { errors?: unknown }
+          const j = (await res.json()) as { errors?: unknown; code?: unknown }
           if (Array.isArray(j.errors)) errors = j.errors.filter((e): e is string => typeof e === 'string')
+          if (typeof j.code === 'string' && /^[a-z0-9_]{1,40}$/i.test(j.code)) code = j.code
         } catch {}
-        return { ok: false, status: res.status, errors }
+        return code === undefined ? { ok: false, status: res.status, errors } : { ok: false, status: res.status, errors, code }
       }
       throw new ApiError(res.status, `서버가 ${res.status}로 답했어요`)
     },
@@ -134,8 +142,8 @@ export function createApi(
       if (!res.ok) throw new ApiError(res.status, `서버가 ${res.status}로 답했어요`)
       return true
     },
-    async ping(version) {
-      await call({ action: 'ping', version })
+    async ping(version, health) {
+      await call(health ? { action: 'ping', version, export_issue: health.issue, export_checked_at: health.checkedAt } : { action: 'ping', version })
     },
     async dict() {
       return (await call<{ entries: { id: string; name: string; aliases: string[]; category: string }[] }>({ action: 'dict' })).entries

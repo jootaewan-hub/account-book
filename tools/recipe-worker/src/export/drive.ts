@@ -1,5 +1,6 @@
 // 구글 드라이브 사본(REST, SDK 없음): 폴더 → 문서(HTML을 문서로 변환) → 목록(시트, 막히면 CSV).
 import { chmodSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { difficultyLabel } from '../../../../supabase/functions/_shared/recipeClassify.ts'
 import { randomBytes } from 'node:crypto'
 import { join } from 'node:path'
 import { DEFAULT_CLIENT_FILE, createTokenSource, DriveAuthError } from './google.ts'
@@ -62,7 +63,7 @@ type ListState = { mode: 'sheet' | 'csv'; rows: Record<string, string[]>; sheetI
 
 function rowOf(r: StoredRecipe, docId: string | null | undefined): string[] {
   return [
-    r.id, r.title, r.tags.cuisine, r.tags.mains.join(', '), r.tags.main_details.join(', '), r.tags.methods.join(', '), r.difficulty,
+    r.id, r.title, r.tags.cuisine, r.tags.mains.join(', '), r.tags.main_details.join(', '), r.tags.methods.join(', '), difficultyLabel(r.difficulty),
     r.tags.occasions.join(', '), r.source.channel ?? '', r.source.url ?? '', r.saved_at.slice(0, 10), r.measuring_tool ?? '확인 못 함',
     docId ? `https://docs.google.com/document/d/${docId}/edit` : '',
   ]

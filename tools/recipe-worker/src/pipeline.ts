@@ -5,18 +5,18 @@ import { join } from 'node:path'
 import { parseRecipe } from '../../../supabase/functions/_shared/recipeContract.ts'
 import type { Correction, ReviewItem } from '../../../supabase/functions/_shared/recipeContract.ts'
 import { normalizeRecipeUrl } from '../../../supabase/functions/_shared/recipeSource.ts'
-import type { ClaudeRun } from './claude.ts'
+import { createUsageMeter, type ClaudeRun, type UsageTotal } from './claude.ts'
 import { collect as realCollect } from './collect/index.ts'
 import type { WorkerConfig } from './config.ts'
+import { FAIL_FORMAT, JobFailed } from './errors.ts'
 import type { Evidence } from './evidence.ts'
 import { RateLimited } from './loop.ts'
 import { FAIL_VIDEO, STAGE_ORGANIZE, assertVideoId, organize } from './organize.ts'
 import type { DictEntry, RecipeV2 } from './types.ts'
-import { checkRecipe } from './verify/rules.ts'
+import { checkRecipe, unitlessReviews } from './verify/rules.ts'
 import { DEFAULT_CAP, STAGE_SECOND, applyAmounts, diffReads, mergeChecks, resolveDiffs, secondRead } from './verify/second.ts'
 
 export const STAGE_SAVE = '저장 중'
-const FAIL_FORMAT = '레시피 정리 결과가 형식에 맞지 않아요'
 const JOB_PREFIX = 'job-'
 const KEEP_MS = 25 * 60 * 60_000
 const CONFLICT_REASON = '출처끼리 값이 달라 확인 필요'
@@ -32,9 +32,11 @@ export type PipelineDeps = {
   now?: () => Date
   /** 설명란을 비우고 읽는다(영상만으로 얼마나 읽는지 재는 데 쓴다) */
   noDescription?: boolean
+  /** 이 일의 Claude 사용량을 모은다(실패해도 부른 쪽이 읽을 수 있게 밖에서 줄 수 있다) */
+  meter?: ReturnType<typeof createUsageMeter>
 }
 
-export type Stats = { numbers: { total: number; grounded: number; nulled: number }; reviews: number; corrections: number }
+export type Stats = { numbers: { total: number; grounded: number; nulled: number }; reviews: number; corrections: number; usage: UsageTotal }
 
 const clip = (s: string, n = 80) => (s.length > n ? s.slice(0, n - 1) + '…' : s)
 
@@ -69,7 +71,10 @@ export async function processJobDetailed(
   job: { id: string; url: string },
   deps: PipelineDeps,
 ): Promise<{ recipe: RecipeV2; dict: DictEntry[]; stats: Stats }> {
-  const { cfg, run, onStage } = deps
+  const { cfg, onStage } = deps
+  // 호출마다 사용량을 모은다(글은 모으지 않는다)
+  const meter = deps.meter ?? createUsageMeter()
+  const run: ClaudeRun = (prompt, o) => deps.run(prompt, { ...o, onUsage: (u) => { meter.add(u); o.onUsage?.(u) } })
   const norm = normalizeRecipeUrl(job.url)
   if (!norm) throw new Error(FAIL_VIDEO)
   if (!/^[A-Za-z0-9_-]{1,64}$/.test(job.id)) throw new Error(FAIL_VIDEO)
@@ -104,6 +109,8 @@ export async function processJobDetailed(
       applyAmounts(recipe.ingredients, v3.applied)
       extraCorrections.push(...v3.corrections)
       extraReviews.push(...v3.reviews)
+      // 고른 값의 단위를 근거에서 못 읽었으면(세는 재료가 아니면) 확인 필요(R3)
+      if (v3.applied.length > 0) extraReviews.push(...unitlessReviews(recipe, e, v3.applied.map((a) => a.index)))
       if (v3.conflicts.length > 0) {
         recipe = structuredClone(recipe)
         recipe.conflicts = [...(recipe.conflicts ?? []), ...v3.conflicts].slice(0, 20)
@@ -119,7 +126,8 @@ export async function processJobDetailed(
   mergeChecks(recipe, extraCorrections, extraReviews)
 
   const parsed = parseRecipe(recipe)
-  if (!parsed.ok) throw new Error(FAIL_FORMAT)
+  // 검사를 거친 결과가 계약에 맞지 않으면 다시 해도 같다(같은 근거·같은 규칙)
+  if (!parsed.ok) throw new JobFailed(FAIL_FORMAT)
   recipe = parsed.value
 
   const slots1 = numberSlots(recipe)
@@ -130,7 +138,10 @@ export async function processJobDetailed(
   return {
     recipe,
     dict: organized.dict,
-    stats: { numbers: { total, grounded: total - nulled, nulled }, reviews: recipe.review_items?.length ?? 0, corrections: recipe.corrections?.length ?? 0 },
+    stats: {
+      numbers: { total, grounded: total - nulled, nulled }, reviews: recipe.review_items?.length ?? 0, corrections: recipe.corrections?.length ?? 0,
+      usage: meter.total(),
+    },
   }
 }
 

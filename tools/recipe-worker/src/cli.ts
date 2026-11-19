@@ -8,11 +8,11 @@ import { dirname, resolve, sep } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { normalizeRecipeUrl } from '../../../supabase/functions/_shared/recipeSource.ts'
 import { createApi } from './api.ts'
-import { createClaudeRun, type ClaudeRun } from './claude.ts'
+import { createClaudeRun, createUsageMeter, usageLine, type ClaudeRun } from './claude.ts'
 import { DEFAULT_CONFIG_PATH, loadConfig, type WorkerConfig } from './config.ts'
 import { doctor } from './doctor.ts'
 import { createDrive, type Drive } from './export/drive.ts'
-import { createBackoff, exportOnce } from './export/loop.ts'
+import { createBackoff, createExportHealth, exportOnce, probeExports } from './export/loop.ts'
 import { googleAuth } from './export/google.ts'
 import { createDailyCounter, isOnHours, startLoop, type LoopDeps } from './loop.ts'
 import { cleanCache, processJob, processJobDetailed, type CollectFn } from './pipeline.ts'
@@ -93,24 +93,35 @@ export async function run(configPath: string = DEFAULT_CONFIG_PATH, spawn: Spawn
   }
 
   const backoff = createBackoff()
+  // 사본 상태: 처음 켤 때 두 곳을 시험하고(A5), 그 뒤로는 사본을 쓸 때마다 고친다. ping으로 앱에 알린다
+  const health = createExportHealth(now)
   const deps: LoopDeps = {
     api,
     cfg,
     now,
     doneToday: counter.doneToday,
-    onClaimed: counter.increment,
+    onCounted: counter.increment,
     onBusy: (b) => caffeine.busy(b),
-    exportPass: () => exportOnce(api, getDrive(), cfg.obsidianDir, undefined, { driveConfigured: !!cfg.driveTokenFile, backoff }),
+    exportPass: () => exportOnce(api, getDrive(), cfg.obsidianDir, undefined, { driveConfigured: !!cfg.driveTokenFile, backoff, health }),
     process: async (job, onStage) => {
       const dict = await api.dict() // 일마다 한 번
-      return processJob(job, { cfg, run: claudeRun, dict, onStage, now })
+      const meter = createUsageMeter()
+      try {
+        return await processJob(job, { cfg, run: claudeRun, dict, onStage, now, meter })
+      } finally {
+        // 일 하나에 한 줄: 사용량 수만(내용·주소·오류 글은 적지 않는다)
+        console.error(`일 하나 처리 · ${usageLine(meter.total())}`)
+      }
     },
   }
 
   const version = packageVersion()
-  const ping = () => { api.ping(version).catch(() => {}) }
+  const ping = () => { api.ping(version, health.get()).catch(() => {}) }
   const syncCaffeine = () => caffeine.sync(isOnHours(now(), cfg.onHours))
-  ping()
+  // 첫 알림은 시험을 마친 뒤에(시험이 실패해도 알린다)
+  void probeExports(health, { obsidianDir: cfg.obsidianDir, driveConfigured: !!cfg.driveTokenFile, drive: getDrive() })
+    .catch(() => {})
+    .finally(ping)
   syncCaffeine()
   const pingTimer = setInterval(ping, PING_MS)
   const caffeineTimer = setInterval(syncCaffeine, 60_000)

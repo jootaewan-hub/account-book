@@ -8,6 +8,7 @@ import { collect } from '../../../tools/recipe-worker/src/collect/index'
 import { parseOcrOutput } from '../../../tools/recipe-worker/src/collect/ocr'
 import type { Runner } from '../../../tools/recipe-worker/src/collect/run'
 import { mapYtDlpError, youtubeUrl } from '../../../tools/recipe-worker/src/collect/ytdlp'
+import { JobFailed } from '../../../tools/recipe-worker/src/errors'
 import type { WorkerConfig } from '../../../tools/recipe-worker/src/config'
 import { dedupe, ingredientNames, parseJson3, parseWhisperJson, selectFrames, type Frame, type OcrLine } from '../../../tools/recipe-worker/src/evidence'
 
@@ -146,6 +147,10 @@ describe('ytdlp 보조 함수', () => {
     expect(mapYtDlpError('ERROR: Sign in to confirm your age. This video may be inappropriate')).toBe('연령 제한 영상이에요')
     expect(mapYtDlpError('ERROR: This video is age-restricted')).toBe('연령 제한 영상이에요')
     expect(mapYtDlpError('ERROR: whatever')).toBe('영상을 받지 못했어요')
+    expect(mapYtDlpError('ERROR: [youtube] x: Video unavailable')).toBe('볼 수 없는 영상이에요(지워졌거나 막혔어요)')
+    expect(mapYtDlpError('ERROR: [youtube] x: This video has been removed by the uploader')).toBe('볼 수 없는 영상이에요(지워졌거나 막혔어요)')
+    // 유튜브가 잠깐 막은 것은 다시 해 볼 일이다
+    expect(mapYtDlpError("ERROR: [youtube] x: Video unavailable. This content isn't available, try again later.")).toBe('영상을 받지 못했어요')
   })
 })
 
@@ -299,7 +304,9 @@ describe('collect', () => {
 
   it('길이 3601초면 영상은 받지 않고 실패한다', async () => {
     const w = fakeWorld({ meta: { duration: 3601 } })
-    await expect(collect({ source_key: 'youtube:AkX6uA4BaDs' }, dir, cfg, async () => {}, { run: w.run, now })).rejects.toThrow('영상이 너무 길어요(60분 넘음)')
+    const e = await collect({ source_key: 'youtube:AkX6uA4BaDs' }, dir, cfg, async () => {}, { run: w.run, now }).catch((x: unknown) => x)
+    expect((e as Error).message).toBe('영상이 너무 길어요(60분 넘음)')
+    expect(e).toBeInstanceOf(JobFailed) // 다시 해도 같으므로 일 고리가 바로 실패로 끝내는 오류다
     const yt = ytCalls(w.calls, cfg.ytDlpPath)
     expect(yt.length).toBe(1)
     expect(yt[0]!.args).toContain('-J')
@@ -315,12 +322,14 @@ describe('collect', () => {
     const w = fakeWorld({ ytFail: () => 'ERROR: [youtube] AkX6uA4BaDs: Private video. /Users/secret/path' })
     const e = await collect({ source_key: 'youtube:AkX6uA4BaDs' }, dir, cfg, async () => {}, { run: w.run, now }).catch((x: unknown) => x)
     expect((e as Error).message).toBe('비공개 영상이에요')
+    expect(e).toBeInstanceOf(JobFailed)
   })
 
-  it('그 밖의 실패는 "영상을 받지 못했어요"', async () => {
+  it('그 밖의 실패는 "영상을 받지 못했어요"이고 일시 오류(JobFailed 아님)', async () => {
     const w = fakeWorld({ ytFail: () => 'ERROR: HTTP Error 403 /Users/secret' })
     const e = await collect({ source_key: 'youtube:AkX6uA4BaDs' }, dir, cfg, async () => {}, { run: w.run, now }).catch((x: unknown) => x)
     expect((e as Error).message).toBe('영상을 받지 못했어요')
+    expect(e).not.toBeInstanceOf(JobFailed)
   })
 
   it('열쇠가 유튜브가 아니면 프로그램을 돌리기 전에 거절한다', async () => {
