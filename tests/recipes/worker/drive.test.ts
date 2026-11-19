@@ -57,12 +57,12 @@ function fakeGoogle(opts: { sheets403?: boolean; refreshStatus?: number; reject4
       if (opts.sheets403) return res(403, { error: 'insufficient scope' })
       if (u.pathname.endsWith('/values/A:A')) return res(200, { values: sheetValues.map((r) => [r[0]]) })
       if (u.pathname.includes(':append')) { sheetValues.push((JSON.parse(body) as { values: string[][] }).values[0]); return res(200) }
-      if (method === 'PUT' && /values\/A(\d+):J\d+/.test(u.pathname)) {
-        const idx = Number(/values\/A(\d+):J/.exec(u.pathname)![1]) - 1
+      if (method === 'PUT' && /values\/A(\d+):M\d+/.test(u.pathname)) {
+        const idx = Number(/values\/A(\d+):M/.exec(u.pathname)![1]) - 1
         sheetValues[idx] = (JSON.parse(body) as { values: string[][] }).values[0]
         return res(200)
       }
-      if (method === 'PUT' && u.pathname.includes('A1:J1')) { sheetValues[0] = (JSON.parse(body) as { values: string[][] }).values[0]; return res(200) }
+      if (method === 'PUT' && u.pathname.includes('A1:M1')) { sheetValues[0] = (JSON.parse(body) as { values: string[][] }).values[0]; return res(200) }
       if (u.pathname.endsWith(':batchUpdate')) {
         const del = (JSON.parse(body) as { requests: { deleteDimension?: { range: { startIndex: number } } }[] }).requests[0].deleteDimension
         if (del) sheetValues.splice(del.range.startIndex, 1)
@@ -153,7 +153,12 @@ describe('createDrive', () => {
     expect(doc.path).toBe('레시피/한식/돼지고기/볶음/보통/기사식당 바싹 제육볶음 (셰프호윤 Chef Hoyoon)')
     expect(g.sheetValues).toHaveLength(2) // 머리글 + 한 줄
     expect(g.sheetValues[1][0]).toBe('rec-1')
-    expect(g.sheetValues[1][9]).toContain(doc.id)
+    expect(g.sheetValues[0]).toHaveLength(13)
+    expect(g.sheetValues[1]).toHaveLength(13)
+    expect(g.sheetValues[1][1]).toBe(r.title)
+    expect(g.sheetValues[1][3]).toBe(r.tags.mains.join(', '))
+    expect(g.sheetValues[1][11]).toBe('확인 못 함')
+    expect(g.sheetValues[1][12]).toContain(doc.id)
   })
 
   it('내용만 바뀜: 같은 문서 id를 바꾸고 새로 만들지 않는다', async () => {
@@ -260,7 +265,7 @@ describe('목록', () => {
     await d.upsertListRow(stored({ id: 'a', title: '=HYPERLINK("x")' }), 'd1')
     const csv = g.files.find((f) => f.name === '레시피 목록.csv')!
     expect(csv.content).toContain(`"'=HYPERLINK(""x"")"`)
-    expect(csv.content.split('\r\n')[0]).toContain('"id"')
+    expect(csv.content.split('\r\n')[0]).toBe('"id","요리 이름","요리 종류","주재료","세부 재료","조리법","난이도","상황","채널","영상 주소","저장한 날","계량 도구","문서 링크"')
     const state = JSON.parse(readFileSync(join(dir, 'cache', 'drive-list.json'), 'utf8'))
     expect(state.mode).toBe('csv')
     expect((statSync(join(dir, 'cache', 'drive-list.json')).mode & 0o777)).toBe(0o600)

@@ -17,7 +17,7 @@ const SHEET_MIME = 'application/vnd.google-apps.spreadsheet'
 const LIST_NAME = '레시피 목록'
 const CSV_NAME = `${LIST_NAME}.csv`
 const ROOT_FOLDER = '레시피'
-const HEADER = ['id', '제목', '요리 종류', '주재료', '조리법', '난이도', '채널', '출처', '저장한날', '문서']
+const HEADER = ['id', '요리 이름', '요리 종류', '주재료', '세부 재료', '조리법', '난이도', '상황', '채널', '영상 주소', '저장한 날', '계량 도구', '문서 링크']
 
 export class DriveHttpError extends Error {
   status: number
@@ -59,8 +59,9 @@ type ListState = { mode: 'sheet' | 'csv'; rows: Record<string, string[]>; sheetI
 
 function rowOf(r: StoredRecipe, docId: string | null | undefined): string[] {
   return [
-    r.id, r.title, r.tags.cuisine, r.tags.mains[0] ?? '', r.tags.methods[0] ?? '', r.difficulty, r.source.channel ?? '', r.source.url ?? '',
-    r.saved_at.slice(0, 10), docId ? `https://docs.google.com/document/d/${docId}/edit` : '',
+    r.id, r.title, r.tags.cuisine, r.tags.mains.join(', '), r.tags.main_details.join(', '), r.tags.methods.join(', '), r.difficulty,
+    r.tags.occasions.join(', '), r.source.channel ?? '', r.source.url ?? '', r.saved_at.slice(0, 10), r.measuring_tool ?? '확인 못 함',
+    docId ? `https://docs.google.com/document/d/${docId}/edit` : '',
   ]
 }
 
@@ -189,7 +190,7 @@ export function createDrive(tokenFile: string, fetchImpl: typeof fetch = fetch, 
     let id = await findChild(folderId, LIST_NAME, SHEET_MIME)
     if (!id) {
       id = (await json<{ id: string }>(await call(FILES, jsonInit('POST', { name: LIST_NAME, mimeType: SHEET_MIME, parents: [folderId] })))).id
-      await json(await sheets(`${SHEETS}/${id}/values/A1:J1?valueInputOption=RAW`, jsonInit('PUT', { values: [HEADER] })))
+      await json(await sheets(`${SHEETS}/${id}/values/A1:M1?valueInputOption=RAW`, jsonInit('PUT', { values: [HEADER] })))
       // 확인 필요: 새 시트의 첫 탭 sheetId가 0이라고 알고 있다
       await json(await sheets(`${SHEETS}/${id}:batchUpdate`, jsonInit('POST', {
         requests: [{ updateDimensionProperties: { range: { sheetId: 0, dimension: 'COLUMNS', startIndex: 0, endIndex: 1 }, properties: { hiddenByUser: true }, fields: 'hiddenByUser' } }],
@@ -228,8 +229,8 @@ export function createDrive(tokenFile: string, fetchImpl: typeof fetch = fetch, 
         const sheet = await ensureSheet(s)
         const idx = await sheetRowIndex(sheet, recipeId)
         if (row) {
-          if (idx > 0) await json(await sheets(`${SHEETS}/${sheet}/values/A${idx + 1}:J${idx + 1}?valueInputOption=RAW`, jsonInit('PUT', { values: [row] })))
-          else await json(await sheets(`${SHEETS}/${sheet}/values/A:J:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`, jsonInit('POST', { values: [row] })))
+          if (idx > 0) await json(await sheets(`${SHEETS}/${sheet}/values/A${idx + 1}:M${idx + 1}?valueInputOption=RAW`, jsonInit('PUT', { values: [row] })))
+          else await json(await sheets(`${SHEETS}/${sheet}/values/A:M:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`, jsonInit('POST', { values: [row] })))
         } else if (idx > 0) {
           await json(await sheets(`${SHEETS}/${sheet}:batchUpdate`, jsonInit('POST', {
             requests: [{ deleteDimension: { range: { sheetId: 0, dimension: 'ROWS', startIndex: idx, endIndex: idx + 1 } } }],
