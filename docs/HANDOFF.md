@@ -5,6 +5,17 @@
 > `.nvmrc`의 Node 22, `npm ci`, `npm run dev`(포트 5188 고정, `vite.config.ts`), `npm run typecheck`·`npm run lint`·`npm test`, 화면 캡처는 `npm run screens`(기본 주소 5188).
 > 브랜치에 푸시하면 `.github/workflows/ci.yml`이 타입 검사·린트·Edge Function `deno check`·시험·빌드를 돈다.
 
+## 레시피 탭 작업 상태 (2026-11-19, 브랜치 `claude/recipes-docs`)
+
+아래 탭의 일곱째 '레시피' 탭(유튜브 영상·쇼츠 주소 → 맥 처리기가 읽어 레시피로 정리)을 만들었다. 코드는 다 됐고 **main에는 아직 없다.** 공유 DB, 배포된 서버 함수, 이 맥의 설치 상태도 바꾸지 않았다.
+
+- 읽을 곳: 설계 `docs/superpowers/specs/2026-11-19-recipes-design.md`, 계획 `docs/superpowers/plans/2026-11-19-recipes.md`, 지금 상태와 열린 문제 `docs/recipes/tracking/status.md`, 결정 `docs/grocery/tracking/decisions/index.md`의 D-056~D-063, 사용자가 정한 것 `docs/recipes/tracking/brainstorm.md`, 규칙 `CLAUDE.md`의 "레시피 부분".
+- 사용자 허락을 기다리는 일(같은 목록이 `status.md`에 있다):
+  - **Task 14, 실제 영상 확인:** yt-dlp·Deno 설치, whisper 한국어 모델(약 1.6GB) 받기, 구독 사용량 쓰기. 집·회사 인터넷에서 기준 영상으로 확인(A1~A4, A6). A1·A2가 안 되면 멈추고 묻는다.
+  - **Task 25, 한 번에 묻기:** 마이그레이션 셋(`20261122000000_recipe_init`, `20261122010000_recipe_import`, `20261122020000_recipe_pantry`)을 MCP `apply_migration`으로 적용, `recipe-worker` 배포(커밋 고정 stub)와 서버 비밀 `RECIPE_WORKER_SECRET`, 대시보드 Exposed schemas에 `recipe` 더하기, 옵시디언 보관함 만들기, 구글 로그인, 처리기 설치(`~/Library/LaunchAgents`에 plist), main 병합과 버전 올리기(D-028).
+  - **미룬 확인:** A2(launchd로 도는 처리기가 Claude를 부름)와 A5(iCloud 옵시디언·구글 드라이브 쓰기).
+- 이어서 할 때 알아 둘 것: 병합 전에 `git fetch`로 `origin/main`을 보고(Codex가 main에 직접 올린 변경이 있었다) 새 마이그레이션 이름이 가장 늦은 파일보다 뒤인지, 버전 번호는 그때의 main 기준인지 확인한다. 처리기 설치는 `tools/recipe-worker/install.sh <커밋>`이고 launchd를 부르는 것은 사용자가 따로 한다. 배포 뒤에는 이 문서에 함수 커밋 해시와 되돌리는 법을 적는다.
+
 ## (기록) 로컬(PC·맥북)에서 이어서 하기 (2026-10-19 클라우드 세션 끝)
 
 클라우드 세션에서 하던 일을 로컬 Claude Code로 이어 가기 위한 메모다. 규칙은 `CLAUDE.md`, 진행 상황은 `docs/grocery/tracking/status.md`,

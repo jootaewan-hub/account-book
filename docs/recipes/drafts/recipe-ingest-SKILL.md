@@ -3,6 +3,8 @@ name: recipe-ingest
 description: 요리 영상·글의 주소(유튜브, 쇼츠, 인스타 릴스, 블로그)나 파일에서 재료와 순서를 읽어 레시피 계약 JSON으로 정리하고 초안으로 등록한다. "레시피 담아 줘", "이 영상 레시피로", "레시피 대기함 처리"라고 하거나 /recipe-ingest <주소>로 부를 때 쓴다.
 ---
 
+> **낡음(2026-11-19).** 설계 승인으로 쓰지 않게 된 초안이다. 읽기는 맥 처리기(`tools/recipe-worker/`)가 하고(D-057), 이 초안의 "PC의 Claude Code가 읽고 Supabase MCP로 등록한다"는 흐름은 맞지 않다. 계약도 v1이라 낡았다(지금은 v2, `supabase/functions/_shared/recipeContract.ts`). 본문은 그때의 생각을 남겨 둔 것이다.
+
 # 레시피 담기 (Claude Code)
 
 초안이다. R2에서 실제로 돌려 보며 고친다. 명령의 결과 모양이 아래와 다르면 멈추고 `docs/recipes/ingest-sources.md`의 "확인 필요"를 먼저 고친다.

@@ -1,10 +1,10 @@
 # 레시피: 초안 보관
 
-아직 쓰지 않는 초안이다. 설계 문서가 승인되면 제자리로 옮긴다.
+> **낡음(2026-11-19).** 이 폴더의 초안은 설계 승인 전에 쓴 것이다. `CLAUDE.recipes-section.md`는 최종 규칙이 `CLAUDE.md`의 "레시피 부분"으로 옮겨졌고(D-056~D-063), `recipe-ingest-SKILL.md`는 PC에서 Claude Code가 읽는 길을 기본으로 쓴 초안이라 이제 쓰지 않는다. 읽기는 맥 처리기(`tools/recipe-worker/`)가 하고 `/watch`는 손으로 다시 볼 때 쓰는 예비다(사용자 결정 17번).
 
-| 파일 | 옮길 곳 | 지금 두지 않는 까닭 |
-|---|---|---|
-| `recipe-ingest-SKILL.md` | `.claude/skills/recipe-ingest/SKILL.md` | 그 폴더에 두면 Claude Code가 바로 스킬로 읽는다. PC에서 읽는 것을 기본으로 쓴 초안이고, 2026-11-18 브레인스토밍에서 기본 경로가 바뀌는 중이다 |
-| `CLAUDE.recipes-section.md` | `CLAUDE.md`의 "레시피 부분 (설계 중)" 자리 | 설계가 정해지면 범위와 규칙 몇 줄이 바뀐다 |
+| 파일 | 지금 |
+|---|---|
+| `recipe-ingest-SKILL.md` | 쓰지 않는다. `.claude/skills/recipe-ingest/`에 두지 않았다. 처리기 지시문은 `tools/recipe-worker/src/prompts/`가 대신한다 |
+| `CLAUDE.recipes-section.md` | `CLAUDE.md`로 옮겼다(맨 위 표시 참고) |
 
-다른 문서가 `.claude/skills/recipe-ingest/`라고 적은 곳은 지금은 이 폴더의 `recipe-ingest-SKILL.md`를 가리킨다.
+다른 문서가 `.claude/skills/recipe-ingest/`라고 적은 곳은 낡았다.

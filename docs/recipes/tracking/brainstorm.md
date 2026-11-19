@@ -1,8 +1,8 @@
 # 레시피: 브레인스토밍 기록 (진행 중)
 
-2026-11-18 claude.ai 세션에서 `superpowers:brainstorming`으로 하나씩 정하던 내용이다. 2026-11-19에 맥의 Claude Code에서 이어서 10~24번을 정했고, 같은 날 설계 문서 `docs/superpowers/specs/2026-11-19-recipes-design.md`가 승인되었다. 이제 기준은 설계 문서다. 설계 문서(`docs/superpowers/specs/`)는 아직 없고, 코드·마이그레이션·도구 설치·DB 쓰기는 하나도 하지 않았다.
+2026-11-18 claude.ai 세션에서 `superpowers:brainstorming`으로 하나씩 정하던 내용이다. 2026-11-19에 맥의 Claude Code에서 이어서 10~24번을 정했고, 같은 날 설계 문서 `docs/superpowers/specs/2026-11-19-recipes-design.md`가 승인되었다. 이제 기준은 설계 문서다. 그 뒤 코드를 `claude/recipes-docs` 브랜치에 만들었다(main에는 없음). 마이그레이션 적용·도구 설치·DB 쓰기는 아직 하지 않았다. 지금 상태는 `status.md`에 있다.
 
-이 문서가 레시피 일의 지금 기준이다. `docs/recipes/`의 다른 문서는 이 브레인스토밍 전에 쓴 제안이라 일부가 낡았다(맨 아래 표).
+이 문서는 사용자가 정한 것과 그 까닭의 기록이다(1~24번). 결정은 `docs/grocery/tracking/decisions/index.md`의 D-056~D-063에 옮겼고, `docs/recipes/`의 낡은 문서는 2026-11-19에 고치거나 낡음 표시를 달았다(맨 아래 표).
 
 ## 맥에서 이어서 하기
 
@@ -159,11 +159,13 @@ docs/recipes/tracking/brainstorm.md를 읽고 superpowers:brainstorming으로 �
 하나씩 묻는다. 답이 만들 것을 바꾸는 것만 묻고, 나머지는 제안으로 말하고 넘어간다.
 
 1. ~~Gemini API~~ → 10번. 맥이 읽고 Gemini는 쓰지 않는 쪽으로.
-2. ~~어디서 보는가~~ → 11·13번. 메일을 누구에게 언제 보낼지는 아직 말하지 않았다(제안: 앱의 버튼).
+2. ~~어디서 보는가~~ → 11·13번. 메일은 16번으로 하지 않기로 했다.
 3. ~~인스타 릴스~~ → 14번. 뒤로.
 4. ~~읽자마자 들어가는가~~ → 12번. 위 "검증".
-5. "자세히"의 범위. 위의 계약 v1 칸에서 더 필요한 것(예: 특이 용어 풀이, 인분 바꾸기, 대체 재료, 보관법, 곁들임, 실패하기 쉬운 곳).
-6. 10번으로 대부분 풀렸다. ③ 북마크는 5번대로 첫 판에 넣는다. Actions는 유튜브가 막아서 뺀다. A(`/watch`)와 B(우리 수집기)를 어떻게 쓸지는 만드는 방법을 고를 때 정한다.
+5. ~~"자세히"의 범위. 위의 계약 v1 칸에서 더 필요한 것(예: 특이 용어 풀이, 인분 바꾸기, 대체 재료, 보관법, 곁들임, 실패하기 쉬운 곳).~~ → 22번(용어 풀이·인분 바꾸기·덧붙인 분량), 24번. 대체 재료·보관법·곁들임·실패하기 쉬운 곳은 첫 판에 넣지 않았다(재료의 `note`로만).
+6. ~~10번으로 대부분 풀렸다. ③ 북마크는 5번대로 첫 판에 넣는다. Actions는 유튜브가 막아서 뺀다. A(`/watch`)와 B(우리 수집기)를 어떻게 쓸지는 만드는 방법을 고를 때 정한다.~~ → 17번(B 중심, `/watch`는 예비), 설계 "만드는 방법".
+
+2026-11-19에 위 순서를 모두 마쳤다(설계 승인, 계획, 구현). 아래는 그때의 순서 기록이다.
 
 그다음 순서(brainstorming 스킬): 정리해서 되돌려 말하기 → 만드는 방법 두세 가지를 따로 보여 주고 고르기 → 설계 문서 쓰기(`docs/superpowers/specs/YYYY-MM-DD-recipes-design.md`) → 다른 눈으로 한 번 읽히기 → 사용자 승인 → `superpowers:writing-plans`로 계획.
 
@@ -171,17 +173,17 @@ docs/recipes/tracking/brainstorm.md를 읽고 superpowers:brainstorming으로 �
 
 ## 이 기록으로 낡은 문서
 
-설계 문서가 승인되면 아래를 고친다. 그때까지는 이 기록이 우선한다.
+2026-11-19에 아래를 정리했다(오른쪽 칸이 한 일).
 
-| 문서 | 낡은 곳 |
-|---|---|
-| `tracking/decisions-proposed.md` | P-02, P-07, P-10, P-11(맨 위에 표시해 둠) |
-| `architecture.md` | "읽기는 앱 서버가 아니라 Claude Code와 claude.ai" 전제, 그림, 두 곳의 역할 표 |
-| `product.md` | "하지 않을 것"의 앱 서버·쿡앱 항목, 쓰는 흐름 1번(담기) |
-| `roadmap.md` | R0~R8의 순서와 내용 전부. 설계 뒤 다시 쓴다 |
-| `cookapp-absorb.md` | "가져오지 않을 것". 쿡앱 일을 시작할 때 다시 쓴다 |
-| `claude-ai-workflow.md` | claude.ai가 읽고 등록하는 흐름. 예비 경로로 남을지 설계에서 정한다 |
-| `drafts/recipe-ingest-SKILL.md` | PC에서 읽는 것이 기본이라는 전제. 6번의 B가 되거나 예비 경로가 된다 |
-| `drafts/CLAUDE.recipes-section.md` | "등록은 함수 하나로만"의 호출 주체, 범위(Edge Function이 빠져 있음) |
+| 문서 | 낡은 곳 | 한 일(2026-11-19) |
+|---|---|---|
+| `tracking/decisions-proposed.md` | P-02, P-07, P-10, P-11(맨 위에 표시해 둠) | 채택·뒤집음·뺌으로 표시하고 D-056~D-063을 달았다 |
+| `architecture.md` | "읽기는 앱 서버가 아니라 Claude Code와 claude.ai" 전제, 그림, 두 곳의 역할 표 | 설계와 코드에 맞춰 다시 썼다 |
+| `product.md` | "하지 않을 것"의 앱 서버·쿡앱 항목, 쓰는 흐름 1번(담기) | 다시 썼다 |
+| `roadmap.md` | R0~R8의 순서와 내용 전부. 설계 뒤 다시 쓴다 | 다시 썼다(만든 순서와 남은 것) |
+| `cookapp-absorb.md` | "가져오지 않을 것". 쿡앱 일을 시작할 때 다시 쓴다 | 그대로 둠(쿡앱을 다시 꺼낼 때 다시 쓴다) |
+| `claude-ai-workflow.md` | claude.ai가 읽고 등록하는 흐름. 예비 경로로 남을지 설계에서 정한다 | 낡음 표시를 달고 본문은 남김 |
+| `drafts/recipe-ingest-SKILL.md` | PC에서 읽는 것이 기본이라는 전제. 6번의 B가 되거나 예비 경로가 된다 | 낡음 표시를 달고 본문은 남김 |
+| `drafts/CLAUDE.recipes-section.md` | "등록은 함수 하나로만"의 호출 주체, 범위(Edge Function이 빠져 있음) | `CLAUDE.md`로 옮김(옮겼다고 표시) |
 
-그대로 쓰는 것: `extraction-rules.md`(규칙 25개), `contract/`(계약 v1, 기준 답안, DB 초안), `benchmark/`, `ingest-sources.md`의 L0~L4 사다리와 확인된 사실.
+고쳐서 쓰는 것: `extraction-rules.md`(규칙 29개, L4를 뺌, 용어 풀이·난이도·계량 도구·덧붙인 분량 규칙을 더함). `contract/`(계약 v1, DB 초안)는 설계 전 초안이라 코드(`supabase/functions/_shared/recipeContract.ts` v2, `supabase/migrations/*_recipe_*.sql`)가 기준이다. 그대로 쓰는 것: `benchmark/`, `ingest-sources.md`의 확인된 사실(그 사다리의 L4는 뺐다).
