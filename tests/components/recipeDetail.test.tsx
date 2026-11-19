@@ -255,6 +255,16 @@ describe('고치기와 지우기', () => {
     expect(store.editStep).not.toHaveBeenCalled()
     expect(store.update).not.toHaveBeenCalled()
   })
+  it('재료 분량 "1,000"은 1000으로 보낸다(쉼표를 소수점으로 바꾸지 않는다)', async () => {
+    const store = fake()
+    await show(store)
+    fireEvent.click(screen.getByRole('button', { name: '고치기' }))
+    const sheet = screen.getByRole('dialog', { name: '레시피 고치기' })
+    fireEvent.change(within(sheet).getByLabelText('재료 2 분량'), { target: { value: '1,000' } })
+    fireEvent.click(within(sheet).getByRole('button', { name: '저장' }))
+    await act(async () => {})
+    expect(store.editIngredient).toHaveBeenCalledWith('r1', 1, { amount: 1000 })
+  })
   it('분류·재료·단계를 고치면 store의 update·editIngredient·editStep을 부른다', async () => {
     const store = fake()
     await show(store)

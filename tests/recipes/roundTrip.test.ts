@@ -183,6 +183,6 @@ describe('처리기 출력 → 등록 → 앱의 확인·되돌리기', () => {
     expect(fi[3]).toMatchObject({ name: '고춧가루', amount: 1, unit: '큰술', origin: 'user', at_seconds: null })
     expect(fi.every((g) => g.needs_review === false)).toBe(true)
     const fs = await admin<Row>(`select timer_seconds, origin, cue, cue_origin, needs_review from recipe.steps where recipe_id = $1 order by position`, [rid])
-    expect(fs[1]).toMatchObject({ timer_seconds: 300, origin: 'user', cue: '노릇해질 때까지', cue_origin: 'user', needs_review: false })
+    expect(fs[1]).toMatchObject({ timer_seconds: 300, origin: 'caption_auto', cue: '노릇해질 때까지', cue_origin: 'user', needs_review: false })
   })
 })

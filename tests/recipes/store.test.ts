@@ -198,6 +198,19 @@ describe('고친 곳 되돌리기(사람의 고름: 출처 user, 영상 시각 �
     expect(ed.f.tables['recipe.steps'][0]).toMatchObject({ timer_seconds: null, origin: 'editor' })
     expect((ed.f.tables['recipe.recipes'][0].corrections as unknown[]).length).toBe(1)
   })
+  it('타이머 후보를 고르면 타이머만 바꾸고 단계 출처는 그대로, 덧붙임 단계면 고르지 못한다', async () => {
+    const seed = (origin: string) => mk({
+      'recipe.recipes': [{ id: 'r1', household_id: H, status: 'review', glossary: [],
+        review_items: [{ target: 'steps[0].timer_seconds', reason: '시간이 두 번 나와요', candidates: [{ value: '180', origin: 'asr', at_seconds: 70 }] }] }],
+      'recipe.steps': [{ id: 's0', household_id: H, recipe_id: 'r1', position: 1, title: '뜸', body: '뜸 들인다', timer_seconds: null, origin }],
+    })
+    const ok = seed('asr')
+    await ok.store.resolveReview('r1', 0, { value: '180', origin: 'asr', at_seconds: 70 })
+    expect(ok.f.tables['recipe.steps'][0]).toMatchObject({ timer_seconds: 180, origin: 'asr' })
+    const ed = seed('editor')
+    await expect(ed.store.resolveReview('r1', 0, { value: '180', origin: 'asr', at_seconds: 70 })).rejects.toThrow('고를 수 없어요')
+    expect(ed.f.tables['recipe.steps'][0]).toMatchObject({ timer_seconds: null, origin: 'editor' })
+  })
   it('숫자 분량 옆의 덧붙인 분량, 영상 밖 시각 고침은 되돌리지 않는다', async () => {
     const { store } = mk({
       'recipe.recipes': [{ id: 'r1', household_id: H, status: 'saved', review_items: [], corrections: [

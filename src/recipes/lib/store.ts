@@ -253,6 +253,11 @@ export function createRecipeStore(client: SupabaseClient, householdId: string, u
     if (!row) throw new Error('그 줄이 이미 바뀌었어요. 목록을 다시 확인해 주세요.')
     return { unit: row.unit ?? null, suggested_unit: row.suggested_unit ?? null }
   }
+  /** 덧붙임 단계에는 타이머를 둘 수 없다(DB 제약). 그런 단계면 던진다 */
+  async function assertTimerAllowed(recipeId: string, index: number, tail: string) {
+    const st = checked(await r().from('steps').select('position,origin').eq('household_id', householdId).eq('recipe_id', recipeId).order('position', { ascending: true })) as unknown as { origin: string }[]
+    if (st[index]?.origin === 'editor') throw new Error(`덧붙인 단계에는 타이머를 둘 수 없어서 ${tail}.`)
+  }
   const unitFor = async (recipeId: string, t: Exclude<Target, { kind: 'conflicts' }>, field: string) => {
     if (t.kind !== 'ingredients' || (field !== 'amount' && field !== 'suggested_amount')) return null
     const u = await ingredientUnits(recipeId, t.index)
@@ -356,7 +361,9 @@ export function createRecipeStore(client: SupabaseClient, householdId: string, u
         // 사용자가 고른 값은 출처 user, 영상 시각은 없다. 분량은 단위가 붙어 오면 단위도 쓴다
         const field = t.field
         if (field !== 'origin' && field !== 'at_seconds') setValue(edits, t, field, choice.value, await unitFor(recipeId, t, field))
-        markUser(edits, t, field)
+        // 타이머를 고를 때는 타이머만 바꾼다. 단계 자체의 출처는 건드리지 않는다
+        if (t.kind === 'steps' && field === 'timer_seconds') await assertTimerAllowed(recipeId, t.index, '고를 수 없어요')
+        else markUser(edits, t, field)
       }
       // 그 줄(재료·단계·원리)에 남은 확인 항목이 없으면 줄의 확인 표시를 끈다. 줄 전체를 가리키는 항목("ingredients[6]")도 같다
       const row = rowOf(item.target)
@@ -397,10 +404,8 @@ export function createRecipeStore(client: SupabaseClient, householdId: string, u
         valueTargets.add(ci.target)
       }
       if (t.kind === 'steps' && t.field === 'timer_seconds') {
-        // 타이머만 되돌린다. 단계 자체의 출처는 건드리지 않는다(모델의 덧붙임 단계 글이 "직접 고침"이 되지 않게).
-        // 덧붙임 단계에는 타이머를 둘 수 없다(DB 제약)
-        const st = checked(await r().from('steps').select('position,origin').eq('household_id', householdId).eq('recipe_id', recipeId).order('position', { ascending: true })) as unknown as { origin: string }[]
-        if (st[t.index]?.origin === 'editor') throw new Error('덧붙인 단계에는 타이머를 둘 수 없어서 되돌릴 수 없어요.')
+        // 타이머만 되돌린다. 단계 자체의 출처는 건드리지 않는다(모델의 덧붙임 단계 글이 "직접 고침"이 되지 않게)
+        await assertTimerAllowed(recipeId, t.index, '되돌릴 수 없어요')
       } else markUser(edits, t, t.field)
       const patch: RowPatch = { ...edits.recipe, corrections: list.filter((_, i) => !group.has(i)) }
       // 되돌린 값을 가리키던 확인 항목("출처에서 숫자를 찾지 못함" 따위)은 사람이 정했으니 지우고, 그 줄에 남은 것이 없으면 표시도 끈다

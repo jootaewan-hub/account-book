@@ -2,6 +2,7 @@
 import { useRef, useState } from 'react'
 import type { StoredRecipe } from '../../../supabase/functions/_shared/recipeStored'
 import { CUISINES, DIFFICULTIES, MAINS, METHODS, OCCASIONS } from '../../../supabase/functions/_shared/recipeContract'
+import { parseAmountValue } from '../../../supabase/functions/_shared/recipeValue'
 import { useFocusTrap, useScrollLock } from '../../lib/dialog'
 import type { IngredientPatch, RecipePatch, RecipeStore, StepPatch } from '../lib/store'
 
@@ -66,8 +67,10 @@ export function EditSheet({ recipe, store, onClose, onSaved }: { recipe: StoredR
         const p: IngredientPatch = {}
         if (a.name.trim() !== b.name) p.name = a.name
         if (a.amount.trim() !== b.amount) {
-          const n = a.amount.trim() === '' ? null : Number(a.amount.replace(',', '.'))
-          if (n !== null && !(Number.isFinite(n) && n > 0)) throw new Error(`${a.name} 분량은 0보다 큰 숫자로 적어 주세요`)
+          // 천 단위 쉼표("1,000")는 1000이다. 쉼표를 소수점으로 바꾸지 않는다(단위 칸이 따로 있어 단위가 붙은 값은 받지 않는다)
+          const parsed = a.amount.trim() === '' ? null : parseAmountValue(a.amount.trim())
+          const n = parsed && parsed.unit === null ? parsed.amount : null
+          if (a.amount.trim() !== '' && n === null) throw new Error(`${a.name} 분량은 0보다 큰 숫자로 적어 주세요`)
           p.amount = n
         }
         if (a.unit.trim() !== b.unit) p.unit = a.unit
