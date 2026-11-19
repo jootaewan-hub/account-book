@@ -22,6 +22,7 @@ const deps = () => ({
   listExports: vi.fn<WorkerDeps['listExports']>(async () => []),
   exported: vi.fn<WorkerDeps['exported']>(async () => true),
   ping: vi.fn(async () => {}),
+  rateHit: vi.fn<WorkerDeps['rateHit']>(async () => true),
   dict: vi.fn(async () => [{ id: 'garlic', name: '마늘', aliases: ['다진 마늘'], category: '채소' }]),
 }) satisfies WorkerDeps
 
@@ -46,6 +47,47 @@ describe('recipe-worker 요청 규칙', () => {
     const d = { ...deps(), secret: '' }
     expect((await call(d, { action: 'claim' }, { secret: '' })).status).toBe(401)
     expect((await call(d, { action: 'claim' })).status).toBe(401)
+    expect(d.claim).not.toHaveBeenCalled()
+  })
+
+  it('틀린 비밀은 횟수에 세지 않는다(rateHit을 부르지 않는다)', async () => {
+    const d = deps()
+    expect((await call(d, { action: 'claim' }, { secret: 'wrong' })).status).toBe(401)
+    expect((await call(d, { action: 'claim' }, { secret: null })).status).toBe(401)
+    expect(d.rateHit).not.toHaveBeenCalled()
+  })
+
+  it('맞는 비밀이면 요청마다 한 번 세고 정상 호출은 그대로 통과한다', async () => {
+    const d = deps()
+    const res = await call(d, { action: 'claim' })
+    expect(res.status).toBe(200)
+    expect(d.rateHit).toHaveBeenCalledTimes(1)
+    expect(d.rateHit).toHaveBeenCalledWith(now)
+    expect(d.claim).toHaveBeenCalledTimes(1)
+  })
+
+  it('한도를 넘으면 429 + Retry-After(다음 분까지 초) + rate_limited, 일은 하지 않는다', async () => {
+    const d = { ...deps(), now: () => new Date('2026-11-22T03:00:41.500Z') }
+    d.rateHit.mockResolvedValue(false)
+    const res = await call(d, { action: 'claim' })
+    expect(res.status).toBe(429)
+    expect(res.headers.get('Retry-After')).toBe('19')
+    expect(res.headers.get('Cache-Control')).toBe('no-store')
+    expect(await res.json()).toEqual({ error: 'rate_limited' })
+    expect(d.claim).not.toHaveBeenCalled()
+  })
+
+  it('분이 막 바뀐 순간의 Retry-After는 60', async () => {
+    const d = { ...deps(), now: () => new Date('2026-11-22T03:00:00.000Z') }
+    d.rateHit.mockResolvedValue(false)
+    expect((await call(d, { action: 'claim' })).headers.get('Retry-After')).toBe('60')
+  })
+
+  it('횟수를 세다 DB 오류가 나면 500이고 일은 통과시키지 않는다', async () => {
+    const d = deps()
+    d.rateHit.mockRejectedValue(new DbError('42501'))
+    const res = await call(d, { action: 'claim' })
+    expect(res.status).toBe(500)
     expect(d.claim).not.toHaveBeenCalled()
   })
 

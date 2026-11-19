@@ -1,5 +1,5 @@
 // 일 고리: 한 번에 일 하나. 켜진 시간·하루 한도를 지키고, 처리 중에는 30초마다 진행을 알린다.
-import type { WorkerApi } from './api.ts'
+import { ApiError, type WorkerApi } from './api.ts'
 import type { WorkerConfig } from './config.ts'
 import type { DictEntry, RecipeV2 } from './types.ts'
 
@@ -88,7 +88,14 @@ export function createDailyCounter(now: () => Date): { doneToday: () => number; 
 export async function runOnce(deps: LoopDeps): Promise<RunResult> {
   const { api, cfg } = deps
   if (deps.doneToday() >= cfg.dailyLimit) return 'limited'
-  const job = await api.claim()
+  let job: Awaited<ReturnType<WorkerApi['claim']>>
+  try {
+    job = await api.claim()
+  } catch (e) {
+    // 우리 서버의 횟수 한도(429): 일을 건드린 것이 아니므로 일이 없을 때와 같이 다음 확인을 기다린다
+    if (e instanceof ApiError && e.status === 429) return 'idle'
+    throw e
+  }
   if (!job) return 'idle'
   deps.onClaimed?.()
 

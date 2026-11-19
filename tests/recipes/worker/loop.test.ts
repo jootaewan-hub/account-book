@@ -131,6 +131,27 @@ describe('runOnce', () => {
     expect(api.fail).toHaveBeenCalledWith(job.id, '레시피 정리 결과가 형식에 맞지 않아요')
   })
 
+  it('claim이 429면 일을 건드리지 않고 idle: fail·release 없음', async () => {
+    const api = mkApi({ claim: vi.fn(async () => { throw new ApiError(429, 'x') }) })
+    const onClaimed = vi.fn()
+    expect(await runOnce(mkDeps(api, { onClaimed }))).toBe('idle')
+    expect(api.fail).not.toHaveBeenCalled()
+    expect(api.release).not.toHaveBeenCalled()
+    expect(onClaimed).not.toHaveBeenCalled()
+  })
+
+  it('claim이 429가 아닌 오류면 그대로 던진다', async () => {
+    const api = mkApi({ claim: vi.fn(async () => { throw new ApiError(500, 'x') }) })
+    await expect(runOnce(mkDeps(api))).rejects.toBeInstanceOf(ApiError)
+  })
+
+  it('submit이 끝내 429면 fail·release 없이 failed(임대 만료에 맡김)', async () => {
+    const api = mkApi({ submit: vi.fn(async () => { throw new ApiError(429, 'x') }) })
+    expect(await runOnce(mkDeps(api))).toBe('failed')
+    expect(api.fail).not.toHaveBeenCalled()
+    expect(api.release).not.toHaveBeenCalled()
+  })
+
   it('submit 500·네트워크 오류는 아무것도 더 부르지 않고(임대 만료에 맡김) failed', async () => {
     const api = mkApi({ submit: vi.fn(async () => { throw new ApiError(500, 'x') }) })
     expect(await runOnce(mkDeps(api))).toBe('failed')
@@ -257,6 +278,48 @@ describe('createApi', () => {
     expect(e).toBeInstanceOf(ApiError)
     expect((e as ApiError).status).toBe(401)
     expect((e as ApiError).message).not.toContain('s3cret')
+  })
+
+  it('429면 Retry-After만큼 쉬었다 같은 호출을 다시 하고, 두 번째에 되면 그 답을 쓴다', async () => {
+    const f = vi.fn()
+      .mockResolvedValueOnce(new Response(null, { status: 429, headers: { 'retry-after': '7' } }))
+      .mockResolvedValueOnce(ok({ recipe_id: 'r9' }))
+    const sleeps: number[] = []
+    const api = createApi('https://e/fn', 's3cret', f as unknown as typeof fetch, async (ms) => { sleeps.push(ms) })
+    expect(await api.submit(job.id, recipe, [])).toEqual({ ok: true, recipeId: 'r9' })
+    expect(f).toHaveBeenCalledTimes(2)
+    expect(sleeps).toEqual([7000])
+  })
+
+  it('429가 계속되면 다시 시도는 3번까지, 그다음 ApiError(429)', async () => {
+    const f = vi.fn(async () => new Response(null, { status: 429, headers: { 'retry-after': '1' } }))
+    const api = createApi('https://e/fn', 's3cret', f as unknown as typeof fetch, async () => {})
+    const e = await api.progress('j', '저장 중').catch((x: unknown) => x)
+    expect(e).toBeInstanceOf(ApiError)
+    expect((e as ApiError).status).toBe(429)
+    expect(f).toHaveBeenCalledTimes(4)
+  })
+
+  it('claim은 429에서 기다리지 않고 바로 ApiError(429)', async () => {
+    const f = vi.fn(async () => new Response(null, { status: 429, headers: { 'retry-after': '30' } }))
+    const sleep = vi.fn(async () => {})
+    const api = createApi('https://e/fn', 's3cret', f as unknown as typeof fetch, sleep)
+    const e = await api.claim().catch((x: unknown) => x)
+    expect((e as ApiError).status).toBe(429)
+    expect(f).toHaveBeenCalledTimes(1)
+    expect(sleep).not.toHaveBeenCalled()
+  })
+
+  it('Retry-After가 없거나 이상하면 1초~60초 안으로 맞춘다', async () => {
+    const sleeps: number[] = []
+    const heads: (string | null)[] = [null, 'abc', '999']
+    const f = vi.fn(async () => {
+      const h = heads.shift()
+      return h === undefined ? ok({ ok: true }) : new Response(null, { status: 429, headers: h === null ? {} : { 'retry-after': h } })
+    })
+    const api = createApi('https://e/fn', 's3cret', f as unknown as typeof fetch, async (ms) => { sleeps.push(ms) })
+    await api.ping('v')
+    expect(sleeps).toEqual([1000, 1000, 60000])
   })
 
   it('네트워크 오류도 ApiError(0)이고 비밀이 글에 없다', async () => {

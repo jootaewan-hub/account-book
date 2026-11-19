@@ -9,6 +9,8 @@ export const STAGES = [
 ] as const
 
 export const MAX_BODY_BYTES = 1024 * 1024
+/** 한 분(UTC 고정 창)에 받는 요청 수. 일반 처리기는 분당 열 번 안쪽이다 */
+export const RATE_LIMIT_PER_MINUTE = 120
 
 /** 데이터베이스가 거절한 일. code는 PostgreSQL 오류 번호(23514 따위)만 담고 SQL 내용은 담지 않는다 */
 export class DbError extends Error {
@@ -46,6 +48,8 @@ export interface WorkerDeps {
   /** 그 레시피가 없으면 false */
   exported: (input: ExportedInput) => Promise<boolean>
   ping: (version: string, now: Date) => Promise<void>
+  /** 이번 요청을 세고 한도 안이면 true. DB 오류는 DbError로 던진다 */
+  rateHit: (now: Date) => Promise<boolean>
   dict: () => Promise<{ id: string; name: string; aliases: string[]; category: string }[]>
 }
 
@@ -102,6 +106,16 @@ export async function handle(req: Request, deps: WorkerDeps): Promise<Response> 
   // 비밀부터 본다: 본문을 읽거나 해석하기 전에, 비밀이 없거나 틀리면 아무 일도 하지 않는다.
   if (!(await secretMatches(req.headers.get('x-recipe-worker-secret') ?? '', deps.secret))) {
     return new Response(null, { status: 401, headers })
+  }
+  // 비밀을 통과한 요청만 센다(인증 없는 요청은 DB를 건드리지 못한다). 본문이 깨졌거나 커도 센다. 한도를 넘으면 일은 하지 않는다.
+  const at = deps.now()
+  try {
+    if (!(await deps.rateHit(at))) {
+      const retryAfter = 60 - Math.floor((at.getTime() % 60_000) / 1000)
+      return Response.json({ error: 'rate_limited' }, { status: 429, headers: { ...headers, 'Retry-After': String(retryAfter) } })
+    }
+  } catch {
+    return new Response(null, { status: 500, headers })
   }
   const read = await readBody(req)
   if ('tooLarge' in read) return json({ error: '본문이 너무 커요.' }, 413)

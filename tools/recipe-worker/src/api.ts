@@ -37,9 +37,32 @@ export type WorkerApi = {
 }
 
 const TIMEOUT_MS = 30_000
+/** 서버의 횟수 한도(429)를 만나면 Retry-After만큼 쉬었다 같은 호출을 이만큼까지 다시 한다 */
+const RATE_RETRIES = 3
 
-export function createApi(endpoint: string, secret: string, fetchImpl: typeof fetch = fetch): WorkerApi {
-  async function post(body: Record<string, unknown>): Promise<Response> {
+const realSleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms))
+
+/** Retry-After(초)를 1~60초 안의 밀리초로. 없거나 숫자가 아니면 1초 */
+function retryAfterMs(res: Response): number {
+  const secs = Number(res.headers.get('retry-after'))
+  return Math.min(60, Math.max(1, Number.isFinite(secs) ? Math.ceil(secs) : 1)) * 1000
+}
+
+export function createApi(
+  endpoint: string,
+  secret: string,
+  fetchImpl: typeof fetch = fetch,
+  sleep: (ms: number) => Promise<void> = realSleep,
+): WorkerApi {
+  /** 429는 우리 서버의 횟수 한도다(Claude 사용량 제한과 다르다). retries번까지 기다렸다 다시 하고, 그래도 429면 그 답을 돌려준다 */
+  async function post(body: Record<string, unknown>, retries = RATE_RETRIES): Promise<Response> {
+    for (let left = retries; ; left--) {
+      const res = await send(body)
+      if (res.status !== 429 || left <= 0) return res
+      await sleep(retryAfterMs(res))
+    }
+  }
+  async function send(body: Record<string, unknown>): Promise<Response> {
     try {
       const res = await fetchImpl(endpoint, {
         method: 'POST',
@@ -56,8 +79,8 @@ export function createApi(endpoint: string, secret: string, fetchImpl: typeof fe
       throw new ApiError(0, '서버에 닿지 못했어요')
     }
   }
-  async function call<T>(body: Record<string, unknown>): Promise<T> {
-    const res = await post(body)
+  async function call<T>(body: Record<string, unknown>, retries?: number): Promise<T> {
+    const res = await post(body, retries)
     if (!res.ok) throw new ApiError(res.status, `서버가 ${res.status}로 답했어요`)
     try {
       return (await res.json()) as T
@@ -68,7 +91,8 @@ export function createApi(endpoint: string, secret: string, fetchImpl: typeof fe
 
   return {
     async claim() {
-      return (await call<{ job: Job | null }>({ action: 'claim' })).job
+      // 429면 기다리지 않는다: 호출한 쪽이 다음 확인 때 다시 묻는다
+      return (await call<{ job: Job | null }>({ action: 'claim' }, 0)).job
     },
     async progress(job, stage) {
       return (await call<{ ok: boolean }>({ action: 'progress', job, stage })).ok === true

@@ -3,7 +3,7 @@
 import { admin } from '../_shared/edge.ts'
 import { readAllPages } from '../_shared/pagination.ts'
 import { pickExports, toStoredRecipe, type ExportItem, type ExportRow } from '../_shared/recipeStored.ts'
-import { DbError, handle } from './handle.ts'
+import { DbError, RATE_LIMIT_PER_MINUTE, handle } from './handle.ts'
 
 const db = admin.schema('recipe')
 const secret = Deno.env.get('RECIPE_WORKER_SECRET') ?? ''
@@ -112,6 +112,11 @@ Deno.serve((req) => handle(req, {
   ping: async (version, now) => {
     const { error } = await db.from('worker_status').upsert({ id: 1, last_seen_at: now.toISOString(), version })
     check(error)
+  },
+  rateHit: async (now) => {
+    const { data, error } = await db.rpc('worker_rate_hit', { p_now: now.toISOString(), p_limit: RATE_LIMIT_PER_MINUTE })
+    check(error)
+    return data === true
   },
   dict: async () => {
     return await all<{ id: string; name: string; aliases: string[]; category: string }>('ingredient_dict', 'id, name, aliases, category', ['id'])

@@ -4,7 +4,7 @@
 
 ## 지금 단계
 
-- **코드 끝, 병합 전.** 브랜치 `claude/recipes-docs`에 있다. main에는 없다. 네 조각(DB와 마이그레이션 셋, 서버 함수 `recipe-worker`, 맥 처리기 `tools/recipe-worker/`, 앱 '레시피' 탭)과 문서가 들어 있다. 로컬에서 `npm test`·타입 검사·린트·빌드가 통과한다. 화면은 390·1280px, 라이트·다크로 캡처해 확인했다.
+- **코드 끝, 병합 전.** 브랜치 `claude/recipes-docs`에 있다. main에는 없다. 네 조각(DB와 마이그레이션 넷, 서버 함수 `recipe-worker`, 맥 처리기 `tools/recipe-worker/`, 앱 '레시피' 탭)과 문서가 들어 있다. 로컬에서 `npm test`·타입 검사·린트·빌드가 통과한다. 화면은 390·1280px, 라이트·다크로 캡처해 확인했다.
 - 공유 DB, 배포된 서버 함수, 이 맥의 설치 상태는 아직 아무것도 바꾸지 않았다. 마이그레이션은 적용 전이고, 처리기는 설치 전이다.
 - 설계 문서: `docs/superpowers/specs/2026-11-19-recipes-design.md`. 구현 계획: `docs/superpowers/plans/2026-11-19-recipes.md`.
 
@@ -22,14 +22,14 @@
 
 모두 사용자가 허락한 것만 차례로 한다.
 
-1. 마이그레이션 셋을 Supabase MCP `apply_migration`으로 적용(`*_recipe_init`, `*_recipe_import`, `*_recipe_pantry`). 적용 직전에 `origin/main`의 가장 늦은 마이그레이션보다 뒤 시각인지 다시 확인한다.
+1. 마이그레이션 넷을 Supabase MCP `apply_migration`으로 적용(`*_recipe_init`, `*_recipe_import`, `*_recipe_pantry`, `*_recipe_rate`). 적용 직전에 `origin/main`의 가장 늦은 마이그레이션보다 뒤 시각인지 다시 확인한다.
 2. Edge Function `recipe-worker` 배포(커밋 고정 stub)와 서버 비밀 `RECIPE_WORKER_SECRET`. 값은 맥에서 만들어 파일로 건넨다. 배포 뒤 `verify_jwt`가 `supabase/config.toml`과 같은지, 비밀 없이 부르면 401인지 확인한다.
 3. Supabase 대시보드의 Exposed schemas에 `recipe` 더하기(사용자).
 4. 옵시디언: iCloud에 새 보관함을 만들기(사용자).
 5. 구글 로그인(처리기용 OAuth, 사용자가 한 번 로그인해 허락).
 6. 처리기 설치: `tools/recipe-worker/install.sh <커밋>`이 `~/Library/Application Support/recipe-worker/`에 설치하고 `~/Library/LaunchAgents/local.recipe-worker.plist`를 둔다(불러오는 것은 사용자가 따로). macOS가 폴더 접근을 물으면 허락한다.
 7. 끝까지 한 번: 앱에서 기준 영상을 붙여넣어 맥 → 서버 → 앱으로 레시피가 들어오는지, 드라이브·옵시디언에 사본이 쓰이는지 본다.
-8. (먼저 요청 횟수 한도가 들어갔는지 확인한다.) main 병합·푸시(= 배포)와 버전 올리기(`src/lib/changelog.ts`, `package.json`, D-028). 배포를 마치면 릴리스 내용을 사용자에게 정리해 보인다.
+8. main 병합·푸시(= 배포)와 버전 올리기(`src/lib/changelog.ts`, `package.json`, D-028). 배포를 마치면 릴리스 내용을 사용자에게 정리해 보인다.
 
 ### 확인을 미룬 것
 
@@ -37,8 +37,6 @@
 - **A5 iCloud·드라이브 쓰기:** launchd로 도는 처리기가 iCloud 옵시디언 폴더와 구글 드라이브에 쓰는지(macOS 개인정보 보호 창으로 조용히 실패할 수 있음). `doctor` 명령이 시험 파일을 만들고 지워 확인한다. 설치와 구글 로그인 뒤에 한다.
 
 ## 열린 문제
-
-- **병합 전에 넣어야 함: 서버 함수의 요청 횟수 한도.** 설계 §10·§11은 "요청 크기와 횟수에 한도"를 요구하지만 크기 한도 1MB만 있다. 아직 만들지 않았다. 그동안 처리기 비밀이 새면 `recipe` 함수를 횟수 제한 없이 부를 수 있다(다른 표는 못 읽는다).
 
 - 실제 영상으로 돌려 본 적이 없다. 정리·검증 흐름은 만든 자료(공개 저장소라 실제 자막을 넣지 않음)와 가짜 응답으로만 시험했다.
 - 맥으로 걸리는 시간과 구독 사용량은 모른다(A2). 하루 한도 15(설정에서 바꿈)는 처음값이다.
