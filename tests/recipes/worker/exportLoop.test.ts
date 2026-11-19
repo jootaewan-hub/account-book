@@ -32,6 +32,7 @@ function mkDrive(over: Partial<Drive> = {}) {
     trash: vi.fn(async () => {}),
     upsertListRow: vi.fn(async () => {}),
     removeListRow: vi.fn(async () => {}),
+    probe: vi.fn(async () => {}),
   } satisfies Drive
   return { ...d, ...over } as typeof d
 }

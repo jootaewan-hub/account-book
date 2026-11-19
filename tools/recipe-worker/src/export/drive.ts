@@ -38,6 +38,8 @@ export type Drive = {
   trash(id: string): Promise<void>
   upsertListRow(r: StoredRecipe, docId?: string | null): Promise<void>
   removeListRow(recipeId: string): Promise<void>
+  /** 앱 폴더에 아주 작은 시험 파일을 만들고 휴지통으로 보낸다(설치 점검용). 막히면 던진다 */
+  probe(): Promise<void>
 }
 
 export type DriveOptions = { clientFile?: string; cacheDir?: string; now?: () => number }
@@ -246,10 +248,18 @@ export function createDrive(tokenFile: string, fetchImpl: typeof fetch = fetch, 
     await syncCsv(s)
   }
 
+  async function probe(): Promise<void> {
+    const folderId = await ensureFolder([ROOT_FOLDER])
+    const m = multipart({ name: '.점검용 시험 파일', parents: [folderId] }, 'ok', 'text/plain')
+    const created = await json<{ id: string }>(await call(`${UPLOAD}?uploadType=multipart`, { method: 'POST', ...m }))
+    await trash(created.id)
+  }
+
   return {
     ensureFolder,
     upsertDoc,
     trash,
+    probe,
     upsertListRow: (r, docId) => listChange(r.id, rowOf(r, docId)),
     removeListRow: (recipeId) => listChange(recipeId, null),
   }

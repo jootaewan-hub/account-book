@@ -1,5 +1,6 @@
 // 사용법: node src/cli.ts run [설정 파일]
 //        node src/cli.ts google-auth [설정 파일]
+//        node src/cli.ts doctor [설정 파일]
 //        node src/cli.ts dry-run <주소> --out <파일> [--no-description] [--config <설정 파일>]
 import { spawn as nodeSpawn, type ChildProcess } from 'node:child_process'
 import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
@@ -9,6 +10,7 @@ import { normalizeRecipeUrl } from '../../../supabase/functions/_shared/recipeSo
 import { createApi } from './api.ts'
 import { createClaudeRun, type ClaudeRun } from './claude.ts'
 import { DEFAULT_CONFIG_PATH, loadConfig, type WorkerConfig } from './config.ts'
+import { doctor } from './doctor.ts'
 import { createDrive, type Drive } from './export/drive.ts'
 import { createBackoff, exportOnce } from './export/loop.ts'
 import { googleAuth } from './export/google.ts'
@@ -179,13 +181,21 @@ if (isMain) {
       console.error(e instanceof Error ? e.message : '구글 연결을 하지 못했어요')
       process.exit(1)
     })
+  } else if (cmd === 'doctor') {
+    doctor(loadConfig(path ?? DEFAULT_CONFIG_PATH)).then((checks) => {
+      for (const c of checks) console.log(`${c.ok ? '✓' : '✗'} ${c.name} — ${c.detail}`)
+      if (checks.some((c) => !c.ok)) process.exit(1)
+    }, (e: unknown) => {
+      console.error(e instanceof Error ? e.message : '점검하지 못했어요')
+      process.exit(1)
+    })
   } else if (cmd === 'run') {
     run(path).catch((e: unknown) => {
       console.error(e instanceof Error ? e.message : '시작하지 못했어요')
       process.exit(1)
     })
   } else {
-    console.error('사용법: node src/cli.ts run [설정 파일] | google-auth [설정 파일] | dry-run <주소> --out <파일> [--no-description]')
+    console.error('사용법: node src/cli.ts run [설정 파일] | google-auth [설정 파일] | doctor [설정 파일] | dry-run <주소> --out <파일> [--no-description]')
     process.exit(2)
   }
 }
