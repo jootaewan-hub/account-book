@@ -43,6 +43,8 @@ const UNIT_WORD = alt(ALIASES.map(([a]) => a))
 const CANON_WORD = alt(ALIASES.map(([, c]) => c))
 // 한국어 수 뒤에 올 수 있는 단위. "인"은 "한 인기 메뉴" 같은 말과 헷갈려 뺀다.
 const HANGUL_UNIT = alt(ALIASES.map(([a]) => a).filter((a) => !isLatin(a) && a !== '인'))
+// "반" 뒤에 올 수 있는 단위(T·t 포함, 대소문자 그대로)
+const HALF_UNIT = alt(ALIASES.map(([a]) => a).filter((a) => a !== '인'))
 // 한자어 수(일·이·삼…)는 이 단위 바로 앞에서만 수로 본다("이 양념", "이 컵에"는 수가 아니다).
 const SINO_UNIT = alt(['분', '초', '인분', '그램', '킬로그램', '킬로', '밀리리터', '밀리', '미리', '리터', '큰술', '작은술'])
 
@@ -59,6 +61,11 @@ const NATIVE_RANGE: Record<string, string> = {
   한두: '1~2', 두세: '2~3', 두어: '2~3', 서너: '3~4', 너덧: '4~5', 너댓: '4~5', 네댓: '4~5', 네다섯: '4~5',
   대여섯: '5~6', 예닐곱: '6~7', 일고여덟: '7~8', 일여덟: '7~8',
 }
+// 띄어 쓴 범위("두 세 숟가락", "한 두 개")는 이웃한 두 수만 범위로 본다("한 네 개"의 한은 "쯤"이라는 뜻이다)
+const SPACED_RANGE: Record<string, [number, string, number]> = {
+  한: [1, '두', 2], 두: [2, '세', 3], 세: [3, '네', 4], 서: [3, '너', 4], 네: [4, '다섯', 5],
+  다섯: [5, '여섯', 6], 여섯: [6, '일곱', 7], 일곱: [7, '여덟', 8], 여덟: [8, '아홉', 9],
+}
 const STANDALONE: Record<string, number> = { 하나: 1, 둘: 2, 셋: 3, 넷: 4 }
 const SINO: Record<string, number> = { 일: 1, 이: 2, 삼: 3, 사: 4, 오: 5, 육: 6, 칠: 7, 팔: 8, 구: 9 }
 
@@ -69,18 +76,21 @@ const RE = {
   mixed: re(`(?<![\\d./])(\\d+)(?:${H}*(?:과|와)${H}*|${H}+)(\\d{1,2})/(\\d{1,2})(?![\\d/])`),
   fraction: re(`(?<![\\d./])(\\d{1,2})/(\\d{1,2})(?![\\d/])`),
   bunui: re(`(?<![\\d.])(\\d+)${H}*분의${H}*(\\d+)`),
+  spacedRange: re(`(?<![가-힣\\d])(한|두|세|서|네|다섯|여섯|일곱|여덟)${H}+(두|세|네|너|다섯|여섯|일곱|여덟|아홉)${H}*(?=(?:${HANGUL_UNIT}))`),
   nativeRange: re(`(?<![가-힣\\d])(${Object.keys(NATIVE_RANGE).sort((a, b) => b.length - a.length).join('|')})${H}*(?=(?:${HANGUL_UNIT}))`),
   native: re(`(?<![가-힣\\d])(열(?:다섯|여섯|일곱|여덟|아홉|한|두|세|네)?|스무|다섯|여섯|일곱|여덟|아홉|한|두|세|네)${H}*(?=(?:${HANGUL_UNIT}))`),
   sino: re(
     `(?<![가-힣\\d])(?=[일이삼사오육칠팔구십백천])((?:[이삼사오육칠팔구]?천)?(?:[이삼사오육칠팔구]?백)?(?:[이삼사오육칠팔구]?십)?[일이삼사오육칠팔구]?)${H}*(?=(?:${SINO_UNIT}))`,
   ),
   standalone: re(`(?<![가-힣\\d])(하나|둘|셋|넷)(?=$|[^가-힣]|을|를|이|가|만|씩|쯤|정도|와|랑)`),
-  leadingHalf: re(`${NOT_WORD_BEFORE}반${H}*(?=(?:${HANGUL_UNIT}))`),
+  leadingHalf: re(`${NOT_WORD_BEFORE}반${H}*(?=(?:${HALF_UNIT}))`),
   unit: re(`(${NUM})${H}*(${UNIT_WORD})`),
   // "한 큰술 반", "1개 반이면". "1개 반으로 썰어"(반으로 자른다)는 1.5가 아니다.
   trailingHalf: re(`(${NUM})(${CANON_WORD})${H}*반(?=$|[^가-힣]|을|이|만|씩|쯤|정도)`),
   standaloneHalf: re(`${NOT_WORD_BEFORE}반(?=$|[^가-힣]|을|이|만|씩|쯤|정도)`),
-  range: re(`(\\d(?:${CANON_WORD})?)${H}*[~∼〜–—-]${H}*(?=\\d)`),
+  // 범위: "2~3", "2-3T", "2T~3T"는 늘, "2에서 3", "2 또는 3", "3,4큰술"은 앞 수에 단위가 없거나 같고 앞이 작을 때만
+  // ("물 1컵 또는 200ml"는 같은 양의 다른 표기, "180에서 10분"은 범위가 아니다)
+  range: re(`(?<![\\d.])(${NUM})((?:${CANON_WORD})?)${H}*(에서|내지|또는|혹은|,|[~∼〜–—-])${H}*(?=(${NUM})((?:${CANON_WORD})?))`),
 }
 
 function sinoValue(s: string): number {
@@ -114,6 +124,10 @@ export function normalizeNumbers(text: string): string {
   s = s.replace(RE.mixed, (m, w: string, n: string, d: string) => (Number(d) > 0 ? fmt(Number(w) + Number(n) / Number(d)) : m))
   s = s.replace(RE.fraction, (m, n: string, d: string) => (Number(d) > 0 ? fmt(Number(n) / Number(d)) : m))
   s = s.replace(RE.bunui, (m, d: string, n: string) => (Number(d) > 0 ? fmt(Number(n) / Number(d)) : m))
+  s = s.replace(RE.spacedRange, (m, a: string, b: string) => {
+    const r = SPACED_RANGE[a]
+    return r && r[1] === b ? `${r[0]}~${r[2]}` : m
+  })
   s = s.replace(RE.nativeRange, (_, w: string) => NATIVE_RANGE[w] ?? w)
   s = s.replace(RE.native, (_, w: string) => fmt(nativeValue(w)))
   s = s.replace(RE.sino, (m, w: string) => (w ? fmt(sinoValue(w)) : m))
@@ -122,7 +136,11 @@ export function normalizeNumbers(text: string): string {
   s = s.replace(RE.unit, (_, n: string, u: string) => `${n}${ALIAS_MAP.get(u) ?? u}`)
   s = s.replace(RE.trailingHalf, (_, n: string, u: string) => `${fmt(Number(n) + 0.5)}${u}`)
   s = s.replace(RE.standaloneHalf, '0.5')
-  s = s.replace(RE.range, '$1~')
+  s = s.replace(RE.unit, (_, n: string, u: string) => `${n}${ALIAS_MAP.get(u) ?? u}`) // 반을 바꾼 뒤 새로 생긴 "0.5T" 같은 것
+  s = s.replace(RE.range, (m, a: string, ua: string, conn: string, b: string, ub: string) => {
+    if (/^[~∼〜–—-]$/.test(conn)) return `${a}${ua}~`
+    return (ua === '' || ua === ub) && Number(a) < Number(b) ? `${a}${ua}~` : m
+  })
   return s
 }
 
@@ -168,10 +186,13 @@ export function nameVariants(name: string): string[] {
     const stripped = n.replace(/\([^)]*\)|\[[^\]]*\]/g, ' ')
     add(stripped)
     for (const m of n.matchAll(/\(([^)]*)\)/g)) for (const part of (m[1] ?? '').split(/[,/·]/)) add(part)
-    const words = stripped.trim().split(/\s+/).filter((w) => w.length >= 2 && !NAME_STOP.has(w))
+    const words = stripped.trim().split(/\s+/)
     if (words.length > 1) {
-      add(words[0]!)
-      add(words[words.length - 1]!)
+      const heads = words.filter((w) => w.length >= 2 && !NAME_STOP.has(w))
+      if (heads.length > 0) {
+        add(heads[0]!)
+        add(heads[heads.length - 1]!)
+      }
     }
   }
   return [...out]
@@ -189,10 +210,33 @@ export function sameName(a: string, b: string): boolean {
   return [...exact(a)].some((v) => sb.has(v))
 }
 
-const hasVariant = (text: string, variants: string[]) => {
-  const k = key(text)
-  return variants.some((v) => k.includes(v))
+type Hit = { start: number; end: number }
+
+// 짧은 이름(2글자 이하) 바로 뒤에 붙어도 되는 말(조사). 그 밖의 한글이 붙으면 다른 낱말이다("물엿"의 물, "깨소금"의 깨).
+const FOLLOW_OK = /^(?:을|를|이|가|은|는|도|만|에|와|과|랑|하고|으로|로|의|부터|까지|처럼|보다|씩|이랑|이나|나|만큼|쯤|정도|요)/
+
+/** 글에서 이름 꼴들이 나오는 자리(띄어쓰기 무시, 원래 글의 위치) */
+function nameHits(text: string, variants: string[]): Hit[] {
+  const idx: number[] = []
+  let k = ''
+  for (let i = 0; i < text.length; i++) {
+    if (/\s/.test(text[i]!)) continue
+    idx.push(i)
+    k += text[i]
+  }
+  const out: Hit[] = []
+  for (const v of variants) {
+    for (let p = k.indexOf(v); p >= 0; p = k.indexOf(v, p + 1)) {
+      const hit = { start: idx[p]!, end: idx[p + v.length - 1]! + 1 }
+      const next = text.slice(hit.end)
+      if (v.length <= 2 && /^[가-힣]/.test(next) && !FOLLOW_OK.test(next)) continue
+      out.push(hit)
+    }
+  }
+  return out.sort((a, b) => a.start - b.start || b.end - a.end)
 }
+
+const hasVariant = (text: string, variants: string[]) => nameHits(text, variants).length > 0
 
 /** 글에 재료 이름(nameVariants)이 있는지 */
 export function containsName(text: string, name: string): boolean {
@@ -210,26 +254,80 @@ export function containsTerm(text: string, term: string): boolean {
   return stem.length >= 2 && stem !== t && k.includes(stem)
 }
 
-// 한 줄 안에서 재료 하나의 몫을 가르는 표시. 분수는 이미 소수로 바뀌어 있다.
+// 한 줄 안에서 재료 하나의 몫을 가르는 표시(괄호 안은 가르지 않는다). 분수는 이미 소수로 바뀌어 있다.
 const CLAUSE = /[,，;|·•/]/
 
-// 분량이 아닌 수(시간·인분). "구분"이 "9분"으로 읽히는 것 같은 잘못 읽은 수가 분량 찾기를 막지 않게 뺀다.
+function splitClauses(line: string): string[] {
+  const out: string[] = []
+  let depth = 0
+  let from = 0
+  for (let i = 0; i < line.length; i++) {
+    const c = line[i]!
+    if (c === '(' || c === '[') depth++
+    else if ((c === ')' || c === ']') && depth > 0) depth--
+    else if (depth === 0 && CLAUSE.test(c)) {
+      out.push(line.slice(from, i))
+      from = i + 1
+    }
+  }
+  out.push(line.slice(from))
+  return out
+}
+
+// 분량이 아닌 수(시간·인분). "구분"이 "9분"으로 읽히는 것 같은 잘못 읽은 수를 분량 후보로 쓰지 않는다.
 const NOT_AMOUNT = new Set(['인분', '시간', '분', '초'])
 const amountsIn = (normalized: string) => quantities(normalized).filter((q) => q.unit === null || !NOT_AMOUNT.has(q.unit))
 
+// 이름 뒤에 이것만 남으면 "이름뿐인 덩이"다("간장, 설탕 각 2큰술"의 간장)
+const NAME_ONLY_REST = /^(?:은|는|을|를|이|가|도|와|과|랑|이랑|하고|각|각각|모두|씩|다|등)?요?$/
+const PUNCT = /[\s\-–—•·*:：()[\]{}【】<>「」『』"'.!?…]/g
+
 /**
- * 재료 이름 가까이의 분량 수: 이름이 든 줄마다, 이름이 든 덩이(쉼표 등으로 가른 몫)의 수.
- * 그 덩이에 수가 하나도 없으면("간장, 설탕 각 2큰술") 그 줄의 수를 본다. 시간·인분 수는 뺀다.
+ * 한 덩이 안에서 이 재료의 몫: 이름이 나온 자리부터 다음에 나오는 다른 재료 이름 앞까지("간장 3큰술 설탕 2큰술"의 간장 → "간장 3큰술 ").
+ * 다른 재료 이름 안에 든 이름("국간장"의 간장)은 이 재료가 아니다.
  */
-export function nearbyQuantities(text: string, name: string): Quantity[] {
-  const variants = nameVariants(name)
+function segments(clause: string, ours: string[], theirs: string[]): string[] {
+  const their = nameHits(clause, theirs)
+  const mine = nameHits(clause, ours).filter((o) => !their.some((t) => t.start <= o.start && t.end >= o.end && t.end - t.start > o.end - o.start))
+  const cuts = their.filter((t) => !mine.some((o) => t.start < o.end && o.start < t.end)).map((t) => t.start)
+  return mine.map((o) => clause.slice(o.start, Math.min(clause.length, ...cuts.filter((c) => c >= o.end))))
+}
+
+const nameOnly = (segment: string, ours: string[]) => {
+  const hit = nameHits(segment, ours)[0]
+  if (!hit) return false
+  return NAME_ONLY_REST.test(segment.slice(hit.end).replace(PUNCT, ''))
+}
+
+function otherVariants(name: string, others: readonly string[]): string[] {
+  const mine = new Set(nameVariants(name))
+  const out = new Set<string>()
+  for (const o of others) {
+    if (sameName(o, name)) continue
+    for (const v of nameVariants(o)) if (!mine.has(v)) out.add(v)
+  }
+  return [...out]
+}
+
+/**
+ * 재료 이름 가까이의 분량 수. 이름이 든 줄마다, 이름이 든 덩이(쉼표 등으로 가른 몫)에서 이 재료의 몫(다음 재료 이름 앞까지)의 수.
+ * 몫에 수가 없고 그 몫이 이름뿐이면("간장, 설탕 각 2큰술"의 간장) 그 줄의 수를 본다. "소금 약간, 설탕 1작은술"의 소금은 수가 없다.
+ * others는 같은 레시피의 다른 재료 이름(몫을 자르는 데 쓴다). 시간·인분 수는 뺀다.
+ */
+export function nearbyQuantities(text: string, name: string, others: readonly string[] = []): Quantity[] {
+  const ours = nameVariants(name)
+  const theirs = otherVariants(name, others)
   const out: Quantity[] = []
   for (const raw of text.split(/\r?\n/)) {
-    if (!hasVariant(raw, variants)) continue // 이름 꼴에 바꾸기 전 이름도 있으니 바꾸기 전 줄로 먼저 거른다
+    if (!hasVariant(raw, ours)) continue // 이름 꼴에 바꾸기 전 이름도 있으니 바꾸기 전 줄로 먼저 거른다
     const line = normalizeNumbers(raw)
-    if (!hasVariant(line, variants)) continue
-    const near = line.split(CLAUSE).filter((c) => hasVariant(c, variants)).flatMap((c) => amountsIn(c))
-    out.push(...(near.length > 0 ? near : amountsIn(line)))
+    if (!hasVariant(line, ours)) continue
+    let clauses = splitClauses(line).filter((c) => hasVariant(c, ours))
+    if (clauses.length === 0) clauses = [line] // 이름이 가르는 표시에 걸친 때
+    const parts = clauses.flatMap((c) => segments(c, ours, theirs))
+    const near = parts.flatMap((p) => amountsIn(p))
+    if (near.length > 0) out.push(...near)
+    else if (parts.some((p) => nameOnly(p, ours))) out.push(...amountsIn(line))
   }
   return out
 }
@@ -247,9 +345,10 @@ export function amountMatches(q: Quantity, amount: number, unit: string | null):
 /**
  * 글에 재료 이름과 그 분량이 같은 줄에 있는지. 줄은 \n으로 가른다(설명란은 줄마다, 자막·화면 글자는 묶은 조각을 한 줄로 넘긴다).
  * T·t는 대소문자를 그대로 보고(소금 1t는 1큰술이 아니다), 범위("두세 큰술", "2~3큰술")는 한 숫자로 쓰지 않는다.
+ * others(같은 레시피의 다른 재료 이름)를 주면 다른 재료의 숫자를 이 재료의 근거로 쓰지 않는다.
  */
-export function findAmount(text: string, name: string, amount: number, unit: string | null): boolean {
-  return nearbyQuantities(text, name).some((q) => amountMatches(q, amount, unit))
+export function findAmount(text: string, name: string, amount: number, unit: string | null, others: readonly string[] = []): boolean {
+  return nearbyQuantities(text, name, others).some((q) => amountMatches(q, amount, unit))
 }
 
 /** 이름 없이 그 분량이 적혀 있는지(다른 출처를 시각으로 훑을 때 먼저 볼 줄을 고른다) */

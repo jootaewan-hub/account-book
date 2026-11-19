@@ -402,6 +402,47 @@ describe('checkRecipe', () => {
     expect(out.corrections).toHaveLength(2)
   })
 
+  it('같은 조각의 다른 재료 숫자는 근거가 아님(말에서 바뀐 두 숫자)', () => {
+    const e = evidence({ transcript: { kind: 'caption_auto', segments: [{ start: 150, text: '고추장 세 큰술 매실청 두 큰술 넣어요' }] } })
+    const r = recipe()
+    r.ingredients.push(
+      { name: '고추장', amount: 2, unit: '큰술', origin: 'caption_auto', at_seconds: 150 },
+      { name: '매실청', amount: 3, unit: '큰술', origin: 'caption_auto', at_seconds: 150 },
+    )
+    r.steps[1]!.uses!.push({ name: '고추장' }, { name: '매실청' })
+    r.steps[1]!.timer_seconds = null
+    const out = run(r, e)
+    expect(out.recipe.ingredients.slice(6).map((g) => g.amount)).toEqual([null, null])
+    expect(out.reviews.map((x) => x.target)).toContain('ingredients[6].amount')
+    expect(out.reviews.map((x) => x.target)).toContain('ingredients[7].amount')
+
+    const right = recipe()
+    right.ingredients.push(
+      { name: '고추장', amount: 3, unit: '큰술', origin: 'caption_auto', at_seconds: 150 },
+      { name: '매실청', amount: 2, unit: '큰술', origin: 'caption_auto', at_seconds: 150 },
+    )
+    right.steps[1]!.uses!.push({ name: '고추장' }, { name: '매실청' })
+    right.steps[1]!.timer_seconds = null
+    expect(run(right, e).recipe.ingredients.slice(6).map((g) => g.amount)).toEqual([3, 2])
+  })
+
+  it('다시 돌려도 같은 고친 곳·확인 필요가 또 생기지 않음', () => {
+    const r = recipe()
+    r.ingredients.push(
+      { name: '깻잎', amount: null, unit: null, amount_text: '조금', origin: 'description' },
+      { name: '참깨', amount: 2, unit: '큰술', origin: 'description' },
+      { name: '참기름', amount: 1, unit: '스푼', origin: 'caption_auto', at_seconds: 60 },
+    )
+    r.steps[1]!.uses!.push({ name: '참깨' }, { name: '참기름' })
+    r.steps[1]!.timer_seconds = 600
+    const first = run(r)
+    expect(first.reviews.length).toBeGreaterThan(0)
+    const second = run(first.recipe)
+    expect(second.corrections).toEqual([])
+    expect(second.reviews).toEqual([])
+    expect(second.recipe).toEqual(first.recipe)
+  })
+
   it('자막이 없는 영상: 말 출처 숫자는 설명란·화면에서 찾고, 없으면 지움', () => {
     const e = evidence({ transcript: null })
     const out = run(recipe(), e)

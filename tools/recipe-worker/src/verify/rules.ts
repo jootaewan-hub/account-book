@@ -29,9 +29,10 @@ export const REASONS = {
 /** 자막·받아쓰기는 단 시각 ±10초의 조각, 화면 글자는 ±3초의 줄을 본다 */
 const SPEECH_PAD = 10
 const SCREEN_PAD = 3
-// 자막 조각은 말 중간에서 끊기므로("두" | "큰술") 띄어 이어 한 줄로, 화면 글자 줄은 따로 읽힌 줄이라 쉼표로 이어 줄마다 한 덩이로 본다
+// 자막 조각은 말 중간에서 끊기므로("두" | "큰술") 띄어 이어 한 줄로, 화면 글자 줄은 따로 읽힌 줄이라 "|"로 이어 줄마다 한 덩이로 본다
+// (쉼표로 이으면 "2" | "3" 두 줄이 "2, 3" 범위로 읽힌다)
 const SPEECH_JOIN = ' '
-const SCREEN_JOIN = ', '
+const SCREEN_JOIN = ' | '
 const MAX_LIST = 40
 const MAX_CANDIDATES = 6
 const TIMED: readonly Origin[] = ['caption_manual', 'caption_auto', 'asr', 'screen']
@@ -68,8 +69,8 @@ function searchLines(lines: Line[], pad: number, sep: string, hint: number | nul
 }
 
 /** 단 출처의 단 시각을 먼저 보고, 없으면 설명란 > 화면 > 작성자 자막 > 자동 자막·받아쓰기(R-02) 차례로 찾는다 */
-function locateAmount(g: Ingredient, amount: number, s: Sources): Found | null {
-  const ok = (text: string) => findAmount(text, g.name, amount, g.unit)
+function locateAmount(g: Ingredient, amount: number, s: Sources, others: readonly string[]): Found | null {
+  const ok = (text: string) => findAmount(text, g.name, amount, g.unit, others)
   const first = (text: string) => hasQuantity(text, amount, g.unit)
   const at = g.at_seconds ?? null
   if (g.origin === 'description' && ok(s.description)) return { origin: 'description', at }
@@ -101,15 +102,15 @@ function pushCandidate(out: Candidate[], value: string | null, origin: Origin, a
 }
 
 /** 숫자를 찾지 못한 재료 이름 가까이에 적힌 다른 수(값과 단위만) */
-function amountCandidates(g: Ingredient, s: Sources): Candidate[] {
+function amountCandidates(g: Ingredient, s: Sources, others: readonly string[]): Candidate[] {
   const out: Candidate[] = []
-  for (const q of nearbyQuantities(s.description, g.name)) pushCandidate(out, quantityLabel(q), 'description', null)
+  for (const q of nearbyQuantities(s.description, g.name, others)) pushCandidate(out, quantityLabel(q), 'description', null)
   const at = g.at_seconds ?? null
   if (at !== null) {
     const t = Math.floor(at)
-    for (const q of nearbyQuantities(around(s.screen, at - SCREEN_PAD, at + SCREEN_PAD, SCREEN_JOIN), g.name)) pushCandidate(out, quantityLabel(q), 'screen', t)
+    for (const q of nearbyQuantities(around(s.screen, at - SCREEN_PAD, at + SCREEN_PAD, SCREEN_JOIN), g.name, others)) pushCandidate(out, quantityLabel(q), 'screen', t)
     if (s.speechKind !== null) {
-      for (const q of nearbyQuantities(around(s.speech, at - SPEECH_PAD, at + SPEECH_PAD, SPEECH_JOIN), g.name)) pushCandidate(out, quantityLabel(q), s.speechKind, t)
+      for (const q of nearbyQuantities(around(s.speech, at - SPEECH_PAD, at + SPEECH_PAD, SPEECH_JOIN), g.name, others)) pushCandidate(out, quantityLabel(q), s.speechKind, t)
     }
   }
   return out
@@ -230,10 +231,11 @@ export function checkRecipe(r: RecipeV2, e: Evidence): { recipe: RecipeV2; corre
   ingredients.forEach((g, i) => {
     if (g.amount === null || g.origin === 'user') return
     const amount = g.amount
-    const found = locateAmount(g, amount, s)
+    const others = ingredients.filter((_, j) => j !== i).map((x) => x.name)
+    const found = locateAmount(g, amount, s, others)
     if (found === null) {
       corrections.push(fix(`ingredients[${i}].amount`, num(amount), null))
-      reviews.push({ target: `ingredients[${i}].amount`, reason: REASONS.amount, candidates: amountCandidates(g, s) })
+      reviews.push({ target: `ingredients[${i}].amount`, reason: REASONS.amount, candidates: amountCandidates(g, s, others) })
       g.amount = null
       g.needs_review = true
       return
@@ -324,6 +326,13 @@ export function checkRecipe(r: RecipeV2, e: Evidence): { recipe: RecipeV2; corre
     item.origin = 'editor'
     item.at_seconds = null
   })
+
+  // 다시 돌려도 같은 확인 필요가 두 번 생기지 않게(받은 것과 대상·까닭이 같은 것은 뺀다)
+  const prior = recipe.review_items ?? []
+  for (let k = reviews.length - 1; k >= 0; k--) {
+    const item = reviews[k]!
+    if (prior.some((x) => x.target === item.target && x.reason === item.reason)) reviews.splice(k, 1)
+  }
 
   // 10. 확인 필요와 needs_review를 맞춘다(재료·단계·원리 모두): 항목이 가리키는 곳은 needs_review, needs_review인데 항목이 없으면 항목을 더한다
   const existing = recipe.review_items ?? []
