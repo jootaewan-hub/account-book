@@ -36,6 +36,7 @@ export function RecipesTab({ householdId, userId, store: injected }: { household
   const [notice, setNotice] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [openId, setOpenId] = useState<string | null>(null)
+  const [openReview, setOpenReview] = useState(false)
   // 모자란 재료를 장보기에 담는 창(Task 21)이 이 값을 읽는다
   const [, setMissingFor] = useState<StoredRecipe | null>(null)
   const [pending, setPending] = useState<string | null>(readAddParam)
@@ -64,7 +65,7 @@ export function RecipesTab({ householdId, userId, store: injected }: { household
     try {
       const out = await store.addUrl(url)
       if (out.kind === 'added') { setNotice('담았어요'); void load(); return true }
-      if (out.kind === 'exists_recipe' && out.id) { setOpenId(out.id); return true }
+      if (out.kind === 'exists_recipe' && out.id) { setOpenReview(false); setOpenId(out.id); return true }
       if (out.kind === 'exists_recipe') { setNotice('이미 레시피북에 있어요'); return true }
       setNotice(out.kind === 'exists_job' ? '이미 담겨 있어요' : INVALID)
       return out.kind === 'exists_job'
@@ -115,7 +116,8 @@ export function RecipesTab({ householdId, userId, store: injected }: { household
         </section>
       )}
       {opened ? (
-        <RecipeDetail key={opened.id} store={store} recipeId={opened.id} title={opened.title} onBack={() => { setOpenId(null); void load() }} onMissing={setMissingFor} />
+        <RecipeDetail key={opened.id} store={store} recipeId={opened.id} title={opened.title} initialMode={openReview ? 'review' : undefined}
+          onBack={() => { setOpenId(null); setOpenReview(false); void load() }} onMissing={setMissingFor} />
       ) : (
         <>
           <AddBar busy={busy} onSubmit={add} />
@@ -127,7 +129,7 @@ export function RecipesTab({ householdId, userId, store: injected }: { household
             </div>
           )}
           <JobList jobs={jobs} worker={worker} now={now} onRetry={(j) => void retry(j)} />
-          <RecipeBook recipes={recipes} cookable={cookable} loading={loading} onOpen={setOpenId} />
+          <RecipeBook recipes={recipes} cookable={cookable} loading={loading} onOpen={(id) => { setOpenReview(false); setOpenId(id) }} onReview={(id) => { setOpenReview(true); setOpenId(id) }} />
         </>
       )}
     </div>

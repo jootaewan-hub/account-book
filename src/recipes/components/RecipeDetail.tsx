@@ -9,8 +9,10 @@ import { amountView, correctionRows, pantrySummary } from '../lib/detail'
 import { clock, originLabel, videoAt } from '../lib/display'
 import type { PantryEntry } from '../lib/groceryLink'
 import type { RecipeStore } from '../lib/store'
+import { CookMode } from './CookMode'
 import { EditSheet } from './EditSheet'
 import { GlossaryProvider, GlossaryText, type GlossaryEntry } from './Glossary'
+import { ReviewSheet } from './ReviewSheet'
 import { ServingsPicker } from './ServingsPicker'
 
 const TIMED: readonly string[] = ['caption_manual', 'caption_auto', 'asr', 'screen']
@@ -44,10 +46,12 @@ function ConfirmDelete({ title, busy, onCancel, onConfirm }: { title: string; bu
   )
 }
 
-export function RecipeDetail({ store, recipeId, title, onBack, onMissing }: {
+export function RecipeDetail({ store, recipeId, title, onBack, onMissing, initialMode }: {
   store: RecipeStore; recipeId: string; /** 목록에서 아는 이름(불러오는 동안 보인다) */ title?: string
   onBack: () => void; onMissing?: (recipe: StoredRecipe) => void
+  /** 'review'면 확인 화면부터 연다(레시피북의 "확인 시작") */ initialMode?: 'review'
 }) {
+  const [mode, setMode] = useState<'detail' | 'review' | 'cook'>(initialMode ?? 'detail')
   const [recipe, setRecipe] = useState<StoredRecipe | null>(null)
   const [pantry, setPantry] = useState<PantryEntry[]>([])
   const [loading, setLoading] = useState(true)
@@ -95,6 +99,9 @@ export function RecipeDetail({ store, recipeId, title, onBack, onMissing }: {
   }
 
   const heading = recipe?.title ?? title ?? ''
+  if (mode === 'review' && recipe) {
+    return <ReviewSheet recipe={recipe} store={store} onChanged={() => void load()} onDone={() => { setMode('detail'); void load() }} />
+  }
   return (
     <section className="rcp-detail" aria-label="레시피 상세">
       <button className="rcp-btn-text" type="button" onClick={onBack}>목록으로</button>
@@ -107,6 +114,12 @@ export function RecipeDetail({ store, recipeId, title, onBack, onMissing }: {
       {recipe && summary && (
         <GlossaryProvider entries={entries} videoUrl={url}>
           {recipe.summary && <p className="rcp-summary">{recipe.summary}</p>}
+          <div className="rcp-actions">
+            {recipe.steps.length > 0 && <button type="button" className="rcp-btn rcp-btn-primary" onClick={() => setMode('cook')}>요리 시작</button>}
+            {(recipe.review_items?.length ?? 0) > 0 && (
+              <button type="button" className="rcp-btn rcp-btn-quiet" onClick={() => setMode('review')}>확인하기 {recipe.review_items?.length}</button>
+            )}
+          </div>
           <div className="rcp-block">
             <p className="rcp-meta">
               {url ? <a className="rcp-link" href={url} target="_blank" rel="noopener noreferrer">{recipe.source.title ?? '영상 보기'}</a> : (recipe.source.title ?? '')}
@@ -239,6 +252,7 @@ export function RecipeDetail({ store, recipeId, title, onBack, onMissing }: {
             <button type="button" className="rcp-btn rcp-btn-quiet rcp-btn-warn" onClick={() => setConfirming(true)}>지우기</button>
           </div>
           {editing && <EditSheet recipe={recipe} store={store} onClose={() => setEditing(false)} onSaved={() => { setEditing(false); void load() }} />}
+          {mode === 'cook' && <CookMode recipe={recipe} servings={chosen} pantry={pantry} store={store} onExit={() => setMode('detail')} onPantryChanged={() => void load()} />}
           {confirming && <ConfirmDelete title={recipe.title} busy={busy} onCancel={() => setConfirming(false)} onConfirm={() => void remove()} />}
         </GlossaryProvider>
       )}

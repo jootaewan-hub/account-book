@@ -14,8 +14,9 @@ function Select({ label, value, options, onChange }: { label: string; value: str
   )
 }
 
-export function RecipeBook({ recipes, cookable, loading, onOpen }: {
+export function RecipeBook({ recipes, cookable, loading, onOpen, onReview }: {
   recipes: RecipeSummary[]; cookable: CookableRow[] | null; loading: boolean; onOpen: (id: string) => void
+  /** 확인 필요 거르기를 켠 채 "확인 시작"을 누르면, 보이는 첫 레시피의 확인 화면을 연다 */ onReview?: (id: string) => void
 }) {
   const [cuisine, setCuisine] = useState('')
   const [main, setMain] = useState('')
@@ -66,6 +67,9 @@ export function RecipeBook({ recipes, cookable, loading, onOpen }: {
         {cookable && <button className="rcp-chip" type="button" aria-pressed={pick === 'few'} onClick={() => setPick(pick === 'few' ? '' : 'few')}>1~2개만 사면 됨</button>}
         {reviewCount > 0 && <button className="rcp-chip" type="button" aria-pressed={review} onClick={() => setReview((x) => !x)}>확인 필요 {reviewCount}</button>}
       </div>
+      {review && onReview && shown.length > 0 && (
+        <button className="rcp-btn rcp-btn-primary rcp-review-start" type="button" onClick={() => onReview(shown[0].id)}>확인 시작</button>
+      )}
       {loading && !live.length ? <p className="rcp-empty">레시피 불러오는 중</p>
         : !live.length ? <p className="rcp-empty">아직 담은 레시피가 없어요. 위 칸에 유튜브 주소를 붙여 넣어 담아 보세요.</p>
         : !shown.length ? <p className="rcp-empty">조건에 맞는 레시피가 없어요.</p>

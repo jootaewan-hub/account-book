@@ -176,6 +176,15 @@ describe('확인 항목 처리', () => {
   })
 })
 
+describe('확인 항목: 인분 비우기', () => {
+  it('인분 항목을 빈 값으로 처리하면 servings와 servings_origin이 함께 null이다(제약 맞춤)', async () => {
+    const { f, store } = mk({ 'recipe.recipes': [{ id: 'r1', household_id: H, status: 'review', servings: 3, servings_origin: 'asr',
+      review_items: [{ target: 'servings.value', reason: 'x', candidates: [] }] }] })
+    await store.resolveReview('r1', 0, { value: '', origin: 'user', at_seconds: null })
+    expect(f.tables['recipe.recipes'][0]).toMatchObject({ servings: null, servings_origin: null, status: 'saved', review_items: [] })
+  })
+})
+
 describe('가진 재료', () => {
   it('없으면 넣고 있으면 상태만 고치며 null이면 지운다', async () => {
     const { f, store } = mk()

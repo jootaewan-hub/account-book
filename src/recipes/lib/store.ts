@@ -243,7 +243,8 @@ export function createRecipeStore(client: SupabaseClient, householdId: string, u
         const field = t.field
         if (field !== 'origin' && field !== 'at_seconds') edits.set(t, field, toValue(field, choice.value))
         if (t.kind === 'servings') {
-          edits.set(t, 'origin', 'user')
+          // check ((servings is null) = (servings_origin is null)): 값을 비우면 출처도 비운다
+          edits.set(t, 'origin', toValue('value', choice.value) === null ? null : 'user')
         } else if (t.kind === 'glossary') {
           edits.set(t, 'origin', 'user'); edits.set(t, 'at_seconds', null)
         } else if (t.kind === 'steps' && field === 'cue') {

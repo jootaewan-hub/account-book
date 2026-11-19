@@ -154,6 +154,48 @@
   .recipes .rcp-sheet { border-radius: 16px; }
   .recipes .rcp-filters { grid-template-columns: repeat(5, minmax(0, 1fr)); }
 }
+/* 확인 화면 */
+.recipes .rcp-review { display: flex; flex-direction: column; gap: 12px; }
+.recipes .rcp-review-top { display: flex; align-items: center; justify-content: space-between; }
+.recipes .rcp-review-reason { font-size: 16px; }
+.recipes .rcp-review-start { align-self: flex-start; }
+.recipes .rcp-review-foot { flex-wrap: wrap; }
+.recipes .rcp-cands { display: flex; flex-direction: column; width: 100%; }
+.recipes .rcp-cand { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 0; border-top: 1px solid var(--line); }
+.recipes .rcp-cand:first-child { border-top: 0; }
+.recipes .rcp-cand-main { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; font-size: 16px; overflow-wrap: anywhere; }
+.recipes .rcp-h2[tabindex="-1"]:focus, .recipes .rcp-cook-title:focus { outline: none; }
+.recipes .rcp-h2[tabindex="-1"]:focus-visible, .recipes .rcp-cook-title:focus-visible { outline: 2px solid var(--ink); outline-offset: 4px; }
+
+/* 요리 화면: 탭 위를 가득 채운다. 글자는 크게, 단추는 56px */
+.recipes .rcp-cook { position: fixed; inset: 0; z-index: 40; display: flex; flex-direction: column; background: var(--canvas); color: var(--ink); }
+.recipes .rcp-cook:focus { outline: none; }
+.recipes .rcp-cook-top { display: flex; align-items: center; justify-content: space-between; padding: 8px 12px 0 20px; }
+.recipes .rcp-cook-count { font-size: 15px; font-weight: 700; color: var(--ink-2); }
+.recipes .rcp-cook-body { display: flex; flex-direction: column; flex: 1; gap: 16px; min-height: 0; padding: 12px 20px; overflow-y: auto; overscroll-behavior: contain; }
+.recipes .rcp-cook-title { margin: 0; font-size: 26px; font-weight: 700; line-height: 1.35; }
+.recipes .rcp-cook-text { font-size: 22px; line-height: 1.6; overflow-wrap: anywhere; }
+.recipes .rcp-cook-sub { font-size: 18px; line-height: 1.5; color: var(--ink-2); overflow-wrap: anywhere; }
+.recipes .rcp-cook-ings { display: flex; flex-direction: column; width: 100%; }
+.recipes .rcp-cook-ing { border-top: 1px solid var(--line); }
+.recipes .rcp-cook-ing:first-child { border-top: 0; }
+.recipes .rcp-cook-check { display: flex; align-items: center; gap: 12px; min-height: 56px; padding: 6px 0; font-size: 20px; }
+.recipes .rcp-cook-check input { flex: none; width: 28px; height: 28px; accent-color: var(--primary); }
+.recipes .rcp-cook-ing-name { flex: 1; font-weight: 600; overflow-wrap: anywhere; }
+.recipes .rcp-cook-ing-amt { font-size: 18px; text-align: right; overflow-wrap: anywhere; }
+.recipes .rcp-cook-all > summary { min-height: 44px; display: flex; align-items: center; font-size: 16px; font-weight: 600; color: var(--ink-2); }
+.recipes .rcp-cook-timer { display: flex; flex-direction: column; gap: 8px; padding: 16px; border-radius: var(--r-md); background: var(--oat); }
+.recipes .rcp-cook-clock { font-size: 48px; font-weight: 700; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.recipes .rcp-cook-timer-state { font-size: 16px; font-weight: 600; }
+.recipes .rcp-cook-spent { display: flex; flex-direction: column; gap: 8px; margin: 0; padding: 16px; border: 0; border-radius: var(--r-md); background: var(--oat); min-width: 0; }
+.recipes .rcp-cook-spent legend { padding: 0; font-size: 18px; font-weight: 700; }
+.recipes .rcp-cook-foot { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 12px 20px calc(12px + env(safe-area-inset-bottom)); border-top: 1px solid var(--line); }
+.recipes .rcp-cook-btn { min-height: 56px; font-size: 18px; }
+.recipes .rcp-cook-btn:disabled { opacity: 0.4; }
+.recipes .rcp-cook input:focus-visible, .recipes .rcp-cook summary:focus-visible, .recipes .rcp-review .rcp-input:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+@media (min-width: 720px) {
+  .recipes .rcp-cook-top, .recipes .rcp-cook-body, .recipes .rcp-cook-foot { width: 100%; max-width: 720px; margin: 0 auto; }
+}
 @media (prefers-reduced-motion: reduce) {
   .recipes .rcp-btn { transition: none; }
 }
