@@ -23,8 +23,8 @@ export function videoId(r: Pick<StoredRecipe, 'source'>): string | null {
   return m ? m[1] : null
 }
 
-function watchUrl(id: string, t?: number | null): string {
-  return `https://www.youtube.com/watch?v=${id}${t != null ? `&t=${Math.max(0, Math.floor(t))}s` : ''}`
+export function watchUrl(id: string, t?: number | null): string {
+  return `https://www.youtube.com/watch?v=${id}${t != null && Number.isFinite(t) ? `&t=${Math.max(0, Math.floor(t))}s` : ''}`
 }
 
 const clock = (s: number): string => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`
@@ -204,7 +204,11 @@ export function frontmatter(r: StoredRecipe): string {
 }
 
 const mdEsc = (s: string): string => s.replace(/[\\[\]]/g, '\\$&')
-const mdInline = (parts: Inline[]): string => parts.map((p) => (typeof p === 'string' ? mdEsc(p) : `[${mdEsc(p.text)}](${p.href})`)).join('')
+/** 공백·<>·제어문자·괄호·백슬래시는 퍼센트 인코딩해 링크 주소 밖으로 나갈 수 없게 한다 */
+export const encodeHref = (h: string): string =>
+  h.replace(/[\s<>()\\\u0000-\u001f\u007f]/g, (c) => `%${c.charCodeAt(0).toString(16).toUpperCase().padStart(2, '0')}`)
+export const mdLink = (text: string, href: string): string => `[${mdEsc(text)}](<${encodeHref(href)}>)`
+const mdInline = (parts: Inline[]): string => parts.map((p) => (typeof p === 'string' ? mdEsc(p) : mdLink(p.text, p.href))).join('')
 
 export function renderMarkdown(r: StoredRecipe): string {
   const out: string[] = [frontmatter(r)]

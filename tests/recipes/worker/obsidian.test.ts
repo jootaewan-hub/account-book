@@ -6,7 +6,7 @@ import { difficulty } from '../../../supabase/functions/_shared/recipeClassify'
 import type { RecipeV2 } from '../../../supabase/functions/_shared/recipeContract'
 import type { StoredRecipe } from '../../../supabase/functions/_shared/recipeStored'
 import { trashObsidian, writeObsidian } from '../../../tools/recipe-worker/src/export/obsidian'
-import { renderHtml, renderMarkdown } from '../../../tools/recipe-worker/src/export/render'
+import { mdLink, renderHtml, renderMarkdown, watchUrl } from '../../../tools/recipe-worker/src/export/render'
 import gold from '../../../docs/recipes/contract/examples/youtube-AkX6uA4BaDs.json'
 
 function stored(over: Partial<StoredRecipe> = {}): StoredRecipe {
@@ -64,6 +64,16 @@ describe('renderMarkdown', () => {
     const t = renderMarkdown(stored({ source: { ...stored().source, title: 'a](http://x) b [c' } }))
     expect(t).not.toContain('a](http://x)')
     expect(t).toContain('a\\](http://x) b \\[c')
+  })
+  it('링크 주소의 공백·괄호가 링크 밖으로 나가지 못한다', () => {
+    const l = mdLink('x', 'https://e.com/a b)c<d>\n')
+    expect(l.match(/\]\(</g)?.length).toBe(1)
+    expect(l.match(/>\)/g)?.length).toBe(1)
+    expect(l).toBe('[x](<https://e.com/a%20b%29c%3Cd%3E%0A>)')
+  })
+  it('시각이 유한하지 않으면 &t= 없이 링크한다', () => {
+    expect(watchUrl('AkX6uA4BaDs', Number.NaN)).toBe('https://www.youtube.com/watch?v=AkX6uA4BaDs')
+    expect(renderMarkdown(stored())).toContain('](<https://www.youtube.com/watch?v=AkX6uA4BaDs&t=245s>)')
   })
   it('제목에 콜론·줄바꿈·---가 있어도 YAML 블록이 깨지지 않는다', () => {
     const t = renderMarkdown(stored({ title: 'a: b\n---\nc', source: { ...stored().source, channel: 'x: "y"\n---' } }))
