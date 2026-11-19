@@ -1,5 +1,5 @@
 -- 레시피 첫 판: recipe 스키마, 레시피·재료·단계, 링크 대기함과 일 받기, 처리기 상태, 보관 기록.
--- 출발점은 docs/recipes/contract/db-draft.sql. 등록 함수(import_recipe)는 20261122010000_recipe_import.sql,
+-- 출발점은 docs/recipes/contract/db-draft.sql. 등록 함수(import_recipe)는 20261122040000_recipe_import_fn.sql(delete 문장이 있어 SQL 편집기로 적용), 보조 함수는 20261122010000_recipe_import.sql,
 -- 재료 사전·가진 재료·cookable은 20261122020000_recipe_pantry.sql에 있다.
 --
 -- 경계: recipe 스키마만 만들고 바꾼다. public.households, public.members, private.is_household_member는 참조만 하고,

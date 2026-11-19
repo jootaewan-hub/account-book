@@ -21,7 +21,7 @@
 
 모두 사용자가 허락한 것만 차례로 한다.
 
-1. 마이그레이션 넷을 Supabase MCP `apply_migration`으로 적용(`*_recipe_init`, `*_recipe_import`, `*_recipe_pantry`, `*_recipe_rate`). 적용 직전에 `origin/main`의 가장 늦은 마이그레이션보다 뒤 시각인지 다시 확인한다.
+1. 마이그레이션 다섯을 적용한다. 앞의 넷(`*_recipe_init`, `*_recipe_import`, `*_recipe_pantry`, `*_recipe_rate`)은 Supabase MCP `apply_migration`으로, 마지막 `20261122040000_recipe_import_fn.sql`(등록 함수 `import_recipe`, `delete` 문장이 있어 MCP가 거절한다)은 사용자가 SQL 편집기에서 적용하고 `pg_proc`로 확인한다. 이름 순서대로 적용한다. 적용 직전에 `origin/main`의 가장 늦은 마이그레이션보다 뒤 시각인지 다시 확인한다.
 2. Edge Function `recipe-worker` 배포(커밋 고정 stub)와 서버 비밀 `RECIPE_WORKER_SECRET`. 값은 맥에서 만들어 파일로 건넨다. 배포 뒤 `verify_jwt`가 `supabase/config.toml`과 같은지, 비밀 없이 부르면 401인지 확인한다.
 3. Supabase 대시보드의 Exposed schemas에 `recipe` 더하기(사용자).
 4. 옵시디언: iCloud에 새 보관함을 만들기(사용자).

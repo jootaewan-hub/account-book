@@ -66,7 +66,7 @@ DB 제약이 규칙을 한 번 더 막는다: 숫자 분량이 있는 줄에는 
 ## 경계 규칙
 
 - 레시피 마이그레이션은 `recipe` 스키마 안의 객체만 만들고 바꾼다(파일 이름에 `_recipe_`). `tests/recipes/boundary.test.ts`가 검사한다. `public`은 참조·읽기만, `grocery`는 건드리지 않는다.
-- 적용은 Supabase MCP `apply_migration`만, 사용자 확인 뒤(저장소 공통 규칙). 앱이 `recipe`를 읽으려면 대시보드의 Exposed schemas에 `recipe`를 더해야 한다(사용자).
+- 레시피 마이그레이션 파일은 다섯이다(`*_recipe_init`, `*_recipe_import`, `*_recipe_pantry`, `*_recipe_rate`, `*_recipe_import_fn`). 적용은 Supabase MCP `apply_migration`, 사용자 확인 뒤(저장소 공통 규칙). 다만 `20261122040000_recipe_import_fn.sql`은 등록 함수 `import_recipe`에 `delete` 문장이 있어 MCP가 거절하므로 사용자가 SQL 편집기에서 적용한다(함수는 이 파일 한 곳에만 있다). 앱이 `recipe`를 읽으려면 대시보드의 Exposed schemas에 `recipe`를 더해야 한다(사용자).
 - 장보기로 가는 길은 하나다: 로그인한 사용자가 앱에서 `grocery.items`에 넣는다. 장보기의 RLS와 제약(이름 60자, 담은 사람 = 본인)을 그대로 따른다. `recipe`의 함수가 `grocery`에 쓰지 않는다.
 - 장보기·가계부에서 읽는 것(산 품목)은 읽기만 한다.
 
