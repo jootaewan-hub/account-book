@@ -3,6 +3,7 @@
 import type { PGlite } from '@electric-sql/pglite'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { CUISINES, DIFFICULTIES, MAINS, MEASURING_TOOLS, METHODS, OCCASIONS } from '../../supabase/functions/_shared/recipeContract'
+import { normalizeRecipeUrl } from '../../supabase/functions/_shared/recipeSource'
 import { freshDb } from '../grocery/dbSetup'
 
 const A = '00000000-0000-4000-8000-00000000000a'
@@ -79,7 +80,7 @@ async function seedRecipe(household: string, addedBy: string, key = 'youtube:AkX
 
 async function seedJob(household: string, addedBy: string, key: string, addedAt: string, extra: Row = {}): Promise<string> {
   const cols = ['household_id', 'url', 'source_key', 'added_by', 'added_at', ...Object.keys(extra)]
-  const vals = [household, `https://youtu.be/${key.split(':')[1]}`, key, addedBy, addedAt, ...Object.values(extra)]
+  const vals = [household, `https://www.youtube.com/watch?v=${key.split(':')[1]}`, key, addedBy, addedAt, ...Object.values(extra)]
   const [{ id }] = await admin<{ id: string }>(
     `insert into recipe.inbox (${cols.join(', ')}) values (${cols.map((_, i) => `$${i + 1}`).join(', ')}) returning id`,
     vals,
@@ -147,7 +148,7 @@ describe('다른 가구와 로그인 안 한 사람', () => {
     for (const t of ['recipes', 'ingredients', 'steps', 'inbox', 'exports', 'worker_status']) {
       expect(await codeOf(as(null, `select * from recipe.${t}`)), t).toBe('42501')
     }
-    expect(await codeOf(as(null, `insert into recipe.inbox (household_id, url, source_key) values ($1, 'https://youtu.be/x__________', 'youtube:x__________')`, [hhAB]))).toBe('42501')
+    expect(await codeOf(as(null, `insert into recipe.inbox (household_id, url, source_key) values ($1, 'https://www.youtube.com/watch?v=x__________', 'youtube:x__________')`, [hhAB]))).toBe('42501')
   })
 })
 
@@ -155,18 +156,18 @@ describe('대기함 담기', () => {
   it('구성원은 자기 가구에 added_by = 본인으로만 넣는다', async () => {
     const [row] = await as<{ added_by: string; state: string; attempts: number }>(
       A,
-      `insert into recipe.inbox (household_id, url, source_key) values ($1, 'https://youtu.be/AkX6uA4BaDs', 'youtube:AkX6uA4BaDs')
+      `insert into recipe.inbox (household_id, url, source_key) values ($1, 'https://www.youtube.com/watch?v=AkX6uA4BaDs', 'youtube:AkX6uA4BaDs')
        returning added_by, state, attempts`,
       [hhAB],
     )
     expect(row).toEqual({ added_by: A, state: 'waiting', attempts: 0 })
     expect(await as(B, `select source_key from recipe.inbox`)).toEqual([{ source_key: 'youtube:AkX6uA4BaDs' }])
-    expect(await codeOf(as(A, `insert into recipe.inbox (household_id, url, source_key, added_by) values ($1, 'https://youtu.be/a1_________', 'youtube:a1_________', $2)`, [hhAB, B]))).toBe('42501')
-    expect(await codeOf(as(C, `insert into recipe.inbox (household_id, url, source_key) values ($1, 'https://youtu.be/a2_________', 'youtube:a2_________')`, [hhAB]))).toBe('42501')
+    expect(await codeOf(as(A, `insert into recipe.inbox (household_id, url, source_key, added_by) values ($1, 'https://www.youtube.com/watch?v=a1_________', 'youtube:a1_________', $2)`, [hhAB, B]))).toBe('42501')
+    expect(await codeOf(as(C, `insert into recipe.inbox (household_id, url, source_key) values ($1, 'https://www.youtube.com/watch?v=a2_________', 'youtube:a2_________')`, [hhAB]))).toBe('42501')
   })
   it('상태·시도 횟수·만든 레시피는 넣을 때 정할 수 없다', async () => {
     const ins = (col: string, val: unknown) =>
-      as(A, `insert into recipe.inbox (household_id, url, source_key, ${col}) values ($1, 'https://youtu.be/b1_________', 'youtube:b1_________', $2)`, [hhAB, val])
+      as(A, `insert into recipe.inbox (household_id, url, source_key, ${col}) values ($1, 'https://www.youtube.com/watch?v=b1_________', 'youtube:b1_________', $2)`, [hhAB, val])
     expect(await codeOf(ins('state', 'processing'))).toBe('42501')
     expect(await codeOf(ins('attempts', 99))).toBe('42501')
     expect(await codeOf(ins('fail_reason', 'x'))).toBe('42501')
@@ -174,7 +175,7 @@ describe('대기함 담기', () => {
   })
   it('같은 가구·같은 출처의 대기 줄은 하나만(23505), 다른 가구나 끝난 줄은 상관없다', async () => {
     const ins = (uid: string, hh: string) =>
-      as(uid, `insert into recipe.inbox (household_id, url, source_key) values ($1, 'https://youtu.be/AkX6uA4BaDs', 'youtube:AkX6uA4BaDs')`, [hh])
+      as(uid, `insert into recipe.inbox (household_id, url, source_key) values ($1, 'https://www.youtube.com/watch?v=AkX6uA4BaDs', 'youtube:AkX6uA4BaDs')`, [hh])
     await ins(A, hhAB)
     expect(await codeOf(ins(B, hhAB))).toBe('23505')
     await ins(C, hhC)
@@ -184,41 +185,55 @@ describe('대기함 담기', () => {
     await admin(`update recipe.inbox set state = 'done' where household_id = $1`, [hhAB])
     await ins(B, hhAB)
   })
-  it('주소는 https 유튜브만, 출처 열쇠는 youtube:영상 id 11자, 그 id가 주소에 있어야 한다(23514)', async () => {
+  it('주소는 source_key로 만든 정규 주소(watch·shorts)와 같아야 하고, 열쇠는 youtube:영상 id 11자(23514)', async () => {
     const ins = (url: string, key: string) =>
       as(A, `insert into recipe.inbox (household_id, url, source_key) values ($1, $2, $3) returning id`, [hhAB, url, key])
     const K = 'youtube:AkX6uA4BaDs'
     for (const [url, key] of [
-      ['https://youtu.be/AkX6uA4BaDs', 'web:x'],
-      ['https://youtu.be/AkX6uA4BaDs', 'youtube:short'],
+      ['https://www.youtube.com/watch?v=AkX6uA4BaDs', 'web:x'],
+      ['https://www.youtube.com/watch?v=AkX6uA4BaDs', 'youtube:short'],
+      ['https://youtu.be/AkX6uA4BaDs', K],
+      ['https://www.youtube.com/redirect?q=https://evil.com&v=AkX6uA4BaDs', K],
+      ['https://youtu.be/BkX6uA4BaDs?x=AkX6uA4BaDs', K],
+      ['https://www.youtube.com/watch?v=BkX6uA4BaDs', K],
+      ['http://www.youtube.com/watch?v=AkX6uA4BaDs', K],
+      ['https://www.youtube.com/watch?v=AkX6uA4BaDs&t=30s', K],
+      ['https://m.youtube.com/watch?v=AkX6uA4BaDs', K],
+      ['https://www.youtube.com/shorts/AkX6uA4BaDs/', K],
       ['https://192.168.0.10/x', K],
-      ['https://192.168.0.10/AkX6uA4BaDs', K],
       ['https://evil.com/watch?v=AkX6uA4BaDs', K],
-      ['https://youtube.com.evil.com/watch?v=AkX6uA4BaDs', K],
-      ['https://youtu.be.evil.com/AkX6uA4BaDs', K],
-      ['https://youtu.be/BkX6uA4BaDs', K],
-      ['https://youtu.be/AkX6uA4BaDs' + 'x'.repeat(480), K],
     ]) expect(await codeOf(ins(url, key)), `${url} ${key}`).toBe('23514')
-    for (const url of ['https://youtu.be/AkX6uA4BaDs', 'https://www.youtube.com/watch?v=AkX6uA4BaDs', 'https://m.youtube.com/watch?v=AkX6uA4BaDs',
-      'https://music.youtube.com/watch?v=AkX6uA4BaDs', 'https://youtube.com/shorts/AkX6uA4BaDs']) {
+    for (const url of ['https://www.youtube.com/watch?v=AkX6uA4BaDs', 'https://www.youtube.com/shorts/AkX6uA4BaDs']) {
       expect(await ins(url, K), url).toHaveLength(1)
       await admin(`delete from recipe.inbox`)
     }
   })
-  it('레시피의 출처 열쇠와 출처 주소도 유튜브만(23514)', async () => {
+  it('앱의 normalizeRecipeUrl이 만든 주소·열쇠는 그대로 들어간다', async () => {
+    for (const input of ['https://youtu.be/AkX6uA4BaDs?si=abc', 'https://m.youtube.com/watch?v=AkX6uA4BaDs&t=30s', 'youtube.com/shorts/FgKy9Xq4LKY/']) {
+      const n = normalizeRecipeUrl(input)!
+      expect(await as(A, `insert into recipe.inbox (household_id, url, source_key) values ($1, $2, $3) returning id`, [hhAB, n.url, n.key]), input).toHaveLength(1)
+      await admin(`delete from recipe.inbox`)
+    }
+  })
+  it('레시피의 출처 열쇠는 유튜브만, 출처 주소는 비었거나 정규 주소(23514)', async () => {
     const ins = (key: string, url: string | null) =>
       admin(`insert into recipe.recipes (household_id, title, source_kind, source_key, source_url, cuisine)
         values ($1, 't', 'youtube', $2, $3, '한식') returning id`, [hhAB, key, url])
+    const K = 'youtube:AkX6uA4BaDs'
     expect(await codeOf(ins('web:x', null))).toBe('23514')
     expect(await codeOf(ins('youtube:short', null))).toBe('23514')
-    expect(await codeOf(ins('youtube:AkX6uA4BaDs', 'https://evil.com/watch?v=AkX6uA4BaDs'))).toBe('23514')
-    expect(await codeOf(ins('youtube:AkX6uA4BaDs', 'https://192.168.0.10/x'))).toBe('23514')
-    expect(await ins('youtube:AkX6uA4BaDs', 'https://www.youtube.com/watch?v=AkX6uA4BaDs')).toHaveLength(1)
+    for (const url of ['https://youtu.be/AkX6uA4BaDs', 'https://www.youtube.com/redirect?q=https://evil.com&v=AkX6uA4BaDs',
+      'https://www.youtube.com/watch?v=BkX6uA4BaDs', 'http://www.youtube.com/watch?v=AkX6uA4BaDs',
+      'https://www.youtube.com/watch?v=AkX6uA4BaDs&t=30s', 'https://evil.com/watch?v=AkX6uA4BaDs']) {
+      expect(await codeOf(ins(K, url)), url).toBe('23514')
+    }
+    expect(await ins(K, 'https://www.youtube.com/watch?v=AkX6uA4BaDs')).toHaveLength(1)
+    expect(await ins('youtube:FgKy9Xq4LKY', 'https://www.youtube.com/shorts/FgKy9Xq4LKY')).toHaveLength(1)
     expect(await ins('youtube:shorts00001', null)).toHaveLength(1)
   })
   it('http 주소와 꼴이 틀린 출처 열쇠는 거절', async () => {
-    expect(await codeOf(as(A, `insert into recipe.inbox (household_id, url, source_key) values ($1, 'http://youtu.be/x1_________', 'youtube:x1_________')`, [hhAB]))).toBe('23514')
-    expect(await codeOf(as(A, `insert into recipe.inbox (household_id, url, source_key) values ($1, 'https://youtu.be/x1_________', 'x1')`, [hhAB]))).toBe('23514')
+    expect(await codeOf(as(A, `insert into recipe.inbox (household_id, url, source_key) values ($1, 'http://www.youtube.com/watch?v=x1_________', 'youtube:x1_________')`, [hhAB]))).toBe('23514')
+    expect(await codeOf(as(A, `insert into recipe.inbox (household_id, url, source_key) values ($1, 'https://www.youtube.com/watch?v=x1_________', 'x1')`, [hhAB]))).toBe('23514')
   })
   it('앱 사용자는 대기 줄의 상태를 바꿀 수 없고, 지울 수는 있다', async () => {
     const j = await seedJob(hhAB, A, 'youtube:c1_________', T0)
@@ -322,6 +337,26 @@ describe('일 받기 (서비스 롤만)', () => {
     expect(r.state).toBe('failed')
     expect(r.stage).toBeNull()
     expect((r.fail_reason as string).length).toBe(200)
+  })
+  it('시각을 비우고 부르면 오류(22004)이고 아무것도 바뀌지 않는다', async () => {
+    const j = await seedJob(hhAB, A, 'youtube:nul1_______', at(-1))
+    expect(await codeOf(svc(`select * from recipe.claim_job(null)`))).toBe('22004')
+    expect((await job(j)).state).toBe('waiting')
+    await claim(T0)
+    expect(await codeOf(svc(`select recipe.job_progress($1, '자막 받는 중', null)`, [j]))).toBe('22004')
+    expect(await codeOf(svc(`select recipe.job_release($1, null)`, [j]))).toBe('22004')
+    expect(await job(j)).toMatchObject({ state: 'processing', stage: null, attempts: 1 })
+    expect(new Date((await job(j)).heartbeat_at as string).toISOString()).toBe(new Date(T0).toISOString())
+  })
+  it('진행 알림 시각이 빈 processing 줄은 가져간 시각으로 끊김을 잰다', async () => {
+    const old = await seedJob(hhAB, A, 'youtube:nul2_______', at(-30), { state: 'processing', attempts: 1, claimed_at: at(-4), heartbeat_at: null })
+    const fresh = await seedJob(hhAB, A, 'youtube:nul3_______', at(-30), { state: 'processing', attempts: 1, claimed_at: at(-2), heartbeat_at: null })
+    expect(await claim(T0)).toEqual([{ id: old, state: 'processing', attempts: 2 }])
+    expect(await claim(T0)).toEqual([])
+    expect((await job(fresh)).state).toBe('processing')
+    // 둘 다 빈 줄은 영영 멈추지 않게 바로 다시 내준다
+    await admin(`update recipe.inbox set claimed_at = null where id = $1`, [fresh])
+    expect(await claim(T0)).toEqual([{ id: fresh, state: 'processing', attempts: 2 }])
   })
   it('처리기 함수는 security definer, search_path 비움, claim_job은 skip locked', async () => {
     // PGlite는 연결이 하나라 두 처리기의 동시 실행은 시험하지 못한다. 대신 정의를 고정한다.
@@ -450,7 +485,7 @@ describe('레시피 칸과 권한', () => {
       conflicts = '[]', difficulty = '보통', difficulty_basis = '{"required": 14, "steps": 12, "heavy": false}',
       measuring_tool = '계량스푼', measuring_tool_basis = '[]', glossary = '[]', corrections = '[]', review_items = '[]',
       memo = '맛있음', rating = 5, favorite = true, updated_at = now() where id = $1`, [r])
-    for (const col of [`household_id = '${hhC}'`, `source_key = 'youtube:zz_________'`, `source_url = 'https://youtu.be/zz_________'`,
+    for (const col of [`household_id = '${hhC}'`, `source_key = 'youtube:zz_________'`, `source_url = 'https://www.youtube.com/watch?v=zz_________'`,
       `source_kind = 'web'`, `source_title = 'x'`, `channel = 'x'`, `extraction = '{}'`, `added_by = '${B}'`, `added_at = now()`,
       `review_count = 0`]) {
       expect(await codeOf(as(A, `update recipe.recipes set ${col} where id = $1`, [r])), col).toBe('42501')

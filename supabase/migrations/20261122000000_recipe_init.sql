@@ -23,7 +23,7 @@ create table recipe.recipes (
     ('youtube', 'youtube_shorts', 'instagram', 'web', 'photo', 'text', 'manual')),
   -- 첫 판은 유튜브만(영상 id 11자). 인스타 따위는 뒤 마이그레이션이 꼴을 넓힌다.
   source_key text not null check (source_key ~ '^youtube:[A-Za-z0-9_-]{11}$'),
-  source_url text check (source_url ~ '^https://(www\.|m\.|music\.)?youtube\.com/' or source_url ~ '^https://youtu\.be/'),
+  source_url text,  -- 아래 check: source_key로 만든 정규 주소와 같아야 한다
   source_title text check (char_length(source_title) <= 200),
   channel text check (char_length(channel) <= 80),
   published_on date,
@@ -63,6 +63,8 @@ create table recipe.recipes (
   updated_at timestamptz not null default now(),        -- 트리거가 바꾼다(보관 사본을 다시 쓸지 정하는 기준)
   unique (household_id, source_key),
   unique (id, household_id),
+  check (source_url = ('https://www.youtube.com/watch?v=' || substr(source_key, 9))
+      or source_url = ('https://www.youtube.com/shorts/' || substr(source_key, 9))),
   check ((servings is null) = (servings_origin is null)),
   check (servings is null or servings_suggested is null),
   -- 담은 사람이 가계부에서 지워져도 레시피는 남는다
@@ -130,9 +132,9 @@ create table recipe.steps (
 create table recipe.inbox (
   id uuid primary key default gen_random_uuid(),
   household_id uuid not null references public.households (id) on delete cascade,
-  -- 처리기가 아무 곳에나 가게 하지 못하도록 주소는 https 유튜브만, 출처 열쇠의 영상 id가 주소 안에 있어야 한다
-  url text not null check (char_length(url) <= 500
-    and (url ~ '^https://(www\.|m\.|music\.)?youtube\.com/' or url ~ '^https://youtu\.be/')),
+  -- 처리기가 아무 곳에나 가게 하지 못하도록 주소는 source_key로 만든 정규 주소 두 꼴 중 하나와 같아야 한다(아래 check).
+  -- 앱의 normalizeRecipeUrl(supabase/functions/_shared/recipeSource.ts)이 이 두 꼴을 만든다.
+  url text not null,
   source_key text not null check (source_key ~ '^youtube:[A-Za-z0-9_-]{11}$'),
   state text not null default 'waiting' check (state in ('waiting', 'processing', 'done', 'failed')),
   -- 화면에 그대로 보이는 진행 글. 이 일곱 말만 쓴다(화면에 "AI"·"분석 중"을 쓰지 않는다).
@@ -146,7 +148,8 @@ create table recipe.inbox (
   recipe_id uuid,
   added_by uuid default auth.uid(),
   added_at timestamptz not null default now(),
-  check (position(substr(source_key, 9) in url) > 0),
+  check (url = ('https://www.youtube.com/watch?v=' || substr(source_key, 9))
+      or url = ('https://www.youtube.com/shorts/' || substr(source_key, 9))),
   foreign key (recipe_id, household_id) references recipe.recipes (id, household_id) on delete set null (recipe_id),
   foreign key (household_id, added_by) references public.members (household_id, user_id) on delete set null (added_by)
 );
@@ -227,7 +230,8 @@ after insert or update or delete on recipe.steps
 for each row execute function recipe.touch_parent_recipe();
 
 -- ───────────────────────── 일 받기 (서비스 롤만) ─────────────────────────
--- 대기 줄 하나를 가져간다. 대상: retry_at이 지난 waiting, 진행 알림이 3분 넘게 끊긴 processing. 가장 오래 담긴 것부터.
+-- 대기 줄 하나를 가져간다. 대상: retry_at이 지난 waiting, 진행 알림(없으면 가져간 시각)이 3분 넘게 끊긴 processing.
+-- 둘 다 빈 processing 줄은 바로 다시 내준다. 가장 오래 담긴 것부터.
 -- 처리기 둘이 동시에 불러도 같은 줄을 가져가지 않는다(for update skip locked). 시각은 부르는 쪽이 준다(p_now).
 create function recipe.claim_job(p_now timestamptz)
 returns setof recipe.inbox
@@ -237,13 +241,18 @@ security definer
 set search_path = ''
 as $$
 begin
+  -- 시각이 비면 heartbeat_at이 빈 processing 줄이 생겨 영영 다시 내주지 못한다
+  if p_now is null then
+    raise exception 'recipe_now_required' using errcode = '22004';
+  end if;
   -- 세 번 가져간 줄은 더 내주지 않는다
   update recipe.inbox i
      set state = 'failed', stage = null,
          fail_reason = coalesce(i.fail_reason, '세 번 해 봤지만 끝내지 못했어요')
    where i.attempts >= 3
      and ((i.state = 'waiting' and (i.retry_at is null or i.retry_at <= p_now))
-          or (i.state = 'processing' and i.heartbeat_at < p_now - interval '3 minutes'));
+          or (i.state = 'processing'
+              and coalesce(i.heartbeat_at, i.claimed_at, '-infinity'::timestamptz) < p_now - interval '3 minutes'));
 
   return query
   update recipe.inbox i
@@ -254,7 +263,8 @@ begin
        from recipe.inbox c
       where c.attempts < 3
         and ((c.state = 'waiting' and (c.retry_at is null or c.retry_at <= p_now))
-             or (c.state = 'processing' and c.heartbeat_at < p_now - interval '3 minutes'))
+             or (c.state = 'processing'
+                 and coalesce(c.heartbeat_at, c.claimed_at, '-infinity'::timestamptz) < p_now - interval '3 minutes'))
       order by c.added_at, c.id
       limit 1
       for update skip locked
@@ -272,6 +282,9 @@ security definer
 set search_path = ''
 as $$
 begin
+  if p_now is null then
+    raise exception 'recipe_now_required' using errcode = '22004';
+  end if;
   update recipe.inbox i set stage = p_stage, heartbeat_at = p_now
    where i.id = p_job and i.state = 'processing';
   return found;
@@ -287,6 +300,9 @@ security definer
 set search_path = ''
 as $$
 begin
+  if p_retry_at is null then
+    raise exception 'recipe_retry_at_required' using errcode = '22004';
+  end if;
   update recipe.inbox i
      set state = 'waiting', stage = null, retry_at = p_retry_at, heartbeat_at = null,
          attempts = greatest(i.attempts - 1, 0)
