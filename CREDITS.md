@@ -28,6 +28,7 @@
 | `CalendarIcon` | Phosphor `calendar-blank, calendar-blank-fill` | Phosphor Icons | MIT, `public/licenses/ph-LICENSE.txt` | https://github.com/phosphor-icons/core | 2026-11-03 |
 | `ListIcon` | Phosphor `list-bullets, list-bullets-fill` | Phosphor Icons | MIT, `public/licenses/ph-LICENSE.txt` | https://github.com/phosphor-icons/core | 2026-11-03 |
 | `CartIcon` | Phosphor `shopping-cart-simple, shopping-cart-simple-fill` | Phosphor Icons | MIT, `public/licenses/ph-LICENSE.txt` | https://github.com/phosphor-icons/core | 2026-11-03 |
+| `CookingPotIcon` | Phosphor `cooking-pot, cooking-pot-fill` | Phosphor Icons | MIT, `public/licenses/ph-LICENSE.txt` | https://github.com/phosphor-icons/core | 2026-11-19 |
 | `ChartIcon` | Phosphor `chart-bar, chart-bar-fill` | Phosphor Icons | MIT, `public/licenses/ph-LICENSE.txt` | https://github.com/phosphor-icons/core | 2026-11-03 |
 | `RepeatIcon` | Phosphor `repeat, repeat-fill` | Phosphor Icons | MIT, `public/licenses/ph-LICENSE.txt` | https://github.com/phosphor-icons/core | 2026-11-03 |
 | `SearchIcon` | Phosphor `magnifying-glass, magnifying-glass-fill` | Phosphor Icons | MIT, `public/licenses/ph-LICENSE.txt` | https://github.com/phosphor-icons/core | 2026-11-03 |

@@ -454,8 +454,8 @@ main.wrap { padding-block: 4px calc(150px + var(--record-dock-h) + env(safe-area
   .mobile-record.primary, .mobile-record span { transition: none; }
 }
 .tabbar { position: fixed; z-index: 24; bottom: 0; left: 50%; transform: translateX(-50%); width: 100%; max-width: var(--col); background: var(--canvas); border-top: 1px solid var(--line); padding-bottom: env(safe-area-inset-bottom, 0px); }
-/* 아래 탭 여섯(D-035 알아보기): 칸이 좁아지지 않게 양옆 여백을 줄인다 */
-.tabbar .wrap { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); padding-left: max(6px, env(safe-area-inset-left, 0px)); padding-right: max(6px, env(safe-area-inset-right, 0px)); }
+/* 아래 탭 일곱(D-035 알아보기, 레시피): 칸이 좁아지지 않게 양옆 여백을 줄인다 */
+.tabbar .wrap { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); padding-left: max(6px, env(safe-area-inset-left, 0px)); padding-right: max(6px, env(safe-area-inset-right, 0px)); }
 .tab { border: 0; background: none; min-height: 60px; padding: 8px 0 6px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; font-size: 12px; font-weight: 500; color: var(--ink-3); }
 .tab svg { width: 24px; height: 24px; }
 .tab[aria-current="page"] { color: var(--ink); font-weight: 700; }
@@ -975,7 +975,7 @@ input[type="search"].input { -webkit-appearance: none; appearance: none; }
   .record-method > svg { display: block; }
   .side-record { display: flex; align-items: center; justify-content: center; gap: 6px; margin-bottom: 16px; }
   .ledger .tab.side-notes, .ledger .tab.side-settings { display: flex; }
-  .ledger .tab.side-notes { margin-top: 12px; } /* 아래 탭 여섯과 나눈다. 설정 줄은 바로 아래에 붙는다 */
+  .ledger .tab.side-notes { margin-top: 12px; } /* 아래 탭 일곱과 나눈다. 설정 줄은 바로 아래에 붙는다 */
   .narrow-only { display: none; } /* 위쪽 줄의 톱니·돌아가기: 넓은 화면은 세로 메뉴의 설정 줄을 쓴다 */
   .side-record svg { width: 20px; height: 20px; }
   .pick-bar { bottom: 16px; flex-direction: row; align-items: center; }

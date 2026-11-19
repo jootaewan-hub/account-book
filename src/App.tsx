@@ -4,7 +4,7 @@ import { CalendarView } from './components/CalendarView'
 import { EntrySheet } from './components/EntrySheet'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { HouseholdTasks } from './components/HouseholdTasks'
-import { CalendarIcon, CartIcon, ChartIcon, ChevronLeft, ChevronRight, GearIcon, HouseIcon, ListIcon, NoteIcon, Plus, RepeatIcon, SearchIcon } from './components/Icons'
+import { CalendarIcon, CartIcon, ChartIcon, ChevronLeft, ChevronRight, CookingPotIcon, GearIcon, HouseIcon, ListIcon, NoteIcon, Plus, RepeatIcon, SearchIcon } from './components/Icons'
 import { ListView, type ListFocus } from './components/ListView'
 import { BootScreen, ScreenWait } from './components/Loading'
 import { MobileRecord } from './components/MobileRecord'
@@ -34,6 +34,7 @@ import { createWishStore, type WishTarget } from './lib/wishes'
 // 처음 여는 달력·내역 밖의 화면은 따로 묶어(코드 분할) 눌렀을 때 불러온다. 첫 화면이 빨리 뜨고, 새 버전도 바뀐 묶음만 받는다.
 // 장보기(화면·저장소·CSS)와 스마트 입력(모델 결과 다듬기·사진 자르기·장보기 비교)이 가장 크다.
 const GroceryTab = lazy(() => import('./grocery/GroceryTab').then((m) => ({ default: m.GroceryTab })))
+const RecipesTab = lazy(() => import('./recipes/RecipesTab').then((m) => ({ default: m.RecipesTab })))
 const StatsView = lazy(() => import('./components/StatsView').then((m) => ({ default: m.StatsView })))
 const RecurringView = lazy(() => import('./components/RecurringView').then((m) => ({ default: m.RecurringView })))
 const SettingsView = lazy(() => import('./components/SettingsView').then((m) => ({ default: m.SettingsView })))
@@ -48,7 +49,7 @@ const NoteSheet = lazy(() => import('./components/NoteSheet').then((m) => ({ def
 /** 첫 화면이 뜬 뒤 쉬는 틈에 나머지 묶음을 미리 받아 둔다(탭을 누를 때 기다리지 않게) */
 function prefetchChunks() {
   void Promise.allSettled([
-    import('./grocery/GroceryTab'), import('./components/StatsView'), import('./components/SmartSheet'),
+    import('./grocery/GroceryTab'), import('./recipes/RecipesTab'), import('./components/StatsView'), import('./components/SmartSheet'),
     import('./components/RecurringView'), import('./components/SettingsView'), import('./components/ExportCard'), import('./components/ExploreView'),
     import('./components/NotesView'), import('./components/NoteSheet'), import('./components/EventCaptureSheet'),
   ])
@@ -103,16 +104,17 @@ function Home({ userId, email }: { userId: string; email: string }) {
   return <Ledger household={meta.household} meta={meta} userId={userId} email={email} />
 }
 
-type Tab = 'cal' | 'list' | 'grocery' | 'stats' | 'fixed' | 'explore' | 'notes' | 'settings'
+type Tab = 'cal' | 'list' | 'grocery' | 'recipes' | 'stats' | 'fixed' | 'explore' | 'notes' | 'settings'
 /** 아래 탭에 없고 다른 곳에서 여는 화면(설정: 톱니, 기억할 것: 달력 화면 묶음). 넓은 화면은 왼쪽 메뉴 아래 줄 */
 type Aside = 'notes' | 'settings'
 const isAside = (t: Tab): t is Aside => t === 'notes' || t === 'settings'
 
-/** 처음 열 탭: ?tab=grocery(예전 장보기 주소의 안내 페이지가 여기로 보낸다). 다른 값은 무시한다. 설정에서 앱 파일을 다시 받았으면 설정 */
+/** 처음 열 탭: ?tab=grocery(예전 장보기 주소의 안내 페이지가 여기로 보낸다), ?tab=recipes(레시피 담기 북마크릿). 다른 값은 무시한다. 설정에서 앱 파일을 다시 받았으면 설정 */
 function initialTab(): Tab {
   if (reminderDate()) return 'cal'
   if (wasRefreshed()) return 'settings'
-  return new URLSearchParams(window.location.search).get('tab') === 'grocery' ? 'grocery' : 'cal'
+  const tab = new URLSearchParams(window.location.search).get('tab')
+  return tab === 'grocery' || tab === 'recipes' ? tab : 'cal'
 }
 
 function reminderDate(): string | null {
@@ -122,7 +124,7 @@ function reminderDate(): string | null {
   return Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === value ? value : null
 }
 
-const TITLE: Record<Tab, string> = { cal: '우리집', list: '내역', grocery: '장보기', stats: '통계', fixed: '고정 지출', explore: '알아보기', notes: '함께 기억할 것', settings: '설정' }
+const TITLE: Record<Tab, string> = { cal: '우리집', list: '내역', grocery: '장보기', recipes: '레시피', stats: '통계', fixed: '고정 지출', explore: '알아보기', notes: '함께 기억할 것', settings: '설정' }
 
 /** 따로 받는 화면이 오는 동안의 자리. 한 화면이 그리다 멈추면 그 자리에만 오류를 보이고, 다른 탭으로 옮기면(key) 풀린다 */
 function Screen({ name, children }: { name: string; children: ReactNode }) {
@@ -343,7 +345,7 @@ function Ledger({ household, meta, userId, email }: {
 
   const { y, m } = parseYM(ym)
   const showMonth = tab === 'cal' || tab === 'list' || tab === 'stats' || tab === 'fixed'
-  const showRecord = tab !== 'stats' && tab !== 'fixed' && tab !== 'explore' && tab !== 'grocery'
+  const showRecord = tab !== 'stats' && tab !== 'fixed' && tab !== 'explore' && tab !== 'grocery' && tab !== 'recipes'
 
   return (
     // 넓은 화면에서는 아래 탭이 왼쪽 세로 메뉴가 된다 (styles.css 넓은 화면)
@@ -424,6 +426,11 @@ function Ledger({ household, meta, userId, email }: {
               }} />
           </Screen>
         )}
+        {tab === 'recipes' && (
+          <Screen name="레시피">
+            <RecipesTab householdId={household.id} userId={userId} />
+          </Screen>
+        )}
         {tab === 'stats' && (
           <Screen name="통계">
             <StatsView household={household} ym={ym} today={today} cur={curAll} prev={prevAll} planTotals={planTotals} loading={txLoading} txVersion={txVersion} lookup={lookup}
@@ -471,6 +478,7 @@ function Ledger({ household, meta, userId, email }: {
           <button className="tab" aria-current={tab === 'cal' ? 'page' : undefined} onClick={() => setTab('cal')}><CalendarIcon on={tab === 'cal'} />달력</button>
           <button className="tab" aria-current={tab === 'list' ? 'page' : undefined} onClick={() => openList()}><ListIcon on={tab === 'list'} />내역</button>
           <button className="tab" aria-current={tab === 'grocery' ? 'page' : undefined} onClick={() => setTab('grocery')}><CartIcon on={tab === 'grocery'} />장보기</button>
+          <button className="tab" aria-current={tab === 'recipes' ? 'page' : undefined} onClick={() => setTab('recipes')}><CookingPotIcon on={tab === 'recipes'} />레시피</button>
           <button className="tab" aria-current={tab === 'stats' ? 'page' : undefined} onClick={() => setTab('stats')}><ChartIcon on={tab === 'stats'} />통계</button>
           <button className="tab" aria-current={tab === 'fixed' ? 'page' : undefined} onClick={() => setTab('fixed')}><RepeatIcon on={tab === 'fixed'} />고정</button>
           <button className="tab" aria-current={tab === 'explore' ? 'page' : undefined} onClick={() => setTab('explore')}><SearchIcon on={tab === 'explore'} />알아보기</button>

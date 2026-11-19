@@ -49,6 +49,17 @@ describe('주소 담기', () => {
   })
 })
 
+describe('만들 수 있는 것', () => {
+  it('cookable을 가구와 모자란 수 한도로 부른다', async () => {
+    const { f, store } = mk()
+    f.setRpc('cookable', { data: [{ recipe_id: 'r1', have: 3, need: 4, missing: ['두부'] }], error: null })
+    expect(await store.cookable(2)).toEqual([{ recipe_id: 'r1', have: 3, need: 4, missing: ['두부'] }])
+    expect(f.rpcs).toEqual([{ name: 'cookable', args: { p_household: H, p_max_missing: 2 } }])
+    f.setRpc('cookable', { data: null, error: null })
+    expect(await store.cookable(0)).toEqual([])
+  })
+})
+
 describe('지우기와 고치기', () => {
   it('archive는 status만 archived로 바꾸고 줄을 지우지 않는다', async () => {
     const { f, store } = mk({ 'recipe.recipes': [{ id: 'r1', household_id: H, status: 'saved', title: '김치찌개' }] })

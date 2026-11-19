@@ -1,0 +1,90 @@
+/* 레시피 탭 CSS. 모든 규칙은 탭의 바깥 상자 .recipes 안에서만 먹는다(tests/recipes/tokens.test.ts).
+   클래스 이름은 rcp-로 시작해 가계부 styles.css와 겹치지 않는다. 색·글꼴·반경·움직임 토큰은 가계부 styles.css의 것을 쓰고,
+   여기에는 값이 다른 하나(--ink-3: 귀리 면 위 4.5:1)만 둔다. 다크는 시스템 설정만 따른다. 화면 규칙은 docs/recipes/DESIGN.md. */
+.recipes { font-size: 16px; line-height: 1.5; --ink-3: #726D65; --clay-soft: #FBF0EB; --field-border: var(--line); }
+@media (prefers-color-scheme: dark) {
+  .recipes { --ink-3: #A09A90; --clay-soft: #3A2620; --field-border: #6E6960; }
+}
+.recipes *, .recipes *::before, .recipes *::after { box-sizing: border-box; }
+.recipes { display: flex; flex-direction: column; gap: 16px; padding-top: 8px; }
+.recipes p, .recipes ul, .recipes h2 { margin: 0; }
+.recipes ul { padding: 0; list-style: none; }
+.recipes button { touch-action: manipulation; }
+
+/* 글 */
+.recipes .rcp-h2 { font-size: 17px; font-weight: 700; line-height: 1.4; }
+.recipes .rcp-meta { font-size: 13px; line-height: 1.5; color: var(--ink-2); }
+.recipes .rcp-empty { padding: 24px 4px; color: var(--ink-2); font-size: 15px; text-align: center; }
+.recipes .rcp-notice { padding: 10px 12px; border-radius: var(--r-sm); background: var(--oat); font-size: 15px; font-weight: 600; }
+.recipes .rcp-bad { color: var(--danger); }
+@media (prefers-color-scheme: dark) { .recipes .rcp-bad { color: var(--rose-ink); } }
+.recipes .rcp-code {
+  display: block; padding: 10px 12px; border-radius: var(--r-sm); background: var(--canvas); border: 1px solid var(--line);
+  font-family: var(--font-mono); font-size: 13px; line-height: 1.5; color: var(--ink); overflow-wrap: anywhere; user-select: all; -webkit-user-select: all;
+}
+
+/* 입력칸·버튼 (터치 대상 44px 이상) */
+.recipes .rcp-input, .recipes .rcp-select {
+  min-height: 44px; width: 100%; padding: 0 12px; border: 1px solid var(--field-border); border-radius: var(--r-sm);
+  background: var(--canvas); color: var(--ink); font-size: 16px;
+}
+.recipes .rcp-input::placeholder { color: var(--ink-3); }
+.recipes .rcp-input[type="search"] { -webkit-appearance: none; appearance: none; }
+.recipes .rcp-btn {
+  min-height: 44px; padding: 0 20px; border-radius: var(--r-btn); font-weight: 600; font-size: 16px; white-space: nowrap;
+  transition: transform var(--dur-press) var(--ease-out);
+}
+.recipes .rcp-btn-primary { background: var(--primary); color: var(--on-primary); border: 0; }
+.recipes .rcp-btn-primary:disabled { opacity: 0.5; cursor: default; }
+.recipes .rcp-btn-quiet { background: var(--canvas); color: var(--ink); border: 1px solid var(--field-border); }
+.recipes .rcp-btn:active:not(:disabled) { transform: scale(0.97); }
+.recipes .rcp-btn-text {
+  align-self: flex-start; min-height: 44px; min-width: 44px; padding: 0 8px; border: 0; background: transparent;
+  color: var(--ink-2); font-size: 15px; font-weight: 600; border-radius: var(--r-btn);
+}
+.recipes .rcp-input:focus-visible, .recipes .rcp-select:focus-visible, .recipes .rcp-btn:focus-visible, .recipes .rcp-btn-text:focus-visible,
+.recipes .rcp-chip:focus-visible, .recipes .rcp-row:focus-visible, .recipes .rcp-code:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+
+/* 담기 */
+.recipes .rcp-add { display: flex; flex-direction: column; gap: 4px; }
+.recipes .rcp-add-form { display: flex; gap: 8px; }
+.recipes .rcp-bookmark { display: flex; flex-direction: column; gap: 8px; padding: 12px; border-radius: var(--r-md); background: var(--oat); }
+.recipes .rcp-bookmark-actions { display: flex; align-items: center; gap: 12px; }
+.recipes .rcp-confirm { display: flex; flex-direction: column; gap: 12px; padding: 16px; border-radius: var(--r-md); background: var(--oat); }
+.recipes .rcp-confirm-title { font-size: 17px; font-weight: 700; }
+.recipes .rcp-confirm-actions { display: flex; gap: 8px; }
+.recipes .rcp-error { display: flex; flex-direction: column; gap: 8px; align-items: flex-start; padding: 12px; border-radius: var(--r-sm); background: var(--warn-bg); color: var(--warn-ink); font-size: 15px; }
+
+/* 처리 줄 */
+.recipes .rcp-jobs { display: flex; flex-direction: column; gap: 8px; padding: 16px; border-radius: var(--r-md); background: var(--oat); }
+.recipes .rcp-job { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; padding: 8px 0; }
+.recipes .rcp-job + .rcp-job { border-top: 1px solid var(--line); }
+.recipes .rcp-job-src { font-size: 14px; color: var(--ink-2); overflow-wrap: anywhere; }
+.recipes .rcp-job-state { font-size: 16px; font-weight: 600; }
+.recipes .rcp-job-wait { font-size: 15px; font-weight: 600; }
+
+/* 레시피북 */
+.recipes .rcp-book { display: flex; flex-direction: column; gap: 12px; }
+.recipes .rcp-filters { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.recipes .rcp-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.recipes .rcp-chip {
+  min-height: 44px; padding: 0 14px; border: 0; border-radius: var(--r-chip); background: var(--oat); color: var(--ink); font-size: 15px; font-weight: 500;
+}
+.recipes .rcp-chip[aria-pressed="true"] { background: var(--primary); color: var(--on-primary); font-weight: 700; }
+.recipes .rcp-row {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 4px; width: 100%; min-height: 56px; padding: 12px 0; text-align: left;
+  border: 0; border-top: 1px solid var(--line); background: transparent; color: var(--ink);
+}
+.recipes .rcp-list > li:first-child .rcp-row { border-top: 0; }
+.recipes .rcp-row-title { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.recipes .rcp-row-title b { font-size: 16px; font-weight: 700; }
+.recipes .rcp-fav, .recipes .rcp-flag { padding: 2px 8px; border-radius: var(--r-tag); background: var(--oat); font-size: 13px; font-weight: 600; line-height: 20px; }
+.recipes .rcp-flag { background: var(--clay-soft); color: var(--clay); }
+.recipes .rcp-open { display: flex; flex-direction: column; gap: 8px; }
+
+@media (min-width: 720px) {
+  .recipes .rcp-filters { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .recipes .rcp-btn { transition: none; }
+}

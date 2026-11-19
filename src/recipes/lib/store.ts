@@ -25,6 +25,8 @@ export type InboxJob = {
 export type WorkerStatus = { last_seen_at: string | null; version: string | null }
 export type DictEntry = { id: string; name: string; aliases: string[]; category: string }
 export type BoughtItem = { name: string; bought_at: string | null }
+/** recipe.cookable 한 줄: 사전에 있는 필수 재료 need개 중 가진 것 have개. 사전에 없는 재료는 세지 않는다 */
+export type CookableRow = { recipe_id: string; have: number; need: number; missing: string[] }
 
 /** 앱이 고칠 수 있는 칸(DB의 칸 단위 update 권한과 같다) */
 export type RecipePatch = Partial<{
@@ -41,6 +43,8 @@ export interface RecipeStore {
   listPantry(): Promise<(PantryEntry & { source: string })[]>
   listDict(): Promise<DictEntry[]>
   recentBought(): Promise<BoughtItem[]>
+  /** 모자란 재료가 maxMissing개 이하인 레시피(저장된 것만) */
+  cookable(maxMissing: number): Promise<CookableRow[]>
   activeGroceryNames(): Promise<string[]>
   addUrl(input: string): Promise<AddUrlResult>
   retry(jobId: string): Promise<RetryResult>
@@ -175,6 +179,10 @@ export function createRecipeStore(client: SupabaseClient, householdId: string, u
     async recentBought() {
       const since = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString()
       return checked(await g().from('items').select('name,bought_at').eq('household_id', householdId).gte('bought_at', since)) as BoughtItem[]
+    },
+    async cookable(maxMissing) {
+      const { data, error } = await r().rpc('cookable', { p_household: householdId, p_max_missing: maxMissing })
+      return (checked({ data, error }) ?? []) as CookableRow[]
     },
     async activeGroceryNames() {
       const rows = checked(await g().from('items').select('name').eq('household_id', householdId).is('bought_at', null)) as { name: string }[]
