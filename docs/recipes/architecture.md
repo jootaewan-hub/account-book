@@ -22,7 +22,7 @@
 | 부분 | 선택 | 이유 |
 |---|---|---|
 | 앱 | 가계부 저장소 안 `src/recipes/`(React 19, TS, Vite, PWA). 아래 탭의 일곱째 '레시피'(D-056). 늦게 불러오기(lazy), CSS는 `.recipes` 안에서만 | 계정·가구·디자인·배포를 그대로 쓴다(D-010과 같은 판단) |
-| 데이터 | 같은 Supabase 프로젝트의 `recipe` 스키마. 마이그레이션 셋: `*_recipe_init.sql`(표·RLS·대기함 함수), `*_recipe_import.sql`(등록 함수), `*_recipe_pantry.sql`(사전·가진 재료·`cookable`) | 장보기의 `grocery` 스키마와 같은 방식. RLS는 `private.is_household_member` |
+| 데이터 | 같은 Supabase 프로젝트의 `recipe` 스키마. 마이그레이션 다섯: `*_recipe_init.sql`(표·RLS·대기함 함수), `*_recipe_import.sql`(JSON 도우미), `*_recipe_pantry.sql`(사전·가진 재료·`cookable`), `*_recipe_rate.sql`(요청 횟수 한도), `*_recipe_import_fn.sql`(등록 함수, SQL 편집기로 적용) | 장보기의 `grocery` 스키마와 같은 방식. RLS는 `private.is_household_member` |
 | 읽기 | 집 맥의 처리기 `tools/recipe-worker/`(TypeScript, Node 25, launchd). 설치한 사본에서 돈다(`install.sh <커밋>`, 이름 `local.recipe-worker`) | 유튜브는 데이터센터 요청을 자주 막고, 서버 함수에서는 yt-dlp·ffmpeg·받아쓰기를 못 돌리고, 가계부가 쓰는 Claude API는 영상을 받지 않는다(D-057) |
 | 서버 함수 | `supabase/functions/recipe-worker/`. `verify_jwt = false`, 헤더 `x-recipe-worker-secret`을 환경변수 `RECIPE_WORKER_SECRET`과 시간 일정 비교(`_shared/secret.ts`). 값이 비면 모두 401 | 처리기가 로그인 없이 부른다. 서비스 롤 키는 서버에만 있고 처리기는 비밀 문자열 하나만 가진다 |
 | 계약 | v2: `supabase/functions/_shared/recipeContract.ts`(zod). 앱, 처리기, 서버 함수가 같은 코드를 쓴다. `contract/recipe.schema.json`은 v1이라 낡았다 | 한 곳의 검사를 세 곳이 쓴다 |

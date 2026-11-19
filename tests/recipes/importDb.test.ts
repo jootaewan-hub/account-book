@@ -1,4 +1,4 @@
-// 등록 함수 recipe.import_recipe(20261122010000_recipe_import.sql)를 PGlite에서 검증한다.
+// 등록 함수 recipe.import_recipe(20261122040000_recipe_import_fn.sql)를 PGlite에서 검증한다.
 // 넣는 가구·사람·출처는 대기 줄(p_job)에서 오고, 같은 출처는 같은 id에 내용을 바꾸며 메모·별점·즐겨찾기는 남긴다.
 // db.test.ts의 도우미를 옮겨 적는다(가져오면 그 파일의 describe가 여기서 한 번 더 돈다).
 import type { PGlite } from '@electric-sql/pglite'
