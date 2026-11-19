@@ -109,8 +109,10 @@ Deno.serve((req) => handle(req, {
     check(upsertError)
     return true
   },
-  ping: async (version, now) => {
-    const { error } = await db.from('worker_status').upsert({ id: 1, last_seen_at: now.toISOString(), version })
+  ping: async (version, now, health) => {
+    const row: Record<string, unknown> = { id: 1, last_seen_at: now.toISOString(), version }
+    if (health) { row.export_issue = health.issue; row.export_checked_at = health.checkedAt }
+    const { error } = await db.from('worker_status').upsert(row)
     check(error)
   },
   rateHit: async (now) => {

@@ -204,6 +204,11 @@ describe('recipe-worker 일', () => {
     expect(res.status).toBe(409)
     const text = await res.text()
     expect(JSON.parse(text)).toEqual({ error: '레시피를 등록하지 못했어요.', code: '23514' })
+    // 같은 출처가 레시피북에 있으면(RCP01) 정해진 낱말만
+    d.importRecipe.mockRejectedValueOnce(new DbError('RCP01'))
+    const exists = await call(d, { action: 'submit', job, recipe: gold })
+    expect(exists.status).toBe(409)
+    expect(await exists.json()).toEqual({ error: '이미 레시피북에 있어요.', code: 'recipe_exists' })
     // DB가 아닌 예상 밖 오류는 본문 없이 500
     d.importRecipe.mockRejectedValueOnce(new Error('connection to 10.0.0.1 refused'))
     const res2 = await call(d, { action: 'submit', job, recipe: gold })
@@ -265,6 +270,17 @@ describe('recipe-worker 일', () => {
     expect((await call(d, { action: 'ping', version: '0.1.0' })).status).toBe(200)
     expect(d.ping).toHaveBeenCalledWith('0.1.0', now)
     expect((await call(d, { action: 'ping' })).status).toBe(400)
+    // 사본 상태: 정해진 까닭·null과 ISO 시각만
+    const checked = '2026-11-22T01:00:00.000Z'
+    expect((await call(d, { action: 'ping', version: '0.1.0', export_issue: '옵시디언 폴더에 쓰지 못했어요', export_checked_at: checked })).status).toBe(200)
+    expect(d.ping).toHaveBeenLastCalledWith('0.1.0', now, { issue: '옵시디언 폴더에 쓰지 못했어요', checkedAt: checked })
+    expect((await call(d, { action: 'ping', version: '0.1.0', export_issue: null, export_checked_at: checked })).status).toBe(200)
+    expect(d.ping).toHaveBeenLastCalledWith('0.1.0', now, { issue: null, checkedAt: checked })
+    const pings = d.ping.mock.calls.length
+    for (const bad of [{ export_issue: "EACCES: permission denied, open '/Users/x/vault/a.md'" }, { export_issue: 3 }, { export_issue: null, export_checked_at: 'yesterday' }]) {
+      expect((await call(d, { action: 'ping', version: '0.1.0', ...bad })).status).toBe(400)
+    }
+    expect(d.ping.mock.calls.length).toBe(pings)
 
     const recipe_id = '00000000-0000-4000-8000-0000000000cc'
     const snap = '2026-11-22T01:00:00.123456+00:00'
@@ -298,7 +314,7 @@ describe('recipe-worker 일', () => {
 
 describe('DB 오류 구분', () => {
   it('영구 거절만 409, 번호 없음·PGRST·일시 오류는 500', () => {
-    for (const c of ['22023', '23514', 'P0002', '55000']) expect(statusForDbCode(c)).toBe(409)
+    for (const c of ['22023', '23514', 'P0002', '55000', 'RCP01']) expect(statusForDbCode(c)).toBe(409)
     for (const c of ['', undefined, 'PGRST106', 'PGRST202', '40001', '40P01', '57014', '42501']) expect(statusForDbCode(c)).toBe(500)
   })
 

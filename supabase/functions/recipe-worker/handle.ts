@@ -2,6 +2,7 @@
 import { difficulty } from '../_shared/recipeClassify.ts'
 import { parseRecipe, type RecipeV2 } from '../_shared/recipeContract.ts'
 import type { ExportItem } from '../_shared/recipeStored.ts'
+import { RECIPE_EXISTS, RECIPE_EXISTS_CODE, isExportIssue, type ExportIssue } from '../_shared/recipeWorkerStatus.ts'
 import { secretMatches } from '../_shared/secret.ts'
 
 export const STAGES = [
@@ -20,13 +21,17 @@ export class DbError extends Error {
 }
 
 /**
- * DB 오류 번호 → 응답 상태. 일 자체가 거절된 영구 오류만 409(SQLSTATE 22·23 계열, 일이 없음 P0002, 처리 중 아님 55000).
- * 번호가 없거나(네트워크·게이트웨이) PGRST*(설정), 40001·40P01·57014 같은 일시 오류는 처리기가 다시 시도할 수 있게 500.
+ * DB 오류 번호 → 응답 상태. 일 자체가 거절된 영구 오류만 409(SQLSTATE 22·23 계열, 일이 없음 P0002, 처리 중 아님 55000,
+ * 같은 출처가 레시피북에 있음 RCP01). 번호가 없거나(네트워크·게이트웨이) PGRST*(설정), 40001·40P01·57014 같은 일시 오류는
+ * 처리기가 다시 시도할 수 있게 500.
  */
 export function statusForDbCode(code: string | undefined): 409 | 500 {
   if (!code || code.startsWith('PGRST')) return 500
-  return code.startsWith('22') || code.startsWith('23') || code === 'P0002' || code === '55000' ? 409 : 500
+  return code.startsWith('22') || code.startsWith('23') || code === 'P0002' || code === '55000' || code === RECIPE_EXISTS_CODE ? 409 : 500
 }
+
+/** 처리기가 ping에 실어 보내는 사본 상태. issue는 정해진 까닭 하나 또는 null(괜찮음), checkedAt은 마지막으로 써 본 시각 */
+export type ExportHealth = { issue: ExportIssue | null; checkedAt: string | null }
 
 export interface DictEntry { id: string; name: string; aliases: string[]; category: string; broader?: string | null }
 export interface ClaimedJob { id: string; source_key: string }
@@ -47,7 +52,8 @@ export interface WorkerDeps {
   listExports: (opts: { skip: string[]; need: ('drive' | 'obsidian')[] }) => Promise<ExportItem[]>
   /** 그 레시피가 없으면 false */
   exported: (input: ExportedInput) => Promise<boolean>
-  ping: (version: string, now: Date) => Promise<void>
+  /** health가 없으면(옛 처리기·점검 명령) 사본 상태는 건드리지 않는다 */
+  ping: (version: string, now: Date, health?: ExportHealth) => Promise<void>
   /** 이번 요청을 세고 한도 안이면 true. DB 오류는 DbError로 던진다 */
   rateHit: (now: Date) => Promise<boolean>
   dict: () => Promise<{ id: string; name: string; aliases: string[]; category: string }[]>
@@ -153,6 +159,8 @@ export async function handle(req: Request, deps: WorkerDeps): Promise<Response> 
           if (Array.isArray(body.dict) && body.dict.length > 0) await deps.dictAdd(body.dict)
           return json({ recipe_id: await deps.importRecipe(body.job, parsed.value, level, basis) })
         } catch (e) {
+          // 같은 출처가 레시피북에 있으면 정해진 낱말만 싣는다(처리기가 "이미 레시피북에 있어요"로 바꾼다)
+          if (e instanceof DbError && e.code === RECIPE_EXISTS_CODE) return json({ error: '이미 레시피북에 있어요.', code: RECIPE_EXISTS }, 409)
           if (e instanceof DbError && statusForDbCode(e.code) === 409) return json({ error: '레시피를 등록하지 못했어요.', code: e.code }, 409)
           throw e
         }
@@ -194,7 +202,18 @@ export async function handle(req: Request, deps: WorkerDeps): Promise<Response> 
       }
       case 'ping': {
         if (typeof body.version !== 'string' || body.version.length < 1 || body.version.length > 80) return bad('version이 필요해요.')
-        await deps.ping(body.version, now)
+        if (body.export_issue === undefined && body.export_checked_at === undefined) {
+          await deps.ping(body.version, now)
+          return json({ ok: true })
+        }
+        // 사본 상태는 정해진 까닭(또는 null)과 시각만 받는다. 오류 글·경로 같은 것은 DB check보다 먼저 여기서 막는다.
+        const issue = body.export_issue ?? null
+        const checkedAt = body.export_checked_at ?? null
+        if (issue !== null && !isExportIssue(issue)) return bad('export_issue가 올바르지 않아요.')
+        if (checkedAt !== null && (typeof checkedAt !== 'string' || !isoDateTime.test(checkedAt) || !Number.isFinite(Date.parse(checkedAt)))) {
+          return bad('export_checked_at이 올바르지 않아요.')
+        }
+        await deps.ping(body.version, now, { issue, checkedAt })
         return json({ ok: true })
       }
       case 'dict':

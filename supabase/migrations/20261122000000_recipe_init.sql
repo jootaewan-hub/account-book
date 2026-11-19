@@ -146,8 +146,11 @@ create table recipe.inbox (
   retry_at timestamptz,                                  -- 이 시각 전에는 내주지 않는다
   fail_reason text check (char_length(fail_reason) <= 200),
   recipe_id uuid,
+  -- 구성원이 목록에서 치운 실패 일(지우지 않고 숨긴다). dismiss_job이 정하고 retry_job이 비운다.
+  dismissed_at timestamptz,
   added_by uuid default auth.uid(),
   added_at timestamptz not null default now(),
+  check (dismissed_at is null or state = 'failed'),
   check (url = ('https://www.youtube.com/watch?v=' || substr(source_key, 9))
       or url = ('https://www.youtube.com/shorts/' || substr(source_key, 9))),
   foreign key (recipe_id, household_id) references recipe.recipes (id, household_id) on delete set null (recipe_id),
@@ -160,10 +163,16 @@ create index inbox_household_added_idx on recipe.inbox (household_id, added_at d
 create index inbox_claim_idx on recipe.inbox (state, added_at) where state in ('waiting', 'processing');
 
 -- ───────────────────────── 처리기 상태 (한 줄) ─────────────────────────
+-- 사본 상태(export_issue): 처리기가 사본(구글 드라이브·옵시디언)을 쓰지 못하면 정해진 까닭 하나, 괜찮으면 null.
+-- 오류 글·경로·토큰은 담지 않는다. 말 목록은 supabase/functions/_shared/recipeWorkerStatus.ts의 EXPORT_ISSUES와 같다.
+-- export_checked_at은 처리기가 사본을 마지막으로 써 보거나 시험한 시각(처음이면 null).
 create table recipe.worker_status (
   id smallint primary key default 1 check (id = 1),
   last_seen_at timestamptz,
-  version text check (char_length(version) <= 80)
+  version text check (char_length(version) <= 80),
+  export_issue text check (export_issue in
+    ('구글 드라이브 연결이 끊겼어요', '구글 드라이브에 쓰지 못했어요', '옵시디언 폴더에 쓰지 못했어요')),
+  export_checked_at timestamptz
 );
 insert into recipe.worker_status (id) values (1);
 
@@ -345,9 +354,31 @@ begin
   end if;
   update recipe.inbox i
      set state = 'waiting', attempts = 0, retry_at = null, fail_reason = null, stage = null,
-         claimed_at = null, heartbeat_at = null
+         claimed_at = null, heartbeat_at = null, dismissed_at = null
    where i.id = p_job
      and (i.state = 'failed' or (i.state = 'waiting' and i.retry_at > now()));
+  return found;
+end;
+$$;
+
+-- 실패한 일을 목록에서 치운다(앱의 구성원). 지우지 않고 dismissed_at만 정한다. retry_job처럼 update 권한 대신 함수로 둔다.
+-- 실패한 일이 아니거나 이미 치웠으면 false. 남의 가구 일이면 없는 일과 같은 오류.
+create function recipe.dismiss_job(p_job uuid)
+returns boolean
+language plpgsql
+volatile
+security definer
+set search_path = ''
+as $$
+declare
+  v_household uuid;
+begin
+  select i.household_id into v_household from recipe.inbox i where i.id = p_job;
+  if v_household is null or not (select private.is_household_member(v_household)) then
+    raise exception 'recipe_job_not_found' using errcode = 'P0002';
+  end if;
+  update recipe.inbox i set dismissed_at = now()
+   where i.id = p_job and i.state = 'failed' and i.dismissed_at is null;
   return found;
 end;
 $$;
@@ -422,6 +453,8 @@ revoke execute on function recipe.job_fail(uuid, text) from public, anon, authen
 grant execute on function recipe.job_fail(uuid, text) to service_role;
 revoke execute on function recipe.retry_job(uuid) from public, anon;
 grant execute on function recipe.retry_job(uuid) to authenticated;
+revoke execute on function recipe.dismiss_job(uuid) from public, anon;
+grant execute on function recipe.dismiss_job(uuid) to authenticated;
 
 -- 실시간 동기화: publication이 있을 때만(장보기와 같은 방식)
 do $$

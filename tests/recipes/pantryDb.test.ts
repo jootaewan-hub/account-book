@@ -219,6 +219,15 @@ describe('ingredients.ingredient_key → 사전', () => {
 })
 
 describe('cookable', () => {
+  it('같은 재료가 두 묶음(양념장·소스)에 나와도 한 번만 센다(앱의 가진 재료 수와 같다)', async () => {
+    const r = await seedRecipe(hhAB, 'dupdupdup01', 'saved', [['간장(양념장)', 'salt'], ['대파', 'scallion'], ['간장', 'salt'], ['대파', 'scallion']])
+    // 다른 재료 두 개가 모자라다: 줄 네 개가 아니라 열쇠 두 개
+    expect(await cookableAs(A, hhAB, 2)).toEqual([{ recipe_id: r, have: 0, need: 2, missing: ['간장(양념장)', '대파'] }])
+    expect(await cookableAs(A, hhAB, 1)).toEqual([])
+    await pantryPut(hhAB, 'salt')
+    expect(await cookableAs(A, hhAB, 1)).toEqual([{ recipe_id: r, have: 1, need: 2, missing: ['대파'] }])
+  })
+
   it('필수 4개 중 3개를 가지면 모자란 이름 1개를 돌려준다', async () => {
     const r = await seedRecipe(hhAB, 'aaaaaaaaaaa', 'saved', [['두부', 'tofu'], ['달걀', 'egg'], ['대파', 'scallion'], ['소금', 'salt']])
     for (const k of ['tofu', 'egg', 'salt']) await pantryPut(hhAB, k)

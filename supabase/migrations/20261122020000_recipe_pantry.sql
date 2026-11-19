@@ -151,6 +151,8 @@ grant execute on function recipe.dict_add(jsonb) to service_role;
 -- ───────────────────────── cookable ─────────────────────────
 -- 가구 하나의 saved 레시피 중, 필수 재료(optional 아님, 사전 열쇠 있음)가 모자란 수 ≤ p_max_missing인 것.
 -- 가진 것: 그 열쇠가 pantry에 state have 또는 always로 있는 것. 모자란 수 적은 순, 가진 수 많은 순.
+-- 같은 열쇠가 두 번 나와도(양념장과 소스의 간장) 한 번만 센다. 앱의 pantrySummary·missingIngredients와 같은 셈이고,
+-- 모자란 재료 이름은 열쇠마다 처음 나온 줄의 이름 하나다.
 -- security invoker라 RLS가 구성원만 통과시킨다(구성원이 아니면 0줄). 세지 않는 재료만 있는 레시피는 나오지 않는다.
 create function recipe.cookable(p_household uuid, p_max_missing int default 2)
 returns table (recipe_id uuid, have int, need int, missing text[])
@@ -159,19 +161,26 @@ stable
 security invoker
 set search_path = ''
 as $$
-  select r.id as recipe_id,
-         count(p.ingredient_key)::int as have,
-         count(*)::int as need,
-         coalesce(array_agg(i.name order by i.position) filter (where p.ingredient_key is null), '{}'::text[]) as missing
-    from recipe.recipes r
-    join recipe.ingredients i
-      on i.recipe_id = r.id and not i.optional and i.ingredient_key is not null
+  with need as (
+    select r.id as recipe_id, r.added_at, i.ingredient_key,
+           min(i.position) as pos, (array_agg(i.name order by i.position))[1] as name
+      from recipe.recipes r
+      join recipe.ingredients i
+        on i.recipe_id = r.id and not i.optional and i.ingredient_key is not null
+     where r.household_id = p_household and r.status = 'saved'
+     group by r.id, r.added_at, i.ingredient_key
+  )
+  select n.recipe_id,
+         count(distinct p.ingredient_key)::int as have,
+         count(distinct n.ingredient_key)::int as need,
+         coalesce(array_agg(n.name order by n.pos) filter (where p.ingredient_key is null), '{}'::text[]) as missing
+    from need n
     left join recipe.pantry p
-      on p.household_id = r.household_id and p.ingredient_key = i.ingredient_key and p.state in ('have', 'always')
-   where r.household_id = p_household and r.status = 'saved'
-   group by r.id, r.added_at
-  having count(*) - count(p.ingredient_key) <= p_max_missing
-   order by count(*) - count(p.ingredient_key), count(p.ingredient_key) desc, r.added_at desc, r.id;
+      on p.household_id = p_household and p.ingredient_key = n.ingredient_key and p.state in ('have', 'always')
+   group by n.recipe_id, n.added_at
+  having count(distinct n.ingredient_key) - count(distinct p.ingredient_key) <= p_max_missing
+   order by count(distinct n.ingredient_key) - count(distinct p.ingredient_key), count(distinct p.ingredient_key) desc,
+            n.added_at desc, n.recipe_id;
 $$;
 revoke execute on function recipe.cookable(uuid, int) from public, anon;
 grant execute on function recipe.cookable(uuid, int) to authenticated, service_role;
@@ -256,7 +265,7 @@ begin
     coalesce(nullif(p_recipe -> 'extraction', 'null'::jsonb), '{}'::jsonb),
     v_job.added_by  -- 비어 있어도 그대로(기본값 auth.uid()를 쓰지 않는다)
   )
-  -- 같은 가구·같은 출처: 같은 id에 바꾼다. memo, rating, favorite은 남긴다.
+  -- 같은 가구·같은 출처의 보관한 레시피: 같은 id에 바꾼다. memo, rating, favorite은 남긴다.
   on conflict (household_id, source_key) do update set
     status = excluded.status,
     title = excluded.title,
@@ -286,11 +295,18 @@ begin
     corrections = excluded.corrections,
     review_items = excluded.review_items,
     extraction = excluded.extraction,
-    -- 보관했던 레시피를 다시 담으면 새로 담은 것으로(목록에서 새것으로 보인다). 그 밖에는 처음 담은 사람·시각을 남긴다.
-    -- SET의 r.status는 바꾸기 전 값이다.
-    added_by = case when r.status = 'archived' then excluded.added_by else r.added_by end,
-    added_at = case when r.status = 'archived' then now() else r.added_at end
+    -- 보관했던 레시피를 다시 담으면 새로 담은 것으로(목록에서 새것으로 보인다)
+    added_by = excluded.added_by,
+    added_at = now()
+  -- 바꾸는 것은 보관(archived)한 레시피뿐이다. 레시피북에 있는(review·saved) 레시피는 사람이 고친 값이 있으니 덮지 않는다.
+  where r.status = 'archived'
   returning r.id into v_id;
+
+  -- 같은 출처의 레시피가 레시피북에 있다(옛 실패 일을 다시 한 경우 따위). 처리기는 이 번호를 "이미 레시피북에 있어요"로 바꾼다.
+  -- 번호 RCP01은 supabase/functions/_shared/recipeWorkerStatus.ts의 RECIPE_EXISTS_CODE와 같다.
+  if v_id is null then
+    raise exception 'recipe_exists' using errcode = 'RCP01';
+  end if;
 
   -- 재료·단계는 통째로 바꾼다(자리 번호가 겹치지 않게 먼저 지운다)
   delete from recipe.ingredients i where i.recipe_id = v_id;

@@ -363,10 +363,10 @@ describe('일 받기 (서비스 롤만)', () => {
     const rows = await admin<{ proname: string; prosecdef: boolean; proconfig: string[]; def: string }>(
       `select p.proname, p.prosecdef, p.proconfig, pg_get_functiondef(p.oid) as def
          from pg_proc p join pg_namespace n on n.oid = p.pronamespace
-        where n.nspname = 'recipe' and p.proname in ('claim_job', 'job_progress', 'job_release', 'job_fail', 'retry_job')
+        where n.nspname = 'recipe' and p.proname in ('claim_job', 'job_progress', 'job_release', 'job_fail', 'retry_job', 'dismiss_job')
         order by p.proname`,
     )
-    expect(rows.map((r) => r.proname)).toEqual(['claim_job', 'job_fail', 'job_progress', 'job_release', 'retry_job'])
+    expect(rows.map((r) => r.proname)).toEqual(['claim_job', 'dismiss_job', 'job_fail', 'job_progress', 'job_release', 'retry_job'])
     for (const r of rows) {
       expect(r.prosecdef, r.proname).toBe(true)
       expect(r.proconfig, r.proname).toEqual(['search_path=""'])
@@ -404,6 +404,50 @@ describe('다시 하기 (구성원)', () => {
     expect(await as(A, `select recipe.retry_job($1) as ok`, [d])).toEqual([{ ok: false }])
     expect((await job(p)).state).toBe('processing')
     expect((await job(d)).state).toBe('done')
+  })
+})
+
+describe('실패한 일 치우기 (구성원)', () => {
+  const dismissed = async (id: string) => (await admin<{ d: Date | null }>(`select dismissed_at as d from recipe.inbox where id = $1`, [id]))[0].d
+  it('구성원은 실패한 일을 지우지 않고 치운다(dismissed_at). 두 번째는 false', async () => {
+    const j = await seedJob(hhAB, A, 'youtube:d1_________', at(-1), { state: 'failed', fail_reason: '비공개 영상이에요' })
+    expect(await as(B, `select recipe.dismiss_job($1) as ok`, [j])).toEqual([{ ok: true }])
+    expect(await dismissed(j)).not.toBeNull()
+    expect(await job(j)).toMatchObject({ state: 'failed', fail_reason: '비공개 영상이에요' })
+    expect(await as(B, `select recipe.dismiss_job($1) as ok`, [j])).toEqual([{ ok: false }])
+  })
+  it('실패한 일이 아니면 건드리지 않고, 다른 가구·로그인 안 한 사람은 못 한다', async () => {
+    const w = await seedJob(hhAB, A, 'youtube:d2_________', at(-1))
+    expect(await as(A, `select recipe.dismiss_job($1) as ok`, [w])).toEqual([{ ok: false }])
+    const f = await seedJob(hhAB, A, 'youtube:d3_________', at(-1), { state: 'failed' })
+    expect(await codeOf(as(C, `select recipe.dismiss_job($1)`, [f]))).toBe('P0002')
+    expect(await codeOf(as(null, `select recipe.dismiss_job($1)`, [f]))).toBe('42501')
+    expect(await dismissed(w)).toBeNull()
+    expect(await dismissed(f)).toBeNull()
+  })
+  it('앱 사용자는 dismissed_at을 직접 쓰지 못하고, 실패가 아닌 줄에는 둘 수 없다(23514)', async () => {
+    const f = await seedJob(hhAB, A, 'youtube:d4_________', at(-1), { state: 'failed' })
+    expect(await codeOf(as(A, `update recipe.inbox set dismissed_at = now() where id = $1`, [f]))).toBe('42501')
+    expect(await codeOf(admin(`update recipe.inbox set dismissed_at = now(), state = 'waiting' where id = $1`, [f]))).toBe('23514')
+  })
+  it('치운 일을 다시 하면 다시 보인다(retry_job이 dismissed_at을 비운다)', async () => {
+    const f = await seedJob(hhAB, A, 'youtube:d5_________', at(-1), { state: 'failed' })
+    await as(A, `select recipe.dismiss_job($1)`, [f])
+    expect(await as(A, `select recipe.retry_job($1) as ok`, [f])).toEqual([{ ok: true }])
+    expect(await dismissed(f)).toBeNull()
+  })
+})
+
+describe('처리기 상태의 사본 상태', () => {
+  it('정해진 까닭만 받고(23514), 구성원은 읽기만 한다', async () => {
+    const { EXPORT_ISSUES } = await import('../../supabase/functions/_shared/recipeWorkerStatus')
+    for (const issue of EXPORT_ISSUES) {
+      await svc(`update recipe.worker_status set export_issue = $1, export_checked_at = $2`, [issue, T0])
+      expect(await as(A, `select export_issue from recipe.worker_status`)).toEqual([{ export_issue: issue }])
+    }
+    await svc(`update recipe.worker_status set export_issue = null`)
+    expect(await codeOf(svc(`update recipe.worker_status set export_issue = '/Users/x/vault: EPERM'`))).toBe('23514')
+    expect(await codeOf(as(A, `update recipe.worker_status set export_issue = null`))).toBe('42501')
   })
 })
 

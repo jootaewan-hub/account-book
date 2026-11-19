@@ -273,13 +273,32 @@ describe('확인할 것', () => {
 })
 
 describe('다시 등록(같은 가구·같은 출처)', () => {
-  it('같은 id에 내용을 바꾸고 메모·별점·즐겨찾기는 남긴다', async () => {
+  it('레시피북에 있는(saved) 레시피는 덮지 않고 RCP01, 사람이 고친 값과 일은 그대로', async () => {
+    const id = await importRecipe(await seedJob(hhAB, A), gold)
+    // 앱에서 구성원이 고친 것
+    await as(B, `update recipe.recipes set memo = '우리 집은 설탕 1큰술', title = '우리 집 제육' where id = $1`, [id])
+    await as(B, `update recipe.ingredients set amount = 2, origin = 'user', at_seconds = null where recipe_id = $1 and position = 2`, [id])
+    const before = await recipeRow(id)
+    const ingBefore = await admin(`select * from recipe.ingredients where recipe_id = $1 order by position`, [id])
+    const job2 = await seedJob(hhAB, B)
+    expect(await codeOf(importRecipe(job2, withGold((r) => { r.title = '다시 정리한 제목' })))).toBe('RCP01')
+    expect(await recipeRow(id)).toEqual(before)
+    expect(await admin(`select * from recipe.ingredients where recipe_id = $1 order by position`, [id])).toEqual(ingBefore)
+    // 거절은 한 트랜잭션이라 일도 처리 중 그대로(처리기가 까닭을 남겨 실패로 끝낸다)
+    expect(await jobRow(job2)).toMatchObject({ state: 'processing', recipe_id: null })
+  })
+
+  it('확인 중(review)인 레시피도 덮지 않는다(RCP01)', async () => {
+    const id = await importRecipe(await seedJob(hhAB, A), withGold((r) => { r.review_items = [REVIEW_ITEM] }))
+    expect(await codeOf(importRecipe(await seedJob(hhAB, B), gold))).toBe('RCP01')
+    expect(await recipeRow(id)).toMatchObject({ status: 'review', review_count: 1 })
+  })
+
+  it('보관한 레시피는 같은 id에 내용을 바꾸고 메모·별점·즐겨찾기는 남긴다', async () => {
     const job1 = await seedJob(hhAB, A)
     const id = await importRecipe(job1, gold)
-    await admin(`update recipe.recipes set added_at = $2 where id = $1`, [id, OLD_ADDED_AT])
-    const before = await recipeRow(id)
-    // 앱에서 구성원이 남긴 것
-    await as(B, `update recipe.recipes set memo = '우리 집은 설탕 1큰술', rating = 5, favorite = true where id = $1`, [id])
+    // 앱에서 구성원이 남긴 것, 그리고 보관(지우기)
+    await as(B, `update recipe.recipes set memo = '우리 집은 설탕 1큰술', rating = 5, favorite = true, status = 'archived' where id = $1`, [id])
 
     // 다시 담아서 다시 정리한 결과: 제목이 바뀌고 요약이 빠지고 재료가 둘, 확인할 것 하나
     const job2 = await seedJob(hhAB, B)
@@ -305,24 +324,12 @@ describe('다시 등록(같은 가구·같은 출처)', () => {
       memo: '우리 집은 설탕 1큰술',
       rating: 5,
       favorite: true,
-      // 보관한 레시피가 아니면 처음 담은 사람과 시각은 그대로
-      added_by: A,
-      added_at: before.added_at,
+      added_by: B,
     })
-    expect((after.added_at as Date).toISOString()).toBe(OLD_ADDED_AT)
     expect(await count('ingredients', 'recipe_id = $1', [id])).toBe(2)
     expect(await count('steps', 'recipe_id = $1', [id])).toBe(1)
     expect(await jobRow(job2)).toMatchObject({ state: 'done', recipe_id: id })
     expect(await jobRow(job1)).toMatchObject({ state: 'done', recipe_id: id })
-  })
-
-  it('확인 중(review)인 레시피도 처음 담은 사람과 시각을 남긴다', async () => {
-    const id = await importRecipe(await seedJob(hhAB, A), withGold((r) => { r.review_items = [REVIEW_ITEM] }))
-    await admin(`update recipe.recipes set added_at = $2 where id = $1`, [id, OLD_ADDED_AT])
-    expect(await importRecipe(await seedJob(hhAB, B), gold)).toBe(id)
-    const after = await recipeRow(id)
-    expect(after).toMatchObject({ status: 'saved', added_by: A })
-    expect((after.added_at as Date).toISOString()).toBe(OLD_ADDED_AT)
   })
 
   it('보관(archived)한 레시피는 같은 id로 돌아오고, 새로 담은 사람·시각이 된다(목록에서 새것으로)', async () => {
@@ -448,7 +455,7 @@ describe('거절하면 아무것도 안 들어간다', () => {
 
   it('다시 등록하다 거절되면 이전 내용이 그대로 남는다', async () => {
     const id = await importRecipe(await seedJob(hhAB, A), gold)
-    await as(A, `update recipe.recipes set memo = '메모' where id = $1`, [id])
+    await as(A, `update recipe.recipes set memo = '메모', status = 'archived' where id = $1`, [id])
     const before = await recipeRow(id)
     const job2 = await seedJob(hhAB, B)
     const bad = withGold((r) => {
