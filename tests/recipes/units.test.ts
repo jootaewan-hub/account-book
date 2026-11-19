@@ -29,6 +29,10 @@ describe('단위와 인분 계산', () => {
     expect(scaleAmount(1, '작은술', 0.1)).toBe('¼')
     expect(scaleAmount(250, 'ml', 2)).toBe('500')
     expect(scaleAmount(1, null, 2)).toBe('2')
+    expect(scaleAmount(0.5, 'kg', 1)).toBe('½')
+    expect(scaleAmount(1.5, 'L', 1)).toBe('1½')
+    expect(scaleAmount(167.3, 'mL', 1)).toBe('167')
+    expect(scaleAmount(1, 'g', 0.1)).toBe('1')
   })
 
   it('인분 선택지', () => {

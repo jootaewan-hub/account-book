@@ -19,12 +19,15 @@ export function servingsBase(r: ServingsLike): { base: number; fromEditor: boole
   return null
 }
 
-const EXACT_UNITS = new Set(['g', 'ml', 'kg', 'L', '그램', '밀리리터'])
+const EXACT_UNITS = new Set(['g', 'ml', '그램', '밀리리터'])
 const GLYPH = ['', '¼', '½', '¾']
 
 export function scaleAmount(amount: number, unit: string | null, factor: number): string {
   const v = amount * factor
-  if (unit !== null && EXACT_UNITS.has(unit)) return String(Math.round(v))
+  if (unit !== null && EXACT_UNITS.has(unit.toLowerCase())) {
+    const n = Math.round(v)
+    return String(n < 1 && v > 0 ? 1 : n)
+  }
   let q = Math.round(v * 4)
   if (q < 1 && v > 0) q = 1
   const whole = Math.floor(q / 4)
