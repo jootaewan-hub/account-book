@@ -14,6 +14,14 @@ export type AmountView = {
   suggested: string | null
 }
 
+const GLYPH_VALUE: Record<string, number> = { '¼': 0.25, '½': 0.5, '¾': 0.75 }
+/** scaleAmount가 만든 글("1½", "¾", "500")을 숫자로. 화면에 보이는 값 그대로 ml를 셈하려고 쓴다 */
+export function parseQty(text: string): number {
+  const last = text.slice(-1)
+  if (last in GLYPH_VALUE) return Number(text.slice(0, -1) || 0) + GLYPH_VALUE[last]
+  return Number(text)
+}
+const fmtMl = (v: number) => `${Number(v.toFixed(1))}ml`
 const join = (n: string, unit: string | null | undefined) => `${n}${unit ?? ''}`
 const SPOON = new Set(Object.keys(UNIT_ML))
 
@@ -26,9 +34,10 @@ export function amountView(g: Amounts, factor: number, scaled: boolean, tool: Me
   const tail = tool === '밥숟가락' && spoon ? ' · 밥숟가락 기준' : ''
   let main: string | null = null
   if (g.amount != null) {
-    const ml = (n: number) => { const v = unitMl(g.unit ?? null, tool ?? '확인 못 함'); return v === null ? '' : ` (${Math.round(v * n)}ml)` }
+    const ml = (n: number) => { const v = unitMl(g.unit ?? null, tool ?? '확인 못 함'); return v === null ? '' : ` (${fmtMl(v * n)})` }
     const orig = join(String(g.amount), g.unit) + ml(g.amount)
-    main = scaled ? `원래 ${join(String(g.amount), g.unit)}${ml(g.amount)} → ${join(scaleAmount(g.amount, g.unit ?? null, factor), g.unit)}${ml(g.amount * factor)}` : orig
+    const shownQty = scaled ? scaleAmount(g.amount, g.unit ?? null, factor) : ''
+    main = scaled ? `원래 ${join(String(g.amount), g.unit)}${ml(g.amount)} → ${join(shownQty, g.unit)}${ml(parseQty(shownQty))}` : orig
     main += tail
   } else if (g.amount_text) main = g.amount_text
   let suggested: string | null = null

@@ -105,6 +105,13 @@ describe('계량 도구와 난이도', () => {
     fireEvent.click(screen.getByRole('button', { name: '4인분' }))
     expect(row('설탕').textContent).toContain('원래 2큰술 (30ml) → 4큰술 (60ml)')
   })
+  it('¼ 단위로 반올림한 양에서 ml를 셈한다(1큰술, 기준 8인분 → 3인분은 ½큰술 7.5ml)', async () => {
+    const r = stored({ measuring_tool: '계량스푼' }); r.servings = { value: 8, origin: 'description', basis: null, suggested: null }
+    r.ingredients.find((g) => g.name === '올리고당')!.amount = 1
+    await show(fake(r))
+    fireEvent.click(screen.getByRole('button', { name: '3인분' }))
+    expect(row('올리고당').textContent).toContain('원래 1큰술 (15ml) → ½큰술 (7.5ml)')
+  })
   it('밥숟가락이면 ml 없이 기준을 밝힌다', async () => {
     await show(fake(stored({ measuring_tool: '밥숟가락' })))
     expect(row('설탕').textContent).toContain('2큰술 · 밥숟가락 기준')

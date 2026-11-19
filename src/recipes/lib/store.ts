@@ -324,12 +324,16 @@ export function createRecipeStore(client: SupabaseClient, householdId: string, u
       if ('amount' in patch) {
         if (patch.amount !== null && patch.amount !== undefined && !(Number.isFinite(patch.amount) && patch.amount > 0)) throw new Error('분량은 0보다 큰 숫자예요.')
         edits.set(t, 'amount', patch.amount ?? null)
+        if (patch.amount != null && !('amount_text' in patch)) edits.set(t, 'amount_text', null) // 숫자를 적으면 "약간" 같은 글은 비운다
       }
       if ('unit' in patch) edits.set(t, 'unit', text(patch.unit, 12, '단위'))
       if ('amount_text' in patch) edits.set(t, 'amount_text', text(patch.amount_text, 20, '분량 글'))
       if ('note' in patch) edits.set(t, 'note', text(patch.note, 160, '메모'))
       if (!edits.rows.size) return
-      edits.set(t, 'origin', 'user'); edits.set(t, 'at_seconds', null); edits.set(t, 'needs_review', false)
+      // 메모만 고친 줄은 출처·영상 시각을 그대로 둔다. 이름·분량·단위·분량 글이 바뀔 때만 user 출처로 바꾼다
+      if (['name', 'amount', 'unit', 'amount_text'].some((k) => k in patch)) {
+        edits.set(t, 'origin', 'user'); edits.set(t, 'at_seconds', null); edits.set(t, 'needs_review', false)
+      }
       await applyEdits(recipeId, edits, {})
     },
     async editStep(recipeId, index, patch) {

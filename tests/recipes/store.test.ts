@@ -303,3 +303,20 @@ describe('상세 읽기와 재료·단계 고치기', () => {
     await expect(store.editStep('r1', 0, { title: '' })).rejects.toThrow('단계 이름')
   })
 })
+
+describe('재료 고치기의 출처 규칙', () => {
+  const seed = () => ({
+    'recipe.recipes': [{ id: 'r1', household_id: H, status: 'saved' }],
+    'recipe.ingredients': [{ id: 'i0', household_id: H, recipe_id: 'r1', position: 1, name: '후추', amount: null, amount_text: '약간', note: null, origin: 'asr', at_seconds: 242, needs_review: true }],
+  })
+  it('메모만 고치면 출처와 영상 시각을 그대로 둔다', async () => {
+    const { f, store } = mk(seed())
+    await store.editIngredient('r1', 0, { note: '넉넉히' })
+    expect(f.tables['recipe.ingredients'][0]).toMatchObject({ note: '넉넉히', origin: 'asr', at_seconds: 242, needs_review: true })
+  })
+  it('숫자 분량을 적으면 분량 글을 비우고 출처를 user로 둔다', async () => {
+    const { f, store } = mk(seed())
+    await store.editIngredient('r1', 0, { amount: 1, unit: '작은술' })
+    expect(f.tables['recipe.ingredients'][0]).toMatchObject({ amount: 1, unit: '작은술', amount_text: null, origin: 'user', at_seconds: null })
+  })
+})
