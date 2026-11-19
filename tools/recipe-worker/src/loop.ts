@@ -130,7 +130,7 @@ export async function runOnce(deps: LoopDeps): Promise<RunResult> {
   }
 }
 
-/** 켜진 시간에만 일을 가져온다. 겹쳐 돌지 않는다. stop()은 돌던 일이 끝나기를 기다린다 */
+/** 간격마다 일을 가져온다(켜진 시간 밖에서도). 겹쳐 돌지 않는다. stop()은 돌던 일이 끝나기를 기다린다 */
 export function startLoop(deps: LoopDeps, intervalMs = 20_000): { stop: () => Promise<void> } {
   let stopped = false
   let timer: ReturnType<typeof setTimeout> | undefined
@@ -139,10 +139,9 @@ export function startLoop(deps: LoopDeps, intervalMs = 20_000): { stop: () => Pr
   const tick = async () => {
     let next = intervalMs
     try {
-      if (isOnHours(deps.now(), deps.cfg.onHours)) {
-        const r = await runOnce(deps)
-        if (r === 'done') next = 0
-      }
+      // 켜진 시간은 잠 막기(caffeinate)에만 쓴다. 깨어 있으면 시간과 상관없이 일을 가져온다.
+      const r = await runOnce(deps)
+      if (r === 'done') next = 0
     } catch {
       console.error('일을 가져오지 못했어요')
     }

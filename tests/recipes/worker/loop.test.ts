@@ -191,7 +191,7 @@ describe('createDailyCounter', () => {
 })
 
 describe('startLoop', () => {
-  it('겹쳐 돌지 않고, 꺼진 시간에는 claim하지 않는다', async () => {
+  it('겹쳐 돌지 않고, 켜진 시간 밖(19:00)에도 일을 가져온다', async () => {
     vi.useFakeTimers()
     try {
       let release!: () => void
@@ -206,8 +206,8 @@ describe('startLoop', () => {
 
       const off = mkApi()
       const loop2 = startLoop(mkDeps(off, { now: () => at('19:00') }), 1000)
-      await vi.advanceTimersByTimeAsync(3000)
-      expect(off.claim).not.toHaveBeenCalled()
+      await vi.advanceTimersByTimeAsync(1500)
+      expect(off.claim).toHaveBeenCalled()
       await loop2.stop()
     } finally {
       vi.useRealTimers()
@@ -304,5 +304,16 @@ describe('createCaffeinate', () => {
     c.busy(false)
     expect(killed).toHaveLength(2)
     c.stop()
+  })
+
+  it('잠 막기 상시 하나는 05:00에 켜지고 07:00에 풀린다', () => {
+    const killed = vi.fn()
+    const spawn = vi.fn(() => ({ kill: killed }))
+    const c = createCaffeinate(spawn, 1)
+    c.sync(isOnHours(at('05:00'), cfg.onHours))
+    expect(spawn).toHaveBeenCalledTimes(1)
+    expect(killed).not.toHaveBeenCalled()
+    c.sync(isOnHours(at('07:00'), cfg.onHours))
+    expect(killed).toHaveBeenCalledTimes(1)
   })
 })
