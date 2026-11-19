@@ -1,6 +1,7 @@
 // claude -p 부르기. 실행 파일 전체 경로를 쓰고(launchd는 셸 별칭을 읽지 않는다), 셸 없이 인자 배열로 부른다.
 // 도구는 그 일의 작업 폴더 Read만 허락한다. 프롬프트는 stdin으로 넘겨 인자·프로세스 목록에 남지 않게 한다.
 import { execFile } from 'node:child_process'
+import { isAbsolute } from 'node:path'
 import type { WorkerConfig } from './config.ts'
 import { RateLimited } from './loop.ts'
 
@@ -46,6 +47,8 @@ function rateLimited(text: string, now: Date): RateLimited {
 export function createClaudeRun(cfg: WorkerConfig, exec: ExecLike = execFile as unknown as ExecLike, now: () => Date = () => new Date()): ClaudeRun {
   return (prompt, { jobDir }) =>
     new Promise<string>((resolve, reject) => {
+      // 빈 값이나 상대 경로면 Read 허락 규칙이 너른 범위로 읽힐 수 있다
+      if (!jobDir || !isAbsolute(jobDir)) return reject(new Error('작업 폴더가 올바르지 않아요'))
       const args = [
         '-p',
         '--output-format',

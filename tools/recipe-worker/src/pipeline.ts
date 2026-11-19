@@ -13,7 +13,7 @@ import { RateLimited } from './loop.ts'
 import { FAIL_VIDEO, STAGE_ORGANIZE, assertVideoId, organize } from './organize.ts'
 import type { DictEntry, RecipeV2 } from './types.ts'
 import { checkRecipe } from './verify/rules.ts'
-import { STAGE_SECOND, applyAmounts, diffReads, mergeChecks, resolveDiffs, secondRead } from './verify/second.ts'
+import { DEFAULT_CAP, STAGE_SECOND, applyAmounts, diffReads, mergeChecks, resolveDiffs, secondRead } from './verify/second.ts'
 
 export const STAGE_SAVE = '저장 중'
 const FAIL_FORMAT = '레시피 정리 결과가 형식에 맞지 않아요'
@@ -51,12 +51,14 @@ function conflictReviews(r: RecipeV2): ReviewItem[] {
     const target = `conflicts[${i}]`
     if (prior.some((x) => x.target === target && x.reason === CONFLICT_REASON)) return
     const at = c.video_start_seconds ?? null
+    // 설명란 쪽은 영상의 몇 초가 아니므로 시각을 비운다
+    const when = (o: string) => (o === 'description' ? null : at)
     out.push({
       target,
       reason: CONFLICT_REASON,
       candidates: [
-        { value: clip(c.chosen), origin: c.chosen_origin, at_seconds: at },
-        { value: clip(c.other), origin: c.other_origin, at_seconds: at },
+        { value: clip(c.chosen), origin: c.chosen_origin, at_seconds: when(c.chosen_origin) },
+        { value: clip(c.other), origin: c.other_origin, at_seconds: when(c.other_origin) },
       ],
     })
   })
@@ -98,10 +100,14 @@ export async function processJobDetailed(
     const second = await secondRead(e, run, jobDir)
     const diffs = diffReads(recipe.ingredients, second)
     if (diffs.length > 0) {
-      const v3 = await resolveDiffs(diffs, e, run, undefined, { jobDir, others: recipe.ingredients.map((g) => g.name) })
+      const v3 = await resolveDiffs(diffs, e, run, DEFAULT_CAP, { jobDir, others: recipe.ingredients.map((g) => g.name) })
       applyAmounts(recipe.ingredients, v3.applied)
       extraCorrections.push(...v3.corrections)
       extraReviews.push(...v3.reviews)
+      if (v3.conflicts.length > 0) {
+        recipe = structuredClone(recipe)
+        recipe.conflicts = [...(recipe.conflicts ?? []), ...v3.conflicts].slice(0, 20)
+      }
     }
   } catch (err) {
     if (err instanceof RateLimited) throw err

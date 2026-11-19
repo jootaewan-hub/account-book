@@ -13,7 +13,7 @@ const evidence = (desc: string, extra: Partial<Evidence> = {}): Evidence => ({
 
 const diff = (name: string, index = 0, over: Partial<Diff> = {}): Diff => ({
   index, name,
-  first: { amount: 1, unit: '큰술', origin: 'description', at_seconds: null },
+  first: { amount: 1, unit: '큰술', origin: 'caption_auto', at_seconds: null },
   second: { name, amount: 2, unit: '큰술', at_seconds: 11 },
   ...over,
 })
@@ -60,28 +60,29 @@ describe('secondRead', () => {
     expect(prompt).not.toContain('"title"')
   })
   it('틀린 결과는 빈 목록(이 검사를 건너뜀)', async () => {
-    expect(await secondRead(evidence(''), async () => '죄송합니다')).toEqual([])
-    expect(await secondRead(evidence(''), async () => '{"ingredients":[{"name":"x","amount":"둘","unit":null,"at_seconds":null}]}')).toEqual([])
+    expect(await secondRead(evidence(''), async () => '죄송합니다', '/x/job')).toEqual([])
+    expect(await secondRead(evidence(''), async () => '{"ingredients":[{"name":"x","amount":"둘","unit":null,"at_seconds":null}]}', '/x/job')).toEqual([])
   })
   it('속도 제한은 그대로 던진다', async () => {
     const run = async () => { throw new RateLimited(new Date()) }
-    await expect(secondRead(evidence(''), run)).rejects.toBeInstanceOf(RateLimited)
+    await expect(secondRead(evidence(''), run, '/x/job')).rejects.toBeInstanceOf(RateLimited)
   })
 })
 
 describe('resolveDiffs', () => {
+  const J = { jobDir: '/x/job' }
   const pick = (c: string) => vi.fn(async (_p: string, _o: { jobDir: string; images?: string[] }) => `{"choice":"${c}"}`)
 
   it('다른 곳이 없으면 아무것도 묻지 않는다', async () => {
     const run = pick('a')
-    expect(await resolveDiffs([], evidence(''), run)).toEqual({ corrections: [], reviews: [], applied: [] })
+    expect(await resolveDiffs([], evidence(''), run, 8, J)).toEqual({ corrections: [], reviews: [], applied: [], conflicts: [] })
     expect(run).not.toHaveBeenCalled()
   })
 
   it('고른 값이 근거에 글자로 있으면 고친다(compare), 구간만 준다', async () => {
     const run = pick('b')
     const e = evidence('시험감자 1큰술')
-    const r = await resolveDiffs([diff('시험감자')], e, run, 8, { jobDir: '/x/job' })
+    const r = await resolveDiffs([diff('시험감자')], e, run, 8, J)
     expect(run).toHaveBeenCalledTimes(1)
     expect(r.reviews).toEqual([])
     expect(r.applied).toEqual([{ index: 0, amount: 2, unit: '큰술', origin: 'screen', at_seconds: 11 }])
@@ -97,37 +98,73 @@ describe('resolveDiffs', () => {
 
   it('고른 값이 근거에 없으면 확인 필요로 남기고 값은 바꾸지 않는다', async () => {
     const e = evidence('시험감자 1큰술', { transcript: null, ocr: [] })
-    const r = await resolveDiffs([diff('시험감자')], e, pick('b'))
+    const r = await resolveDiffs([diff('시험감자')], e, pick('b'), 8, J)
     expect(r.applied).toEqual([])
     expect(r.corrections).toEqual([])
     expect(r.reviews).toHaveLength(1)
     expect(r.reviews[0]).toMatchObject({ target: 'ingredients[0].amount' })
     expect(r.reviews[0]!.candidates.map((c) => c.value)).toEqual(['1큰술', '2큰술'])
+    expect(r.reviews[0]!.candidates[1]).toMatchObject({ origin: 'editor', at_seconds: null })
+  })
+
+  it('시각과 출처는 모델이 아니라 맞은 줄의 것이다', async () => {
+    const e = evidence('', {
+      transcript: { kind: 'caption_auto', segments: [{ start: 3, text: '시험감자 1큰술 넣고' }, { start: 10.6, text: '아니 시험감자 2큰술' }] },
+      ocr: [],
+    })
+    const d = diff('시험감자', 0, { first: { amount: 1, unit: '큰술', origin: 'caption_auto', at_seconds: 3 }, second: { name: '시험감자', amount: 2, unit: '큰술', at_seconds: 9999 } })
+    const r = await resolveDiffs([d], e, pick('b'), 8, J)
+    expect(r.applied).toEqual([{ index: 0, amount: 2, unit: '큰술', origin: 'caption_auto', at_seconds: 10 }])
+    expect(r.corrections[0]).toMatchObject({ origin: 'caption_auto', at_seconds: 10 })
+  })
+
+  it('단위는 근거에 적힌 것이다(모델 단위가 비어도 큰술을 지우지 않고, 숫자만 있으면 모델 단위를 끼우지 않는다)', async () => {
+    const mk = (line: string, unit: string | null) => [
+      diff('시험감자', 0, { second: { name: '시험감자', amount: 2, unit, at_seconds: 11 } }),
+      evidence('', { transcript: null, ocr: [{ t: 11, text: line }] }),
+    ] as const
+    const [d1, e1] = mk('시험감자 2큰술', null)
+    expect((await resolveDiffs([d1], e1, pick('b'), 8, J)).applied[0]).toMatchObject({ unit: '큰술' })
+    const [d2, e2] = mk('시험감자 2', '큰술')
+    expect((await resolveDiffs([d2], e2, pick('b'), 8, J)).applied[0]).toMatchObject({ unit: null })
+  })
+
+  it('설명란 값은 영상 값으로 바꾸지 않고 다른 곳으로 남긴다', async () => {
+    const d = diff('시험감자', 0, { first: { amount: 1, unit: '큰술', origin: 'description', at_seconds: null } })
+    const r = await resolveDiffs([d], evidence('시험감자 1큰술'), pick('b'), 8, J)
+    expect(r.applied).toEqual([])
+    expect(r.corrections).toEqual([])
+    expect(r.conflicts).toEqual([{ about: '시험감자', chosen: '1큰술', chosen_origin: 'description', other: '2큰술', other_origin: 'screen', video_start_seconds: 11 }])
+  })
+
+  it('두 번째 읽기의 틀린 항목은 그 항목만 버린다', async () => {
+    const run = async () => '{"ingredients":[{"name":"가","amount":0,"unit":null,"at_seconds":null},{"name":"나","amount":1,"unit":"열세자를넘기는단위입니다요","at_seconds":null},{"name":"다","amount":1,"unit":"g","at_seconds":null}]}'
+    expect((await secondRead(evidence(''), run, '/x/job')).map((x) => x.name)).toEqual(['다'])
   })
 
   it('첫 값을 고르고 근거에 있으면 고칠 것도 확인할 것도 없다', async () => {
-    const r = await resolveDiffs([diff('시험감자')], evidence('시험감자 1큰술'), pick('a'))
-    expect(r).toEqual({ corrections: [], reviews: [], applied: [] })
+    const r = await resolveDiffs([diff('시험감자')], evidence('시험감자 1큰술'), pick('a'), 8, J)
+    expect(r).toEqual({ corrections: [], reviews: [], applied: [], conflicts: [] })
   })
 
   it('"모름"이나 엉뚱한 답이나 실행 실패는 확인 필요', async () => {
     const e = evidence('시험감자 2큰술')
     for (const run of [pick('unknown'), vi.fn(async () => '답 없음'), vi.fn(async () => { throw new Error('x') })]) {
-      const r = await resolveDiffs([diff('시험감자')], e, run)
+      const r = await resolveDiffs([diff('시험감자')], e, run, 8, J)
       expect(r.reviews).toHaveLength(1)
       expect(r.applied).toEqual([])
     }
   })
 
   it('속도 제한은 던진다', async () => {
-    await expect(resolveDiffs([diff('시험감자')], evidence(''), async () => { throw new RateLimited(new Date()) })).rejects.toBeInstanceOf(RateLimited)
+    await expect(resolveDiffs([diff('시험감자')], evidence(''), async () => { throw new RateLimited(new Date()) }, 8, J)).rejects.toBeInstanceOf(RateLimited)
   })
 
   it('다른 곳이 10개여도 8번만 묻고 나머지 2개는 확인 필요', async () => {
     const names = ['감자', '양파', '대파', '당근', '마늘', '고추', '간장', '설탕', '소금', '식초']
     const e = evidence(names.map((n) => `${n} 2큰술`).join('\n'))
     const run = pick('b')
-    const r = await resolveDiffs(names.map((n, i) => diff(n, i, { second: { name: n, amount: 2, unit: '큰술', at_seconds: null } })), e, run, 8, { others: names })
+    const r = await resolveDiffs(names.map((n, i) => diff(n, i, { second: { name: n, amount: 2, unit: '큰술', at_seconds: null } })), e, run, 8, { jobDir: '/x/job', others: names })
     expect(run).toHaveBeenCalledTimes(8)
     expect(r.applied).toHaveLength(8)
     expect(r.reviews.map((x) => x.target)).toEqual(['ingredients[8].amount', 'ingredients[9].amount'])

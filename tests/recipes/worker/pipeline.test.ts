@@ -58,19 +58,33 @@ const deps = (run: ReturnType<typeof fakeRun>, onStage = vi.fn(async (_s: string
 })
 
 describe('processJob', () => {
-  it('단계 글을 차례로 알리고, 두 읽기가 다른 곳을 근거로 고치고, 폴더를 지운다', async () => {
+  it('단계 글을 차례로 알리고, 두 읽기가 다른 곳을 근거로 고치고(시각은 맞은 줄의 것), 폴더를 지운다', async () => {
     const stages: string[] = []
-    const run = fakeRun()
-    const d = deps(run, vi.fn(async (s: string) => { stages.push(s) }))
+    const e = evidence()
+    e.meta.description = '재료\n시험소금 1작은술'
+    e.transcript = { kind: 'caption_auto', segments: [{ start: 3, text: '시험감자 1큰술 넣고' }, { start: 10, text: '아니 시험감자 2큰술' }] }
+    const org = recipe({ ingredients: [{ name: '시험감자', amount: 1, unit: '큰술', origin: 'caption_auto', at_seconds: 3 }, { name: '시험소금', amount: 1, unit: '작은술', origin: 'description' }] })
+    const run = fakeRun({ organize: org, second: JSON.stringify({ ingredients: [{ name: '시험감자', amount: 2, unit: '큰술', at_seconds: 9999 }, { name: '시험소금', amount: 1, unit: '작은술', at_seconds: null }] }) })
+    const d = { ...deps(run, vi.fn(async (s: string) => { stages.push(s) })), collect: vi.fn(async () => e) }
     const out = await processJob(job, d)
     expect(stages).toEqual(['레시피 정리 중', '다시 읽어 맞춰 보는 중', '저장 중'])
     expect(run).toHaveBeenCalledTimes(3) // 정리, 두 번째 읽기, 고르기 하나
-    expect(out.recipe.ingredients[0]).toMatchObject({ name: '시험감자', amount: 2, unit: '큰술', origin: 'caption_auto', at_seconds: 3 })
+    expect(out.recipe.ingredients[0]).toMatchObject({ name: '시험감자', amount: 2, unit: '큰술', origin: 'caption_auto', at_seconds: 10 })
     expect(out.recipe.ingredients[1]).toMatchObject({ amount: 1, unit: '작은술' })
-    expect(out.recipe.corrections).toEqual([expect.objectContaining({ target: 'ingredients[0].amount', before: '1큰술', after: '2큰술', method: 'compare' })])
+    expect(out.recipe.corrections).toEqual([expect.objectContaining({ target: 'ingredients[0].amount', before: '1큰술', after: '2큰술', at_seconds: 10, method: 'compare' })])
     expect(out.recipe.review_items ?? []).toEqual([])
     expect(existsSync(join(cacheDir, 'job-job1'))).toBe(false)
     expect(d.collect).toHaveBeenCalledWith({ source_key: 'youtube:AAAAAAAAAAA' }, join(cacheDir, 'job-job1'), expect.anything(), expect.any(Function))
+  })
+
+  it('설명란 값이 영상 값과 다르면 설명란 값을 두고 다른 곳과 확인 필요를 남긴다', async () => {
+    const out = await processJob(job, deps(fakeRun()))
+    expect(out.recipe.ingredients[0]).toMatchObject({ amount: 1, unit: '큰술', origin: 'description' })
+    expect(out.recipe.corrections ?? []).toEqual([])
+    expect(out.recipe.conflicts).toEqual([{ about: '시험감자', chosen: '1큰술', chosen_origin: 'description', other: '2큰술', other_origin: 'caption_auto', video_start_seconds: 3 }])
+    expect(out.recipe.review_items).toEqual([
+      { target: 'conflicts[0]', reason: expect.any(String), candidates: [{ value: '1큰술', origin: 'description', at_seconds: null }, { value: '2큰술', origin: 'caption_auto', at_seconds: 3 }] },
+    ])
   })
 
   it('고른 값이 근거에 없으면 값을 두고 확인 필요, 모름도 같다', async () => {
@@ -98,7 +112,7 @@ describe('processJob', () => {
     expect(out.recipe.ingredients[1]).toMatchObject({ amount: 1, unit: '작은술' })
     expect(out.recipe.conflicts).toHaveLength(1)
     expect(out.recipe.review_items).toEqual([
-      { target: 'conflicts[0]', reason: expect.any(String), candidates: [{ value: '1작은술', origin: 'description', at_seconds: 65 }, { value: '2작은술', origin: 'caption_auto', at_seconds: 65 }] },
+      { target: 'conflicts[0]', reason: expect.any(String), candidates: [{ value: '1작은술', origin: 'description', at_seconds: null }, { value: '2작은술', origin: 'caption_auto', at_seconds: 65 }] },
     ])
   })
 
@@ -162,7 +176,7 @@ describe('dry-run', () => {
     const j = JSON.parse(readFileSync(out, 'utf8'))
     expect(j.recipe.title).toBe('시험 볶음')
     expect(j.dict).toEqual([])
-    expect(j.summary).toMatchObject({ numbers: { total: 2, grounded: 2, nulled: 0 }, reviews: 0, corrections: 1 })
+    expect(j.summary).toMatchObject({ numbers: { total: 2, grounded: 2, nulled: 0 }, reviews: 1, corrections: 0 })
     expect(typeof j.summary.seconds).toBe('number')
   })
 

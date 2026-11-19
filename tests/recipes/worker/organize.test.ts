@@ -196,6 +196,13 @@ describe('createClaudeRun', () => {
     expect(args[args.indexOf('--allowedTools') + 1]).toBe('Read(//Users/x/Library/Caches/recipe-worker/j1/**)')
   })
 
+  it('작업 폴더가 비었거나 절대 경로가 아니면 실행하지 않는다', async () => {
+    const f = fakeExec(JSON.stringify({ is_error: false, result: 'x' }))
+    const run = createClaudeRun(cfg, f.exec)
+    for (const jobDir of ['', 'rel/dir', '.']) await expect(run('p', { jobDir })).rejects.toThrow('작업 폴더')
+    expect(f.raw).not.toHaveBeenCalled()
+  })
+
   it('stdin 오류(EPIPE)는 삼킨다', async () => {
     const f = fakeExec(JSON.stringify({ is_error: false, result: 'x' }))
     await createClaudeRun(cfg, f.exec)('p', { jobDir: '/x/job' })
