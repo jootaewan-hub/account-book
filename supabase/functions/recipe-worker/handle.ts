@@ -158,7 +158,7 @@ export async function handle(req: Request, deps: WorkerDeps): Promise<Response> 
       }
       case 'exports': {
         const skip = body.skip ?? []
-        if (!Array.isArray(skip) || skip.length > 100 || !skip.every(isUuid)) return bad('skip이 올바르지 않아요.')
+        if (!Array.isArray(skip) || skip.length > 1000 || !skip.every(isUuid)) return bad('skip이 올바르지 않아요.')
         const need = body.need ?? []
         if (!Array.isArray(need) || need.length > 2 || !need.every((n) => n === 'drive' || n === 'obsidian')) return bad('need가 올바르지 않아요.')
         return json({ items: await deps.listExports({ skip: skip as string[], need: [...new Set(need as ('drive' | 'obsidian')[])] }) })

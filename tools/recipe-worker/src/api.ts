@@ -100,7 +100,7 @@ export function createApi(endpoint: string, secret: string, fetchImpl: typeof fe
     },
     async exports(opts = {}) {
       const extra: Record<string, unknown> = {}
-      if (opts.skip && opts.skip.length > 0) extra.skip = opts.skip.slice(0, 100)
+      if (opts.skip && opts.skip.length > 0) extra.skip = opts.skip.slice(-1000)
       if (opts.need && opts.need.length > 0) extra.need = opts.need
       return (await call<{ items: ExportItem[] }>({ action: 'exports', ...extra })).items
     },

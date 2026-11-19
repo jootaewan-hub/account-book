@@ -187,7 +187,7 @@ describe('recipe-worker 일', () => {
     expect((await call(d, { action: 'fail', job, reason: 'a'.repeat(200) })).status).toBe(200)
   })
 
-  it('exports: skip(최대 100개 uuid)·need를 검사해 넘긴다', async () => {
+  it('exports: skip(최대 1000개 uuid)·need를 검사해 넘긴다', async () => {
     const d = deps()
     const u = '00000000-0000-4000-8000-0000000000dd'
     expect((await call(d, { action: 'exports', skip: [u], need: ['drive', 'obsidian'] })).status).toBe(200)
@@ -196,8 +196,8 @@ describe('recipe-worker 일', () => {
     expect(d.listExports).toHaveBeenLastCalledWith({ skip: [], need: [] })
     await call(d, { action: 'exports', need: ['drive', 'drive'] })
     expect(d.listExports).toHaveBeenLastCalledWith({ skip: [], need: ['drive'] })
-    expect((await call(d, { action: 'exports', skip: Array(100).fill(u) })).status).toBe(200)
-    for (const body of [{ skip: Array(101).fill(u) }, { skip: ['x'] }, { skip: 'a' }, { need: ['sheet'] }, { need: 'drive' }, { need: ['drive', 'obsidian', 'drive'] }]) {
+    expect((await call(d, { action: 'exports', skip: Array(1000).fill(u) })).status).toBe(200)
+    for (const body of [{ skip: Array(1001).fill(u) }, { skip: ['x'] }, { skip: 'a' }, { need: ['sheet'] }, { need: 'drive' }, { need: ['drive', 'obsidian', 'drive'] }]) {
       expect((await call(d, { action: 'exports', ...body })).status).toBe(400)
     }
   })

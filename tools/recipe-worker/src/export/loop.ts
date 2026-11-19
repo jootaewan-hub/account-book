@@ -7,6 +7,8 @@ const FIRST_MS = 5 * 60_000
 const MAX_MS = 6 * 60 * 60_000
 
 const BLOCK_MS = 30 * 60_000
+/** 서버가 받는 skip 한도와 같다 */
+const SKIP_MAX = 1000
 
 /**
  * 건별 실패 뒤 물러서기: 5분, 두 배씩, 최대 6시간. 성공하면 지운다. 메모리에만 둔다.
@@ -15,18 +17,21 @@ const BLOCK_MS = 30 * 60_000
 export function createBackoff(now: () => number = Date.now) {
   const m = new Map<string, { fails: number; until: number }>()
   const blocked = new Map<string, number>()
+  const seq = new Map<string, number>() // 가장 최근에 걸린 순서(넘치면 오래된 것부터 버린다)
+  let n = 0
   return {
-    block(id: string) { blocked.set(id, now() + BLOCK_MS) },
+    block(id: string) { blocked.set(id, now() + BLOCK_MS); seq.set(id, ++n) },
     fail(id: string) {
       const fails = (m.get(id)?.fails ?? 0) + 1
       m.set(id, { fails, until: now() + Math.min(FIRST_MS * 2 ** (fails - 1), MAX_MS) })
+      seq.set(id, ++n)
     },
-    ok(id: string) { m.delete(id); blocked.delete(id) },
+    ok(id: string) { m.delete(id); blocked.delete(id); seq.delete(id) },
     skipped(): string[] {
       const t = now()
       const ids = new Set([...m].filter(([, v]) => v.until > t).map(([id]) => id))
       for (const [id, until] of blocked) if (until > t) ids.add(id)
-      return [...ids].slice(0, 100)
+      return [...ids].sort((a, b) => (seq.get(a) ?? 0) - (seq.get(b) ?? 0)).slice(-SKIP_MAX)
     },
   }
 }

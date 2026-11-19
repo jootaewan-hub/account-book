@@ -198,6 +198,38 @@ describe('exportOnce 보완', () => {
     expect(done.size).toBe(15)
   })
 
+  it('대기 150건·드라이브 끊김: 30분 안에 여러 번 돌면 150건 모두 옵시디언에 써지고 보고는 없다, skip은 1000을 넘지 않는다', async () => {
+    const vault = mkdtempSync(join(tmpdir(), 'vault-'))
+    const all = Array.from({ length: 150 }, (_, i) => item(`r${String(i).padStart(3, '0')}`))
+    const api = {
+      exports: vi.fn<WorkerApi['exports']>(async (o) => all.filter((x) => !o?.skip?.includes(x.recipe_id)).slice(0, 10)),
+      exported: vi.fn<WorkerApi['exported']>(async () => true),
+    }
+    let t = 0
+    const b = createBackoff(() => t)
+    for (let i = 0; i < 16; i++) { // 15번이면 150건, 하나 더는 빈 응답
+      await exportOnce(api, null, vault, quiet, { driveConfigured: true, backoff: b })
+      t += 60_000 // 총 16분 < 30분
+    }
+    expect(api.exported).not.toHaveBeenCalled()
+    const { readdirSync } = await import('node:fs')
+    const files = (d: string): string[] => readdirSync(d, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? files(join(d, e.name)) : [e.name]))
+    expect(files(vault).length).toBe(150)
+    for (const c of api.exports.mock.calls) expect(c[0]?.skip?.length ?? 0).toBeLessThanOrEqual(1000)
+    expect(api.exports.mock.calls.at(-1)?.[0]?.skip).toHaveLength(150)
+  })
+
+  it('skip이 넘치면 가장 최근에 걸린 것을 남긴다', () => {
+    const b = createBackoff(() => 0)
+    for (let i = 0; i < 1100; i++) b.block(`id${i}`)
+    b.block('id0') // 다시 걸면 맨 뒤로
+    const s = b.skipped()
+    expect(s).toHaveLength(1000)
+    expect(s.at(-1)).toBe('id0')
+    expect(s).not.toContain('id1')
+    expect(s).toContain('id1099')
+  })
+
   it('지움: 쓸 수 없는 자리에 이전 값이 있으면 알리지 않는다', async () => {
     const vault = mkdtempSync(join(tmpdir(), 'vault-'))
     const t = (prev: ExportItem['prev']) => item('a', { recipe: null, trash: true, prev })
