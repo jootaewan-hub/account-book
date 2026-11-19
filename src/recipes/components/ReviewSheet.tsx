@@ -4,6 +4,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { MEASURING_TOOLS, type Origin, type ReviewItem } from '../../../supabase/functions/_shared/recipeContract'
 import type { StoredRecipe } from '../../../supabase/functions/_shared/recipeStored'
+import { formatAmountValue, parseAmountValue, parseSecondsValue, parseServingsValue } from '../../../supabase/functions/_shared/recipeValue'
 import { clock, originLabel, videoAt } from '../lib/display'
 import { parseTarget, type RecipeStore } from '../lib/store'
 
@@ -53,12 +54,18 @@ function currentOf(t: Parsed, r: StoredRecipe): string | null {
   return t.field === 'timer_seconds' || t.field === 'video_start_seconds' ? clock(Number(v)) : String(v)
 }
 
-/** 후보 값을 적힌 그대로(분량은 그 재료의 단위를 붙이고, 시간은 분:초로). 단위를 바꾸지 않는다 */
+/**
+ * 후보 값을 적힌 그대로 보인다. 값 글의 꼴은 _shared/recipeValue.ts: 분량은 단위가 붙어 오고("2큰술"), 단위 없는 수("2")에만
+ * 그 재료의 단위를 붙인다(단위를 두 번 쓰지 않는다). 인분은 "2인분", 시간은 분:초로. 단위를 바꾸지 않는다.
+ */
 function candidateText(t: ReturnType<typeof parseTarget>, value: string, r: StoredRecipe): string {
   if (!t || t.kind === 'conflicts') return value
-  if (t.kind === 'servings' && t.field === 'value') return `${value}인분`
-  if (t.kind === 'ingredients' && t.field === 'amount') return `${value}${r.ingredients[t.index]?.unit ?? ''}`
-  if (t.field === 'timer_seconds' && Number.isFinite(Number(value))) return clock(Number(value))
+  if (t.kind === 'servings' && t.field === 'value') { const n = parseServingsValue(value); return n === null ? value : `${n}인분` }
+  if (t.kind === 'ingredients' && t.field === 'amount') {
+    const p = parseAmountValue(value)
+    return p && p.unit === null ? `${value}${r.ingredients[t.index]?.unit ?? ''}` : value
+  }
+  if (t.field === 'timer_seconds') { const n = parseSecondsValue(value); return n === null ? value : clock(n) }
   return value
 }
 
@@ -67,9 +74,14 @@ type Check = { ok: true; value: string } | { ok: false; error: string }
 function check(t: Parsed, raw: string): Check {
   const text = raw.trim()
   const f = t.field
-  if (f === 'amount' || f === 'value' || f === 'suggested_amount') {
-    const n = Number(text)
-    return text !== '' && Number.isFinite(n) && n > 0 ? { ok: true, value: String(n) } : { ok: false, error: '0보다 큰 숫자로 적어 주세요' }
+  if (f === 'amount' || f === 'suggested_amount') {
+    // "2", "1/2", "2큰술"처럼 단위를 붙여 적어도 된다(단위를 적으면 그 단위로 바꾼다)
+    const p = parseAmountValue(text.replace(',', '.'))
+    return p ? { ok: true, value: formatAmountValue(p.amount, p.unit) } : { ok: false, error: '0보다 큰 숫자로 적어 주세요(단위를 붙여도 돼요)' }
+  }
+  if (f === 'value') {
+    const n = parseServingsValue(text.replace(',', '.'))
+    return n !== null ? { ok: true, value: String(n) } : { ok: false, error: '0보다 큰 숫자로 적어 주세요' }
   }
   if (f === 'timer_seconds') {
     const m = /^(\d+):([0-5]?\d)$/.exec(text)

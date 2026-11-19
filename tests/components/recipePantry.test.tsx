@@ -143,6 +143,8 @@ describe('가진 재료 화면', () => {
     await showPantry(f)
     expect(screen.getByText('소금')).toBeTruthy()
     expect(screen.queryByRole('region', { name: '장보기에서 산 것' })).toBeNull()
+    // 조용히 넘기지 않고 한 줄로 알린다(T21)
+    expect(screen.getByText('장보기 기록을 읽지 못했어요')).toBeTruthy()
   })
 
   it('불러오기에 실패하면 안내와 다시 불러오기를 보인다', async () => {

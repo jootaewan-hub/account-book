@@ -63,6 +63,33 @@ describe('확인 화면', () => {
     const link = within(cands[1]).getByRole('link', { name: /자동 자막 0:20/ })
     expect(link.getAttribute('href')).toContain('t=20s')
   })
+  // 검토 탐침(C1): 처리기는 후보를 "2큰술"·"2인분"처럼 단위를 붙여 쓴다. 전에는 "2큰술큰술"·"2인분인분"으로 보였다
+  it('단위가 붙은 후보는 단위를 두 번 붙이지 않고, 단위 없는 후보에만 그 재료의 단위를 붙인다', () => {
+    const r = stored()
+    const sugar = r.ingredients.findIndex((g) => g.name === '설탕')
+    r.review_items = [
+      { target: `ingredients[${sugar}].amount`, reason: 'x', candidates: [{ value: '2큰술', origin: 'description', at_seconds: null }, { value: '1컵', origin: 'description', at_seconds: null }, { value: '3', origin: 'description', at_seconds: null }] },
+      { target: 'servings.value', reason: 'y', candidates: [{ value: '2인분', origin: 'description', at_seconds: null }] },
+    ]
+    showReview(reviewStore(), vi.fn(), r)
+    const cands = screen.getAllByRole('listitem').map((li) => li.querySelector('b')?.textContent)
+    expect(cands).toEqual(['2큰술', '1컵', '3큰술'])
+    expect(document.body.textContent).not.toContain('큰술큰술')
+  })
+  it('인분 후보 "2인분"은 "2인분"으로 보인다', async () => {
+    const r = stored()
+    r.review_items = [{ target: 'servings.value', reason: 'y', candidates: [{ value: '2인분', origin: 'description', at_seconds: null }] }]
+    showReview(reviewStore(), vi.fn(), r)
+    expect(screen.getAllByRole('listitem').map((li) => li.querySelector('b')?.textContent)).toEqual(['2인분'])
+  })
+  it('직접 고치기에 단위를 붙여 적으면("1/2컵") 같은 꼴로 보낸다', async () => {
+    const { store } = showReview()
+    fireEvent.click(screen.getByRole('button', { name: '직접 고치기' }))
+    fireEvent.change(screen.getByLabelText('직접 입력'), { target: { value: '1/2컵' } })
+    fireEvent.click(screen.getByRole('button', { name: '이 값으로 저장' }))
+    await screen.findByText('2 / 3')
+    expect(store.resolveReview).toHaveBeenCalledWith('r1', 0, { value: '0.5컵', origin: 'user', at_seconds: null })
+  })
   it('"이 값"은 그 후보로 resolveReview를 부르고 다음 항목으로 넘어간다', async () => {
     const { store } = showReview()
     fireEvent.click(screen.getAllByRole('button', { name: /^이 값/ })[1])

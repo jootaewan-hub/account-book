@@ -6,7 +6,7 @@ import { act, cleanup, fireEvent, render, screen, within } from '@testing-librar
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { RecipesTab } from '../../src/recipes/RecipesTab'
 import { originLabel, videoAt } from '../../src/recipes/lib/display'
-import type { InboxJob, RecipeStore, RecipeSummary } from '../../src/recipes/lib/store'
+import type { InboxJob, RecipeStore, RecipeSummary, WorkerStatus } from '../../src/recipes/lib/store'
 
 afterEach(() => { cleanup(); window.history.replaceState(null, '', '/') })
 
@@ -21,7 +21,7 @@ function recipe(over: Partial<RecipeSummary>): RecipeSummary {
 const job = (over: Partial<InboxJob>): InboxJob => ({ id: 'j1', url: 'https://www.youtube.com/watch?v=BBBBBBBBBBB', source_key: 'youtube:BBBBBBBBBBB', state: 'waiting',
   stage: null, fail_reason: null, recipe_id: null, attempts: 0, added_at: ago(0), ...over })
 
-function fake(over: { recipes?: RecipeSummary[]; jobs?: InboxJob[]; worker?: { last_seen_at: string | null; version: string | null } | null; cookable?: { recipe_id: string; have: number; need: number; missing: string[] }[] } = {}) {
+function fake(over: { recipes?: RecipeSummary[]; jobs?: InboxJob[]; worker?: WorkerStatus | null; cookable?: { recipe_id: string; have: number; need: number; missing: string[] }[] } = {}) {
   const store = {
     listRecipes: vi.fn(async () => over.recipes ?? []),
     listInbox: vi.fn(async () => over.jobs ?? []),
@@ -29,6 +29,7 @@ function fake(over: { recipes?: RecipeSummary[]; jobs?: InboxJob[]; worker?: { l
     cookable: vi.fn(async () => over.cookable ?? []),
     addUrl: vi.fn(async (_: string) => ({ kind: 'added' as const })),
     retry: vi.fn(async (_: string) => 'retried' as const),
+    dismiss: vi.fn(async (_: string) => {}),
     subscribe: vi.fn(() => () => {}),
   }
   return store
@@ -112,10 +113,31 @@ describe('처리 줄', () => {
     await open(fake({ jobs: [job({ state: 'processing', stage: '화면 글자 읽는 중' })] }))
     expect(screen.getByText('화면 글자 읽는 중')).toBeTruthy()
   })
-  it('대기 2분 넘고 처리기 확인이 5분 넘으면 맥이 켜지면 처리돼요와 마지막 확인', async () => {
-    await open(fake({ jobs: [job({ added_at: ago(3) })], worker: { last_seen_at: ago(12), version: '1' } }))
+  it('대기 2분 넘고 처리기 확인이 12분 넘으면 맥이 켜지면 처리돼요와 마지막 확인', async () => {
+    await open(fake({ jobs: [job({ added_at: ago(3) })], worker: { last_seen_at: ago(13), version: '1' } }))
     expect(screen.getByText('맥이 켜지면 처리돼요')).toBeTruthy()
-    expect(screen.getByText('맥 처리기 마지막 확인: 12분 전')).toBeTruthy()
+    expect(screen.getByText('맥 처리기 마지막 확인: 13분 전')).toBeTruthy()
+  })
+  it('대기 중인 일 옆에는 마지막 확인을 늘 보이고, 알림 간격(5분)의 두 배 안이면 꺼졌다고 하지 않는다(M7)', async () => {
+    await open(fake({ jobs: [job({ added_at: ago(30) })], worker: { last_seen_at: ago(6), version: '1' } }))
+    expect(screen.getByText('맥 처리기 마지막 확인: 6분 전')).toBeTruthy()
+    expect(screen.queryByText('맥이 켜지면 처리돼요')).toBeNull()
+  })
+  it('실패 줄은 치울 수 있다(지우지 않고 목록에서 뺀다)', async () => {
+    const store = fake({ jobs: [job({ id: 'jf', state: 'failed', fail_reason: '비공개 영상이에요' })] })
+    await open(store)
+    store.listInbox.mockResolvedValue([])
+    fireEvent.click(screen.getByRole('button', { name: 'youtu.be/BBBBBBBBBBB 목록에서 치우기' }))
+    await act(async () => {})
+    expect(store.dismiss).toHaveBeenCalledWith('jf')
+    expect(screen.queryByText('비공개 영상이에요')).toBeNull()
+  })
+  it('사본을 쓰지 못하고 있으면 처리 줄이 없어도 한 줄로 알린다(I7)', async () => {
+    await open(fake({ worker: { last_seen_at: ago(1), version: '1', export_issue: '옵시디언 폴더에 쓰지 못했어요', export_checked_at: ago(3) } }))
+    expect(screen.getByText('사본: 옵시디언 폴더에 쓰지 못했어요 (3분 전 확인)')).toBeTruthy()
+    cleanup()
+    await open(fake({ worker: { last_seen_at: ago(1), version: '1', export_issue: null, export_checked_at: ago(3) } }))
+    expect(screen.queryByText(/^사본:/)).toBeNull()
   })
   it('처리기를 본 적 없으면 확인 기록 없음', async () => {
     await open(fake({ jobs: [job({ added_at: ago(3) })], worker: null }))
@@ -179,6 +201,11 @@ describe('거르기와 찾기', () => {
     expect(titles()).toEqual(['두부조림'])
     expect(screen.getByRole('button', { name: /두부조림/ }).textContent).toContain('가진 재료 3/4')
     expect(store.cookable).toHaveBeenCalledWith(2)
+  })
+  it('재료 목록의 이름으로도 찾는다(M8)', async () => {
+    await open(fake({ recipes: [recipe({ id: 'a', title: '기사식당 제육볶음', ingredient_names: ['돼지 앞다리살', '깻잎'] }), recipe({ id: 'b', title: '두부조림', ingredient_names: ['두부'] })] }))
+    fireEvent.change(screen.getByRole('searchbox', { name: '레시피 찾기' }), { target: { value: '깻잎' } })
+    expect(titles()).toEqual(['기사식당 제육볶음'])
   })
   it('이름·재료로 찾는다', async () => {
     await open(fake({ recipes }))

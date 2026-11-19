@@ -3,7 +3,7 @@ import type { Correction, Origin, MeasuringTool } from '../../../supabase/functi
 import { UNIT_ML, scaleAmount, unitMl } from '../../../supabase/functions/_shared/recipeUnits'
 import { clock, originLabel } from './display'
 import { missingIngredients, type PantryEntry } from './groceryLink'
-import { parseTarget } from './store'
+import { NOT_REVERTABLE, parseTarget } from './store'
 
 type Amounts = { amount?: number | null; unit?: string | null; amount_text?: string | null; suggested_amount?: number | null; suggested_unit?: string | null }
 
@@ -90,7 +90,7 @@ export function correctionRows(
   return order.map((o): CorrectionRow => {
     if (typeof o === 'number') {
       const c = list[o]
-      return { index: o, label: c.target, text: `${c.before ?? '없음'} → ${c.after ?? '없음'}`, canRevert: false }
+      return { index: o, label: c.target === 'measuring_tool' ? '계량 도구' : c.target, text: `${c.before ?? '없음'} → ${c.after ?? '없음'}`, canRevert: false }
     }
     const idx = groups.get(o) as number[]
     // 값이 바뀐 고침이 있으면 그것을 보이고, 출처·시각만 바뀐 묶음은 첫 줄 하나만 보인다
@@ -102,6 +102,7 @@ export function correctionRows(
       : t.kind === 'steps' ? (recipe.steps[t.index]?.title ?? `단계 ${t.index + 1}`)
       : (recipe.glossary?.[t.index]?.term ?? `용어 ${t.index + 1}`)
     const field = FIELD[t.field] ?? t.field
-    return { index: pick, label: t.kind === 'servings' ? '인분' : `${who} ${field}`, text: `${shown(t.field, c.before)} → ${shown(t.field, c.after)}`, canRevert: true }
+    // 숫자 분량 옆의 덧붙임·영상 밖 시각은 되돌리면 맞지 않는 값이라 되돌리기를 두지 않는다
+    return { index: pick, label: t.kind === 'servings' ? '인분' : `${who} ${field}`, text: `${shown(t.field, c.before)} → ${shown(t.field, c.after)}`, canRevert: !NOT_REVERTABLE.has(t.field) }
   })
 }

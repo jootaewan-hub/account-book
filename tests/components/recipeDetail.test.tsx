@@ -125,6 +125,11 @@ describe('계량 도구와 난이도', () => {
     await show(fake(stored({ difficulty_basis: { required: 14, steps: 12, heavy: true } })))
     expect(screen.getByText('재료 14 · 단계 12 → 보통 · 손 많이 감')).toBeTruthy()
   })
+  it('사람이 고른 난이도(셈한 근거 없음)는 셈한 것처럼 보이지 않고 직접 고침으로(M6)', async () => {
+    await show(fake(stored({ difficulty: '쉬움', difficulty_basis: null })))
+    expect(screen.getByText('난이도 쉬움 · 직접 고침')).toBeTruthy()
+    expect(screen.queryByText(/→ 쉬움/)).toBeNull()
+  })
 })
 
 describe('출처 표시', () => {

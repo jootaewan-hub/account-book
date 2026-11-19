@@ -96,19 +96,19 @@ const recipeWithCorrections = () => mk({
   'recipe.steps': [{ id: 's0', household_id: H, recipe_id: 'r1', position: 1, timer_seconds: 600, origin: 'asr' }],
 })
 
-describe('고친 곳 되돌리기', () => {
-  it('값 고침을 되돌리면 before와 그 칸의 이전 출처·시각을 되살리고 짝 고침도 지운다', async () => {
+describe('고친 곳 되돌리기(사람의 고름: 출처 user, 영상 시각 없음)', () => {
+  it('값 고침을 되돌리면 before 값을 쓰고, 출처는 user·시각은 비우며 짝 고침도 지운다', async () => {
     const { f, store } = recipeWithCorrections()
     await store.revertCorrection('r1', 0)
-    expect(f.tables['recipe.ingredients'][1]).toMatchObject({ amount: 2, origin: 'caption_auto', at_seconds: 55 })
+    expect(f.tables['recipe.ingredients'][1]).toMatchObject({ amount: 2, origin: 'user', at_seconds: null })
     expect(f.tables['recipe.ingredients'][0]).toMatchObject({ amount: 1, origin: 'description' })
     expect((f.tables['recipe.recipes'][0].corrections as { target: string }[]).map((c) => c.target))
       .toEqual(['steps[0].timer_seconds', 'servings.value', 'glossary[1].origin'])
   })
-  it('origin 고침을 되돌리면 at_seconds 고침도 함께, 값은 그대로 둔다', async () => {
+  it('출처 고침만 되돌려도 모델이 단 출처·시각으로 돌아가지 않는다(user, 시각 없음), 값은 그대로', async () => {
     const { f, store } = recipeWithCorrections()
     await store.revertCorrection('r1', 1)
-    expect(f.tables['recipe.ingredients'][1]).toMatchObject({ amount: 3, origin: 'caption_auto', at_seconds: 55 })
+    expect(f.tables['recipe.ingredients'][1]).toMatchObject({ amount: 3, origin: 'user', at_seconds: null })
     expect((f.tables['recipe.recipes'][0].corrections as { target: string }[]).map((c) => c.target))
       .toEqual(['ingredients[1].amount', 'steps[0].timer_seconds', 'servings.value', 'glossary[1].origin'])
   })
@@ -116,22 +116,61 @@ describe('고친 곳 되돌리기', () => {
     const { f, store } = recipeWithCorrections()
     await store.revertCorrection('r1', 2)
     expect((f.tables['recipe.recipes'][0].corrections as unknown[]).length).toBe(4)
-    expect(f.tables['recipe.ingredients'][1]).toMatchObject({ origin: 'caption_auto', at_seconds: 55 })
+    expect(f.tables['recipe.ingredients'][1]).toMatchObject({ origin: 'user', at_seconds: null })
   })
-  it("'null' before는 null로, 단계·인분·용어 풀이도 되돌린다", async () => {
+  it("'null' before는 null로. 단계 타이머·인분·용어 풀이도 되돌리면 출처는 user", async () => {
     const { f, store } = recipeWithCorrections()
     await store.revertCorrection('r1', 3)
-    expect(f.tables['recipe.steps'][0].timer_seconds).toBeNull()
+    expect(f.tables['recipe.steps'][0]).toMatchObject({ timer_seconds: null, origin: 'user' })
     await store.revertCorrection('r1', 3) // 지운 줄 다음 순번이 당겨져 인분 고침이 된다
-    expect(f.tables['recipe.recipes'][0]).toMatchObject({ servings: 4 })
+    expect(f.tables['recipe.recipes'][0]).toMatchObject({ servings: 4, servings_origin: 'user' })
     await store.revertCorrection('r1', 3) // 용어 풀이 출처 고침
-    expect((f.tables['recipe.recipes'][0].glossary as { origin: string }[])[1].origin).toBe('caption_auto')
+    expect((f.tables['recipe.recipes'][0].glossary as { origin: string; at_seconds: number | null }[])[1]).toMatchObject({ origin: 'user', at_seconds: null })
     expect((f.tables['recipe.recipes'][0].corrections as { target: string }[]).map((c) => c.target))
       .toEqual(['ingredients[1].amount', 'ingredients[1].origin', 'ingredients[1].at_seconds'])
   })
   it('없는 순번이나 알 수 없는 대상은 던진다', async () => {
     const { store } = recipeWithCorrections()
     await expect(store.revertCorrection('r1', 99)).rejects.toThrow()
+  })
+
+  // 검토 탐침(V1이 지운 숫자 되돌리기): 전에는 amount 3에 출처 asr·시각 95가 그대로 남아 "3큰술 · 말 1:35"로 보였다
+  it('V1이 지운 숫자를 되돌리면 숫자는 사람이 고른 값(user)이고 시각은 없다. 그 칸의 확인 항목도 지운다', async () => {
+    const { f, store } = mk({
+      'recipe.recipes': [{ id: 'r1', household_id: H, status: 'review', glossary: [],
+        corrections: [{ target: 'ingredients[0].amount', before: '3큰술', after: null, origin: null, at_seconds: null, method: 'rule' }],
+        review_items: [{ target: 'ingredients[0].amount', reason: '출처에서 숫자를 찾지 못함', candidates: [] }] }],
+      'recipe.ingredients': [{ id: 'g1', household_id: H, recipe_id: 'r1', position: 1, name: '간장', amount: null, unit: '큰술', origin: 'asr', at_seconds: 95, needs_review: true }],
+    })
+    await store.revertCorrection('r1', 0)
+    expect(f.tables['recipe.ingredients'][0]).toMatchObject({ amount: 3, unit: '큰술', origin: 'user', at_seconds: null, needs_review: false })
+    expect(f.tables['recipe.recipes'][0]).toMatchObject({ review_items: [], status: 'saved', corrections: [] })
+  })
+  // 검토 탐침(V3 비교 되돌리기): 전에는 before '1큰술'을 숫자로 읽지 못해 "숫자로 읽을 수 없는 값이에요."로 실패했다
+  it('V3 비교 고침(단위 붙은 값)을 되돌리면 숫자를 읽고, 단위가 같으면 단위는 그대로 둔다', async () => {
+    const seed = (unit: string) => mk({
+      'recipe.recipes': [{ id: 'r1', household_id: H, status: 'saved', glossary: [], review_items: [],
+        corrections: [{ target: 'ingredients[0].amount', before: '1큰술', after: '2큰술', origin: 'screen', at_seconds: 120, method: 'compare' }] }],
+      'recipe.ingredients': [{ id: 'g1', household_id: H, recipe_id: 'r1', position: 1, name: '간장', amount: 2, unit, origin: 'screen', at_seconds: 120 }],
+    })
+    const same = seed('T')
+    await same.store.revertCorrection('r1', 0)
+    expect(same.f.tables['recipe.ingredients'][0]).toMatchObject({ amount: 1, unit: 'T', origin: 'user', at_seconds: null })
+    // 단위가 다르면 단위도 쓴다(말없이 버리지 않는다)
+    const other = seed('컵')
+    await other.store.revertCorrection('r1', 0)
+    expect(other.f.tables['recipe.ingredients'][0]).toMatchObject({ amount: 1, unit: '큰술', origin: 'user', at_seconds: null })
+  })
+  it('숫자 분량 옆의 덧붙인 분량, 영상 밖 시각 고침은 되돌리지 않는다', async () => {
+    const { store } = mk({
+      'recipe.recipes': [{ id: 'r1', household_id: H, status: 'saved', review_items: [], corrections: [
+        { target: 'ingredients[0].suggested_amount', before: '2큰술', after: null, origin: null, at_seconds: null, method: 'rule' },
+        { target: 'steps[0].video_start_seconds', before: '999', after: null, origin: null, at_seconds: null, method: 'rule' },
+      ] }],
+      'recipe.ingredients': [{ id: 'g1', household_id: H, recipe_id: 'r1', position: 1, amount: 3, unit: '큰술', origin: 'description' }],
+    })
+    await expect(store.revertCorrection('r1', 0)).rejects.toThrow('되돌릴 수 없어요')
+    await expect(store.revertCorrection('r1', 1)).rejects.toThrow('되돌릴 수 없어요')
   })
 })
 
@@ -296,7 +335,7 @@ describe('덧붙인 값 비우기(DB check 제약)', () => {
       'recipe.ingredients': [{ id: 'i0', household_id: H, recipe_id: 'r1', position: 1, amount: 1 }],
     })
     await store.revertCorrection('r1', 0)
-    expect(updates(f, 'recipe.ingredients')[0].payload).toEqual({ amount: null })
+    expect(updates(f, 'recipe.ingredients')[0].payload).toEqual({ amount: null, origin: 'user', at_seconds: null })
   })
 })
 
@@ -381,5 +420,122 @@ describe('실제로 바뀐 값만 고친 것으로', () => {
     await store.editIngredient('r1', 0, { name: '후추', amount: 2 })
     await store.editStep('r1', 0, { title: '손질', body: '썰기' })
     expect(f.calls.some((c) => c.op === 'update')).toBe(false)
+  })
+})
+
+// 검토 탐침(C1): 처리기가 쓰는 꼴("2큰술", "2인분")의 후보를 고르면 전에는 "숫자로 읽을 수 없는 값이에요."로 실패했다
+describe('확인 항목: 처리기가 쓴 꼴의 후보 값', () => {
+  const seed = (unit: string | null, value: string, target = 'ingredients[0].amount') => mk({
+    'recipe.recipes': [{ id: 'r1', household_id: H, status: 'review', measuring_tool_basis: [], servings: null, servings_origin: null,
+      review_items: [{ target, reason: 'x', candidates: [{ value, origin: 'description', at_seconds: null }] }] }],
+    'recipe.ingredients': [{ id: 'g1', household_id: H, recipe_id: 'r1', position: 1, name: '간장', amount: null, unit, origin: 'description', needs_review: true }],
+  })
+  it('"2큰술"을 고르면 분량 2, 단위가 같으면(T도 큰술) 단위는 그대로', async () => {
+    for (const unit of ['큰술', 'T']) {
+      const { f, store } = seed(unit, '2큰술')
+      await store.resolveReview('r1', 0, { value: '2큰술', origin: 'description', at_seconds: null })
+      expect(f.tables['recipe.ingredients'][0]).toMatchObject({ amount: 2, unit, origin: 'user', at_seconds: null, needs_review: false })
+    }
+  })
+  it('단위가 다른 후보("1컵")를 고르면 분량과 단위를 함께 쓴다', async () => {
+    const { f, store } = seed('큰술', '1컵')
+    await store.resolveReview('r1', 0, { value: '1컵', origin: 'description', at_seconds: null })
+    expect(f.tables['recipe.ingredients'][0]).toMatchObject({ amount: 1, unit: '컵' })
+  })
+  it('단위 없는 줄에 단위 붙은 후보("3스푼")를 고르면 단위가 생긴다(단위를 읽지 못한 줄)', async () => {
+    const { f, store } = seed(null, '3스푼')
+    await store.resolveReview('r1', 0, { value: '3스푼', origin: 'description', at_seconds: null })
+    expect(f.tables['recipe.ingredients'][0]).toMatchObject({ amount: 3, unit: '스푼' })
+  })
+  it('단위 없는 값("2")은 그 줄의 단위를 둔다', async () => {
+    const { f, store } = seed('큰술', '2')
+    await store.resolveReview('r1', 0, { value: '2', origin: 'user', at_seconds: null })
+    expect(f.tables['recipe.ingredients'][0]).toMatchObject({ amount: 2, unit: '큰술' })
+  })
+  it('"2인분"을 고르면 인분 2, 출처 user', async () => {
+    const { f, store } = seed(null, '2인분', 'servings.value')
+    await store.resolveReview('r1', 0, { value: '2인분', origin: 'description', at_seconds: null })
+    expect(f.tables['recipe.recipes'][0]).toMatchObject({ servings: 2, servings_origin: 'user', status: 'saved' })
+  })
+  it('읽을 수 없는 값은 아무것도 쓰지 않고 던진다', async () => {
+    const { f, store } = seed('큰술', '약간')
+    await expect(store.resolveReview('r1', 0, { value: '약간', origin: 'user', at_seconds: null })).rejects.toThrow('숫자로 읽을 수 없는')
+    expect(f.calls.filter((c) => c.op === 'update')).toEqual([])
+  })
+})
+
+describe('확인 항목: 줄 전체를 가리키는 항목(M1)', () => {
+  it('"ingredients[6]"(어느 단계에도 쓰이지 않음)을 확인하면 그 줄의 확인 표시를 끈다. 같은 줄의 다른 항목이 남으면 둔다', async () => {
+    const { f, store } = mk({
+      'recipe.recipes': [{ id: 'r1', household_id: H, status: 'review', review_items: [
+        { target: 'ingredients[1]', reason: '어느 단계에도 쓰이지 않음', candidates: [] },
+        { target: 'ingredients[10].amount', reason: 'x', candidates: [] },
+        { target: 'ingredients[0]', reason: '어느 단계에도 쓰이지 않음', candidates: [] },
+        { target: 'ingredients[0].amount', reason: 'y', candidates: [] },
+      ] }],
+      // 가짜 클라이언트는 position을 글자로 줄 세우므로 두 줄만 둔다(ingredients[10] 항목은 접두어 견주기만 본다)
+      'recipe.ingredients': [0, 1].map((i) => ({ id: `g${i}`, household_id: H, recipe_id: 'r1', position: i + 1, needs_review: true })),
+    })
+    await store.resolveReview('r1', 0, { value: '', origin: 'user', at_seconds: null }) // ingredients[1]: ingredients[10]은 다른 줄
+    expect(f.tables['recipe.ingredients'][1]!.needs_review).toBe(false)
+    await store.resolveReview('r1', 1, { value: '', origin: 'user', at_seconds: null }) // ingredients[0]: 같은 줄의 분량 항목이 남는다
+    expect(f.tables['recipe.ingredients'][0]!.needs_review).toBe(true)
+  })
+  it('원리 항목("principles[0]")을 확인하면 레시피의 원리 JSON에서 표시를 끈다', async () => {
+    const { f, store } = mk({ 'recipe.recipes': [{ id: 'r1', household_id: H, status: 'review',
+      principles: [{ title: 't', body: 'b', origin: 'asr', needs_review: true }, { title: 'u', body: 'c', origin: 'asr', needs_review: true }],
+      review_items: [{ target: 'principles[0]', reason: '정리할 때 확인 필요로 표시함', candidates: [] }] }] })
+    await store.resolveReview('r1', 0, { value: '', origin: 'user', at_seconds: null })
+    const rec = f.tables['recipe.recipes'][0]
+    expect((rec.principles as { needs_review: boolean }[]).map((p) => p.needs_review)).toEqual([false, true])
+    expect(rec).toMatchObject({ status: 'saved', review_items: [] })
+  })
+  it('재료를 고치면 그 줄 전체를 가리키는 항목도 지운다', async () => {
+    const { f, store } = mk({
+      'recipe.recipes': [{ id: 'r1', household_id: H, status: 'review', review_items: [
+        { target: 'ingredients[0]', reason: '어느 단계에도 쓰이지 않음', candidates: [] },
+        { target: 'ingredients[10]', reason: '어느 단계에도 쓰이지 않음', candidates: [] },
+      ] }],
+      'recipe.ingredients': [{ id: 'g0', household_id: H, recipe_id: 'r1', position: 1, name: '간장', amount: 1, unit: '큰술', origin: 'asr', needs_review: true }],
+    })
+    await store.editIngredient('r1', 0, { amount: 2 })
+    expect((f.tables['recipe.recipes'][0].review_items as { target: string }[]).map((x) => x.target)).toEqual(['ingredients[10]'])
+  })
+})
+
+describe('난이도를 사람이 고르면(M6)', () => {
+  it('셈한 근거를 비워 화면이 "직접 고침"으로 보이게 한다', async () => {
+    const { f, store } = mk({ 'recipe.recipes': [{ id: 'r1', household_id: H, status: 'saved', difficulty: '보통', difficulty_basis: { required: 9, steps: 7, heavy: false } }] })
+    await store.update('r1', { difficulty: '쉬움' })
+    expect(f.tables['recipe.recipes'][0]).toMatchObject({ difficulty: '쉬움', difficulty_basis: null })
+    await store.update('r1', { memo: '메모' })
+    expect(f.tables['recipe.recipes'][0]).toMatchObject({ difficulty: '쉬움', memo: '메모' })
+  })
+})
+
+describe('목록: 재료 이름(M8)·치운 실패 일(M7)·사본 상태(I7)', () => {
+  it('레시피 목록에 재료 이름을 함께 싣는다', async () => {
+    const { store } = mk({
+      'recipe.recipes': [{ id: 'r1', household_id: H, status: 'saved', title: '제육', added_at: 'a', mains: [], main_details: [] }],
+      'recipe.ingredients': [
+        { id: 'g0', household_id: H, recipe_id: 'r1', position: 1, name: '고추장' },
+        { id: 'g1', household_id: H, recipe_id: 'r1', position: 2, name: '깻잎' },
+      ],
+    })
+    expect((await store.listRecipes())[0]!.ingredient_names).toEqual(['고추장', '깻잎'])
+  })
+  it('대기함은 치운 실패 일을 빼고 읽고, 치우기는 dismiss_job을 부른다', async () => {
+    const { f, store } = mk({ 'recipe.inbox': [
+      { id: 'j1', household_id: H, state: 'failed', dismissed_at: null, added_at: '2' },
+      { id: 'j2', household_id: H, state: 'failed', dismissed_at: '2026-11-22T00:00:00Z', added_at: '1' },
+    ] })
+    expect((await store.listInbox()).map((j) => j.id)).toEqual(['j1'])
+    await store.dismiss('j1')
+    expect(f.rpcs).toContainEqual({ name: 'dismiss_job', args: { p_job: 'j1' } })
+  })
+  it('처리기 상태는 사본 상태 칸도 읽는다', async () => {
+    const { f, store } = mk({ 'recipe.worker_status': [{ id: 1, last_seen_at: 'x', version: 'v', export_issue: '옵시디언 폴더에 쓰지 못했어요', export_checked_at: 'y' }] })
+    expect(await store.workerStatus()).toMatchObject({ export_issue: '옵시디언 폴더에 쓰지 못했어요', export_checked_at: 'y' })
+    expect(f.calls.at(-1)?.table).toBe('recipe.worker_status')
   })
 })

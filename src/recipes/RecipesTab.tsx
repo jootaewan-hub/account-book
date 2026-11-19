@@ -86,6 +86,14 @@ export function RecipesTab({ householdId, userId, store: injected }: { household
       void load()
     } catch (e) { setNotice(e instanceof Error ? e.message : '다시 하지 못했어요') }
   }
+  async function dismiss(job: InboxJob) {
+    setNotice(null)
+    try {
+      await store.dismiss(job.id)
+      setJobs((list) => list.filter((j) => j.id !== job.id))
+      void load()
+    } catch (e) { setNotice(e instanceof Error ? e.message : '치우지 못했어요') }
+  }
   async function confirmAdd() {
     if (!pending) return
     const url = pending
@@ -137,7 +145,7 @@ export function RecipesTab({ householdId, userId, store: injected }: { household
               <button className="rcp-btn rcp-btn-quiet" type="button" onClick={() => void load()}>다시 불러오기</button>
             </div>
           )}
-          <JobList jobs={jobs} worker={worker} now={now} onRetry={(j) => void retry(j)} />
+          <JobList jobs={jobs} worker={worker} now={now} onRetry={(j) => void retry(j)} onDismiss={(j) => void dismiss(j)} />
           <RecipeBook recipes={recipes} cookable={cookable} loading={loading} onOpen={(id) => { setOpenReview(false); setOpenId(id) }} onReview={(id) => { setOpenReview(true); setOpenId(id) }} onPantry={() => setPantryOpen(true)} />
         </>
       )}

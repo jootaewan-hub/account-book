@@ -48,7 +48,8 @@ export function RecipeBook({ recipes, cookable, loading, onOpen, onReview, onPan
       const missing = c.need - c.have
       if (pick === 'now' ? missing !== 0 : missing < 1) return false
     }
-    if (q && ![r.title, ...r.mains, ...r.main_details].some((t) => t.toLowerCase().includes(q))) return false
+    // 찾기(이름·재료): 이름, 주재료, 세부 재료, 재료 목록의 모든 이름
+    if (q && ![r.title, ...r.mains, ...r.main_details, ...(r.ingredient_names ?? [])].some((t) => t.toLowerCase().includes(q))) return false
     return true
   })
 

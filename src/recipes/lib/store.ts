@@ -4,6 +4,8 @@ import { readAllPages } from '../../../supabase/functions/_shared/pagination'
 import { normalizeRecipeUrl } from '../../../supabase/functions/_shared/recipeSource'
 import { MEASURING_TOOLS, type Correction, type Origin, type ReviewItem } from '../../../supabase/functions/_shared/recipeContract'
 import { toStoredRecipe, type StoredRecipe } from '../../../supabase/functions/_shared/recipeStored'
+import { parseAmountValue, parseSecondsValue, parseServingsValue, sameUnit } from '../../../supabase/functions/_shared/recipeValue'
+import type { ExportIssue } from '../../../supabase/functions/_shared/recipeWorkerStatus'
 import { groceryCategoryFor, nameKey, type PantryEntry } from './groceryLink'
 
 export type AddUrlResult = { kind: 'added' | 'exists_recipe' | 'exists_job' | 'invalid'; id?: string }
@@ -18,12 +20,15 @@ export type RecipeSummary = {
   cuisine: string; mains: string[]; main_details: string[]; methods: string[]; occasions: string[]
   difficulty: string | null; favorite: boolean; rating: number | null; memo: string | null
   servings: number | null; servings_origin: string | null; review_count: number; added_at: string; updated_at: string
+  /** 찾기(이름·재료)에 쓰는 재료 이름들 */
+  ingredient_names?: string[]
 }
 export type InboxJob = {
   id: string; url: string; source_key: string; state: 'waiting' | 'processing' | 'done' | 'failed'
   stage: string | null; fail_reason: string | null; recipe_id: string | null; attempts: number; added_at: string
 }
-export type WorkerStatus = { last_seen_at: string | null; version: string | null }
+/** 처리기 상태. export_issue는 사본(드라이브·옵시디언)을 쓰지 못한 까닭(정해 둔 말), export_checked_at은 마지막으로 써 본 시각 */
+export type WorkerStatus = { last_seen_at: string | null; version: string | null; export_issue?: ExportIssue | null; export_checked_at?: string | null }
 export type DictEntry = { id: string; name: string; aliases: string[]; category: string }
 export type BoughtItem = { name: string; bought_at: string | null }
 /** recipe.cookable 한 줄: 사전에 있는 필수 재료 need개 중 가진 것 have개. 사전에 없는 재료는 세지 않는다 */
@@ -54,6 +59,8 @@ export interface RecipeStore {
   activeGroceryNames(): Promise<string[]>
   addUrl(input: string): Promise<AddUrlResult>
   retry(jobId: string): Promise<RetryResult>
+  /** 실패한 일을 목록에서 치운다(지우지 않는다) */
+  dismiss(jobId: string): Promise<void>
   resolveReview(recipeId: string, index: number, choice: ReviewChoice): Promise<void>
   revertCorrection(recipeId: string, index: number): Promise<void>
   update(recipeId: string, patch: RecipePatch): Promise<void>
@@ -93,16 +100,72 @@ export function parseTarget(target: string): Target | null {
   return null
 }
 const baseOf = (t: Target) => (t.kind === 'servings' ? 'servings' : `${t.kind}[${(t as { index: number }).index}]`)
-const NUMERIC = new Set(['amount', 'at_seconds', 'timer_seconds', 'video_start_seconds', 'suggested_amount', 'value', 'position'])
 
-function toValue(field: string, v: string | number | null): string | number | null {
-  if (v === null || v === 'null' || v === '') return null
-  if (NUMERIC.has(field)) {
-    const n = Number(v)
-    if (!Number.isFinite(n)) throw new Error('숫자로 읽을 수 없는 값이에요.')
-    return n
+const ROW = /^(ingredients|steps|principles)\[(\d+)\]/
+/** 확인 항목·고친 곳이 가리키는 줄("ingredients[6]"). 줄 전체("ingredients[6]")와 칸("ingredients[6].amount") 모두. 줄이 아니면 null */
+export function rowOf(target: string): { kind: 'ingredients' | 'steps' | 'principles'; index: number; key: string } | null {
+  const m = ROW.exec(target)
+  return m ? { kind: m[1] as 'ingredients' | 'steps' | 'principles', index: Number(m[2]), key: `${m[1]}[${m[2]}]` } : null
+}
+/** 그 줄을 가리키는가("ingredients[1]"은 "ingredients[10]"을 가리키지 않는다) */
+const onRow = (target: string, key: string) => target === key || target.startsWith(`${key}.`)
+
+/** 되돌리면 DB 제약과 맞지 않거나(숫자 분량 옆의 덧붙임) 영상 밖 시각으로 돌아가는 고침 */
+export const NOT_REVERTABLE = new Set(['suggested_amount', 'suggested_unit', 'video_start_seconds'])
+const UNREADABLE = '숫자로 읽을 수 없는 값이에요.'
+const blank = (v: string | null | undefined) => v === null || v === undefined || v === '' || v === 'null'
+
+/**
+ * 확인 후보·고친 곳의 값 글(_shared/recipeValue.ts 꼴)을 칸에 쓴다.
+ * 분량은 "2큰술"처럼 단위가 붙어 와도 읽고, 단위가 그 줄과 다르면 단위도 함께 쓴다(단위를 말없이 버리지 않는다).
+ * rowUnit은 그 줄의 지금 단위(분량 칸일 때만 필요).
+ */
+function setValue(edits: Edits, t: Exclude<Target, { kind: 'conflicts' }>, field: string, raw: string | null, rowUnit: string | null = null) {
+  if (t.kind === 'servings' && field === 'value') {
+    if (blank(raw)) { edits.set(t, 'value', null); return }
+    const n = parseServingsValue(raw!)
+    if (n === null) throw new Error(UNREADABLE)
+    edits.set(t, 'value', n)
+    return
   }
-  return v
+  if (field === 'amount' || field === 'suggested_amount') {
+    if (blank(raw)) { edits.set(t, field, null); return }
+    const p = parseAmountValue(raw!)
+    if (!p) throw new Error(UNREADABLE)
+    edits.set(t, field, p.amount)
+    const unitField = field === 'amount' ? 'unit' : 'suggested_unit'
+    if (p.unit !== null && !sameUnit(p.unit, rowUnit)) edits.set(t, unitField, p.unit)
+    return
+  }
+  if (field === 'timer_seconds' || field === 'at_seconds') {
+    if (blank(raw)) { edits.set(t, field, null); return }
+    const n = parseSecondsValue(raw!)
+    if (n === null) throw new Error(UNREADABLE)
+    edits.set(t, field, n)
+    return
+  }
+  if (field === 'video_start_seconds' || field === 'position') {
+    if (blank(raw)) { edits.set(t, field, null); return }
+    if (!/^\d+$/.test(raw!.trim())) throw new Error(UNREADABLE)
+    edits.set(t, field, Number(raw))
+    return
+  }
+  edits.set(t, field, blank(raw) ? null : raw)
+}
+
+/** 사람이 고른 값의 출처: user, 영상 시각 없음(되돌리기도 사람의 고름이다). 인분은 값이 비면 출처도 비운다 */
+function markUser(edits: Edits, t: Exclude<Target, { kind: 'conflicts' }>, field: string) {
+  if (t.kind === 'servings') {
+    const v = edits.recipe.servings
+    edits.set(t, 'origin', v === undefined ? 'user' : v === null ? null : 'user')
+  } else if (t.kind === 'glossary') {
+    edits.set(t, 'origin', 'user'); edits.set(t, 'at_seconds', null)
+  } else if (t.kind === 'steps' && field === 'cue') {
+    edits.set(t, 'cue_origin', 'user')
+  } else {
+    edits.set(t, 'origin', 'user')
+    if (t.kind === 'ingredients') edits.set(t, 'at_seconds', null)
+  }
 }
 
 type RowPatch = Record<string, unknown>
@@ -110,6 +173,13 @@ class Edits {
   recipe: RowPatch = {}
   rows = new Map<string, RowPatch>() // `${kind}:${index}`
   glossary = new Map<number, RowPatch>()
+  /** recipes.principles(JSON) 줄의 needs_review */
+  principles = new Map<number, RowPatch>()
+  /** 줄의 확인 표시를 끈다(재료·단계는 줄, 원리는 레시피의 JSON) */
+  unflag(row: { kind: 'ingredients' | 'steps' | 'principles'; index: number }) {
+    if (row.kind === 'principles') this.principles.set(row.index, { ...this.principles.get(row.index), needs_review: false })
+    else this.set({ kind: row.kind, index: row.index, field: '' }, 'needs_review', false)
+  }
   set(t: Target, field: string, value: unknown) {
     if (t.kind === 'servings') {
       // check (servings is null or servings_suggested is null): 출처 인분을 쓰면 덧붙인 인분은 비운다
@@ -141,6 +211,12 @@ export function createRecipeStore(client: SupabaseClient, householdId: string, u
     return checked(await r().from(kind).select('id,position').eq('household_id', householdId).eq('recipe_id', recipeId).order('position', { ascending: true })) as unknown as { id: string; position: number }[]
   }
   async function applyEdits(recipeId: string, edits: Edits, recipePatch: RowPatch) {
+    // 레시피 JSON 칸(용어 풀이·원리)의 줄을 지금 값에 합친다
+    const json = ([['glossary', edits.glossary], ['principles', edits.principles]] as const).filter(([, m]) => m.size > 0)
+    if (json.length) {
+      const cur = await recipeRow(recipeId, json.map(([c]) => c).join(','))
+      for (const [col, m] of json) recipePatch[col] = ((cur[col] ?? []) as RowPatch[]).map((x, i) => (m.has(i) ? { ...x, ...m.get(i) } : x))
+    }
     for (const kind of ['ingredients', 'steps'] as const) {
       const wanted = [...edits.rows].filter(([k]) => k.startsWith(`${kind}:`))
       if (!wanted.length) continue
@@ -156,13 +232,25 @@ export function createRecipeStore(client: SupabaseClient, householdId: string, u
     if (!done?.length) throw new Error(GONE)
   }
 
-  /** 그 줄의 확인 항목을 지운 review_items(남은 것이 없고 확인 중이었으면 saved). 지울 것이 없으면 빈 패치 */
-  async function dropReview(recipeId: string, prefix: string): Promise<RowPatch> {
-    const row = await recipeRow(recipeId, 'status,review_items')
-    const items = (row.review_items ?? []) as ReviewItem[]
-    const rest = items.filter((x) => !x.target.startsWith(prefix))
+  /** 그 줄(줄 전체 항목 포함)의 확인 항목을 지운 review_items(남은 것이 없고 확인 중이었으면 saved). 지울 것이 없으면 빈 패치 */
+  async function dropReview(recipeId: string, row: string): Promise<RowPatch> {
+    const cur = await recipeRow(recipeId, 'status,review_items')
+    const items = (cur.review_items ?? []) as ReviewItem[]
+    const rest = items.filter((x) => !onRow(x.target, row))
     if (rest.length === items.length) return {}
-    return rest.length === 0 && row.status === 'review' ? { review_items: rest, status: 'saved' } : { review_items: rest }
+    return rest.length === 0 && cur.status === 'review' ? { review_items: rest, status: 'saved' } : { review_items: rest }
+  }
+  /** 재료 줄의 지금 단위(분량 값을 쓸 때 단위가 바뀌는지 보려고) */
+  async function ingredientUnits(recipeId: string, index: number): Promise<{ unit: string | null; suggested_unit: string | null }> {
+    const rows = checked(await r().from('ingredients').select('id,position,unit,suggested_unit').eq('household_id', householdId).eq('recipe_id', recipeId).order('position', { ascending: true })) as unknown as { unit: string | null; suggested_unit: string | null }[]
+    const row = rows[index]
+    if (!row) throw new Error('그 줄이 이미 바뀌었어요. 목록을 다시 확인해 주세요.')
+    return { unit: row.unit ?? null, suggested_unit: row.suggested_unit ?? null }
+  }
+  const unitFor = async (recipeId: string, t: Exclude<Target, { kind: 'conflicts' }>, field: string) => {
+    if (t.kind !== 'ingredients' || (field !== 'amount' && field !== 'suggested_amount')) return null
+    const u = await ingredientUnits(recipeId, t.index)
+    return field === 'amount' ? u.unit : u.suggested_unit
   }
 
   return {
@@ -170,7 +258,12 @@ export function createRecipeStore(client: SupabaseClient, householdId: string, u
       const cols = 'id,title,summary,status,source_key,source_url,source_title,channel,cuisine,mains,main_details,methods,occasions,difficulty,favorite,rating,memo,servings,servings_origin,review_count,added_at,updated_at'
       const rows = await readAllPages<RecipeSummary>((from, to) => recipes().select(cols, { count: from === 0 ? 'exact' : undefined })
         .eq('household_id', householdId).order('added_at', { ascending: false }).order('id', { ascending: false }).range(from, to))
-      return rows.map((x) => ({ ...x, servings: x.servings == null ? null : Number(x.servings) }))
+      // 찾기(이름·재료)에 쓰려고 재료 이름을 함께 읽는다
+      const ings = await readAllPages<{ recipe_id: string; name: string }>((from, to) => r().from('ingredients').select('recipe_id,name', { count: from === 0 ? 'exact' : undefined })
+        .eq('household_id', householdId).order('recipe_id', { ascending: true }).order('position', { ascending: true }).range(from, to))
+      const names = new Map<string, string[]>()
+      for (const g of ings) names.set(g.recipe_id, [...(names.get(g.recipe_id) ?? []), g.name])
+      return rows.map((x) => ({ ...x, servings: x.servings == null ? null : Number(x.servings), ingredient_names: names.get(x.id) ?? [] }))
     },
     async getRecipe(id) {
       const row = checked(await recipes().select('*').eq('household_id', householdId).eq('id', id).maybeSingle()) as Record<string, unknown> | null
@@ -182,11 +275,12 @@ export function createRecipeStore(client: SupabaseClient, householdId: string, u
       return toStoredRecipe(row, checked(ing) as Record<string, unknown>[], checked(steps) as Record<string, unknown>[])
     },
     async listInbox() {
+      // 치운 실패 일은 빼고 읽는다
       return checked(await r().from('inbox').select('id,url,source_key,state,stage,fail_reason,recipe_id,attempts,added_at')
-        .eq('household_id', householdId).order('added_at', { ascending: false }).limit(100)) as InboxJob[]
+        .eq('household_id', householdId).is('dismissed_at', null).order('added_at', { ascending: false }).limit(100)) as InboxJob[]
     },
     async workerStatus() {
-      const row = checked(await r().from('worker_status').select('last_seen_at,version').maybeSingle()) as WorkerStatus | null
+      const row = checked(await r().from('worker_status').select('last_seen_at,version,export_issue,export_checked_at').maybeSingle()) as WorkerStatus | null
       return row ?? null
     },
     async listPantry() {
@@ -231,56 +325,46 @@ export function createRecipeStore(client: SupabaseClient, householdId: string, u
       }
       return data ? 'retried' : 'unchanged'
     },
+    async dismiss(jobId) {
+      const { data, error } = await r().rpc('dismiss_job', { p_job: jobId })
+      checked({ data, error })
+    },
 
     async resolveReview(recipeId, index, choice) {
-      const row = await recipeRow(recipeId, 'status,review_items,measuring_tool_basis')
-      const items = (row.review_items ?? []) as ReviewItem[]
+      const cur = await recipeRow(recipeId, 'status,review_items,measuring_tool_basis')
+      const items = (cur.review_items ?? []) as ReviewItem[]
       const item = items[index]
       if (!item) throw new Error('이미 처리된 확인 항목이에요.')
       const rest = items.filter((_, i) => i !== index)
       const t = parseTarget(item.target)
       const edits = new Edits()
       if (t && t.kind !== 'conflicts') {
-        // 사용자가 고른 값은 출처 user, 영상 시각은 없다
+        // 사용자가 고른 값은 출처 user, 영상 시각은 없다. 분량은 단위가 붙어 오면 단위도 쓴다
         const field = t.field
-        if (field !== 'origin' && field !== 'at_seconds') edits.set(t, field, toValue(field, choice.value))
-        if (t.kind === 'servings') {
-          // check ((servings is null) = (servings_origin is null)): 값을 비우면 출처도 비운다
-          edits.set(t, 'origin', toValue('value', choice.value) === null ? null : 'user')
-        } else if (t.kind === 'glossary') {
-          edits.set(t, 'origin', 'user'); edits.set(t, 'at_seconds', null)
-        } else if (t.kind === 'steps' && field === 'cue') {
-          edits.set(t, 'cue_origin', 'user')
-        } else {
-          edits.set(t, 'origin', 'user')
-          if (t.kind === 'ingredients') edits.set(t, 'at_seconds', null)
-        }
-        const base = baseOf(t)
-        const stillFlagged = rest.some((x) => { const o = parseTarget(x.target); return o && o.kind !== 'conflicts' && baseOf(o) === base })
-        if (!stillFlagged && (t.kind === 'ingredients' || t.kind === 'steps')) edits.set(t, 'needs_review', false)
+        if (field !== 'origin' && field !== 'at_seconds') setValue(edits, t, field, choice.value, await unitFor(recipeId, t, field))
+        markUser(edits, t, field)
       }
+      // 그 줄(재료·단계·원리)에 남은 확인 항목이 없으면 줄의 확인 표시를 끈다. 줄 전체를 가리키는 항목("ingredients[6]")도 같다
+      const row = rowOf(item.target)
+      if (row && !rest.some((x) => onRow(x.target, row.key))) edits.unflag(row)
       const patch: RowPatch = { ...edits.recipe, review_items: rest }
       if (item.target === 'measuring_tool') {
         // 계량 도구는 사람이 네 가지 중에서 고른다. 고른 근거는 user로 덧붙인다
         if (!(MEASURING_TOOLS as readonly string[]).includes(choice.value)) throw new Error('계량 도구를 목록에서 골라 주세요.')
         patch.measuring_tool = choice.value
-        patch.measuring_tool_basis = [...((row.measuring_tool_basis ?? []) as unknown[]), { origin: 'user', at_seconds: null }]
+        patch.measuring_tool_basis = [...((cur.measuring_tool_basis ?? []) as unknown[]), { origin: 'user', at_seconds: null }]
       }
-      if (edits.glossary.size) {
-        const cur = ((await recipeRow(recipeId, 'glossary')).glossary ?? []) as RowPatch[]
-        patch.glossary = cur.map((x, i) => (edits.glossary.has(i) ? { ...x, ...edits.glossary.get(i) } : x))
-      }
-      if (rest.length === 0 && row.status === 'review') patch.status = 'saved'
+      if (rest.length === 0 && cur.status === 'review') patch.status = 'saved'
       await applyEdits(recipeId, edits, patch)
     },
 
     async revertCorrection(recipeId, index) {
-      const row = await recipeRow(recipeId, 'corrections,glossary')
-      const list = (row.corrections ?? []) as Correction[]
+      const cur = await recipeRow(recipeId, 'status,corrections,review_items')
+      const list = (cur.corrections ?? []) as Correction[]
       const c = list[index]
       if (!c) throw new Error('이미 되돌린 고침이에요.')
       const t = parseTarget(c.target)
-      if (!t || t.kind === 'conflicts') throw new Error('이 고침은 되돌릴 수 없어요.')
+      if (!t || t.kind === 'conflicts' || NOT_REVERTABLE.has(t.field)) throw new Error('이 고침은 되돌릴 수 없어요.')
       const base = baseOf(t)
       const siblings = (field: string) => list.flatMap((x, i) => { const o = parseTarget(x.target); return o && o.kind !== 'conflicts' && baseOf(o) === base && o.field === field ? [i] : [] })
       const group = new Set<number>([index])
@@ -288,19 +372,26 @@ export function createRecipeStore(client: SupabaseClient, householdId: string, u
       else if (t.field === 'at_seconds') siblings('origin').forEach((i) => group.add(i))
       else { siblings('origin').forEach((i) => group.add(i)); siblings('at_seconds').forEach((i) => group.add(i)) }
 
+      // 되돌리기는 사람의 고름이다: 값은 고치기 전 값으로, 출처는 user, 영상 시각은 비운다(모델이 단 출처·시각으로 돌아가지 않는다)
       const edits = new Edits()
+      const valueTargets = new Set<string>()
       for (const i of [...group].sort((a, b) => a - b)) {
         const ci = list[i]
         const ti = parseTarget(ci.target) as Exclude<Target, { kind: 'conflicts' }>
-        const value = toValue(ti.field, ci.before)
-        if (ti.field === 'origin' && value === null && ti.kind !== 'servings') continue // 출처 칸은 비울 수 없다
-        edits.set(ti, ti.field, value)
-        if (ti.kind === 'servings' && ti.field === 'value' && value === null) edits.set(ti, 'origin', null)
+        if (ti.field === 'origin' || ti.field === 'at_seconds' || NOT_REVERTABLE.has(ti.field)) continue
+        setValue(edits, ti, ti.field, ci.before, await unitFor(recipeId, ti, ti.field))
+        valueTargets.add(ci.target)
       }
+      markUser(edits, t, t.field)
       const patch: RowPatch = { ...edits.recipe, corrections: list.filter((_, i) => !group.has(i)) }
-      if (edits.glossary.size) {
-        const cur = (row.glossary ?? []) as RowPatch[]
-        patch.glossary = cur.map((x, i) => (edits.glossary.has(i) ? { ...x, ...edits.glossary.get(i) } : x))
+      // 되돌린 값을 가리키던 확인 항목("출처에서 숫자를 찾지 못함" 따위)은 사람이 정했으니 지우고, 그 줄에 남은 것이 없으면 표시도 끈다
+      const items = (cur.review_items ?? []) as ReviewItem[]
+      const rest = items.filter((x) => !valueTargets.has(x.target))
+      if (rest.length !== items.length) {
+        patch.review_items = rest
+        if (rest.length === 0 && cur.status === 'review') patch.status = 'saved'
+        const row = rowOf(c.target)
+        if (row && !rest.some((x) => onRow(x.target, row.key))) edits.unflag(row)
       }
       await applyEdits(recipeId, edits, patch)
     },
@@ -322,6 +413,8 @@ export function createRecipeStore(client: SupabaseClient, householdId: string, u
         throw new Error('별점은 1~5 사이 정수예요.')
       }
       if (!Object.keys(clean).length) return
+      // 난이도를 사람이 고르면 셈한 근거(재료·단계 수)는 더 이상 그 까닭이 아니다. 근거가 비면 화면은 "직접 고침"으로 보인다
+      if ('difficulty' in clean) clean.difficulty_basis = null
       await applyEdits(recipeId, new Edits(), clean)
     },
 
@@ -365,7 +458,7 @@ export function createRecipeStore(client: SupabaseClient, householdId: string, u
       if (valueChanged) {
         // 값이 실제로 바뀐 줄만 user 출처로 두고 확인 표시를 지운다. 같은 줄의 확인 항목도 함께 지워 needs_review와 맞춘다
         edits.set(t, 'origin', 'user'); edits.set(t, 'at_seconds', null); edits.set(t, 'needs_review', false)
-        Object.assign(recipePatch, await dropReview(recipeId, `ingredients[${index}].`))
+        Object.assign(recipePatch, await dropReview(recipeId, `ingredients[${index}]`))
       }
       await applyEdits(recipeId, edits, recipePatch)
     },
@@ -387,7 +480,7 @@ export function createRecipeStore(client: SupabaseClient, householdId: string, u
       }
       if (!edits.rows.size) return
       edits.set(t, 'origin', 'user'); edits.set(t, 'needs_review', false)
-      await applyEdits(recipeId, edits, await dropReview(recipeId, `steps[${index}].`))
+      await applyEdits(recipeId, edits, await dropReview(recipeId, `steps[${index}]`))
     },
 
     async archive(recipeId) {

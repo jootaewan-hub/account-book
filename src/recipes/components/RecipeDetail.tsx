@@ -132,9 +132,10 @@ export function RecipeDetail({ store, recipeId, title, onBack, onMissing, initia
             <p className="rcp-meta">{[recipe.tags.cuisine, [...recipe.tags.mains, ...recipe.tags.main_details].join('·'), recipe.tags.methods.join('·'), recipe.tags.occasions.join('·')].filter(Boolean).join(', ')}</p>
             {recipe.difficulty && (
               <p className="rcp-meta">
+                {/* 셈한 근거가 있으면 근거와 함께, 사람이 고른 난이도(근거가 비었다)는 직접 고침으로 */}
                 {recipe.difficulty_basis
                   ? `재료 ${recipe.difficulty_basis.required} · 단계 ${recipe.difficulty_basis.steps} → ${recipe.difficulty}${recipe.difficulty_basis.heavy ? ' · 손 많이 감' : ''}`
-                  : `난이도 ${recipe.difficulty}`}
+                  : `난이도 ${recipe.difficulty} · 직접 고침`}
               </p>
             )}
             <p className="rcp-meta">

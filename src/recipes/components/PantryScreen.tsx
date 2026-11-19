@@ -4,7 +4,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { boughtSuggestions, nameKey, type PantryEntry } from '../lib/groceryLink'
 import type { BoughtItem, DictEntry, PantryState, RecipeStore } from '../lib/store'
 
-type Data = { pantry: PantryEntry[]; dict: DictEntry[]; bought: BoughtItem[] }
+/** boughtFailed: 장보기 기록을 읽지 못했다(화면은 그대로 쓰되 한 줄로 알린다) */
+type Data = { pantry: PantryEntry[]; dict: DictEntry[]; bought: BoughtItem[]; boughtFailed: boolean }
 const MAX_FOUND = 20
 
 export function PantryScreen({ store, onBack }: { store: RecipeStore; onBack: () => void }) {
@@ -17,10 +18,10 @@ export function PantryScreen({ store, onBack }: { store: RecipeStore; onBack: ()
   const load = useCallback(async () => {
     const mine = ++seq.current
     try {
-      // 장보기 기록은 부수적이라, 못 읽어도 화면은 쓸 수 있게 둔다
-      const [pantry, dict, bought] = await Promise.all([store.listPantry(), store.listDict(), store.recentBought().catch(() => [] as BoughtItem[])])
+      // 장보기 기록은 부수적이라, 못 읽어도 화면은 쓸 수 있게 두고 한 줄로 알린다
+      const [pantry, dict, bought] = await Promise.all([store.listPantry(), store.listDict(), store.recentBought().catch(() => null)])
       if (mine !== seq.current) return
-      setData({ pantry, dict, bought }); setError(null)
+      setData({ pantry, dict, bought: bought ?? [], boughtFailed: bought === null }); setError(null)
     } catch (e) {
       if (mine === seq.current) setError(e instanceof Error ? e.message : '가진 재료를 불러오지 못했어요')
     }
@@ -82,6 +83,7 @@ export function PantryScreen({ store, onBack }: { store: RecipeStore; onBack: ()
       )}
       {!data ? (!error && <p className="rcp-empty">불러오는 중</p>) : (
         <>
+          {data.boughtFailed && <p className="rcp-meta">장보기 기록을 읽지 못했어요</p>}
           {suggested.length > 0 && (
             <section className="rcp-pantry-bought" aria-label="장보기에서 산 것">
               <p className="rcp-pantry-bought-title">장보기에서 산 것 {suggested.length}개를 넣을까요?</p>
