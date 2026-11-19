@@ -1,6 +1,8 @@
 // 화면 캡처용 가짜 Supabase 응답(로그인한 가계부 셸). 숫자와 이름은 캡처 확인용 예시이며 실제 데이터가 아니다.
 // screenshots.mjs가 Supabase로 가는 요청을 모두 가로채 이 값으로 답한다. 실제 서버로는 아무 요청도 나가지 않는다.
 
+import { readFileSync } from 'node:fs'
+
 const HH = '00000000-0000-4000-8000-0000000000aa'
 export const ME = '00000000-0000-4000-8000-00000000000a'
 const YOU = '00000000-0000-4000-8000-00000000000b'
@@ -114,8 +116,141 @@ function marketRow(item, vrty, grd, ctgry, itemNm, vrtyNm, grdNm, unit, unitSz, 
   }
 }
 
+// ── 레시피 탭(가짜 응답) ─────────────────────────────────────────────
+// 기준 답안 v2(docs/recipes/contract/examples)를 recipe 스키마의 줄(recipes·ingredients·steps)로 풀어 쓴다. 이름·분량은 캡처 확인용 예시.
+const GOLD = JSON.parse(readFileSync(new URL('../docs/recipes/contract/examples/youtube-AkX6uA4BaDs.json', import.meta.url), 'utf8'))
+const GOLD_KEYS = {
+  '돼지 앞다리살': 'pork_shoulder', 설탕: 'sugar', 올리고당: 'oligosaccharide', 미림: 'mirin', 간장: 'soy_sauce', 고춧가루: 'gochugaru', 고추장: 'gochujang',
+  '다진 마늘': 'minced_garlic', 굴소스: 'oyster_sauce', 후추: 'black_pepper', 카레가루: 'curry_powder', 양파: 'onion', 대파: 'green_onion', 깻잎: 'perilla_leaf',
+  참기름: 'sesame_oil', 통깨: 'sesame_seed',
+}
+const R_GOLD = '00000000-0000-4000-8000-0000000000c1'
+const R_LONG = '00000000-0000-4000-8000-0000000000c2'
+const R_REVIEW = '00000000-0000-4000-8000-0000000000c3'
+const R_STEW = '00000000-0000-4000-8000-0000000000c4'
+const R_PASTA = '00000000-0000-4000-8000-0000000000c5'
+const LONG_TITLE = '[자취생 필수] 전자레인지로 5분 만에 끝내는 순두부 계란찜 완벽 레시피 총정리, 실패 없는 물 양과 시간까지 한 번에'
+
+/** 계약 v2 한 편 → recipe.recipes 한 줄 + ingredients·steps 줄들 */
+function recipeRows(c, { id, status = 'saved', added, keys = {}, extra = {} }) {
+  const row = {
+    id, household_id: HH, status, title: c.title, summary: c.summary ?? null,
+    source_kind: c.source.kind, source_key: c.source.key, source_url: c.source.url, source_title: c.source.title ?? null, channel: c.source.channel ?? null,
+    published_on: c.source.published_on ?? null, duration_seconds: c.source.duration_seconds ?? null,
+    servings: c.servings.value ?? null, servings_origin: c.servings.origin ?? null, servings_basis: c.servings.basis ?? null, servings_suggested: c.servings.suggested ?? null,
+    cuisine: c.tags.cuisine, mains: c.tags.mains, main_details: c.tags.main_details, methods: c.tags.methods, occasions: c.tags.occasions,
+    difficulty: null, difficulty_basis: null, measuring_tool: c.measuring_tool ?? null, measuring_tool_basis: c.measuring_tool_basis ?? [],
+    principles: c.principles ?? [], conflicts: c.conflicts ?? [], glossary: c.glossary ?? [], corrections: c.corrections ?? [], review_items: c.review_items ?? [],
+    review_count: (c.review_items ?? []).length, extraction: c.extraction, memo: null, rating: null, favorite: false, added_at: added, updated_at: added, ...extra,
+  }
+  const ingredients = c.ingredients.map((g, i) => ({
+    id: `${id}-i${i}`, recipe_id: id, household_id: HH, position: i + 1, section: g.section ?? null, name: g.name, amount: g.amount ?? null, unit: g.unit ?? null,
+    amount_text: g.amount_text ?? null, note: g.note ?? null, optional: g.optional ?? false, origin: g.origin, at_seconds: g.at_seconds ?? null,
+    suggested_amount: g.suggested_amount ?? null, suggested_unit: g.suggested_unit ?? null, ingredient_key: keys[g.name] ?? null, needs_review: false,
+  }))
+  const steps = c.steps.map((t, i) => ({
+    id: `${id}-s${i}`, recipe_id: id, household_id: HH, position: i + 1, title: t.title, body: t.body, heat: t.heat ?? null, cue: t.cue ?? null,
+    cue_origin: t.cue_origin ?? null, editor_tip: t.editor_tip ?? null, timer_seconds: t.timer_seconds ?? null, video_start_seconds: t.video_start_seconds ?? null,
+    uses: t.uses ?? [], origin: t.origin, needs_review: false,
+  }))
+  return { row, ingredients, steps }
+}
+const mini = (key, title, tags, ing, steps, extra = {}) => ({
+  contract_version: '2',
+  source: { kind: 'youtube', key: `youtube:${key}`, url: `https://www.youtube.com/watch?v=${key}`, title, channel: '예시 채널', duration_seconds: 420 },
+  title, summary: null, servings: { value: 2, origin: 'description', basis: null, suggested: null },
+  tags: { cuisine: '한식', mains: [], main_details: [], methods: [], occasions: ['반찬'], ...tags },
+  ingredients: ing, measuring_tool: '계량스푼', measuring_tool_basis: [],
+  steps: steps.map(([t, b, more = {}]) => ({ title: t, body: b, origin: 'description', ...more })),
+  principles: [], conflicts: [], glossary: [], corrections: [], review_items: [],
+  extraction: { levels: ['L0'], transcript_kind: 'none', tools: [], extracted_by: 'demo', extracted_at: '2026-11-18T11:10:00+09:00' }, ...extra,
+})
+const gi = (name, amount, unit, more = {}) => ({ name, amount, unit, origin: 'description', optional: false, ...more })
+
+// 기준 답안: 말 4:02(간장), 용어 풀이, 인분은 덧붙임 2인분, 타이머·덧붙임 한 줄을 하나씩 얹는다
+const goldC = structuredClone(GOLD)
+goldC.measuring_tool = '계량스푼'
+goldC.ingredients.find((g) => g.name === '간장').origin = 'asr'
+goldC.ingredients.find((g) => g.name === '간장').at_seconds = 242
+goldC.glossary = [
+  { term: '미림', body: '요리용 단맛 나는 술이에요.', origin: 'editor', at_seconds: null },
+  { term: '핏물', body: '고기에서 나오는 붉은 물이에요.', origin: 'asr', at_seconds: 83 },
+]
+goldC.steps[8] = { ...goldC.steps[8], timer_seconds: 240, cue: goldC.steps[8].cue ?? '국물이 거의 없고 고기에 윤기가 돌 때', cue_origin: 'description' }
+goldC.steps[2] = { ...goldC.steps[2], editor_tip: '고기가 붙으면 약불을 유지하고 젓지 말고 한 번만 뒤집어요.' }
+const gold = recipeRows(goldC, { id: R_GOLD, added: ago(60 * 24 * 3), keys: GOLD_KEYS, extra: {
+  difficulty: '보통', difficulty_basis: { required: 14, steps: 12, heavy: false }, favorite: true, rating: 4, memo: '양념을 한 번에 두 배로 만들어 두면 편해요.',
+} })
+
+const longC = mini('Lng0Egg5Min', LONG_TITLE, { mains: ['달걀', '두부·콩'], main_details: ['순두부'], methods: ['찜'], occasions: ['반찬', '한그릇'] },
+  [gi('순두부', 1, '봉', { amount_text: null }), gi('달걀', 2, '개'), gi('새우젓', 1, '작은술')],
+  [['순두부 풀기', '그릇에 순두부를 담고 숟가락으로 곱게 푼다.'], ['달걀 넣기', '달걀과 새우젓을 넣어 섞는다.'], ['돌리기', '랩을 씌워 전자레인지에 넣는다.', { timer_seconds: 180 }]])
+const long = recipeRows(longC, { id: R_LONG, added: ago(60 * 24 * 2), keys: { 순두부: 'soft_tofu', 달걀: 'egg' }, extra: { difficulty: '쉬움', difficulty_basis: { required: 3, steps: 3, heavy: false } } })
+
+const reviewC = mini('Gul0Nodl3Kk', '들기름 막국수', { mains: ['면'], main_details: ['메밀면'], methods: ['비빔'], occasions: ['한그릇'] },
+  [gi('메밀면', 200, 'g'), gi('들기름', 2, '큰술', { origin: 'caption_auto', at_seconds: 132 }), gi('간장', 1, '큰술'), gi('김가루', null, null, { amount_text: '듬뿍' })],
+  [['면 삶기', '끓는 물에 면을 넣고 삶아 찬물에 헹군다.'], ['비비기', '들기름과 간장을 넣고 비빈다.']],
+  {
+    measuring_tool: '확인 못 함',
+    conflicts: [{ about: '면 삶는 시간', chosen: '4분', chosen_origin: 'description', other: '5분', other_origin: 'caption_auto', video_start_seconds: 95, note: '면 굵기에 따라 달라요' }],
+    review_items: [
+      { target: 'ingredients[1].amount', reason: '자동 자막이 "두 큰술"과 "세 큰술"로 엇갈려요', candidates: [{ value: '2', origin: 'caption_auto', at_seconds: 132 }, { value: '3', origin: 'asr', at_seconds: 210 }] },
+      { target: 'measuring_tool', reason: '큰술이 계량스푼인지 밥숟가락인지 영상에서 알 수 없어요', candidates: [] },
+      { target: 'conflicts[0]', reason: '설명란과 자막의 삶는 시간이 달라요', candidates: [] },
+    ],
+  })
+const review = recipeRows(reviewC, { id: R_REVIEW, status: 'review', added: ago(60 * 5), keys: { 메밀면: 'buckwheat_noodle', 들기름: 'perilla_oil', 간장: 'soy_sauce' }, extra: { difficulty: '쉬움' } })
+
+const stewC = mini('Stw0Doenjang', '두부 듬뿍 된장찌개', { mains: ['두부·콩'], main_details: ['두부'], methods: ['찌개·전골'], occasions: ['국물'] },
+  [gi('된장', 2, '큰술'), gi('두부', 1, '모'), gi('애호박', 0.5, '개')], [['끓이기', '물에 된장을 풀고 재료를 넣어 끓인다.']])
+const stew = recipeRows(stewC, { id: R_STEW, added: ago(60 * 24 * 9), keys: { 된장: 'doenjang', 두부: 'tofu', 애호박: 'zucchini' }, extra: { difficulty: '쉬움' } })
+
+const pastaC = mini('Pst0Cream3Mm', '버섯 크림 파스타', { cuisine: '양식', mains: ['면'], main_details: ['스파게티면'], methods: ['볶음'], occasions: ['손님상'] },
+  [gi('스파게티면', 200, 'g'), gi('양송이버섯', 6, '개'), gi('생크림', 200, 'ml')], [['삶기', '면을 삶는다.'], ['소스', '버섯을 볶고 생크림을 넣는다.']])
+const pasta = recipeRows(pastaC, { id: R_PASTA, added: ago(60 * 24 * 20), keys: { 스파게티면: 'spaghetti', 양송이버섯: 'mushroom', 생크림: 'heavy_cream' }, extra: { difficulty: '보통', favorite: true } })
+
+const ALL_RECIPES = [gold, long, review, stew, pasta]
+const RECIPE_DICT = [
+  ['pork_shoulder', '돼지 앞다리살', ['앞다리살'], '육류'], ['sugar', '설탕', [], '장·양념·소스'], ['oligosaccharide', '올리고당', [], '장·양념·소스'], ['mirin', '미림', ['맛술'], '장·양념·소스'],
+  ['soy_sauce', '간장', ['진간장'], '장·양념·소스'], ['gochugaru', '고춧가루', [], '장·양념·소스'], ['gochujang', '고추장', [], '장·양념·소스'],
+  ['minced_garlic', '다진 마늘', [], '채소'], ['oyster_sauce', '굴소스', [], '장·양념·소스'], ['black_pepper', '후추', [], '허브·향신료'], ['curry_powder', '카레가루', [], '허브·향신료'],
+  ['onion', '양파', [], '채소'], ['green_onion', '대파', ['파'], '채소'], ['perilla_leaf', '깻잎', [], '채소'], ['sesame_oil', '참기름', [], '유지'], ['sesame_seed', '통깨', ['참깨'], '견과·종실'],
+  ['egg', '계란', ['달걀'], '유제품·난류'], ['tofu', '두부', [], '콩·두류'], ['soft_tofu', '순두부', [], '콩·두류'], ['doenjang', '된장', [], '장·양념·소스'], ['zucchini', '애호박', [], '채소'],
+  ['buckwheat_noodle', '메밀면', [], '곡물·전분'], ['perilla_oil', '들기름', [], '유지'], ['spaghetti', '스파게티면', [], '곡물·전분'], ['mushroom', '양송이버섯', [], '버섯'], ['heavy_cream', '생크림', [], '유제품·난류'],
+].map(([id, name, aliases, category]) => ({ id, name, aliases, category }))
+const RECIPE_PANTRY = [
+  ['soy_sauce', 'always'], ['doenjang', 'always'], ['sugar', 'always'], ['sesame_oil', 'always'], ['black_pepper', 'always'], ['sesame_seed', 'always'],
+  ['green_onion', 'have'], ['zucchini', 'have'], ['gochujang', 'have'], ['gochugaru', 'have'], ['soft_tofu', 'have'],
+].map(([k, state]) => ({ household_id: HH, ingredient_key: k, state, source: state === 'have' && k === 'soft_tofu' ? 'grocery' : 'manual', added_by: ME, noted_at: ago(500) }))
+// recipe.cookable과 같은 셈: 사전 키가 있는 필수 재료 need개 중 가진 것(늘 있음·지금 있음) have개
+const cookRow = (r) => {
+  const keys = [...new Set(r.ingredients.filter((g) => g.ingredient_key && !g.optional).map((g) => g.ingredient_key))]
+  const missing = keys.filter((k) => !RECIPE_PANTRY.some((p) => p.ingredient_key === k))
+  return { recipe_id: r.row.id, have: keys.length - missing.length, need: keys.length, missing }
+}
+const RECIPE_INBOX = [
+  { id: 'job-wait', household_id: HH, url: 'https://www.youtube.com/watch?v=Wt0Aaaa1111', source_key: 'youtube:Wt0Aaaa1111', state: 'waiting', stage: null, fail_reason: null, recipe_id: null, attempts: 0, added_at: ago(12) },
+  { id: 'job-run', household_id: HH, url: 'https://www.youtube.com/watch?v=Rn0Bbbb2222', source_key: 'youtube:Rn0Bbbb2222', state: 'processing', stage: '레시피 정리 중', fail_reason: null, recipe_id: null, attempts: 1, added_at: ago(4) },
+  { id: 'job-fail', household_id: HH, url: 'https://www.youtube.com/shorts/Fl0Cccc3333', source_key: 'youtube:Fl0Cccc3333', state: 'failed', stage: null, fail_reason: '자막과 설명란에서 레시피를 찾지 못했어요', recipe_id: null, attempts: 3, added_at: ago(90) },
+  { id: 'job-done', household_id: HH, url: 'https://www.youtube.com/watch?v=AkX6uA4BaDs', source_key: 'youtube:AkX6uA4BaDs', state: 'done', stage: null, fail_reason: null, recipe_id: R_GOLD, attempts: 1, added_at: ago(60 * 24 * 3) },
+]
+/** 장보기에서 최근 산 것(가진 재료 화면의 "장보기에서 산 것 N개를 넣을까요?"). 레시피 장면에서만 grocery.items에 더한다 */
+export const RECIPE_BOUGHT = [['gb1', '양파', 3000], ['gb2', '계란', 2500], ['gb3', '두부', 1500]].map(([id, name, min]) => ({
+  id, household_id: HH, name, spec: null, count: 1, category: '채소', product_key: null, product_id: null, product_qty: null,
+  added_by: ME, added_at: ago(min + 60), bought_by: ME, bought_at: ago(min), paid: null, transaction_id: null,
+}))
+
 /** `${스키마}.${표 또는 rpc/함수}` → 응답 행 */
 export const TABLES = {
+  'recipe.recipes': ALL_RECIPES.map((r) => r.row),
+  'recipe.ingredients': ALL_RECIPES.flatMap((r) => r.ingredients),
+  'recipe.steps': ALL_RECIPES.flatMap((r) => r.steps),
+  'recipe.inbox': RECIPE_INBOX,
+  // 처리기가 20분째 보이지 않는 모습: 12분 기다린 줄에 "맥이 켜지면 처리돼요"가 붙는다
+  'recipe.worker_status': [{ last_seen_at: ago(20), version: 'demo' }],
+  'recipe.pantry': RECIPE_PANTRY,
+  'recipe.ingredient_dict': RECIPE_DICT,
+  'recipe.rpc/cookable': ALL_RECIPES.map(cookRow),
   'public.households': [{ id: HH, name: '우리집', invite_code: 'ABCD2345' }],
   'public.members': [
     { household_id: HH, user_id: ME, display_name: '태완', role: 'owner', spouse_role: 'husband' },

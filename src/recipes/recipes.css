@@ -179,10 +179,10 @@
 .recipes .rcp-cook-ings { display: flex; flex-direction: column; width: 100%; }
 .recipes .rcp-cook-ing { border-top: 1px solid var(--line); }
 .recipes .rcp-cook-ing:first-child { border-top: 0; }
-.recipes .rcp-cook-check { display: flex; align-items: center; gap: 12px; min-height: 56px; padding: 6px 0; font-size: 20px; }
-.recipes .rcp-cook-check input { flex: none; width: 28px; height: 28px; accent-color: var(--primary); }
-.recipes .rcp-cook-ing-name { flex: 1; font-weight: 600; overflow-wrap: anywhere; }
-.recipes .rcp-cook-ing-amt { font-size: 18px; text-align: right; overflow-wrap: anywhere; }
+.recipes .rcp-cook-check { display: grid; grid-template-columns: 28px minmax(0, 1fr); align-items: center; column-gap: 12px; min-height: 56px; padding: 6px 0; font-size: 20px; }
+.recipes .rcp-cook-check input { grid-row: 1 / span 2; width: 28px; height: 28px; margin: 0; accent-color: var(--primary); }
+.recipes .rcp-cook-ing-name { grid-column: 2; font-weight: 600; overflow-wrap: anywhere; }
+.recipes .rcp-cook-ing-amt { grid-column: 2; font-size: 18px; color: var(--ink-2); overflow-wrap: anywhere; }
 .recipes .rcp-cook-all > summary { min-height: 44px; display: flex; align-items: center; font-size: 16px; font-weight: 600; color: var(--ink-2); }
 .recipes .rcp-cook-timer { display: flex; flex-direction: column; gap: 8px; padding: 16px; border-radius: var(--r-md); background: var(--oat); }
 .recipes .rcp-cook-clock { font-size: 48px; font-weight: 700; line-height: 1.1; font-variant-numeric: tabular-nums; }
@@ -194,6 +194,9 @@
 .recipes .rcp-cook-btn:disabled { opacity: 0.4; }
 .recipes .rcp-cook input:focus-visible, .recipes .rcp-cook summary:focus-visible, .recipes .rcp-review .rcp-input:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
 @media (min-width: 720px) {
+  .recipes .rcp-cook-check { grid-template-columns: 28px minmax(0, 1fr) auto; }
+  .recipes .rcp-cook-check input { grid-row: auto; }
+  .recipes .rcp-cook-ing-amt { grid-column: 3; text-align: right; }
   .recipes .rcp-cook-top, .recipes .rcp-cook-body, .recipes .rcp-cook-foot { width: 100%; max-width: 720px; margin: 0 auto; }
 }
 @media (prefers-reduced-motion: reduce) {
@@ -220,3 +223,9 @@
 .recipes .rcp-missing-check input { flex: none; width: 24px; height: 24px; accent-color: var(--primary); }
 .recipes .rcp-missing-name { font-size: 16px; font-weight: 600; overflow-wrap: anywhere; }
 .recipes .rcp-missing-check input:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+
+/* 오트 면 위의 칸(인분)은 흰 바탕으로 떠 보이게 한다 */
+.recipes .rcp-block .rcp-chip:not([aria-pressed="true"]) { background: var(--canvas); border: 1px solid var(--field-border); }
+/* 한 줄을 차지하는 "영상 4:05" 링크: 글자 높이는 그대로 두고 누르는 자리만 44px로 넓힌다 */
+.recipes .rcp-step a.rcp-link, .recipes .rcp-cand a.rcp-origin { position: relative; }
+.recipes .rcp-step a.rcp-link::after, .recipes .rcp-cand a.rcp-origin::after { content: ""; position: absolute; inset: -14px -8px; }

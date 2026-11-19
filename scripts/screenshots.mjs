@@ -10,7 +10,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 import { chromium } from 'playwright'
 import { BILL, EVENT_CAPTURE, EVENT_EXISTING, EVENT_PLACES, EVENT_RANGE, EVENT_RANGE_DAY, EVENT_TEXT, EVENT_TEXT_PASTE, EXPLORE_BUNJANG, EXPLORE_DAANGN, EXPLORE_DAISO, EXPLORE_KURLY, EXPLORE_OHOU, EXPLORE_PRODUCT, EXPLORE_SEARCH, EXPLORE_WEATHER, EXPLORE_WEATHER_NOT_REGISTERED, fakeSession, FUEL_RECEIPT, LONG_RECEIPT, MONTHS_TO_NOV, RECEIPT, RECEIPT_IMAGE, TABLES, USER } from './shell-fixtures.mjs'
 import { EVENT_CANCEL, EVENT_REVISION, EVENT_REVISION_EXISTING } from './shell-fixtures.mjs'
-import { EVENT_PAYMENTS, EVENT_WEEKLY, HOUSEHOLD_TASKS } from './shell-fixtures.mjs'
+import { EVENT_PAYMENTS, EVENT_WEEKLY, HOUSEHOLD_TASKS, RECIPE_BOUGHT } from './shell-fixtures.mjs'
 
 const BASE = process.env.BASE_URL ?? 'http://localhost:5188' // vite.config.ts server.port와 같다
 const OUT = process.env.OUT_DIR ? pathToFileURL(`${process.env.OUT_DIR.replace(/\/$/, '')}/`) : new URL('../screenshots/', import.meta.url)
@@ -172,6 +172,15 @@ const shellShots = [
   ...each((w, c) => ({ name: `shell-recurring-sheet-${w}-${c}`, path: '/', w, c, shell: true, tab: '고정', rcOpen: '자동차 취득세 할부' })),
   ...both(390, (w, c) => ({ name: `shell-recurring-add-${w}-${c}`, path: '/', w, c, shell: true, tab: '고정', rcAdd: '고정지출' })),
   ...both(390, (w, c) => ({ name: `shell-deeplink-grocery-${w}-${c}`, path: '/?tab=grocery', w, c, shell: true })),
+  // 레시피 탭(설계 2026-11-19): 레시피북(처리 줄·거르기·긴 이름), 상세(3인분으로 분수·덧붙임), 확인 화면, 요리 화면, 가진 재료, 모자란 재료 시트. 탭 줄 일곱 칸은 shell-grocery로 본다
+  ...each((w, c) => ({ name: `shell-grocery-${w}-${c}`, path: '/', w, c, shell: true, tab: '장보기' })),
+  ...each((w, c) => ({ name: `shell-recipes-book-${w}-${c}`, path: '/', w, c, shell: true, tab: '레시피', recipes: true, full: true })),
+  ...each((w, c) => ({ name: `shell-recipes-detail-${w}-${c}`, path: '/', w, c, shell: true, tab: '레시피', recipes: true, recipeOpen: '기사식당', recipeServings: 3, full: true })),
+  ...each((w, c) => ({ name: `shell-recipes-review-${w}-${c}`, path: '/', w, c, shell: true, tab: '레시피', recipes: true, recipeReview: true })),
+  ...each((w, c) => ({ name: `shell-recipes-cook-${w}-${c}`, path: '/', w, c, shell: true, tab: '레시피', recipes: true, recipeOpen: '기사식당', recipeServings: 3, recipeCook: 1 })),
+  ...both(390, (w, c) => ({ name: `shell-recipes-cook-timer-${w}-${c}`, path: '/', w, c, shell: true, tab: '레시피', recipes: true, recipeOpen: '기사식당', recipeCook: 8 })),
+  ...each((w, c) => ({ name: `shell-recipes-pantry-${w}-${c}`, path: '/', w, c, shell: true, tab: '레시피', recipes: true, recipePantry: true, full: true })),
+  ...both(390, (w, c) => ({ name: `shell-recipes-missing-${w}-${c}`, path: '/', w, c, shell: true, tab: '레시피', recipes: true, recipeOpen: '기사식당', recipeMissing: true })),
   ...each((w, c) => ({ name: `shell-grocery-market-${w}-${c}`, path: '/', w, c, shell: true, tab: '장보기', market: true })),
   // 영수증 확인 화면의 '장보기 목록에서 찾은 품목'(D-011 길 ①). 가짜 영수증 응답(RECEIPT)
   ...each((w, c) => ({ name: `shell-smart-grocery-${w}-${c}`, path: '/', w, c, shell: true, tab: '내역', receipt: true })),
@@ -343,6 +352,8 @@ async function fakeSupabase(context, s = {}) {
     // noUtility: 고정 탭에 관리비·공과금 항목이 없는 가구(고지서가 '관리비' 항목을 만드는 안내를 본다)
     if (s.noUtility && key === 'public.recurring') rows = rows.filter((r) => r.kind !== 'utility')
     if (s.noNotes && key === 'public.notes') rows = []
+    // 레시피 장면: 장보기에서 최근 산 것(가진 재료 화면의 "산 것 N개를 넣을까요?")과 모자란 재료의 "이미 있음" 줄
+    if (s.recipes && key === 'grocery.items') rows = [...rows, ...RECIPE_BOUGHT]
     if (s.eventCapture && key === 'public.events') rows = EVENT_EXISTING
     if (s.eventRevision && key === 'public.events') rows = EVENT_REVISION_EXISTING
     if (s.eventPlaces && key === 'public.events') rows = EVENT_PLACES
@@ -447,6 +458,34 @@ try {
         else if (!waiting) await page.waitForLoadState('networkidle')
       } else if (s.path === G) {
         await page.getByText('살 것', { exact: true }).waitFor()
+      }
+      // 레시피 탭: 목록이 뜰 때까지 기다린 뒤 장면마다 화면을 연다
+      if (s.recipes) {
+        await page.locator('.recipes .rcp-list').first().waitFor()
+        if (s.recipeReview) {
+          await page.getByRole('button', { name: /^확인 필요 \d+$/ }).click()
+          await page.getByRole('button', { name: '확인 시작' }).click()
+          await page.getByRole('region', { name: '확인' }).waitFor()
+        }
+        if (s.recipeOpen) {
+          await page.locator('.rcp-row', { hasText: s.recipeOpen }).click()
+          await page.getByRole('group', { name: '인분 고르기' }).waitFor()
+          if (s.recipeServings) await page.getByRole('button', { name: `${s.recipeServings}인분`, exact: true }).click()
+        }
+        if (s.recipeMissing) {
+          await page.getByRole('button', { name: '모자란 재료 장보기에 담기' }).click()
+          await page.getByRole('dialog', { name: '모자란 재료' }).waitFor()
+          await page.getByText('이미 있음').first().waitFor()
+        }
+        if (s.recipeCook !== undefined) {
+          await page.getByRole('button', { name: '요리 시작' }).click()
+          await page.getByRole('dialog', { name: '요리' }).waitFor()
+          for (let k = 0; k < s.recipeCook; k++) await page.getByRole('button', { name: '다음', exact: true }).click()
+        }
+        if (s.recipePantry) {
+          await page.getByRole('button', { name: '가진 재료', exact: true }).click()
+          await page.getByRole('region', { name: '장보기에서 산 것' }).waitFor()
+        }
       }
       if (s.wishes) {
         await page.getByRole('group', { name: '장보기 보기' }).getByRole('button', { name: '보관함' }).click()
@@ -835,7 +874,7 @@ try {
           const cs = getComputedStyle(el)
           if (r.width === 0 || cs.visibility === 'hidden' || el.closest('.sr-only')) continue
           // 장보기 규칙(44px)은 장보기 화면 안에서만 잰다. 가계부 화면은 가계부 DESIGN.md 기준이라 여기서 재지 않는다
-          if (!el.closest('.grocery')) continue
+          if (!el.closest('.grocery, .recipes')) continue
           const ext = el.hasAttribute('data-touch-extend') ? getComputedStyle(el, '::before') : null
           const extH = ext ? -parseFloat(ext.top) - parseFloat(ext.bottom) : 0
           const extW = ext ? -parseFloat(ext.left) - parseFloat(ext.right) : 0
@@ -845,6 +884,9 @@ try {
         const text = g ? g.innerText : ''
         if (/(^|[^\d,])0원/.test(text)) out.push('"0원" 있음')
         for (const w of ['AI', '분석 중', '안전함', '문제 없음', ' · ']) if (text.includes(w)) out.push(`금지 문구 "${w}"`)
+        // 레시피 탭: 화면에 AI·분석이라는 말을 쓰지 않는다(요리 화면은 탭 밖 고정 층이지만 .recipes 안에 있다)
+        const rec = document.querySelector('.recipes')
+        if (rec) for (const w of ['AI', '분석']) if (rec.innerText.includes(w)) out.push(`레시피 금지 문구 "${w}"`)
         const box = (sel) => { const e = document.querySelector(sel); if (!e) return null; const r = e.getBoundingClientRect(); const cs = getComputedStyle(e); return cs.display === 'none' || r.height === 0 ? null : r }
         const tab = box('.tabbar')
         for (const sel of ['.grocery .bottom-bar', '.grocery .notice']) {
