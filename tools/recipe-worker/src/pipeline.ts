@@ -11,7 +11,7 @@ import type { WorkerConfig } from './config.ts'
 import { FAIL_FORMAT, JobFailed } from './errors.ts'
 import type { Evidence } from './evidence.ts'
 import { RateLimited } from './loop.ts'
-import { FAIL_VIDEO, STAGE_ORGANIZE, assertVideoId, organize } from './organize.ts'
+import { FAIL_VIDEO, STAGE_ORGANIZE, assertVideoId, oneLine, organize } from './organize.ts'
 import type { DictEntry, RecipeV2 } from './types.ts'
 import { checkRecipe, unitlessReviews } from './verify/rules.ts'
 import { DEFAULT_CAP, STAGE_SECOND, applyAmounts, diffReads, mergeChecks, resolveDiffs, secondRead } from './verify/second.ts'
@@ -64,6 +64,31 @@ function conflictReviews(r: RecipeV2): ReviewItem[] {
       ],
     })
   })
+  return out
+}
+
+/**
+ * 재료의 ingredient_key가 비어 있으면, 사전(기존 + 이번에 새로 낸 항목)에서 이름이나 동의어가
+ * 정확히 같은 항목의 id로 잇는다. 공백만 가다듬어 견주고, 없거나 서로 다른 id가 둘 이상이면 비워 둔다.
+ * 이미 붙은 key는 건드리지 않는다.
+ */
+export function linkIngredientKeys(recipe: RecipeV2, ...dicts: { id: string; name: string; aliases: string[] }[][]): RecipeV2 {
+  const byName = new Map<string, Set<string>>()
+  for (const d of dicts.flat()) {
+    for (const n of [d.name, ...d.aliases]) {
+      const k = oneLine(n)
+      if (!k) continue
+      const ids = byName.get(k) ?? new Set<string>()
+      ids.add(d.id)
+      byName.set(k, ids)
+    }
+  }
+  const out = structuredClone(recipe)
+  for (const g of out.ingredients) {
+    if (g.ingredient_key) continue
+    const ids = byName.get(oneLine(g.name))
+    if (ids?.size === 1) g.ingredient_key = [...ids][0]!
+  }
   return out
 }
 
@@ -128,7 +153,7 @@ export async function processJobDetailed(
   const parsed = parseRecipe(recipe)
   // 검사를 거친 결과가 계약에 맞지 않으면 다시 해도 같다(같은 근거·같은 규칙)
   if (!parsed.ok) throw new JobFailed(FAIL_FORMAT)
-  recipe = parsed.value
+  recipe = linkIngredientKeys(parsed.value, deps.dict, organized.dict)
 
   const slots1 = numberSlots(recipe)
   const total = slots0.filter(Boolean).length

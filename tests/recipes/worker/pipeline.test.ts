@@ -7,7 +7,8 @@ import type { ClaudeRun } from '../../../tools/recipe-worker/src/claude'
 import type { WorkerConfig } from '../../../tools/recipe-worker/src/config'
 import type { Evidence } from '../../../tools/recipe-worker/src/evidence'
 import { RateLimited } from '../../../tools/recipe-worker/src/loop'
-import { cleanCache, processJob } from '../../../tools/recipe-worker/src/pipeline'
+import { cleanCache, linkIngredientKeys, processJob } from '../../../tools/recipe-worker/src/pipeline'
+import type { RecipeV2 } from '../../../tools/recipe-worker/src/types'
 
 let cacheDir = ''
 beforeEach(() => { cacheDir = mkdtempSync(join(tmpdir(), 'rw-pipeline-')) })
@@ -233,5 +234,34 @@ describe('dry-run', () => {
     expect(() => checkOutPath(join(process.cwd(), 'docs', 'r.json'))).toThrow('.recipe-cache')
     expect(() => checkOutPath(join(process.cwd(), '.recipe-cache', 'r.json'))).not.toThrow()
     expect(() => checkOutPath(join(tmpdir(), 'r.json'))).not.toThrow()
+  })
+})
+
+describe('linkIngredientKeys', () => {
+  const rec = (ings: { name: string; ingredient_key?: string | null }[]) => ({ ingredients: ings.map((g) => ({ amount: null, unit: null, origin: 'description', ...g })) }) as unknown as RecipeV2
+  const keys = (r: RecipeV2) => r.ingredients.map((g) => g.ingredient_key ?? null)
+
+  it('빈 사전 + 새 항목으로 잇는다', () => {
+    const r = linkIngredientKeys(rec([{ name: '돼지 앞다리살' }, { name: '다진 마늘' }, { name: '없는재료' }]), [], [
+      { id: 'pork_shoulder', name: '돼지 앞다리살', aliases: [] },
+      { id: 'minced_garlic', name: '다진 마늘', aliases: [] },
+    ])
+    expect(keys(r)).toEqual(['pork_shoulder', 'minced_garlic', null])
+  })
+  it('동의어로 잇고 공백을 가다듬는다', () => {
+    const r = linkIngredientKeys(rec([{ name: ' 앞다리  살 ' }]), [{ id: 'pork_shoulder', name: '돼지 앞다리살', aliases: ['앞다리 살'] }])
+    expect(keys(r)).toEqual(['pork_shoulder'])
+  })
+  it('서로 다른 id가 둘이면 비워 둔다', () => {
+    const r = linkIngredientKeys(rec([{ name: '파' }]), [{ id: 'a', name: '파', aliases: [] }], [{ id: 'b', name: '다른', aliases: ['파'] }])
+    expect(keys(r)).toEqual([null])
+  })
+  it('이미 붙은 key는 그대로 둔다', () => {
+    const r = linkIngredientKeys(rec([{ name: '파', ingredient_key: 'keep_me' }]), [{ id: 'green_onion', name: '파', aliases: [] }])
+    expect(keys(r)).toEqual(['keep_me'])
+  })
+  it('정확히 같을 때만: 파는 대파와 맞지 않는다', () => {
+    const r = linkIngredientKeys(rec([{ name: '파' }]), [], [{ id: 'daepa', name: '대파', aliases: [] }])
+    expect(keys(r)).toEqual([null])
   })
 })
