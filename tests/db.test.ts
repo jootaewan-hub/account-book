@@ -843,6 +843,25 @@ describe('내역과 품목을 함께 저장', () => {
     expect(await as(A, 'select name, amount::int from public.transaction_items where transaction_id = $1 order by name', [tx.id]))
       .toEqual([{ name: '두유', amount: 1000 }, { name: '우유', amount: 4000 }])
   })
+
+  it('사진 지우기 뒤에는 돌려받은 updated_at으로 저장되고, 시트를 열 때의 값은 충돌한다', async () => {
+    const [tx] = await as<{ id: string }>(A, `
+      insert into public.transactions (household_id, type, occurred_on, amount, title, scope)
+      values ($1, 'expense', '2026-11-07', 4000, '마트', 'shared') returning id`, [hhA])
+    const [opened] = await as<{ updated_at: string }>(A, `
+      update public.transactions set receipt_path = $1 || '/r1' where id = $2 returning updated_at::text`, [hhA, tx.id])
+    // PGlite의 now()는 밀리초까지만 잰다. 두 수정이 같은 밀리초에 끝나면 updated_at이 같아 충돌을 잴 수 없으므로 조금 기다린다.
+    await new Promise((r) => setTimeout(r, 5))
+    const [cleared] = await as<{ id: string; updated_at: string }>(A, `
+      update public.transactions set receipt_path = null where receipt_path = $1 || '/r1' returning id, updated_at::text`, [hhA])
+    expect(cleared.id).toBe(tx.id)
+    const save = (updatedAt: string) => as(A, 'select public.edit_transaction_with_items($1, $2, $3, $4, $5, $6)', [
+      tx.id, updatedAt, JSON.stringify({ type: 'expense', occurred_on: '2026-11-07', amount: 5000, title: '마트 수정', scope: 'shared' }), [], '[]', '[]',
+    ])
+    expect(await errorOf(save(opened.updated_at))).toContain('transaction_edit_conflict')
+    await save(cleared.updated_at)
+    expect(await as(A, 'select amount::int from public.transactions where id = $1', [tx.id])).toEqual([{ amount: 5000 }])
+  })
 })
 
 describe('가구 일정·할 일·결제', () => {

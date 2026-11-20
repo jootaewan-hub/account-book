@@ -63,15 +63,19 @@ export async function downloadReceiptImages(paths: string[]): Promise<Blob[]> {
   }))
 }
 
-/** 영수증 사진을 지우고, 같은 폴더를 가리키는 내역 모두의 receipt_path를 비운다(나눠 저장한 내역이 함께 쓴다) */
-export async function removeReceiptImages(folder: string): Promise<void> {
+/**
+ * 영수증 사진을 지우고, 같은 폴더를 가리키는 내역 모두의 receipt_path를 비운다(나눠 저장한 내역이 함께 쓴다).
+ * 돌려주는 값: 바뀐 내역의 새 updated_at. 수정 시트가 이어서 저장할 때 충돌 검사의 기준으로 쓴다
+ */
+export async function removeReceiptImages(folder: string): Promise<{ id: string; updated_at: string }[]> {
   const paths = await listReceiptImages(folder)
   if (paths.length) {
     const { error } = await sb().storage.from(RECEIPT_BUCKET).remove(paths)
     if (error) throw new Error(error.message)
   }
-  const { error } = await sb().from('transactions').update({ receipt_path: null }).eq('receipt_path', folder)
+  const { data, error } = await sb().from('transactions').update({ receipt_path: null }).eq('receipt_path', folder).select('id, updated_at')
   if (error) throw new Error(error.message)
+  return data ?? []
 }
 
 /** 내역을 지운 뒤: 그 폴더를 아직 가리키는 내역이 하나도 없을 때만 사진을 지운다. 실패해도 조용히 넘어간다(사진이 남을 뿐) */

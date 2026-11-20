@@ -31,7 +31,12 @@ function fakeTable(table: string) {
   return {
     update: (patch: unknown) => ({
       in: async (col: string, ids: string[]) => { log('update.in', patch, col, ids); return { error: state.updateError ? { message: state.updateError } : null } },
-      eq: async (col: string, v: string) => { log('update.eq', patch, col, v); return { error: state.updateError ? { message: state.updateError } : null } },
+      eq: (col: string, v: string) => ({
+        select: async (cols: string) => {
+          log('update.eq', patch, col, v, cols)
+          return state.updateError ? { data: null, error: { message: state.updateError } } : { data: [{ id: 't1', updated_at: 'v2' }], error: null }
+        },
+      }),
     }),
     select: (cols: string) => ({
       eq: (col: string, v: string) => ({
@@ -115,9 +120,11 @@ describe('보기·내려받기', () => {
 describe('지우기', () => {
   it('사진 지우기: 폴더 파일을 지우고 같은 폴더를 가리키는 내역 모두의 receipt_path를 비운다', async () => {
     state.files.set('hh/t1', ['1.jpg', '2.jpg'])
-    await removeReceiptImages('hh/t1')
+    const rows = await removeReceiptImages('hh/t1')
     expect(ops('receipt-images.remove')).toEqual([['receipt-images.remove', ['hh/t1/1.jpg', 'hh/t1/2.jpg']]])
-    expect(ops('transactions.update.eq')).toEqual([['transactions.update.eq', { receipt_path: null }, 'receipt_path', 'hh/t1']])
+    expect(ops('transactions.update.eq')).toEqual([['transactions.update.eq', { receipt_path: null }, 'receipt_path', 'hh/t1', 'id, updated_at']])
+    // 수정 시트가 다음 저장의 충돌 검사에 쓸 새 updated_at
+    expect(rows).toEqual([{ id: 't1', updated_at: 'v2' }])
   })
 
   it('내역을 지운 뒤: 아직 그 폴더를 가리키는 내역이 있으면 두고, 없을 때만 지운다. 같은 폴더는 한 번만 본다', async () => {
