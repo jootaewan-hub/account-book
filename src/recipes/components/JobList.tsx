@@ -3,6 +3,7 @@
 // 사본(드라이브·옵시디언)을 쓰지 못하고 있으면 한 줄로 알린다(처리기가 보낸 정해 둔 까닭과 확인 시각).
 import type { InboxJob, WorkerStatus } from '../lib/store'
 import { minutesAgo, shortSource } from '../lib/display'
+import { JobProgress } from './JobProgress'
 
 const WAIT_NOTICE_MS = 2 * 60_000
 /** 처리기는 5분마다 알린다. 그 두 배를 넘겨 끊겼을 때만 꺼진 것으로 본다(알림 바로 전에 깜빡이지 않게) */
@@ -33,7 +34,7 @@ export function JobList({ jobs, worker, now, onRetry, onDismiss }: {
             {open.map((j) => (
               <li key={j.id} className="rcp-job">
                 <p className="rcp-job-src">{shortSource(j.source_key, j.url)}</p>
-                {j.state === 'processing' && <p className="rcp-job-state">{j.stage ?? '처리 중'}</p>}
+                {j.state === 'processing' && <JobProgress stage={j.stage} claimedAt={j.claimed_at ?? null} />}
                 {j.state === 'waiting' && <p className="rcp-job-state">대기 중</p>}
                 {j.state === 'failed' && (
                   <>

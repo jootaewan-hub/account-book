@@ -27,6 +27,8 @@ export type RecipeSummary = {
 export type InboxJob = {
   id: string; url: string; source_key: string; state: 'waiting' | 'processing' | 'done' | 'failed'
   stage: string | null; fail_reason: string | null; recipe_id: string | null; attempts: number; added_at: string
+  /** 처리기가 가져간 시각(처리 중일 때 걸린 시간 표시용) */
+  claimed_at?: string | null
 }
 /** 처리기 상태. export_issue는 사본(드라이브·옵시디언)을 쓰지 못한 까닭(정해 둔 말), export_checked_at은 마지막으로 써 본 시각 */
 export type WorkerStatus = { last_seen_at: string | null; version: string | null; export_issue?: ExportIssue | null; export_checked_at?: string | null }
@@ -287,7 +289,7 @@ export function createRecipeStore(client: SupabaseClient, householdId: string, u
     },
     async listInbox() {
       // 치운 실패 일은 빼고 읽는다
-      return checked(await r().from('inbox').select('id,url,source_key,state,stage,fail_reason,recipe_id,attempts,added_at')
+      return checked(await r().from('inbox').select('id,url,source_key,state,stage,fail_reason,recipe_id,attempts,added_at,claimed_at')
         .eq('household_id', householdId).is('dismissed_at', null).order('added_at', { ascending: false }).limit(100)) as InboxJob[]
     },
     async workerStatus() {
