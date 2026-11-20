@@ -3,7 +3,6 @@ import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRe
 import { CalendarView } from './components/CalendarView'
 import { EntrySheet } from './components/EntrySheet'
 import { ErrorBoundary } from './components/ErrorBoundary'
-import { HouseholdTasks } from './components/HouseholdTasks'
 import { CalendarIcon, CartIcon, ChartIcon, ChevronLeft, ChevronRight, CookingPotIcon, GearIcon, HouseIcon, ListIcon, NoteIcon, Plus, RepeatIcon, SearchIcon } from './components/Icons'
 import { ListView, type ListFocus } from './components/ListView'
 import { BootScreen, ScreenWait } from './components/Loading'
@@ -202,7 +201,6 @@ function Ledger({ household, meta, userId, email }: {
   // 고정지출 예정분(D-030)에 쓰는 반복 항목. 고정 탭에서 다른 탭으로 올 때마다 다시 읽어 고친 것이 바로 보인다
   const recurring = useRecurringList(household.id, tab === 'cal' || tab === 'list' || tab === 'stats')
   const [plan, setPlan] = useState<PlanTarget | null>(null)
-  const [taskOpen, setTaskOpen] = useState(false)
   // 캡처로 일정 넣기(D-039). 처음 열 때 불러오고, 닫히는 움직임을 위해 그 뒤로는 남겨 둔다
   const [capture, setCapture] = useState({ open: false, mounted: false })
   const openCapture = () => setCapture({ open: true, mounted: true })
@@ -404,8 +402,6 @@ function Ledger({ household, meta, userId, email }: {
           <Screen name="달력">
             <CalendarView ym={ym} today={today} sel={sel} cur={curAll} prev={prevAll} loading={txLoading} lookup={lookup} annivs={meta.anniversaries} events={events}
               onSelect={setSel} onPlan={setPlan} onCapture={openCapture} onQuickAdd={quickAddEvent} onJump={(d) => { setYm(d.slice(0, 7)); setSel(d) }} onEdit={editTx}
-              onAddTask={() => setTaskOpen(true)} tasks={<HouseholdTasks householdId={household.id} members={meta.members} today={today} selected={sel}
-                adding={taskOpen} onAdd={() => setTaskOpen(true)} onCloseAdd={() => setTaskOpen(false)} />}
               notes={<NotesCard rows={notes.rows} error={notes.error} onOpenAll={() => openAside('notes')}
                 onOpen={(note) => setNoteTarget({ note })} onNew={() => setNoteTarget({ note: null })} onRetry={() => void notes.reload()} />} />
           </Screen>
@@ -477,10 +473,10 @@ function Ledger({ household, meta, userId, email }: {
           {showRecord && <button className="primary side-record" onClick={openRecord}><Plus />기록하기</button>}
           <button className="tab" aria-current={tab === 'cal' ? 'page' : undefined} onClick={() => setTab('cal')}><CalendarIcon on={tab === 'cal'} />달력</button>
           <button className="tab" aria-current={tab === 'list' ? 'page' : undefined} onClick={() => openList()}><ListIcon on={tab === 'list'} />내역</button>
-          <button className="tab" aria-current={tab === 'grocery' ? 'page' : undefined} onClick={() => setTab('grocery')}><CartIcon on={tab === 'grocery'} />장보기</button>
-          <button className="tab" aria-current={tab === 'recipes' ? 'page' : undefined} onClick={() => setTab('recipes')}><CookingPotIcon on={tab === 'recipes'} />레시피</button>
           <button className="tab" aria-current={tab === 'stats' ? 'page' : undefined} onClick={() => setTab('stats')}><ChartIcon on={tab === 'stats'} />통계</button>
           <button className="tab" aria-current={tab === 'fixed' ? 'page' : undefined} onClick={() => setTab('fixed')}><RepeatIcon on={tab === 'fixed'} />고정</button>
+          <button className="tab" aria-current={tab === 'grocery' ? 'page' : undefined} onClick={() => setTab('grocery')}><CartIcon on={tab === 'grocery'} />장보기</button>
+          <button className="tab" aria-current={tab === 'recipes' ? 'page' : undefined} onClick={() => setTab('recipes')}><CookingPotIcon on={tab === 'recipes'} />레시피</button>
           <button className="tab" aria-current={tab === 'explore' ? 'page' : undefined} onClick={() => setTab('explore')}><SearchIcon on={tab === 'explore'} />알아보기</button>
           {/* 넓은 화면에서만 보인다. 휴대폰은 달력 화면의 함께 기억할 것 묶음과 위쪽 톱니 버튼을 쓴다 */}
           <button className="tab side-notes" aria-current={tab === 'notes' ? 'page' : undefined} onClick={() => openAside('notes')}><NoteIcon on={tab === 'notes'} />기억할 것</button>

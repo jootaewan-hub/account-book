@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 // 달력 칸의 기념일·일정 이름: 칸마다 두 개까지(기념일 먼저), 넘치면 +N. 화면 읽기는 칸의 aria-label이 맡는다
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { CalendarView } from '../../src/components/CalendarView'
 import { makeLookup } from '../../src/lib/lookup'
@@ -54,14 +54,14 @@ it('다가오는 일정·기념일은 30일 안의 것을 줄 맞춘 목록으�
   expect(document.querySelector('.day-plan .ag-row')?.textContent).toBe('회식남편19:00')
 })
 
-it('차례(D-055): 남은 돈·달력 → 고른 날(일정 줄·넣기 칸·내역) → 다가오는 일정·기억할 것', () => {
+it('차례: 남은 돈·달력 → 고른 날(내역 → 일정 줄·넣기 칸) → 다가오는 일정·기억할 것', () => {
   const { container } = render(<CalendarView ym="2026-11" today="2026-11-02" sel="2026-11-05" cur={[]} prev={[]} lookup={makeLookup('u1', [], [], [])}
     annivs={[anniv]} events={[ev('e2', '회식', '2026-11-05', '19:00')]} notes={<div className="remember-card" />}
     onSelect={() => {}} onPlan={() => {}} onQuickAdd={async () => true} onJump={() => {}} onEdit={() => {}} />)
   expect([...container.querySelector('.cal-view')!.children].map((e) => e.className)).toEqual(['cal-top', 'day-group', 'cal-more'])
   expect([...container.querySelector('.cal-top')!.children].map((e) => e.className)).toEqual(['hero', 'card cal-card'])
-  // 고른 날: 머리 줄, 일정 줄과 넣기 칸이 한 면에, 그 아래 내역
-  expect([...container.querySelector('.day-group')!.children].map((e) => e.className)).toEqual(['day-head', 'card day-plan', 'cal-day-transactions'])
+  // 고른 날: 머리 줄, 그날 내역, 그 아래 일정 줄과 넣기 칸(2026-11-20 사용자 요청으로 내역을 먼저)
+  expect([...container.querySelector('.day-group')!.children].map((e) => e.className)).toEqual(['day-head', 'cal-day-transactions', 'card day-plan'])
   expect([...container.querySelector('.day-plan')!.children].map((e) => e.className)).toEqual(['ag-list', 'day-new'])
   expect([...container.querySelector('.cal-more')!.children].map((e) => e.className)).toEqual(['card soon-card', 'remember-card'])
 })
@@ -133,4 +133,26 @@ it('고른 날의 넣기 칸: 이름을 적고 넣기를 누르면 바로 넣고
   fireEvent.click(screen.getByRole('button', { name: '넣기' }))
   await vi.waitFor(() => expect(input.value).toBe(''))
   expect(onQuickAdd).toHaveBeenCalledWith('치과 예약')
+})
+
+it('일정 넣기 칸은 스크롤로 화면 위로 지나가면 작은 "일정 넣기" 줄로 접히고, 누르면 다시 펼쳐진다', async () => {
+  let fire: ((top: number) => void) | null = null
+  const IO = vi.fn(function (this: unknown, cb: IntersectionObserverCallback) {
+    fire = (top) => cb([{ isIntersecting: false, boundingClientRect: { top } } as unknown as IntersectionObserverEntry], this as IntersectionObserver)
+    return { observe: () => {}, disconnect: () => {} }
+  })
+  vi.stubGlobal('IntersectionObserver', IO)
+  try {
+    render(<CalendarView ym="2026-11" today="2026-11-02" sel="2026-11-05" cur={[]} prev={[]} lookup={makeLookup('u1', [], [], [])}
+      annivs={[]} events={[]} onSelect={() => {}} onPlan={() => {}} onQuickAdd={async () => true} onJump={() => {}} onEdit={() => {}} />)
+    expect(screen.getByPlaceholderText('새 일정 (예: 치과 예약)')).toBeTruthy()
+    act(() => fire!(500))
+    expect(screen.getByPlaceholderText('새 일정 (예: 치과 예약)')).toBeTruthy()
+    act(() => fire!(-200))
+    expect(screen.queryByPlaceholderText('새 일정 (예: 치과 예약)')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: '11월 5일에 일정 넣기' }))
+    expect(screen.getByPlaceholderText('새 일정 (예: 치과 예약)')).toBeTruthy()
+  } finally {
+    vi.unstubAllGlobals()
+  }
 })

@@ -210,17 +210,24 @@ main.wrap { padding-block: 4px calc(150px + var(--record-dock-h) + env(safe-area
 .day-plan { display: flex; flex-direction: column; margin: 6px 0 10px; padding: 4px 14px 14px; }
 .day-plan > .day-new:first-child { padding-top: 10px; }
 .day-plan .ag-list + .day-new { border-top: 1px solid var(--oat-deep); padding-top: 12px; }
-.day-new { display: flex; flex-direction: column; gap: 8px; }
+.day-new { display: flex; flex-direction: column; gap: 2px; }
 .day-new-form { display: flex; flex-direction: column; gap: 6px; }
 .day-new-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; }
-.day-new-row .primary { width: auto; min-height: 46px; padding: 10px 18px; }
+.day-new-row .input { min-height: 44px; padding: 8px 12px; font-size: 15px; }
+.day-new-row .primary { width: auto; min-height: 44px; padding: 8px 16px; }
 .day-new-row .input.bad, .plan-form .input.bad { border-color: var(--clay); }
 .day-new .err { font-size: 13px; }
-.day-adds { display: grid; grid-template-columns: repeat(auto-fit, minmax(0, 1fr)); gap: 8px; }
-.day-adds .ghost { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-width: 0; padding: 10px 8px; }
-.day-adds .ghost svg { width: 16px; height: 16px; flex: none; }
-.day-adds:has(.day-task-button) { grid-template-columns: repeat(2, minmax(0, 1fr)) auto; }
-.day-adds .day-task-button { white-space: nowrap; }
+/* 보조 넣기는 큰 버튼 대신 작은 글자 단추 한 줄(누르는 자리는 44px) */
+.day-adds { display: flex; flex-wrap: wrap; gap: 0 4px; }
+.day-new-link, .day-new-open {
+  display: inline-flex; align-items: center; gap: 4px; min-height: 44px; padding: 0 8px; border: 0; background: none;
+  font-size: 14px; font-weight: 600; color: var(--sage-ink);
+}
+.day-new-link svg, .day-new-open svg { width: 15px; height: 15px; flex: none; }
+.day-new-link:first-child, .day-new-open { margin-left: -8px; }
+/* 스크롤로 지나가 접힌 넣기 줄 */
+.day-new-min { flex-direction: row; align-items: center; justify-content: space-between; gap: 4px; }
+.day-new-min .day-new-open { font-size: 15px; font-weight: 700; }
 .household-tasks-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 44px; }
 .household-tasks-head .section-title { margin: 0; }
 .household-task-list { list-style: none; margin: 0; padding: 0; }

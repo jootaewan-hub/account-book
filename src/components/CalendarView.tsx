@@ -1,4 +1,4 @@
-import { useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import ledgerPhoto from '../assets/monthly-ledger.webp'
 import { annivIconOf, anniversariesInMonth, dLabel, repeatLabel, upcomingAnniversaries } from '../lib/anniversaries'
 import { DOW, dayOf, formatDateLong, monthGrid, monthRange, parseYM } from '../lib/dates'
@@ -36,8 +36,6 @@ interface Props {
   onPlan: (t: PlanTarget) => void
   /** 캡처로 일정 넣기 시트를 연다(D-039) */
   onCapture?: () => void
-  onAddTask?: () => void
-  tasks?: ReactNode
   /** 고른 날에 이름만 적어 하루 종일 일정을 바로 넣는다(D-054). 넣었으면 true. 없으면 입력 칸을 보이지 않는다 */
   onQuickAdd?: (title: string) => Promise<boolean>
   /** 다른 달의 날짜로 옮겨 가서 고른다 (다가오는 기념일) */
@@ -51,7 +49,7 @@ interface Props {
 /** 달력 칸 하나에 보일 기념일·일정 이름 수(넘치면 +N) */
 const MAX_LABELS = 2
 
-export function CalendarView({ ym, today, sel, cur, prev, loading = false, lookup, annivs, events, onSelect, onPlan, onCapture, onAddTask, tasks, onQuickAdd, onJump, onEdit, notes }: Props) {
+export function CalendarView({ ym, today, sel, cur, prev, loading = false, lookup, annivs, events, onSelect, onPlan, onCapture, onQuickAdd, onJump, onEdit, notes }: Props) {
   // 고정지출 예정분(D-030)은 쓴 돈·남은 돈에 넣되(이미 정해진 지출), 칸에서는 점선 금액으로 따로 보인다
   const totals = useMemo(() => dailyTotals(cur.filter((t) => !t.planned)), [cur])
   const planned = useMemo(() => cur.filter((t) => t.planned), [cur])
@@ -205,6 +203,13 @@ export function CalendarView({ ym, today, sel, cur, prev, loading = false, looku
               {dp > 0 && <span className="plan">{won(dp)}원 나갈 예정</span>}
             </div>
           </div>
+          <div className="cal-day-transactions">
+            <div className="cal-day-section"><h3>이날 내역</h3>{!loading && <span className="num">{dayTx.length}건</span>}</div>
+            <div className="tx-list">
+              {dayTx.map((t) => <TxRow key={t.id} t={t} lookup={lookup} onClick={() => onEdit(t)} />)}
+              {!dayTx.length && (loading ? <RowsWait rows={2} /> : <div className="empty">이날 기록이 없어요.</div>)}
+            </div>
+          </div>
           {/* 그날의 기념일·일정 줄과 넣기 칸을 한 면에(D-055). 줄마다 색 면을 두지 않고 줄 맞춘 목록으로 */}
           <div className="card day-plan">
             {(dayAnniv.length > 0 || dayEvents.length > 0) && (
@@ -231,21 +236,13 @@ export function CalendarView({ ym, today, sel, cur, prev, loading = false, looku
                 })}
               </ul>
             )}
-            <DayNew key={sel} label={`${m}월 ${dayOf(sel)}일에 일정 넣기`} onQuickAdd={onQuickAdd} onCapture={onCapture} onAddTask={onAddTask}
+            <DayNew key={sel} label={`${m}월 ${dayOf(sel)}일에 일정 넣기`} onQuickAdd={onQuickAdd} onCapture={onCapture}
               onDetail={(title) => onPlan({ kind: 'new', date: sel, title })} />
-          </div>
-          <div className="cal-day-transactions">
-            <div className="cal-day-section"><h3>이날 내역</h3>{!loading && <span className="num">{dayTx.length}건</span>}</div>
-            <div className="tx-list">
-              {dayTx.map((t) => <TxRow key={t.id} t={t} lookup={lookup} onClick={() => onEdit(t)} />)}
-              {!dayTx.length && (loading ? <RowsWait rows={2} /> : <div className="empty">이날 기록이 없어요.</div>)}
-            </div>
           </div>
         </div>
       )}
 
       <div className="cal-more">
-        {tasks}
         {soon.length > 0 && (
           <SoonList label="다가오는 일정·기념일" items={soon.map((u) => (
             <AgendaRow key={u.key} name={u.name} event={u.event} scope={u.scope} onClick={() => { setJumpTarget({ date: u.date }); onJump(u.date) }}
@@ -301,18 +298,34 @@ function AgendaRow({ icon, name, event, scope, meta, trail, onClick, children }:
  * 고른 날의 일정 넣기 칸(D-054, D-055에 일정 줄과 같은 면 안으로): 흰 입력칸 + 먹색 "넣기", 그 아래 흰 보조 버튼 둘.
  * 이름만 적어 넣으면 하루 종일 일정으로 바로 들어가고, 시간·기간·중요도·기념일은 "자세히 넣기" 시트에서 정한다(적던 이름은 가져간다)
  */
-function DayNew({ label, onQuickAdd, onDetail, onCapture, onAddTask }: {
+function DayNew({ label, onQuickAdd, onDetail, onCapture }: {
   /** 입력칸의 읽기 이름("11월 5일에 일정 넣기") */
   label: string
   onQuickAdd?: (title: string) => Promise<boolean>
   onDetail: (title?: string) => void
   onCapture?: () => void
-  onAddTask?: () => void
 }) {
   const [title, setTitle] = useState('')
   const [busy, setBusy] = useState(false)
   const [miss, setMiss] = useState(false)
+  // 처음에는 펼쳐 두고, 스크롤로 이 칸이 화면 위로 지나가면(적던 글이 없을 때) 작은 "일정 넣기" 줄로 접는다. 누르면 다시 편다
+  const [open, setOpen] = useState(true)
+  const box = useRef<HTMLDivElement>(null)
   const input = useRef<HTMLInputElement>(null)
+  const titleRef = useRef('')
+  useEffect(() => { titleRef.current = title }, [title])
+
+  useEffect(() => {
+    const el = box.current
+    if (!el || typeof IntersectionObserver === 'undefined') return
+    const io = new IntersectionObserver(([en]) => {
+      if (!en || en.isIntersecting) return
+      // 화면 위쪽으로 지나갔을 때만(아래에 있어 아직 안 보이는 것은 그대로)
+      if (en.boundingClientRect.top < 0 && !titleRef.current.trim() && document.activeElement !== input.current) setOpen(false)
+    })
+    io.observe(el)
+    return () => io.disconnect()
+  }, [])
 
   async function add() {
     const name = title.trim()
@@ -322,8 +335,22 @@ function DayNew({ label, onQuickAdd, onDetail, onCapture, onAddTask }: {
     try { if (await onQuickAdd(name)) setTitle('') } finally { setBusy(false) }
   }
 
+  function expand() {
+    setOpen(true)
+    requestAnimationFrame(() => input.current?.focus())
+  }
+
+  if (!open) {
+    return (
+      <div className="day-new day-new-min" ref={box}>
+        <button type="button" className="day-new-open" onClick={expand} aria-label={label}><Plus />일정 넣기</button>
+        {onCapture && <button type="button" className="day-new-link" onClick={onCapture}><CameraIcon />캡처·문자로</button>}
+      </div>
+    )
+  }
+
   return (
-    <div className="day-new">
+    <div className="day-new" ref={box}>
       {onQuickAdd && (
         <form className="day-new-form" onSubmit={(e) => { e.preventDefault(); void add() }}>
           <div className="day-new-row">
@@ -336,9 +363,8 @@ function DayNew({ label, onQuickAdd, onDetail, onCapture, onAddTask }: {
         </form>
       )}
       <div className="day-adds" role="group" aria-label={onQuickAdd ? undefined : label}>
-        <button type="button" className="ghost" onClick={() => onDetail(title.trim() || undefined)}><Plus />자세히 넣기</button>
-        {onCapture && <button type="button" className="ghost" onClick={onCapture}><CameraIcon />캡처·문자로 넣기</button>}
-        {onAddTask && <button type="button" className="ghost day-task-button" onClick={onAddTask}><Plus />할 일</button>}
+        <button type="button" className="day-new-link" onClick={() => onDetail(title.trim() || undefined)}><Plus />자세히 넣기</button>
+        {onCapture && <button type="button" className="day-new-link" onClick={onCapture}><CameraIcon />캡처·문자로 넣기</button>}
       </div>
     </div>
   )
