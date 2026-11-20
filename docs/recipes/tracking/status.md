@@ -4,7 +4,7 @@
 
 ## 지금 단계
 
-- **코드 끝, 병합 전.** 브랜치 `claude/recipes-docs`에 있다. main에는 없다. 네 조각(DB와 마이그레이션 다섯, 서버 함수 `recipe-worker`, 맥 처리기 `tools/recipe-worker/`, 앱 '레시피' 탭)과 문서가 들어 있다. 로컬에서 `npm test`·타입 검사·린트·빌드가 통과한다. 화면은 390·1280px, 라이트·다크로 캡처해 확인했다.
+- **배포함(v2.35.0, 2026-11-20).** 공유 DB에 레시피 마이그레이션 다섯 적용(넷은 MCP, `20261122040000_recipe_import_fn.sql`은 사용자가 SQL 편집기로), Data API 노출 스키마에 `recipe`, 서버 함수 `recipe-worker` v1(커밋 고정 stub `e379d5c`, `verify_jwt=false`, 비밀 `RECIPE_WORKER_SECRET`), 구글 OAuth 앱(프로덕션 게시, 처리방침 `docs/privacy.md`), 맥 처리기 설치·launchd 실행(`local.recipe-worker`). 기준 영상(집·회사 인터넷)과 쇼츠 하나로 끝까지 확인했다. 실제 실행에서 찾은 '새 사전 항목이 재료에 이어지지 않음'은 `7530a3a`에서 고쳤다.
 - **마지막 전체 검토의 고침(2026-11-19 밤)을 넣었다.** 확인 후보·고친 곳의 값 꼴을 `_shared/recipeValue.ts` 하나로 맞추고(C1), 되돌리기는 출처 `user`·시각 없음(I1), 다시 해도 같은 실패는 바로 실패로(I3), `claude -p` 격리(I4), 레시피북에 있는 레시피는 다시 등록하지 않음(I5), 모델의 후보·다른 곳은 근거로(I6), 사본 상태를 앱에 한 줄로(I7), `cookable` 중복 셈(I8), Task 14의 사용량 기록(R1)·긴 영상 고르게 보기(R2)·단위 없는 분량(R3)·계량 도구 근거(M9). 처리기 출력 → 등록 → 앱의 확인·되돌리기를 끝에서 끝까지 시험한다(`tests/recipes/roundTrip.test.ts`). 고친 뒤 화면 캡처는 병합하며 다시 한다.
 - 공유 DB, 배포된 서버 함수, 이 맥의 설치 상태는 아직 아무것도 바꾸지 않았다. 마이그레이션은 적용 전이고, 처리기는 설치 전이다.
 - 설계 문서: `docs/superpowers/specs/2026-11-19-recipes-design.md`. 구현 계획: `docs/superpowers/plans/2026-11-19-recipes.md`.
