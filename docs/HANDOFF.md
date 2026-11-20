@@ -7,7 +7,7 @@
 
 ## 레시피 탭 작업 상태 (2026-11-20, v2.35.0으로 배포)
 
-- 배포: main v2.35.0. 서버 함수 `recipe-worker` v1은 커밋 고정 stub `e379d5c3e942ea68d3e6b394e342614da8f29a8d`. 맥 처리기는 `install.sh 7530a3a`로 설치, launchd `local.recipe-worker`. 구글 OAuth 앱은 프로덕션 게시, 처리방침 주소는 지금 브랜치 주소라 main 주소(`blob/main/docs/privacy.md`)로 바꿔 둘 것.
+- 배포: main v2.35.0. 서버 함수 `recipe-worker` v1은 커밋 고정 stub `e379d5c3e942ea68d3e6b394e342614da8f29a8d`. 맥 처리기는 `install.sh 7530a3a`로 설치, launchd `local.recipe-worker`. 구글 OAuth 앱은 프로덕션 게시, 처리방침 주소는 `blob/main/docs/privacy.md`(2026-11-20 바꿈).
 
 아래 탭의 일곱째 '레시피' 탭(유튜브 영상·쇼츠 주소 → 맥 처리기가 읽어 레시피로 정리)을 만들었다. 코드는 다 됐고 **main에는 아직 없다.** 공유 DB, 배포된 서버 함수, 이 맥의 설치 상태도 바꾸지 않았다.
 
