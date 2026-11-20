@@ -17,6 +17,17 @@ import { ServingsPicker } from './ServingsPicker'
 
 const TIMED: readonly string[] = ['caption_manual', 'caption_auto', 'asr', 'screen']
 
+/** "원래 2큰술 → 3큰술"은 새 값을 크게, 원래 값을 그 아래 작게 보인다(글자 순서는 그대로라 읽는 순서도 같다) */
+function AmountText({ text }: { text: string | null }) {
+  const m = text?.match(/^원래 (.+?) → (.+)$/)
+  if (!m) return <>{text}</>
+  return (
+    <span className="rcp-amt-scaled">
+      <span className="rcp-amt-orig">원래 {m[1]}</span><span className="rcp-amt-arrow"> → </span><span className="rcp-amt-new">{m[2]}</span>
+    </span>
+  )
+}
+
 /** 값이 어디서 왔는지. 영상 시각이 있으면 그 장면을 여는 링크, 덧붙임은 따로 표시 */
 function Mark({ origin, at, url }: { origin: Origin; at: number | null | undefined; url: string | null }) {
   if (origin === 'editor') return <span className="rcp-edit-mark">덧붙임</span>
@@ -169,25 +180,33 @@ export function RecipeDetail({ store, recipeId, title, onBack, onMissing, initia
                 return (
                   <li key={i} className="rcp-ing">
                     {sect && <p className="rcp-sect">{sect}</p>}
-                    <div className="rcp-ing-main">
-                      <span className="rcp-ing-name">
-                        <GlossaryText blockId={`i${i}n`} text={g.name} />{g.optional ? <span className="rcp-meta"> (선택)</span> : null}
+                    <div className="rcp-ing-row">
+                      <span className="rcp-ing-check">
+                        {key && (
+                          <button type="button" className="rcp-have" aria-pressed={state !== undefined} disabled={state === 'always'}
+                            aria-label={`${g.name} ${state === 'always' ? '항상 있음' : '있음'}`}
+                            onClick={() => void run(() => store.setPantry(key, state ? null : 'have'))}>
+                            <span className="rcp-have-box" aria-hidden="true" />
+                          </button>
+                        )}
                       </span>
-                      <span className="rcp-ing-amt">
-                        {a.main}
-                        {a.suggested && <span className="rcp-edit"> {a.main ? '(' : ''}<span className="rcp-edit-mark">덧붙임</span> {a.suggested}{a.main ? ')' : ''}</span>}
-                      </span>
+                      <div className="rcp-ing-body">
+                        <div className="rcp-ing-main">
+                          <span className="rcp-ing-name">
+                            <GlossaryText blockId={`i${i}n`} text={g.name} />{g.optional ? <span className="rcp-meta"> (선택)</span> : null}
+                          </span>
+                          <span className="rcp-ing-amt">
+                            <AmountText text={a.main} />
+                            {a.suggested && <span className="rcp-edit"> {a.main ? '(' : ''}<span className="rcp-edit-mark">덧붙임</span> {a.suggested}{a.main ? ')' : ''}</span>}
+                          </span>
+                        </div>
+                        <p className="rcp-meta rcp-ing-meta">
+                          <Mark origin={g.origin} at={g.at_seconds} url={url} />
+                          {state === 'always' && <span> · 항상 있음</span>}
+                          {g.note && <span> · <GlossaryText blockId={`i${i}t`} text={g.note} /></span>}
+                        </p>
+                      </div>
                     </div>
-                    {g.note && <p className="rcp-meta"><GlossaryText blockId={`i${i}t`} text={g.note} /></p>}
-                    <p className="rcp-meta">
-                      <Mark origin={g.origin} at={g.at_seconds} url={url} />
-                      {key && (
-                        <button type="button" className="rcp-have" aria-pressed={state !== undefined} disabled={state === 'always'}
-                          aria-label={`${g.name} 있음`} onClick={() => void run(() => store.setPantry(key, state ? null : 'have'))}>
-                          <span className="rcp-have-box" aria-hidden="true" />{state === 'always' ? '항상 있음' : '있음'}
-                        </button>
-                      )}
-                    </p>
                   </li>
                 )
               })}
